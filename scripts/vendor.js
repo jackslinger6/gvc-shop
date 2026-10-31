@@ -4,3 +4,6 @@ const src=require.resolve('@supabase/supabase-js/dist/umd/supabase.js');
 fs.mkdirSync(path.join(__dirname,'..','www','vendor'),{recursive:true});
 fs.copyFileSync(src,path.join(__dirname,'..','www','vendor','supabase.js'));
 console.log('vendored',src);
+const cap=require.resolve('@capacitor/core/dist/capacitor.js');
+fs.copyFileSync(cap,path.join(__dirname,'..','www','vendor','capacitor.js'));
+console.log('vendored',cap);

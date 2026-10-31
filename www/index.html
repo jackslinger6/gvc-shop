@@ -10,6 +10,7 @@ function __showErr(m){ try{ window.__errs.push(m); var d=document.getElementById
 window.addEventListener("error",function(e){ __showErr((e.message||"error")+(e.filename?" ("+e.filename.split("/").pop()+":"+e.lineno+")":"")); });
 window.addEventListener("unhandledrejection",function(e){ var r=e.reason; __showErr("Promise: "+(r&&(r.message||r.toString())||r)); });
 </script>
+<script src="vendor/capacitor.js" onerror="__showErr('Could not load vendor/capacitor.js')"></script>
 <script src="vendor/supabase.js" onerror="__showErr('Could not load vendor/supabase.js')"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -481,7 +482,7 @@ const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
 const SB_URL="https://bfbhosvkzdxjcmvofotk.supabase.co", SB_KEY="sb_publishable_2aeUuYaGA1iLXKNfTeiMhQ_-KelUydR";
-const Widget = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.Capacitor.registerPlugin("WidgetBridge") : null;
+const Widget = (window.capacitorExports && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.capacitorExports.registerPlugin("WidgetBridge") : null;
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
 let channel=null;
 function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
