@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GVC Shop</title>
-<script src="vendor/supabase.js"></script>
+<script>
+window.__errs=[];
+function __showErr(m){ try{ window.__errs.push(m); var d=document.getElementById("errbar"); if(!d){ d=document.createElement("div"); d.id="errbar"; d.style.cssText="margin:12px 16px;padding:10px 12px;border:1px solid #5c2a26;border-radius:10px;background:#2a1513;color:#ffb3ab;font:13px/1.4 system-ui,sans-serif;white-space:pre-wrap;word-break:break-word"; (document.body||document.documentElement).appendChild(d); } d.textContent="Something went wrong - send Claude a screenshot of this:\n"+window.__errs.slice(-4).join("\n"); }catch(e){} }
+window.addEventListener("error",function(e){ __showErr((e.message||"error")+(e.filename?" ("+e.filename.split("/").pop()+":"+e.lineno+")":"")); });
+window.addEventListener("unhandledrejection",function(e){ var r=e.reason; __showErr("Promise: "+(r&&(r.message||r.toString())||r)); });
+</script>
+<script src="vendor/supabase.js" onerror="__showErr('Could not load vendor/supabase.js')"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -476,7 +482,7 @@ window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEW
 /* ---------- data: Supabase ---------- */
 const SB_URL="https://bfbhosvkzdxjcmvofotk.supabase.co", SB_KEY="sb_publishable_2aeUuYaGA1iLXKNfTeiMhQ_-KelUydR";
 const Widget = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.Capacitor.registerPlugin("WidgetBridge") : null;
-const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
 let channel=null;
 function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 async function saveJob(id,data){
@@ -526,8 +532,13 @@ if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.tab&&VIEWS.includes(d.tab)
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden && db) loadJobs(); });
 render();
 (async()=>{
-  const { data } = await sb.auth.getSession();
-  if(data.session) await startApp(); else showLogin();
+  let done=false;
+  setTimeout(()=>{ if(!done) showLogin("Still connecting… if this stays, check your signal and sign in again."); }, 7000);
+  try{
+    const { data } = await sb.auth.getSession();
+    done=true;
+    if(data && data.session) await startApp(); else showLogin();
+  }catch(e){ done=true; showLogin("Couldn't start: "+(e.message||e), true); }
 })();
 </script>
 </body>
