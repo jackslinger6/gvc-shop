@@ -1,0 +1,18 @@
+{
+  "name": "gvc-shop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gordeyville Customs shop app - order board and home-screen widget",
+  "scripts": {
+    "vendor": "node scripts/vendor.js",
+    "sync": "npm run vendor && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@supabase/supabase-js": "^2.118.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0"
+  }
+}
