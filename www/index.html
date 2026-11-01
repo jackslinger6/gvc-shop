@@ -69,9 +69,11 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .cards{padding:10px 8px;display:flex;flex-direction:column;gap:10px;flex:1}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:10px;padding:10px 10px 8px;cursor:pointer;text-align:left;color:inherit;font:inherit;width:100%}
 .card:hover{border-color:var(--c)}
-.card .nm{font-weight:600;font-size:13.5px;line-height:1.25;display:flex;gap:7px;align-items:flex-start}
-.card .nm svg{flex:0 0 auto;margin-top:1px}
-.card .tx{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.35}
+.card .nm{font-weight:600;font-size:14px;line-height:1.25;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card .jnum{font-family:Oswald,sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.06em;color:#ffd0a8;background:rgba(255,138,42,.14);border:1px solid rgba(255,138,42,.4);border-radius:5px;padding:1px 6px;flex:0 0 auto}
+.card .jname{min-width:0}
+.card .tx{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .sups{margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.06)}
 .flag{display:inline-block;margin-top:7px;margin-right:4px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px}
 .flag.you{background:rgba(255,138,42,.15);color:#ffb070;border:1px solid rgba(255,138,42,.45)}
 .flag.late{background:rgba(229,72,59,.14);color:#ff9b91;border:1px solid rgba(229,72,59,.45)}
@@ -411,6 +413,11 @@ function etaStrip(j){
 }
 const folder=`<svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M1 2.2C1 1.5 1.5 1 2.2 1h3.6l1.4 1.6h6.6c.7 0 1.2.5 1.2 1.2v8c0 .7-.5 1.2-1.2 1.2H2.2C1.5 13 1 12.5 1 11.8z" fill="#f2b33d" stroke="#b07a1a" stroke-width=".8"/></svg>`;
 
+/* card heading: job number as a tag, then the name; the number comes off the front of the name */
+function cardTitle(j){
+  const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
+  return `<div class="nm">${num?`<span class="jnum">${esc(num)}</span>`:""}<span class="jname">${esc(rest)}</span></div>`;
+}
 function render(){
   const crewAsm=crewItems();
   const tdCount=autoTodos().length+todos.filter(t=>!t.done_at&&t.source!=="auto").length, sgNew=suggs.filter(x=>x.status==="new").length;
@@ -428,7 +435,7 @@ function render(){
     const list=jobs.filter(j=>j.stage===s.k).sort((x,y)=>(x.order||0)-(y.order||0));
     return `<section class="col ${list.length?"":"emptycol"}" style="--c:${s.c}"><div class="colhead"><h2>${s.t}</h2><span class="none">none</span><div class="n">${list.length||""}</div></div>
       <div class="cards">${list.map(j=>`<button class="card" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
-        <div class="nm">${folder}<span>${esc(j.name)}</span></div>
+        ${cardTitle(j)}
         ${j.summary?`<div class="tx">${esc(j.summary)}</div>`:""}
         ${(j.assemblies||[]).length?`<div class="cprog"><div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div><span>${Math.round(asmDone(j)/j.assemblies.length*100)}% · ${asmDone(j)} of ${j.assemblies.length} tasks</span></div>`:""}
         ${B.k==="ordering"&&(j.suppliers||[]).length?`<div class="sups">${j.suppliers.map(x=>supLine(x,j.stage)).join("")}</div>`:""}
@@ -552,7 +559,7 @@ function drawDlg(){
      <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""}>Next: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div>
    <div class="row" style="margin-top:10px">
      <label>Job name<input id="fName" value="${esc(j.name)}"></label>
-     <label>Desktop folder<input id="fFolder" value="${esc(j.folder||"")}" placeholder="Folder name on the desktop"></label>
+     <label>Folder (optional)<input id="fFolder" value="${esc(j.folder||"")}" placeholder="Job folder name, if you keep one"></label>
      <label>Stage<select id="fStage">${stageOpts}</select></label>
    </div>
    <label style="margin-top:8px">Card note<input id="fSum" value="${esc(j.summary||"")}" placeholder="One line shown on the card"></label>
