@@ -87,6 +87,13 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .list{margin:26px 0 40px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(0,0,0,.3);padding:14px 14px 10px}
 .listhead{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:10px}
 .listhead h3{margin:0;font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:16px;color:#e4dfd8}
+.listhead{cursor:pointer;user-select:none;-webkit-user-select:none}
+.listhead .caret{display:inline-block;color:var(--muted);transition:transform .15s;margin-right:2px}
+.listhead .n{font-family:Inter,sans-serif;font-size:12px;color:var(--muted);letter-spacing:0;text-transform:none}
+.list.closed{padding-bottom:14px}
+.list.closed .caret{transform:rotate(-90deg)}
+.list.closed .legend,.list.closed .trk{display:none}
+.list.closed .listhead{margin-bottom:0}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
 .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .trk{display:grid;grid-template-columns:minmax(150px,240px) minmax(0,1fr) 150px;gap:8px 12px;align-items:center}
@@ -313,9 +320,9 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
     </div>
   </div>
   <div class="board" id="board"></div>
-  <section class="list">
-    <div class="listhead">
-      <h3>All jobs</h3>
+  <section class="list" id="allJobs">
+    <div class="listhead" id="allJobsHead" role="button" tabindex="0" aria-expanded="true" title="Show / hide">
+      <h3><span class="caret">▾</span> All jobs <span class="n" id="allJobsN"></span></h3>
       <div class="legend"><span><span class="sw" style="background:var(--pipe)"></span>Pipeline</span><span><span class="sw" style="background:var(--order)"></span>Orders</span><span><span class="sw" style="background:var(--build)"></span>Shop floor</span></div>
     </div>
     <div class="trk" id="track"></div>
@@ -441,6 +448,7 @@ function render(){
   $("#track").querySelectorAll(".jn").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
   const at=jobs.filter(needsAttention).length;
   $("#status").textContent=jobs.length?`${jobs.length} jobs · ${at} need attention`:"No jobs yet. Add one with + New job.";
+  { const n=$("#allJobsN"); if(n) n.textContent=jobs.length?`${jobs.length}${at?` · ${at} need attention`:""}`:""; }
   if(openId){ if(dlgDirty()) dlgStale(); else drawDlg(); }
 }
 /* The open job card is rebuilt from the data on every refresh (other device, realtime, coming back to the app).
@@ -645,6 +653,10 @@ $("#addJob").onclick=async()=>{
   try{ await saveJob(id,data); jobs.push({id,...data}); openJob(id); pushUndo(id,null,"Added a new job"); }catch(e){ $("#status").textContent="Couldn't add job: "+(e.message||e); }
 };
 
+/* "All jobs" is on every board; let it fold away and remember that */
+{ const L=$("#allJobs"), H=$("#allJobsHead"); const set=open=>{ L.classList.toggle("closed",!open); H.setAttribute("aria-expanded",open); try{localStorage.setItem("gvc_alljobs",open?"1":"0")}catch(e){} };
+  let open=true; try{ open=localStorage.getItem("gvc_alljobs")!=="0"; }catch(e){} set(open);
+  H.onclick=()=>set(L.classList.contains("closed")); H.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); H.click(); } }; }
 const START_HASH=location.hash||"";
 const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas","archive","revs"];
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
