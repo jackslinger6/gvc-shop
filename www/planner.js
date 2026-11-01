@@ -89,24 +89,36 @@ const fh=x=>`${+Number(x).toFixed(1)}h`;
 const isOff=(p,d)=>((plan.off||{})[p]||[]).includes(d);
 function jobColor(jid){const ids=jobs.map(j=>j.id).sort();return PCOL[Math.max(0,ids.indexOf(jid))%PCOL.length];}
 
-async function loadPlan(){
-  if(!db||planLoading) return; planLoading=true;
+let planVer=null;
+async function loadPlan(force){
+  if(!db||(planLoading&&!force)) return; planLoading=true;
   try{
-    const {data,error}=await sb.from("gvc_plan").select("data").eq("id","main").maybeSingle();
-    if(!error&&data) plan=Object.assign(BLANK(),data.data||{});
+    const {data,error}=await sb.from("gvc_plan").select("data,updated_at").eq("id","main").maybeSingle();
+    if(!error&&data){ plan=Object.assign(BLANK(),data.data||{}); planVer=data.updated_at; }
     planLoaded=true;
-    if(!planCh) planCh=sb.channel("gvc_plan").on("postgres_changes",{event:"*",schema:"public",table:"gvc_plan"},()=>{ if(!drag&&Date.now()-lastSaveAt>3000) loadPlan(); }).subscribe();
+    if(!planCh) planCh=sb.channel("gvc_plan").on("postgres_changes",{event:"*",schema:"public",table:"gvc_plan"},()=>{ if(!drag&&!saving) loadPlan(); }).subscribe();
   }finally{ planLoading=false; }
-  if(cur==="crew"||cur==="todo") render();
+  if(cur==="crew"||cur==="todo"||cur==="time") render();
 }
 setInterval(()=>{ if(db&&!planLoaded) loadPlan(); },800);
-let lastSaveAt=0;
-async function savePlan(){
-  lastSaveAt=Date.now();
-  const {error}=await sb.from("gvc_plan").upsert({id:"main",data:plan,updated_at:new Date().toISOString()});
-  if(error) say("Couldn't save the plan: "+error.message);
+// Phone apps lose their live connection in the background - always pick up the latest plan when the app comes back.
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&db&&planLoaded) loadPlan(); });
+window.addEventListener("focus",()=>{ if(db&&planLoaded&&!saving) loadPlan(); });
+let lastSaveAt=0, saving=false, saveChain=Promise.resolve();
+// Saves only if nobody else changed the plan since we loaded it; otherwise reload instead of overwriting their change.
+function savePlan(){ saveChain=saveChain.then(doSave,doSave); return saveChain; }
+async function doSave(){
+  saving=true; lastSaveAt=Date.now();
+  try{
+    const nv=new Date().toISOString();
+    let q=sb.from("gvc_plan").update({data:plan,updated_at:nv}).eq("id","main");
+    if(planVer) q=q.eq("updated_at",planVer);
+    const {data,error}=await q.select("updated_at");
+    if(error){ say("Couldn't save the plan: "+error.message); return false; }
+    if(!data||!data.length){ saving=false; await loadPlan(true); say("The plan was changed somewhere else (another device, or Claude). I loaded the latest copy - redo your last change if it's missing."); return false; }
+    planVer=data[0].updated_at; return true;
+  } finally { saving=false; }
 }
-
 /* ---------- model ---------- */
 function model(){
   const T={};
