@@ -193,6 +193,25 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .prx dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:13px}.prx dt{color:var(--dim)}.prx dd{margin:0}
 .prx a{color:#8fd3ff}
 @media (max-width:600px){ .invtop .stats{grid-template-columns:repeat(2,1fr)} .prx{grid-template-columns:1fr} .tab[data-b=inv]{grid-column:1/-1} }
+/* a recording made somewhere else (e.g. the Samsung Phone app's call recording) -> same path as the Record button */
+async function uploadAudio(f){
+  try{
+    if(f.size>24e6){ setAiMsg("That recording is over 24 MB - too long to transcribe in one go. Trim it or split it first."); return; }
+    const ext=((f.name.match(/\.([a-z0-9]+)$/i)||[])[1]||"m4a").toLowerCase();
+    if(ext==="amr"||ext==="3gp"){ setAiMsg("That's an AMR/3GP file, which the transcriber can't read. In the Samsung Phone app's call recording settings, pick the M4A format if it offers one."); return; }
+    setAiMsg(`Uploading ${f.name}…`);
+    const at=new Date(f.lastModified||Date.now()).toISOString();
+    const path=`rec/${at.replace(/[:.]/g,"-")}-call.${ext}`;
+    const up=await sb.storage.from("gvc-audio").upload(path,f,{contentType:f.type||"audio/mp4",upsert:true});
+    if(up.error) throw new Error("upload: "+up.error.message);
+    setAiMsg("Transcribing the call and asking Claude…");
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"recording",path,at}});
+    if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
+    setAiMsg(data.added?`Call done - ${data.added} suggestion${data.added>1?"s":""} below.`:"Call transcribed - nothing job-related found.");
+    await loadSide();
+  }catch(e){ setAiMsg("Call recording: "+(e.message||e)); }
+}
+
 /* ---- chat ---- */
 .chatfab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:9;border-radius:999px;padding:12px 18px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:transform .25s ease,border-radius .25s ease,padding .25s ease}
 .chatfab.tuck{transform:translateX(calc(100% - 14px));border-radius:12px 0 0 12px;padding:12px 10px 12px 14px;right:0}
@@ -808,6 +827,7 @@ function renderTodo(){
     <div class="tools">
       ${Native?`<button class="btn rec ${recState.on?"on":""}" type="button" id="recBtn">${recState.on?"■ Stop recording "+recClock():"● Record"}</button>
       <button class="btn" type="button" id="smsNow">Check texts</button><button class="btn ghost" type="button" id="smsPick">Text contacts (${LS.get("gvc_sms_contacts",[]).length})</button>`:""}
+      <button class="btn ghost" type="button" id="audUp">Add a call recording</button><input type="file" id="audFile" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm" style="display:none">
       <button class="btn ghost" type="button" id="pasteBtn">Paste a message</button>
     </div>
     <div class="tnote" id="aiMsg">${aiMsg||""}</div>
@@ -828,6 +848,7 @@ function renderTodo(){
   B.querySelectorAll("[data-dis]").forEach(el=>el.onclick=()=>setSugg(el.dataset.dis,"dismissed"));
   $("#pasteBtn").onclick=()=>{$("#pasteBox").hidden=!$("#pasteBox").hidden; if(!$("#pasteBox").hidden) $("#pasteTx").focus();};
   $("#pasteGo").onclick=async()=>{const t=$("#pasteTx").value.trim(); if(!t) return; await askAI([{ref:"paste:"+Date.now(),source:"manual",from:"Pasted",at:new Date().toISOString(),text:t}]);};
+  $("#audUp").onclick=()=>$("#audFile").click(); $("#audFile").onchange=e=>{ const f=e.target.files[0]; e.target.value=""; if(f) uploadAudio(f); };
   if(Native){ $("#recBtn").onclick=toggleRec; $("#smsNow").onclick=()=>checkTexts(true); $("#smsPick").onclick=pickContacts; }
 }
 let aiMsg="";
