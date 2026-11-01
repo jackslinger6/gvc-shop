@@ -821,7 +821,7 @@ function renderTodo(){
     ${mine.map(t=>`<div class="ti" style="--c:#ffd28a"><button class="ck" type="button" data-done="${t.id}" title="Mark done">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">${[t.from_name?esc(t.from_name):"",t.job_id&&jn(t.job_id)?`<button class="go" type="button" data-job="${esc(t.job_id)}">${esc(jn(t.job_id))}</button>`:"",fmt(t.created_at)].filter(Boolean).join(" · ")}</div></div></div>`).join("")}
     ${auto.map((t,i)=>`<div class="ti" style="--c:${t.c}"><button class="ck" type="button" data-auto="${i}" title="Done / hide">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">From the board · <button class="go" type="button" ${t.job?`data-job="${esc(t.job)}">Open job`:`data-view="${t.view}">Open ${t.view}`}</button></div></div></div>`).join("")}
     ${!auto.length&&!mine.length?`<div class="tnote">Nothing to do. Nice.</div>`:""}
-    ${doneRecent.length?`<details style="margin-top:8px"><summary class="tnote" style="cursor:pointer">Recently done (${doneRecent.length})</summary>${doneRecent.map(t=>`<div class="ti"><button class="ck" type="button" data-undone="${t.id}" title="Not done" style="color:var(--green);border-color:var(--green)">✓</button><div class="body"><div class="tt" style="color:var(--dim);text-decoration:line-through">${esc(t.text)}</div></div></div>`).join("")}</details>`:""}
+    ${doneRecent.length?`<details style="margin-top:8px"><summary class="tnote" style="cursor:pointer">Recently done (${doneRecent.length})</summary>${doneRecent.map(t=>`<div class="ti"><button class="ck" type="button" data-undone="${t.id}" title="Not done" style="color:var(--green);border-color:var(--green)">✓</button><div class="body"><div class="tt" style="color:var(--dim);text-decoration:line-through">${esc(t.text)}</div>${t.outcome?`<div class="meta" style="color:var(--text)">Decided: ${esc(t.outcome)}</div>`:""}</div></div>`).join("")}</details>`:""}
   </section>
   <section class="tbox"><h3>From texts &amp; recordings <span class="n">${review.length?review.length+" to review":""}</span></h3>
     <div class="tools">
@@ -839,9 +839,13 @@ function renderTodo(){
   </section>`;
   const addT=async()=>{const v=$("#tdNew").value.trim(); if(!v) return; await addTodos([{text:v,source:"manual"}]); };
   $("#tdAdd").onclick=addT; $("#tdNew").onkeydown=e=>{if(e.key==="Enter") addT();};
-  B.querySelectorAll("[data-done]").forEach(el=>el.onclick=()=>{ el.disabled=true; const id=el.dataset.done, t=todos.find(x=>x.id===id); setTodo(id,true); todoToast("Done: "+(t?t.text:"to-do"),()=>setTodo(id,false)); });
+  B.querySelectorAll("[data-done]").forEach(el=>el.onclick=()=>{ const id=el.dataset.done, t=todos.find(x=>x.id===id);
+    const fin=()=>{ el.disabled=true; setTodo(id,true); todoToast("Done: "+(t?t.text:"to-do"),()=>setTodo(id,false)); };
+    if(t&&isDecision(t.text)) askOutcome({text:t.text,job:t.job_id,todoId:id},fin); else fin(); });
   B.querySelectorAll("[data-undone]").forEach(el=>el.onclick=()=>{ const t=todos.find(x=>x.id===el.dataset.undone); if(t&&t.source==="auto") unhideAuto(t.text); else setTodo(el.dataset.undone,false); });
-  B.querySelectorAll("[data-auto]").forEach(el=>el.onclick=()=>{ el.disabled=true; const tx=auto[+el.dataset.auto].text; addTodos([{text:tx,source:"auto",done_at:new Date().toISOString()}]); todoToast("Cleared: "+tx,()=>unhideAuto(tx)); });
+  B.querySelectorAll("[data-auto]").forEach(el=>el.onclick=()=>{ const it=auto[+el.dataset.auto], tx=it.text;
+    const fin=outcome=>{ el.disabled=true; addTodos([{text:tx,source:"auto",done_at:new Date().toISOString(),job_id:it.job||null,outcome:outcome||null}]); todoToast("Cleared: "+tx,()=>unhideAuto(tx)); };
+    if(it.ncr||isDecision(tx)) askOutcome({text:tx,job:it.job,ncr:it.ncr},fin); else fin(); });
   B.querySelectorAll("[data-job]").forEach(el=>el.onclick=()=>openJob(el.dataset.job));
   B.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>{cur=el.dataset.view;render();});
   B.querySelectorAll("[data-acc]").forEach(el=>el.onclick=()=>acceptSugg(el.dataset.acc));
@@ -868,6 +872,33 @@ async function unhideAuto(text){
   const { error } = await sb.from("gvc_todos").delete().eq("source","auto").eq("text",text);
   if(error){ setAiMsg("Couldn't undo: "+error.message); return; }
   await loadSide();
+}
+/* ---- "what was decided?" when checking off a decision ---- */
+const isDecision=tx=>/^(decide|review|meet|talk|ask|check with|figure|confirm|choose|follow up|call|discuss|sort out|look into)\b/i.test(String(tx||"").trim());
+function askOutcome(it,finish){
+  openId=null; const D=$("#dlg"); const j=it.job&&jobs.find(x=>x.id===it.job); let fix=null;
+  const x=it.ncr&&j?(j.ncrs||[]).find(y=>y.n===it.ncr):null;
+  D.innerHTML=`<h3 style="margin:0 0 4px">${it.ncr?"What did you decide?":"How did it go?"}</h3><div class="tnote" style="margin:0 0 10px">${esc(it.text)}</div>
+    <label>${it.ncr?"The decision":"What was decided / what happened"}<textarea id="ocNote" rows="3" placeholder="${it.ncr?"e.g. Cut the bottom flange off both doors, touch up paint":"e.g. Randy wants the hitch moved 2 inches back"}"></textarea></label>
+    ${x?`<div class="tnote" style="margin:10px 0 4px">Fix</div><div class="wchips" id="ocFix">${(window.ncrFixes||[]).filter(f=>f!=="Deciding").map(f=>`<button type="button" class="wc" data-of="${esc(f)}">${esc(f)}</button>`).join("")}</div>
+      <label style="margin-top:10px">Rework steps - one per line, hours at the end (they go to Not scheduled on the Crew tab)<textarea id="ocSteps" rows="3" placeholder="Cut bottom flange off doors 2h&#10;Grind and touch up paint 1h"></textarea></label>`:""}
+    ${!j?`<label style="margin-top:10px">Which job? (so the note lands on it)<select id="ocJob"><option value="">No job</option>${jobs.map(y=>`<option value="${esc(y.id)}">${esc(y.name)}</option>`).join("")}</select></label>`:`<div class="tnote" style="margin-top:8px">Saved to the notes on ${esc(j.name)}.</div>`}
+    <div class="row" style="margin-top:12px;gap:8px;justify-content:flex-end"><button class="btn ghost" type="button" id="ocX">Cancel</button><button class="btn" type="button" id="ocSkip">Done, no note</button><button class="btn primary" type="button" id="ocSave">Save and mark done</button></div>`;
+  $("#scrim").classList.add("on"); setTimeout(()=>{ const n=$("#ocNote"); if(n) n.focus(); },30);
+  D.querySelectorAll("[data-of]").forEach(b=>b.onclick=()=>{ fix=b.dataset.of; D.querySelectorAll("[data-of]").forEach(c=>c.classList.toggle("on",c===b)); });
+  $("#ocX").onclick=closeDlg;
+  $("#ocSkip").onclick=()=>{ closeDlg(); finish(); };
+  $("#ocSave").onclick=async()=>{
+    const note=$("#ocNote").value.trim(), steps=($("#ocSteps")||{}).value||"", jid=j?j.id:(($("#ocJob")||{}).value||"");
+    if(!note&&!fix&&!steps.trim()){ closeDlg(); finish(); return; }
+    $("#ocSave").disabled=true;
+    try{
+      if(x) await window.ncrDecide(j.id,it.ncr,{fix,note,steps});
+      else if(jid){ const jj=structuredClone(jobs.find(y=>y.id===jid)); jj.log=[...(jj.log||[]),{at:new Date().toISOString(),text:`Decided: ${note} (re: ${it.text})`}]; const {id,...data}=jj; await saveJob(id,data); }
+      if(it.todoId) await sb.from("gvc_todos").update({outcome:note||null,job_id:jid||null}).eq("id",it.todoId);
+    }catch(e){ setAiMsg("Couldn't save the note: "+(e.message||e)); }
+    closeDlg(); finish(note);
+  };
 }
 async function setTodo(id,done){
   const { error } = await sb.from("gvc_todos").update({done_at:done?new Date().toISOString():null}).eq("id",id);

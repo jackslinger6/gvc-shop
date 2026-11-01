@@ -61,6 +61,7 @@ function section(j){
     <div class="nrow"><span class="lbl" style="font-size:12px;color:var(--muted)">Extra material $</span><input id="nfMat" type="number" min="0" step="1" value="${esc(form.mat)}" style="width:90px"><span style="flex:1"></span><button class="btn sm" type="button" id="nfCancel">Cancel</button><button class="btn sm primary" type="button" id="nfSave">Save NCR</button></div></div>`;
   h+=list.map(x=>{ const s=stats(j,x);
     return `<div class="ncard" style="--c:${stColor[s.st]}"><div class="nh"><b>${tag(x.n)}</b><span style="flex:1">${esc(x.what)}</span><span class="nst" style="color:${stColor[s.st]};border-color:${stColor[s.st]}">${s.st}</span></div>
+      ${x.decision?`<div class="nm" style="color:var(--text)">Decided: ${esc(x.decision)}</div>`:""}
       <div class="nm">${esc(x.type)} · ${esc(x.fix)} · ${s.h?s.h+"h":"0h"} rework${s.unk?` (+${s.unk} task${s.unk>1?"s":""} with no estimate)`:""}${x.mat?` · ${money(x.mat)} material`:""} · logged ${fmt(x.at)}</div>
       ${s.ts.length?`<div class="nm">Rework: ${s.ts.map(a=>`${a.status==="done"?"✓ ":""}${esc(a.name)}${planHours(j.id,a.id)!=null?" "+planHours(j.id,a.id)+"h":""}`).join(" · ")}</div>`:""}
       <div class="nrow"><select data-nfix="${x.n}" aria-label="Fix">${FIXES.map(f=>`<option ${x.fix===f?"selected":""}>${f}</option>`).join("")}</select>
@@ -103,6 +104,14 @@ drawDlg=function(){
   D.querySelectorAll("[data-ndel]").forEach(b=>b.onclick=()=>mut(`${tag(+b.dataset.ndel)} deleted`,jj=>{ const n=+b.dataset.ndel; jj.ncrs=jj.ncrs.filter(x=>x.n!==n); (jj.assemblies||[]).forEach(a=>{ if(a.ncr===n) delete a.ncr; }); }));
 };
 
+/* used by the To do "what was decided?" box: set the fix, keep the decision, add rework steps */
+window.ncrDecide=async(jid,n,{fix,note,steps})=>{
+  const j0=jobs.find(x=>x.id===jid); if(!j0) return; const j=structuredClone(j0); const x=(j.ncrs||[]).find(y=>y.n===n); if(!x) return;
+  if(fix) x.fix=fix; if(note) x.decision=note; const st=parseSteps(steps); if(st.length){ await saveSteps(j,n,st); if(x.fix==="Deciding") x.fix="Rework"; }
+  j.log=[...(j.log||[]),{at:new Date().toISOString(),text:`${tag(n)} decided: ${x.fix}${note?" - "+note:""}${st.length?` (${st.length} rework step${st.length>1?"s":""} added)`:""}`}];
+  const {id,...data}=j; await saveJob(id,data); const P=window.gvcPlan; if(P&&P.loaded()) await P.save();
+};
+window.ncrFixes=FIXES;
 /* ---------- NCR log (all jobs) ---------- */
 let showClosed=false;
 function all(){ const out=[]; [...jobs,...archivedJobs].forEach(j=>(j.ncrs||[]).forEach(x=>out.push({j,x,s:stats(j,x)}))); return out.sort((a,b)=>b.x.n-a.x.n); }
@@ -133,6 +142,6 @@ const _render=render;
 render=function(){ _render(); const n=all().filter(r=>!["Closed","Fixed"].includes(r.s.st)).length; nb.textContent=n?`NCRs (${n} open)`:"NCRs"; nb.classList.toggle("primary",cur==="ncr"); };
 const _auto=autoTodos;
 autoTodos=function(){ const out=_auto(); try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
-  all().filter(r=>r.s.st==="Deciding").forEach(r=>{ const text=`Decide the fix for ${tag(r.x.n)} (${r.j.name}): ${r.x.what}`; if(!hidden.has(text)) out.push({text,c:"#e5483b",job:r.j.id}); }); }catch(e){} return out; };
+  all().filter(r=>r.s.st==="Deciding").forEach(r=>{ const text=`Decide the fix for ${tag(r.x.n)} (${r.j.name}): ${r.x.what}`; if(!hidden.has(text)) out.push({text,c:"#e5483b",job:r.j.id,ncr:r.x.n}); }); }catch(e){} return out; };
 window.ncrLines=()=>{ try{ return all().filter(r=>r.s.st!=="Closed").map(r=>`[NCR] ${tag(r.x.n)} ${r.j.name}: ${r.x.what} (${r.x.type}, fix: ${r.x.fix}, ${r.s.st}, ${+r.s.h.toFixed(1)}h rework${r.x.mat?", $"+r.x.mat+" material":""})`); }catch(e){ return []; } };
 })();
