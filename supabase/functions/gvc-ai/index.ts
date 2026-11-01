@@ -37,7 +37,7 @@ const TOOL = {
             ref: { type: "string", description: "The ref of the message this comes from" },
             relevant: { type: "boolean", description: "false if the message has nothing to do with shop jobs and holds no task for Kyle" },
             job_id: { type: ["string", "null"], description: "id of the existing job it is about, or null" },
-            new_job_name: { type: ["string", "null"], description: "Only if it clearly describes a new job not on the board" },
+            new_job_name: { type: ["string", "null"], description: "Only if it clearly describes a new job not on the board. Start with the job number if the message gives one, e.g. '2015G - Hitch rack'" },
             summary: { type: "string", description: "One short plain sentence for Kyle: what happened and what you suggest" },
             stage: { type: ["string", "null"], enum: [...Object.keys(STAGES), null], description: "Move the job to this stage, only if the message clearly says so" },
             job_summary: { type: ["string", "null"], description: "New one-line status for the job card, if it should change" },
@@ -159,7 +159,7 @@ const CHAT_TOOLS = [
   { name: "add_tasks", description: "Add tasks (work steps) to a job right away so Kyle can assign and check them off. Use short task names in shop language. who = crew names doing it (Kyle, Colton, Aaron, Cooper) or empty.",
     input_schema: { type: "object", properties: { job_id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } }, last_waits_for_rest: { type: "boolean" } }, required: ["job_id", "tasks"] } },
   { name: "create_job", description: "Create a new job on the board right away, with its tasks, when Kyle asks for one. The tasks land in the Not scheduled pool of the week planner so Kyle can drag them onto people's days. Include every work step Kyle mentioned.",
-    input_schema: { type: "object", properties: { name: { type: "string" }, stage: { type: "string", enum: Object.keys(STAGES) }, summary: { type: "string", description: "One line for the job card" }, log: { type: "string", description: "Short note about where this came from" },
+    input_schema: { type: "object", properties: { number: { type: "string", description: "Job number like 2015G, 1099PT, 1048BQ - always ask Kyle if he didn't say it" }, name: { type: "string", description: "Job name WITHOUT the number" }, stage: { type: "string", enum: Object.keys(STAGES) }, summary: { type: "string", description: "One line for the job card" }, log: { type: "string", description: "Short note about where this came from" },
       tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } } }, required: ["name", "stage"] } },
   { name: "propose_update", description: "Propose a change to a job (stage, card status, log entry, supplier status, new job). It goes to Kyle's review list - he taps Accept to apply it. Use for any board change.",
     input_schema: { type: "object", properties: Object.fromEntries(Object.entries(ITEM.properties).filter(([k]) => k !== "ref" && k !== "relevant")), required: ["summary"] } },
@@ -182,6 +182,7 @@ async function chat(sb: any, msgs: any[], ctx: any = {}) {
 People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
 You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, create_job and add_tasks act right away; propose_update sends a change to an existing job to Kyle's review list (never claim that change was made - say it's waiting for him to accept).
+Every job name starts with its job number, like "2011G - Kirby Controls Enclosure" (G, PT, BQ, DT suffixes). When Kyle asks for a new job and hasn't given the number, ask for it once; if he doesn't know it yet, create it without one (the app flags it).
 When Kyle asks for a new job, use create_job (not propose_update) and put all the work steps he mentioned in it as tasks, in one go - don't make him ask twice. Tasks automatically show up in the Not scheduled pool on the Crew tab's week planner, grouped by job, so he can drag them onto people's days. Who on a task is just a suggestion until he schedules it.
 Each job can have tasks (work steps) with who and status: bend=waiting on bending, ready=ready to start, prog=in progress, qc=inspection, done. Use add_tasks to add steps to an existing job.
 Stages: ${JSON.stringify(STAGES)}
@@ -237,7 +238,9 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           const id = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
           const now = new Date().toISOString();
           const tasks = (u.input.tasks || []).filter((t: any) => t && t.name).map((t: any) => ({ id: crypto.randomUUID().slice(0, 8), name: t.name, meta: "", status: "ready", who: (t.who || []).join(", "), final: false }));
-          const data = { name: u.input.name, folder: "", summary: u.input.summary || "", stage: (STAGES as any)[u.input.stage] ? u.input.stage : "released", suppliers: [], assemblies: tasks, order: Date.now(),
+          const num = String(u.input.number || "").trim().toUpperCase();
+          const nm = String(u.input.name || "").replace(/^\s*\d{4}[A-Za-z0-9_]{0,4}\s*[-–:]?\s*/, "").trim() || u.input.name;
+          const data = { name: num ? `${num} - ${nm}` : nm, folder: "", summary: u.input.summary || "", stage: (STAGES as any)[u.input.stage] ? u.input.stage : "released", suppliers: [], assemblies: tasks, order: Date.now(),
             log: [{ at: now, text: (u.input.log || "Job created") + " (Ask Claude)" }] };
           const { error } = await sb.from("gvc_jobs").insert({ id, data });
           if (error) throw error;

@@ -343,7 +343,7 @@ const whoList=a=>String(a.who||"").split(",").map(x=>x.trim()).filter(Boolean);
 const whoChips=(j,i,a)=>`<div class="wchips">${CREW.map(c=>`<button type="button" class="wc ${whoList(a).includes(c)?"on":""}" data-wj="${esc(j.id)}" data-wi="${i}" data-wc="${c}" aria-pressed="${whoList(a).includes(c)}">${c}</button>`).join("")}</div>`;
 const finalLocked=(j,a)=>a.final&&(j.assemblies||[]).some(x=>!x.final&&x.status!=="done");
 const ACTIVE=s=>s.status!=="hold"&&s.status!=="declined";
-let db=null, jobs=[], todos=[], suggs=[], openId=null, cur="todo";
+let db=null, jobs=[], archivedJobs=[], todos=[], suggs=[], openId=null, cur="todo";
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const days=iso=>iso?Math.floor((Date.now()-new Date(iso).getTime())/86400000):null;
@@ -382,7 +382,7 @@ function render(){
   }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+(window.timeTab?window.timeTab():"")+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
   { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
-  if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="ncr"){ if(window.renderNcr) window.renderNcr(); } else if(cur==="ideas"){ if(window.renderIdeas) window.renderIdeas(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
+  if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="ncr"){ if(window.renderNcr) window.renderNcr(); } else if(cur==="ideas"){ if(window.renderIdeas) window.renderIdeas(); } else if(cur==="archive"){ if(window.renderArchive) window.renderArchive(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
   const B=BOARDS.find(b=>b.k===cur);
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
@@ -466,7 +466,7 @@ function todoToast(label,fn){ todoUndoFn=fn; $("#toastUndo").style.display=""; $
 $("#undoBtn").onclick=undo; $("#toastUndo").onclick=()=>{ if(todoUndoFn){ const f=todoUndoFn; todoUndoFn=null; $("#toast").classList.remove("on"); f(); } else undo(); };
 document.addEventListener("keydown",e=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); undo(); }});
 const raw=id=>{const j=jobs.find(x=>x.id===id); if(!j) return null; const {id:_,...d}=j; return d;};
-function job(){return jobs.find(j=>j.id===openId);}
+function job(){return jobs.find(j=>j.id===openId)||archivedJobs.find(j=>j.id===openId);}
 function openJob(id){openId=id;drawDlg();$("#scrim").classList.add("on");}
 function closeDlg(){openId=null;$("#scrim").classList.remove("on");}
 $("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeDlg();});
@@ -585,7 +585,7 @@ $("#addJob").onclick=async()=>{
 };
 
 const START_HASH=location.hash||"";
-const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas"];
+const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas","archive"];
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
@@ -597,7 +597,8 @@ function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 async function saveJob(id,data){
   const { error } = await sb.from("gvc_jobs").upsert({ id, data });
   if(error) throw error;
-  const i=jobs.findIndex(x=>x.id===id); const row={id,...data}; if(i>=0) jobs[i]=row; else jobs.push(row);
+  const row={id,...data}; jobs=jobs.filter(x=>x.id!==id); archivedJobs=archivedJobs.filter(x=>x.id!==id);
+  (row.archived?archivedJobs:jobs).push(row);
   render(); widgetRefresh();
 }
 async function deleteJob(id){
@@ -608,7 +609,7 @@ async function deleteJob(id){
 async function loadJobs(){
   const { data, error } = await sb.from("gvc_jobs").select("id,data");
   if(error){ $("#status").textContent="Couldn't load the board: "+error.message; return; }
-  jobs=(data||[]).map(r=>({id:r.id,...r.data})).map(j=>({...j,stage:SIDX[j.stage]!=null?j.stage:"prep"}));
+  const all=(data||[]).map(r=>({id:r.id,...r.data})).map(j=>({...j,stage:SIDX[j.stage]!=null?j.stage:"prep"})); jobs=all.filter(j=>!j.archived); archivedJobs=all.filter(j=>j.archived);
   render();
 }
 function showLogin(msg,bad){ $("#login").hidden=false; $("#app").hidden=true; $("#chatFab").hidden=true; $("#chatP").classList.remove("on"); if(msg){ $("#lMsg").textContent=msg; $("#lMsg").className="msg"+(bad?" bad":""); } }
@@ -993,5 +994,6 @@ render();
 <script src="time.js"></script>
 <script src="ncr.js"></script>
 <script src="ideas.js"></script>
+<script src="jobs-extra.js"></script>
 </body>
 </html>

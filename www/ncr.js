@@ -105,7 +105,7 @@ drawDlg=function(){
 
 /* ---------- NCR log (all jobs) ---------- */
 let showClosed=false;
-function all(){ const out=[]; jobs.forEach(j=>(j.ncrs||[]).forEach(x=>out.push({j,x,s:stats(j,x)}))); return out.sort((a,b)=>b.x.n-a.x.n); }
+function all(){ const out=[]; [...jobs,...archivedJobs].forEach(j=>(j.ncrs||[]).forEach(x=>out.push({j,x,s:stats(j,x)}))); return out.sort((a,b)=>b.x.n-a.x.n); }
 window.renderNcr=function(){
   const B=$("#board"); B.className="ncrv"; B.style.gridTemplateColumns="";
   const P=window.gvcPlan; const rate=P&&P.loaded()?Number(P.get().ncrRate)||0:0;
