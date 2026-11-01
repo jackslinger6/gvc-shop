@@ -908,7 +908,7 @@ async function sendChat(){
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
   try{
     const hist=chatMsgs.filter(m=>m.role!=="act").slice(-20);
-    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...(window.planLines?window.planLines():[]),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
     if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
     (data.actions||[]).forEach(a=>chatMsgs.push({role:"act",content:a}));
     chatMsgs.push({role:"assistant",content:data.reply||"Done."});
@@ -988,5 +988,6 @@ render();
   }catch(e){ done=true; showLogin("Couldn't start: "+(e.message||e), true); }
 })();
 </script>
+<script src="planner.js"></script>
 </body>
 </html>
