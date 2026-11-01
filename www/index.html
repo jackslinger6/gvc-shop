@@ -189,7 +189,8 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .prx a{color:#8fd3ff}
 @media (max-width:600px){ .invtop .stats{grid-template-columns:repeat(2,1fr)} .prx{grid-template-columns:1fr} .tab[data-b=inv]{grid-column:1/-1} }
 /* ---- chat ---- */
-.chatfab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:9;border-radius:999px;padding:12px 18px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.chatfab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:9;border-radius:999px;padding:12px 18px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:transform .25s ease,border-radius .25s ease,padding .25s ease}
+.chatfab.tuck{transform:translateX(calc(100% - 14px));border-radius:12px 0 0 12px;padding:12px 10px 12px 14px;right:0}
 .chatp{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:min(420px,calc(100vw - 24px));height:min(620px,calc(100vh - 60px));z-index:11;display:none;flex-direction:column;background:#141619;border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.7);overflow:hidden}
 .chatp.on{display:flex}
 .chatp .ch{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:15px}
@@ -900,7 +901,12 @@ async function sendChat(){
   }catch(e){ chatMsgs.push({role:"assistant",content:"Sorry - something went wrong: "+(e.message||e)}); }
   chatBusy=false; chatMsgs=chatMsgs.slice(-40); LS.set("gvc_chat",chatMsgs); drawChat();
 }
-$("#chatFab").onclick=()=>{ $("#chatP").classList.add("on"); $("#chatFab").hidden=true; drawChat(); setTimeout(()=>$("#chatIn").focus(),50); };
+let lastY=0;
+window.addEventListener("scroll",()=>{ const y=window.scrollY, f=$("#chatFab"); if(!f) return;
+  const nearBottom=window.innerHeight+y>=document.documentElement.scrollHeight-140;
+  if(nearBottom||y>lastY+4) f.classList.add("tuck"); else if(y<lastY-4) f.classList.remove("tuck");
+  lastY=y; },{passive:true});
+$("#chatFab").onclick=()=>{ const f=$("#chatFab"); if(f.classList.contains("tuck")){ f.classList.remove("tuck"); } $("#chatP").classList.add("on"); $("#chatFab").hidden=true; drawChat(); setTimeout(()=>$("#chatIn").focus(),50); };
 $("#chatX").onclick=()=>{ $("#chatP").classList.remove("on"); $("#chatFab").hidden=false; };
 $("#chatClear").onclick=()=>{ chatMsgs=[]; LS.set("gvc_chat",[]); drawChat(); };
 $("#chatGo").onclick=sendChat;
