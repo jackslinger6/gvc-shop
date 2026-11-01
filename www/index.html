@@ -1012,7 +1012,7 @@ async function sendChat(){
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
   try{
     const hist=chatMsgs.filter(m=>m.role!=="act").slice(-20);
-    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...(window.planLines?window.planLines():[]),...(window.ncrLines?window.ncrLines():[]),...(window.revLines?window.revLines():[]),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...(window.planLines?window.planLines():[]),...(window.ncrLines?window.ncrLines():[]),...(window.revLines?window.revLines():[]),...(window.consLines?window.consLines():[]),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
     if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
     (data.actions||[]).forEach(a=>chatMsgs.push({role:"act",content:a}));
     chatMsgs.push({role:"assistant",content:data.reply||"Done."});
@@ -1098,5 +1098,6 @@ render();
 <script src="ideas.js"></script>
 <script src="jobs-extra.js"></script>
 <script src="revisions.js"></script>
+<script src="consumables.js"></script>
 </body>
 </html>

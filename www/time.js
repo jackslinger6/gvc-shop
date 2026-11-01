@@ -87,7 +87,8 @@ function edit(d,fn,quiet){
 }
 
 /* ---------- view ---------- */
-function weekDates(){ const s=P().monday(wkT),o=[]; for(let i=0;i<7;i++){ const x=new Date(s); x.setDate(s.getDate()+i); const w=x.getDay(); const di=iso(x);
+function weekDates(){ const s=P().monday(wkT),o=[]; const start=plan().timeStart||""; for(let i=0;i<7;i++){ const x=new Date(s); x.setDate(s.getDate()+i); const w=x.getDay(); const di=iso(x);
+  if(start&&di<start&&!T()[di]) continue; // before time tracking started in this app - those days live in the time invoice app
   if((w===0||w===6)&&!showWe&&!T()[di]&&!suggest(di).length) continue; o.push(di); } return o; }
 const jobOpts=sel=>`<option value="">Pick a job…</option>`+tiJobs.map(j=>`<option value="${esc(j.id)}" ${j.id===sel?"selected":""}>${esc(j.name)}${j.description?" · "+esc(j.description):""}</option>`).join("");
 const QUICK=[["Meeting","shop"],["Drawings / office","shop"],["Shop cleanup","shop"],["Parts run","shop"],["Helping the crew","shop"]];
@@ -101,6 +102,7 @@ function renderTime(){
     <span style="font-weight:600;margin:0 6px">${s.toLocaleDateString("en-CA",{month:"short",day:"numeric"})} – ${e.toLocaleDateString("en-CA",{month:"short",day:"numeric"})}</span>
     <button class="btn sm ${showWe?"primary":""}" id="tWe">Sat/Sun</button><span style="flex:1"></span><span class="lbl">A normal day is ${DAY}h. Short days, overtime and days off are fine, just confirm them. Nothing goes to the time invoice app until you press Send.</span></div>
     <div class="tmsg">${esc(tmsg)}</div>`;
+  if(plan().timeStart&&iso(G.monday(wkT))<plan().timeStart&&iso(new Date(G.monday(wkT).getTime()+6*864e5))>=plan().timeStart) h+=`<div class="lbl" style="margin:4px 0">Time tracking here started ${G.dlabel(plan().timeStart)} - earlier days are in your time invoice app.</div>`;
   if(sendBox) h+=sendBox.html;
   let wkTot=0, ready=[];
   D.forEach(d=>{
@@ -127,6 +129,7 @@ function renderTime(){
       <div class="tft"><button class="btn sm" data-ta="${d}">+ Line</button>${suggest(d).length?`<button class="btn sm" data-tf="${d}">Fill from plan</button>`:""}
         <span style="flex:1"></span>${r.ok?`<button class="btn sm" data-tu="${d}">Unconfirm</button>`:(r.lines.length?`<button class="btn sm ${tot>=DAY-1e-6?"primary":""}" data-tc="${d}">Confirm ${G.fh(tot)}${tot>DAY+1e-6?" (overtime)":tot<DAY-1e-6?" (short day)":""}</button>`:"")}</div></div>`;
   });
+  if(!D.length) h+=`<div class="draft" style="margin:12px 0">Nothing to log this week. Tap › for next week, or Sat/Sun if you worked the weekend.</div>`;
   h+=`<div class="tft" style="margin-top:12px"><b>Week: ${G.fh(wkTot)}</b><span style="flex:1"></span>
     <button class="btn ${ready.length?"primary":""}" id="tSend" ${ready.length?"":"disabled"}>Send ${ready.length} confirmed day${ready.length===1?"":"s"} to time invoice app</button></div>`;
   B.innerHTML=h;

@@ -163,6 +163,8 @@ const CHAT_TOOLS = [
       tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } } }, required: ["name", "stage"] } },
   { name: "propose_update", description: "Propose a change to a job (stage, card status, log entry, supplier status, new job). It goes to Kyle's review list - he taps Accept to apply it. Use for any board change.",
     input_schema: { type: "object", properties: Object.fromEntries(Object.entries(ITEM.properties).filter(([k]) => k !== "ref" && k !== "relevant")), required: ["summary"] } },
+  { name: "set_consumable", description: "Add or update a shop consumable (weld wire, contact tips, nozzles/diffusers, gas, grinding/cutting discs, rod, safety gear...) in the Consumables list. Matches an existing item by name (case-insensitive) and only changes the fields you pass. Use it as Kyle walks through what's in the shop or gives a count.",
+    input_schema: { type: "object", properties: { name: { type: "string", description: "Specific name, e.g. 'T91 flux core .045', 'ER70S-6 hard wire .035', 'Contact tips .035 (Miller)'" }, category: { type: "string", enum: ["Welding wire", "Contact tips", "Nozzles & diffusers", "Gas", "Grinding & cutting discs", "Rod", "Safety", "Other"] }, unit: { type: "string", description: "spools, boxes, each, bottles, packs..." }, qty: { type: "number", description: "How many there are right now (this records a count)" }, min_qty: { type: "number", description: "Order more when it gets down to this" }, notes: { type: "string" } }, required: ["name"] } },
   { name: "save_app_note", description: "Save a feature request, change, or bug report about THIS APP for Kyle to build with Claude Code at home. Use once you and Kyle have talked it through enough that someone could build it. Write details as a clear spec: the problem, how it should work step by step, any examples Kyle gave.",
     input_schema: { type: "object", properties: { kind: { type: "string", enum: ["idea", "change", "bug"], description: "idea = new feature, change = existing feature should work differently, bug = something broken" }, area: { type: "string", description: "Part of the app, e.g. To do, Week planner, My time, NCRs, Inventory, Chat, Recording, Texts, Email, Job card" }, title: { type: "string", description: "Short name, under 60 chars" }, details: { type: "string" } }, required: ["kind", "title", "details"] } },
   { name: "update_app_note", description: "Add to or rewrite an app note that's already saved (use the id from the saved notes list) instead of saving a duplicate.",
@@ -192,6 +194,8 @@ Kyle's open to-dos (with ids, for complete_todo): ${JSON.stringify(todos || [])}
 What Kyle's To do tab shows right now (board reminders are generated from job stages/suppliers/crew; to-dos are his own): ${JSON.stringify(ctx.todo_tab || [])}
 Suggestions waiting for his review: ${JSON.stringify(ctx.waiting_review || [])}
 Parts sitting flat in inventory that could be bent: ${JSON.stringify(ctx.flat_to_bend || [])}
+
+Consumables: the Inventory tab has a Consumables list (counted about weekly; low items alert on the To do tab). Its current items are in the To do list context as [consumable] lines. When Kyle tells you what consumables the shop has, how many, or what minimum to keep, call set_consumable once per item (it creates or updates). Ask for the minimum to keep if he didn't say, but don't hold up saving the count for it.
 
 You also help Kyle improve this app. ${APP_FEATURES}
 When Kyle wants something the app doesn't do, wants a feature to work differently, or says something isn't working: talk it through like a product partner. Ask at most one or two short questions if it's unclear (what problem it solves, how he pictures it working, an example), suggest a simpler way if there is one, then save it with save_app_note (or update_app_note if it's already in the list). You can't change the app yourself - say it's saved and you'll build it together with Claude at home. Don't save the same thing twice.
@@ -250,6 +254,16 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           const { summary, job_id, ...changes } = u.input;
           const { error } = await sb.from("gvc_suggestions").insert({ source: "chat", source_ref: "chat:" + Date.now() + "#" + (++n), from_name: "Chat", source_at: new Date().toISOString(), source_text: String(messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-1)[0]?.content || ""), job_id: job_id || null, summary, changes, status: "new" });
           if (error) throw error; actions.push("Suggested: " + summary + " (waiting for you in To do)");
+        } else if (u.name === "set_consumable") {
+          const nm = String(u.input.name || "").trim();
+          const { data: ex } = await sb.from("gvc_consumables").select("id,name").ilike("name", nm.replace(/[%_]/g, "\\$&")).maybeSingle();
+          const patch: any = {};
+          ["category", "unit", "notes"].forEach((k) => { if (u.input[k] != null && u.input[k] !== "") patch[k] = u.input[k]; });
+          if (u.input.qty != null) { patch.qty = Number(u.input.qty); patch.counted_at = new Date().toISOString(); }
+          if (u.input.min_qty != null) patch.min_qty = Number(u.input.min_qty);
+          if (ex) { const { error } = await sb.from("gvc_consumables").update(patch).eq("id", ex.id); if (error) throw error; }
+          else { const { error } = await sb.from("gvc_consumables").insert({ name: nm, category: "Other", ...patch }); if (error) throw error; }
+          actions.push(`${ex ? "Updated" : "Added"} consumable: ${nm}${u.input.qty != null ? ` (${u.input.qty}${u.input.unit ? " " + u.input.unit : ""})` : ""}${u.input.min_qty != null ? `, keep ${u.input.min_qty}` : ""}`);
         } else if (u.name === "save_app_note") {
           const said = messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-6).map((m: any) => "Kyle: " + m.content).join("\n");
           const { error } = await sb.from("gvc_feedback").insert({ kind: u.input.kind || "idea", area: u.input.area || null, title: String(u.input.title).slice(0, 120), details: u.input.details, conversation: said.slice(0, 6000) });
