@@ -15,6 +15,7 @@ css.textContent=`
 .csv .cq{display:flex;gap:4px;align-items:center}
 .csv .cq input{width:64px;text-align:center;font:inherit;font-size:15px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px}
 .csv .cq button{width:34px;height:34px;padding:0}
+@media (max-width:600px){ .csv .ci{grid-template-columns:1fr auto} .csv .ci>div:first-child{grid-column:1/-1} }
 .csv .form{border:1px solid var(--orange);border-radius:8px;padding:10px 12px;margin:8px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
 .csv .form label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
 .csv .form input,.csv .form select{font:inherit;font-size:13px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 7px}
@@ -66,6 +67,7 @@ function renderCons(){
 function modeBar(){ return `<div class="invmode"><button class="btn sm ${mode==="parts"?"primary":""}" type="button" data-im="parts">Truck parts</button><button class="btn sm ${mode==="cons"?"primary":""}" type="button" data-im="cons">Consumables${items.some(low)?` (${items.filter(low).length} low)`:""}</button></div>`; }
 function wireMode(){ document.querySelectorAll("[data-im]").forEach(b=>b.onclick=()=>{ mode=b.dataset.im; try{localStorage.setItem("gvc_inv_mode",mode)}catch(e){} render(); }); }
 try{ mode=localStorage.getItem("gvc_inv_mode")||"parts"; }catch(e){}
+window.invMode={get:()=>mode,set:m=>{ mode=m; try{localStorage.setItem("gvc_inv_mode",m)}catch(e){} render(); },low:()=>items.filter(low).length};
 const _inv=renderInv;
 renderInv=function(){ if(mode==="cons") return renderCons(); _inv(); const B=$("#board"); B.insertAdjacentHTML("afterbegin",modeBar()); wireMode(); };
 const _auto=autoTodos;
