@@ -89,14 +89,23 @@ const fh=x=>`${+Number(x).toFixed(1)}h`;
 const isOff=(p,d)=>((plan.off||{})[p]||[]).includes(d);
 function jobColor(jid){const ids=jobs.map(j=>j.id).sort();return PCOL[Math.max(0,ids.indexOf(jid))%PCOL.length];}
 
-let planVer=null;
+let planVer=null, reloadWanted=false;
+const sameVer=(a,b)=>!!a&&!!b&&(a===b||new Date(a).getTime()===new Date(b).getTime());
+// Typing into a plan/time field? Don't swap the plan out from under it - reload once the field is left.
+const typing=()=>{ const a=document.activeElement; return !!(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&a.closest("#board")); };
+document.addEventListener("focusout",()=>{ if(reloadWanted) setTimeout(()=>{ if(reloadWanted&&!typing()) loadPlan(); },50); });
 async function loadPlan(force){
-  if(!db||(planLoading&&!force)) return; planLoading=true;
+  if(!db||(planLoading&&!force)) return;
+  if(typing()&&!force){ reloadWanted=true; return; }
+  reloadWanted=false; planLoading=true;
   try{
     const {data,error}=await sb.from("gvc_plan").select("data,updated_at").eq("id","main").maybeSingle();
-    if(!error&&data){ plan=Object.assign(BLANK(),data.data||{}); planVer=data.updated_at; }
+    if(!error&&data){ plan=Object.assign(BLANK(),data.data||{}); planVer=data.updated_at; mc=null; }
     planLoaded=true;
-    if(!planCh) planCh=sb.channel("gvc_plan").on("postgres_changes",{event:"*",schema:"public",table:"gvc_plan"},()=>{ if(!drag&&!saving) loadPlan(); }).subscribe();
+    if(!planCh) planCh=sb.channel("gvc_plan").on("postgres_changes",{event:"*",schema:"public",table:"gvc_plan"},p=>{
+      // our own save comes back as an event too - skip it, otherwise it would reload over edits made since
+      if(p&&p.new&&sameVer(p.new.updated_at,planVer)) return;
+      if(!drag&&!saving) loadPlan(); }).subscribe();
   }finally{ planLoading=false; }
   if(cur==="crew"||cur==="todo"||cur==="time") render();
 }
@@ -116,10 +125,14 @@ async function doSave(){
     const {data,error}=await q.select("updated_at");
     if(error){ say("Couldn't save the plan: "+error.message); return false; }
     if(!data||!data.length){ saving=false; await loadPlan(true); say("The plan was changed somewhere else (another device, or Claude). I loaded the latest copy - redo your last change if it's missing."); return false; }
-    planVer=data[0].updated_at; return true;
+    planVer=data[0].updated_at; mc=null; return true;
   } finally { saving=false; }
 }
 /* ---------- model ---------- */
+// model()+compute() get asked for many times per render (to-dos, planner, My time, chat context). Work it out once
+// and reuse it until something changes (any render, plan load/save, or commit clears it).
+let mc=null;
+function MC(){ if(!mc){ const M=model(); mc={M,R:compute(M)}; } return mc; }
 function model(){
   const T={};
   jobs.filter(j=>j.stage!=="done").forEach(j=>(j.assemblies||[]).forEach(a=>{ if(!a.id) return; const key="j:"+j.id+":"+a.id;
@@ -194,7 +207,7 @@ async function commit(M2,label,undoable=true){
     else np.extra[t.xid]={name:t.name,job:t.job,h:t.h,who:t.who,done:t.done,at:t.at,errand:t.errand}; }
   Object.keys(np.extra).forEach(id=>{ if(!M2.T["x:"+id]) delete np.extra[id]; });
   for(const k in plan.hours||{}) if(!M2.T[k]&&!(k in np.hours)) np.hours[k]=plan.hours[k];
-  plan=np; render();
+  plan=np; mc=null; render();
   for(const jid in byJob){ const j0=jobs.find(x=>x.id===jid); if(!j0) continue; const j=structuredClone(j0);
     byJob[jid].forEach(t=>{ const a=(j.assemblies||[]).find(x=>x.id===t.aid); if(!a) return; a.who=t.who.join(", ");
       if(t.done!==(a.status==="done")) a.status=t.done?"done":"ready"; });
@@ -261,7 +274,7 @@ function blk(M,t,p,d,r,bad){
 function renderWeek(){
   const B=$("#board"); B.className="wkv"; B.style.gridTemplateColumns="";
   if(!planLoaded){ B.innerHTML=`<div class="lbl" style="padding:20px">Loading the plan…</div>`; return; }
-  const M=model(), R=compute(M), C=conflicts(M,R), D=weekDays(), today=iso(new Date());
+  const {M,R}=MC(), C=conflicts(M,R), D=weekDays(), today=iso(new Date());
   lastM=M; const bad=new Set(C.map(c=>c.id));
   const placed=new Set(); CREW.forEach(p=>{ for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(k)); });
   const pool=Object.values(M.T).filter(t=>!t.done&&!placed.has(t.key));
@@ -368,10 +381,10 @@ bar.querySelectorAll("[data-cv]").forEach(b=>b.onclick=()=>{ view=b.dataset.cv; 
 const _renderCrew=renderCrew;
 renderCrew=function(items){ if(view==="week") renderWeek(); else _renderCrew(items); };
 const _render=render;
-render=function(){ _render(); bar.style.display=cur==="crew"?"":"none"; bar.querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===view)); };
+render=function(){ mc=null; _render(); bar.style.display=cur==="crew"?"":"none"; bar.querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===view)); };
 const _auto=autoTodos;
 autoTodos=function(){ const out=_auto(); if(!planLoaded) return out;
-  try{ const M=model(),R=compute(M),today=iso(new Date()),lim=iso(new Date(Date.now()+2*86400000));
+  try{ const {M,R}=MC(),today=iso(new Date()),lim=iso(new Date(Date.now()+2*86400000));
     const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
     conflicts(M,R).forEach(c=>{ const t=M.T[c.id],p=M.T[c.pid]; const d=dayOf(M,t.who[0],c.id); if(!d||d<today||d>lim) return;
       const text=`Schedule clash ${dlabel(d)}: ${t.name} (${t.who.join(", ")} ${clock(c.ds)}) needs ${p.name} first`;
@@ -379,7 +392,7 @@ autoTodos=function(){ const out=_auto(); if(!planLoaded) return out;
   }catch(e){}
   return out; };
 window.planLines=function(){ if(!planLoaded) return [];
-  try{ const M=model(),R=compute(M),today=iso(new Date()),out=[];
+  try{ const {M,R}=MC(),today=iso(new Date()),out=[];
     weekDays().filter(d=>d>=today).forEach(d=>CREW.forEach(p=>{ if(isOff(p,d)){ out.push(`[crew schedule] ${dlabel(d)} · ${p}: day off`); return; }
       const ids=M.S[p][d]||[]; if(!ids.length) return;
       out.push(`[crew schedule] ${dlabel(d)} · ${p}: `+ids.map(k=>{const r=R[p][k],t=M.T[k];return `${clock(r.s)}-${clock(r.e)} ${t.name} (${t.job}${t.who.length>1?", with "+t.who.filter(w=>w!==p).join("+"):""}${t.done?", done":""})`;}).join("; ")); }));
@@ -387,6 +400,6 @@ window.planLines=function(){ if(!planLoaded) return [];
     const placed=new Set(); CREW.forEach(p=>{for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(k));});
     const un=Object.values(M.T).filter(t=>!t.done&&!placed.has(t.key)); if(un.length) out.push(`[crew schedule] not scheduled yet: `+un.map(t=>`${t.name} (${t.job}, ${fh(H(t))})`).join("; "));
     return out; }catch(e){ return []; } };
-window.gvcPlan={get:()=>plan,loaded:()=>planLoaded,save:savePlan,model,compute,isOff,iso,dlabel,fromIso,monday,clock,fh,H};
+window.gvcPlan={get:()=>plan,loaded:()=>planLoaded,save:savePlan,model,compute,mc:MC,dirty:()=>{mc=null;},isOff,iso,dlabel,fromIso,monday,clock,fh,H};
 if(db) loadPlan();
 })();

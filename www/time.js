@@ -67,7 +67,7 @@ function shopJob(d){ const mo=MONTHS[P().fromIso(d).getMonth()]; const hit=tiJob
 /* ---------- suggestion from the week plan ---------- */
 function suggest(d){
   const G=P(); if(!G||!G.loaded()) return [];
-  const M=G.model(), R=G.compute(M); const ids=(M.S[ME]||{})[d]||[]; const by={};
+  const {M,R}=G.mc(); const ids=(M.S[ME]||{})[d]||[]; const by={};
   ids.forEach(k=>{ const t=M.T[k], r=R[ME][k]; if(!t||!r) return; const h=r.w; if(h<0.01) return;
     const key=t.jid||(t.errand?"__shop":"__other"); const g=by[key]=by[key]||{gj:t.jid||null,h:0,names:[]};
     g.h+=h; g.names.push(t.name); });
@@ -188,7 +188,9 @@ async function doSend(skipClash){
 
 /* ---------- hooks ---------- */
 function pending(){ if(!P()||!P().loaded()) return [];
-  const p=plan(); const start=p.timeStart; if(!start) return [];
+  const p=plan(); let start=p.timeStart; if(!start) return [];
+  // only nag about the last 3 weeks - older unconfirmed days would pile up forever and slow every refresh
+  const floor=iso(new Date(Date.now()-21*86400000)); if(start<floor) start=floor;
   const today=todayIso(), out=[]; const x=P().fromIso(start);
   while(iso(x)<=today){ const d=iso(x), w=x.getDay();
     const r0=T()[d]; if(((w!==0&&w!==6)||(r0&&r0.lines&&r0.lines.length))&&!P().isOff(ME,d)){ const r=dayRec(d); const late=d<today||new Date().getHours()+new Date().getMinutes()/60>=15.5;

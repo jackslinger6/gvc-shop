@@ -193,25 +193,6 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .prx dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:13px}.prx dt{color:var(--dim)}.prx dd{margin:0}
 .prx a{color:#8fd3ff}
 @media (max-width:600px){ .invtop .stats{grid-template-columns:repeat(2,1fr)} .prx{grid-template-columns:1fr} .tab[data-b=inv]{grid-column:1/-1} }
-/* a recording made somewhere else (e.g. the Samsung Phone app's call recording) -> same path as the Record button */
-async function uploadAudio(f){
-  try{
-    if(f.size>24e6){ setAiMsg("That recording is over 24 MB - too long to transcribe in one go. Trim it or split it first."); return; }
-    const ext=((f.name.match(/\.([a-z0-9]+)$/i)||[])[1]||"m4a").toLowerCase();
-    if(ext==="amr"||ext==="3gp"){ setAiMsg("That's an AMR/3GP file, which the transcriber can't read. In the Samsung Phone app's call recording settings, pick the M4A format if it offers one."); return; }
-    setAiMsg(`Uploading ${f.name}…`);
-    const at=new Date(f.lastModified||Date.now()).toISOString();
-    const path=`rec/${at.replace(/[:.]/g,"-")}-call.${ext}`;
-    const up=await sb.storage.from("gvc-audio").upload(path,f,{contentType:f.type||"audio/mp4",upsert:true});
-    if(up.error) throw new Error("upload: "+up.error.message);
-    setAiMsg("Transcribing the call and asking Claude…");
-    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"recording",path,at}});
-    if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
-    setAiMsg(data.added?`Call done - ${data.added} suggestion${data.added>1?"s":""} below.`:"Call transcribed - nothing job-related found.");
-    await loadSide();
-  }catch(e){ setAiMsg("Call recording: "+(e.message||e)); }
-}
-
 /* ---- chat ---- */
 .chatfab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:9;border-radius:999px;padding:12px 18px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:transform .25s ease,border-radius .25s ease,padding .25s ease}
 .chatfab.tuck{transform:translateX(calc(100% - 14px));border-radius:12px 0 0 12px;padding:12px 10px 12px 14px;right:0}
@@ -282,6 +263,14 @@ async function uploadAudio(f){
   .trk{grid-template-columns:minmax(0,1fr)}
   .trk .where{margin-bottom:8px}
   .trk .hdr{display:none}
+  /* phone: bigger things to tap */
+  .btn{min-height:40px} .btn.sm{min-height:36px;padding:6px 10px}
+  .ti .ck{width:28px;height:28px;font-size:16px;line-height:24px}
+  .sb{height:36px} .rmb{font-size:20px;padding:6px 10px}
+  table.at{min-width:560px} table.at td{padding:6px 3px}
+  .wc{padding:6px 10px;font-size:12.5px}
+  .tab{min-height:44px}
+  input,select,textarea{font-size:15px;padding:9px 10px}
 }
 .prx .drw{grid-column:1/-1}
 .drw{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;width:100%}
@@ -421,7 +410,6 @@ function render(){
         ${j.summary?`<div class="tx">${esc(j.summary)}</div>`:""}
         ${(j.assemblies||[]).length?`<div class="cprog"><div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div><span>${Math.round(asmDone(j)/j.assemblies.length*100)}% · ${asmDone(j)} of ${j.assemblies.length} tasks</span></div>`:""}
         ${B.k==="ordering"&&(j.suppliers||[]).length?`<div class="sups">${j.suppliers.map(supLine).join("")}</div>`:""}
-        ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div><div class="pct">${asmDone(j)} of ${j.assemblies.length} assemblies done</div>`:""}
         ${flags(j).join("")}</button>`).join("")}</div></section>`;
   }).join("");
   $("#board").querySelectorAll(".card").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
@@ -436,7 +424,27 @@ function render(){
   $("#track").querySelectorAll(".jn").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
   const at=jobs.filter(needsAttention).length;
   $("#status").textContent=jobs.length?`${jobs.length} jobs · ${at} need attention`:"No jobs yet. Add one with + New job.";
-  if(openId) drawDlg();
+  if(openId){ if(dlgDirty()) dlgStale(); else drawDlg(); }
+}
+/* The open job card is rebuilt from the data on every refresh (other device, realtime, coming back to the app).
+   If you've typed something that isn't saved yet, keep the card as it is and just show a note instead of wiping it. */
+function dlgDirty(){
+  const j=job(); const D=$("#dlg"); if(!j||!D||!$("#fName")) return false;
+  const v=id=>{ const el=$(id); return el?el.value:null; };
+  if(v("#fName")!=null&&v("#fName").trim()!==j.name) return true;
+  if(v("#fFolder")!=null&&v("#fFolder").trim()!==(j.folder||"")) return true;
+  if(v("#fSum")!=null&&v("#fSum").trim()!==(j.summary||"")) return true;
+  if(v("#fStage")!=null&&v("#fStage")!==j.stage) return true;
+  if((v("#fNote")||"").trim()) return true;
+  for(const el of D.querySelectorAll("[data-f]")){ const x=(j.suppliers||[])[+el.dataset.i]; if(!x||(x[el.dataset.f]||"")!==el.value) return true; }
+  for(const id of ["#naList","#nsName","#nsContact","#nsScope","#nfWhat","#nfSteps"]){ if((v(id)||"").trim()) return true; }
+  return false;
+}
+function dlgStale(){
+  const D=$("#dlg"); if(!D||D.querySelector("#dlgStale")) return;
+  const n=document.createElement("div"); n.id="dlgStale"; n.className="tnote"; n.style.cssText="color:#ffd28a;margin:8px 0 0";
+  n.textContent="This job changed somewhere else while you were editing. Save puts your edits on top of that change; Close throws them away.";
+  const sb=D.querySelector(".stagebar"); if(sb) sb.after(n); else D.prepend(n);
 }
 
 function crewItems(){
@@ -474,6 +482,7 @@ function renderCrew(items){
 /* ---------- undo ---------- */
 const undoStack=[]; let toastT=null;
 function pushUndo(id,prev,label){
+  todoUndoFn=null; // a job change replaces any pending to-do undo, so the toast's Undo always matches its label
   undoStack.push({id,prev:prev?structuredClone(prev):null,label}); if(undoStack.length>50) undoStack.shift();
   $("#undoBtn").classList.add("on"); $("#undoBtn").textContent="↶ Undo"; $("#undoBtn").title="Undo: "+label+" (Ctrl+Z)";
   $("#toastUndo").style.display=""; $("#toastTx").textContent=label; $("#toast").classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>$("#toast").classList.remove("on"),7000);
@@ -495,7 +504,14 @@ document.addEventListener("keydown",e=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowe
 const raw=id=>{const j=jobs.find(x=>x.id===id); if(!j) return null; const {id:_,...d}=j; return d;};
 function job(){return jobs.find(j=>j.id===openId)||archivedJobs.find(j=>j.id===openId);}
 function openJob(id){openId=id;drawDlg();$("#scrim").classList.add("on");}
-function closeDlg(){openId=null;$("#scrim").classList.remove("on");}
+function closeDlg(){
+  const j=openId&&jobs.find(x=>x.id===openId);
+  openId=null;$("#scrim").classList.remove("on");
+  // "+ New job" saves a placeholder right away; if it was never filled in, don't leave it on the board
+  if(j&&j.name==="New job"&&!j.summary&&!j.folder&&!(j.suppliers||[]).length&&!(j.assemblies||[]).length&&!(j.log||[]).length&&db){
+    deleteJob(j.id).then(()=>{ const i=undoStack.findIndex(u=>u.id===j.id&&!u.prev); if(i>=0) undoStack.splice(i,1); if(!undoStack.length){ $("#undoBtn").classList.remove("on"); $("#toast").classList.remove("on"); } }).catch(()=>{});
+  }
+}
 $("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeDlg();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDlg();});
 
@@ -570,7 +586,8 @@ function collect(){
 async function put(j,label){
   const {id,...data}=j; const prev=raw(id);
   if(!db){ jobs=jobs.map(x=>x.id===id?j:x); render(); pushUndo(id,prev,label||("Edited "+j.name)); return true; }
-  try{ await saveJob(id,data); pushUndo(id,prev,label||("Edited "+j.name)); return true; }catch(e){ const el=$("#err"); if(el) el.textContent="Couldn't save: "+(e&&e.message||e); return false; }
+  try{ await saveJob(id,data); pushUndo(id,prev,label||("Edited "+j.name)); return true; }
+  catch(e){ const m="Couldn't save: "+(e&&e.message||e); const el=$("#err"); if(el) el.textContent=m; $("#toastUndo").style.display="none"; $("#toastTx").textContent=m; $("#toast").classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>$("#toast").classList.remove("on"),9000); return false; }
 }
 async function move(d){
   const j=collect(); const was=SIDX[j.stage]??0; const to=Math.max(0,Math.min(STAGES.length-1,was+d));
@@ -582,7 +599,7 @@ async function save(){ const j=collect(); if(await put(j)) closeDlg(); }
 async function addNote(){ const t=$("#fNote").value.trim(); if(!t){$("#err").textContent="Type a note first.";return;} const j=collect(); j.log=[...(j.log||[]),{at:new Date().toISOString(),text:t}]; await put(j,"Added a note to "+j.name); }
 async function removeSup(k){ const j=collect(); const n=j.suppliers[k].name; j.suppliers.splice(k,1); await put(j,`Removed ${n} from ${j.name}`); }
 async function delJob(){
-  const b=$("#delJob"); if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="Click again to delete";return;}
+  const b=$("#delJob"); if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="Tap again to delete";setTimeout(()=>{ if(b.isConnected){ b.dataset.armed="";b.textContent="Delete job"; } },4000);return;}
   const id=openId, prev=raw(id);
   if(!db){ jobs=jobs.filter(x=>x.id!==id); closeDlg(); render(); pushUndo(id,prev,"Deleted "+prev.name); return; }
   try{ await deleteJob(id); closeDlg(); pushUndo(id,prev,"Deleted "+prev.name); }catch(e){$("#err").textContent="Couldn't delete: "+(e.message||e);}
@@ -621,9 +638,21 @@ const Widget = (window.capacitorExports && window.Capacitor && window.Capacitor.
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: !Widget, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
 let channel=null;
 function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
+/* Each job is one JSON row. jobVer remembers the updated_at we last loaded for each job; a save only goes through
+   if the row still has that updated_at, so two devices (or you + Ask Claude) can't silently overwrite each other. */
+const jobVer={};
 async function saveJob(id,data){
-  const { error } = await sb.from("gvc_jobs").upsert({ id, data });
-  if(error) throw error;
+  const ver=jobVer[id];
+  if(ver){
+    const r=await sb.from("gvc_jobs").update({ data }).eq("id",id).eq("updated_at",ver).select("updated_at");
+    if(r.error) throw r.error;
+    if(!r.data||!r.data.length){ await loadJobs(); throw new Error("This job was changed on another device (or by Claude) since you opened it. The latest copy is loaded - please redo your change."); }
+    jobVer[id]=r.data[0].updated_at;
+  } else {
+    const r=await sb.from("gvc_jobs").upsert({ id, data }).select("updated_at");
+    if(r.error) throw r.error;
+    if(r.data&&r.data[0]) jobVer[id]=r.data[0].updated_at;
+  }
   const row={id,...data}; jobs=jobs.filter(x=>x.id!==id); archivedJobs=archivedJobs.filter(x=>x.id!==id);
   (row.archived?archivedJobs:jobs).push(row);
   render(); widgetRefresh();
@@ -631,11 +660,13 @@ async function saveJob(id,data){
 async function deleteJob(id){
   const { error } = await sb.from("gvc_jobs").delete().eq("id", id);
   if(error) throw error;
-  jobs=jobs.filter(x=>x.id!==id); render(); widgetRefresh();
+  delete jobVer[id];
+  jobs=jobs.filter(x=>x.id!==id); archivedJobs=archivedJobs.filter(x=>x.id!==id); render(); widgetRefresh();
 }
 async function loadJobs(){
-  const { data, error } = await sb.from("gvc_jobs").select("id,data");
+  const { data, error } = await sb.from("gvc_jobs").select("id,data,updated_at");
   if(error){ $("#status").textContent="Couldn't load the board: "+error.message; return; }
+  (data||[]).forEach(r=>{ jobVer[r.id]=r.updated_at; });
   const all=(data||[]).map(r=>({id:r.id,...r.data})).map(j=>({...j,stage:SIDX[j.stage]!=null?j.stage:"prep"})); jobs=all.filter(j=>!j.archived); archivedJobs=all.filter(j=>j.archived);
   render();
 }
@@ -999,6 +1030,25 @@ async function toggleRec(){
   }catch(e){ recState.on=false; clearInterval(recState.timer); setAiMsg("Recording: "+(e.message||e)); render(); }
 }
 
+/* a recording made somewhere else (e.g. the Samsung Phone app's call recording) -> same path as the Record button */
+async function uploadAudio(f){
+  try{
+    if(f.size>24e6){ setAiMsg("That recording is over 24 MB - too long to transcribe in one go. Trim it or split it first."); return; }
+    const ext=((f.name.match(/\.([a-z0-9]+)$/i)||[])[1]||"m4a").toLowerCase();
+    if(ext==="amr"||ext==="3gp"){ setAiMsg("That's an AMR/3GP file, which the transcriber can't read. In the Samsung Phone app's call recording settings, pick the M4A format if it offers one."); return; }
+    setAiMsg(`Uploading ${f.name}…`);
+    const at=new Date(f.lastModified||Date.now()).toISOString();
+    const path=`rec/${at.replace(/[:.]/g,"-")}-call.${ext}`;
+    const up=await sb.storage.from("gvc-audio").upload(path,f,{contentType:f.type||"audio/mp4",upsert:true});
+    if(up.error) throw new Error("upload: "+up.error.message);
+    setAiMsg("Transcribing the call and asking Claude…");
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"recording",path,at}});
+    if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
+    setAiMsg(data.added?`Call done - ${data.added} suggestion${data.added>1?"s":""} below.`:"Call transcribed - nothing job-related found.");
+    await loadSide();
+  }catch(e){ setAiMsg("Call recording: "+(e.message||e)); }
+}
+
 /* ---- chat ---- */
 let chatMsgs=LS.get("gvc_chat",[]), chatBusy=false;
 function drawChat(){
@@ -1077,7 +1127,7 @@ $("#lSetPass").onclick=async()=>{
   if(error){ showLogin(error.message, true); return; }
   recovering=false; $("#lNew").hidden=true; history.replaceState(null,"",location.pathname); await startApp();
 };
-$("#signOut").onclick=async()=>{ try{ Widget && await Widget.signOut(); }catch(e){} await sb.auth.signOut(); jobs=[]; db=null; showLogin("Signed out."); };
+$("#signOut").onclick=async()=>{ try{ Widget && await Widget.signOut(); }catch(e){} await sb.auth.signOut(); jobs=[]; archivedJobs=[]; for(const k in jobVer) delete jobVer[k]; db=null; showLogin("Signed out."); };
 if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden && db){ loadJobs(); loadSide(); checkTexts(false); } });
 render();

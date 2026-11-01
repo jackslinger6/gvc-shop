@@ -27,8 +27,12 @@ const bar=document.querySelector("#app .bar");
 const sub=document.createElement("div"); sub.className="subnav"; sub.id="subnav"; bar.after(sub);
 const num=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
 function go(v){ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0}); }
+// autoTodos() is asked for several times per render (tab counts, the To do list, My time); answer once per render.
+const _auto=autoTodos; let autoCache=null;
+autoTodos=function(){ if(!autoCache) autoCache=_auto(); return autoCache; };
 const _render=render;
 render=function(){
+  autoCache=null;
   _render();
   const T=$("#tabs"); const info={};
   T.querySelectorAll(".tab").forEach(b=>{ info[b.dataset.b]={ct:(b.querySelector(".ct")||{}).textContent||"",at:(b.querySelector(".at")||{}).outerHTML||"",atN:parseInt(((b.querySelector(".at")||{}).textContent||"0"))||0}; });
