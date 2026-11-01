@@ -379,10 +379,10 @@ function render(){
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
     const js=jobs.filter(j=>stOf(j).board===b.k); const at=js.filter(needsAttention).length;
     return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct">${js.length}</span>${at?`<span class="at">${at}</span>`:""}</button>`;
-  }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
+  }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+(window.timeTab?window.timeTab():"")+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
   { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
-  if(cur==="todo"){ renderTodo(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
+  if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
   const B=BOARDS.find(b=>b.k===cur);
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
@@ -585,7 +585,7 @@ $("#addJob").onclick=async()=>{
 };
 
 const START_HASH=location.hash||"";
-const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","inv"];
+const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","time","inv"];
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
@@ -989,5 +989,6 @@ render();
 })();
 </script>
 <script src="planner.js"></script>
+<script src="time.js"></script>
 </body>
 </html>

@@ -86,12 +86,14 @@ async function loadPlan(){
     const {data,error}=await sb.from("gvc_plan").select("data").eq("id","main").maybeSingle();
     if(!error&&data) plan=Object.assign(BLANK(),data.data||{});
     planLoaded=true;
-    if(!planCh) planCh=sb.channel("gvc_plan").on("postgres_changes",{event:"*",schema:"public",table:"gvc_plan"},()=>{ if(!drag) loadPlan(); }).subscribe();
+    if(!planCh) planCh=sb.channel("gvc_plan").on("postgres_changes",{event:"*",schema:"public",table:"gvc_plan"},()=>{ if(!drag&&Date.now()-lastSaveAt>3000) loadPlan(); }).subscribe();
   }finally{ planLoading=false; }
   if(cur==="crew"||cur==="todo") render();
 }
 setInterval(()=>{ if(db&&!planLoaded) loadPlan(); },800);
+let lastSaveAt=0;
 async function savePlan(){
+  lastSaveAt=Date.now();
   const {error}=await sb.from("gvc_plan").upsert({id:"main",data:plan,updated_at:new Date().toISOString()});
   if(error) say("Couldn't save the plan: "+error.message);
 }
@@ -358,5 +360,6 @@ window.planLines=function(){ if(!planLoaded) return [];
     const placed=new Set(); CREW.forEach(p=>{for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(k));});
     const un=Object.values(M.T).filter(t=>!t.done&&!placed.has(t.key)); if(un.length) out.push(`[crew schedule] not scheduled yet: `+un.map(t=>`${t.name} (${t.job}, ${fh(H(t))})`).join("; "));
     return out; }catch(e){ return []; } };
+window.gvcPlan={get:()=>plan,loaded:()=>planLoaded,save:savePlan,model,compute,isOff,iso,dlabel,fromIso,monday,clock,fh,H};
 if(db) loadPlan();
 })();
