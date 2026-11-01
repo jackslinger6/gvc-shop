@@ -620,7 +620,7 @@ function autoTodos(){
   const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   return out.filter(x=>!hidden.has(x.text));
 }
-const SRC={sms:"💬",recording:"🎙",manual:"📋"};
+const SRC={sms:"💬",recording:"🎙",manual:"📋",email:"✉️",chat:"🗨"};
 function sgBullets(s){
   const c=s.changes||{}, j=jobs.find(x=>x.id===s.job_id), b=[];
   if(j) b.push(`Job: ${esc(j.name)}`); else if(c.new_job_name) b.push(`New job: ${esc(c.new_job_name)}`);
