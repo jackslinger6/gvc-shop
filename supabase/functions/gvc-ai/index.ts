@@ -114,11 +114,13 @@ Current jobs: ${JSON.stringify(jobs)}`;
 
   const byRef = new Map(fresh.map((i) => [i.ref, i]));
   const done = new Set<string>();
+  const seenCount = new Map<string, number>();
   const insert = sugg.filter((s) => byRef.has(s.ref)).map((s) => {
+    const n = (seenCount.get(s.ref) || 0) + 1; seenCount.set(s.ref, n);
     done.add(s.ref);
     const src = byRef.get(s.ref);
     const { ref: _r, relevant, summary, job_id, ...changes } = s;
-    return { source: src.source, source_ref: s.ref, from_name: src.from || null, source_at: src.at || null, source_text: String(src.text || "").slice(0, 50000), job_id: job_id || null, summary, changes, status: relevant ? "new" : "none" };
+    return { source: src.source, source_ref: n > 1 ? s.ref + "#" + n : s.ref, from_name: src.from || null, source_at: src.at || null, source_text: String(src.text || "").slice(0, 50000), job_id: job_id || null, summary, changes, status: relevant ? "new" : "none" };
   });
   // messages Claude didn't mention: mark as processed so they aren't sent again
   for (const i of fresh) if (!done.has(i.ref)) insert.push({ source: i.source, source_ref: i.ref, from_name: i.from || null, source_at: i.at || null, source_text: String(i.text || "").slice(0, 50000), job_id: null, summary: "", changes: {}, status: "none" });
