@@ -82,7 +82,7 @@ let saveT=null;
 function persist(now){ clearTimeout(saveT); if(now) return P().save(); saveT=setTimeout(()=>P().save(),700); }
 function edit(d,fn,quiet){
   const cur0=dayRec(d); const r={lines:cur0.lines.map(l=>({...l})),ok:cur0.ok,sent:cur0.sent,sentIds:cur0.sentIds||[],changed:cur0.changed};
-  fn(r); if(r.ok&&total(r)<DAY-1e-6) r.ok=false; if(r.sent) r.changed=true;
+  r.ok=false; fn(r); if(r.sent) r.changed=true;
   T()[d]=r; persist(); if(!quiet) render();
 }
 
@@ -99,17 +99,17 @@ function renderTime(){
   const s=G.monday(wkT), e=new Date(s); e.setDate(s.getDate()+6);
   let h=`<div class="tbar"><button class="btn sm" data-tw="-1" aria-label="Previous week">‹</button><button class="btn sm" data-tw="0">This week</button><button class="btn sm" data-tw="1" aria-label="Next week">›</button>
     <span style="font-weight:600;margin:0 6px">${s.toLocaleDateString("en-CA",{month:"short",day:"numeric"})} – ${e.toLocaleDateString("en-CA",{month:"short",day:"numeric"})}</span>
-    <button class="btn sm ${showWe?"primary":""}" id="tWe">Sat/Sun</button><span style="flex:1"></span><span class="lbl">Every day has to add up to ${DAY}h. Nothing goes to the time invoice app until you press Send.</span></div>
+    <button class="btn sm ${showWe?"primary":""}" id="tWe">Sat/Sun</button><span style="flex:1"></span><span class="lbl">A normal day is ${DAY}h. Short days, overtime and days off are fine, just confirm them. Nothing goes to the time invoice app until you press Send.</span></div>
     <div class="tmsg">${esc(tmsg)}</div>`;
   if(sendBox) h+=sendBox.html;
   let wkTot=0, ready=[];
   D.forEach(d=>{
     const off=G.isOff(ME,d); const r=dayRec(d); const tot=total(r); wkTot+=tot; const ext=theirs(d); const extH=ext.reduce((a,x)=>a+Number(x.hours||0),0);
     const future=d>today;
-    const c=off?"#6c727a":r.ok?(r.sent&&!r.changed?"#2f8ff0":"#3ad06b"):(tot>=DAY?"#f5b041":"#e5483b");
+    const c=off?"#6c727a":r.ok?(r.sent&&!r.changed?"#2f8ff0":"#3ad06b"):(Math.abs(tot-DAY)<1e-6?"#f5b041":"#e5483b");
     if(r.ok&&(!r.sent||r.changed)) ready.push(d);
     h+=`<div class="tday" data-day="${d}" style="--c:${c}"><div class="thd"><b>${G.dlabel(d)}${d===today?" (today)":""}</b>
-      <span class="tot" style="color:${tot>DAY+1e-6?"#ffd28a":tot<DAY-1e-6?"#ff9b91":"#7fe3a0"}">${G.fh(tot)} / ${DAY}h</span>
+      <span class="tot" style="color:${Math.abs(tot-DAY)<1e-6?"#7fe3a0":r.ok?"#ffd28a":"#ff9b91"}">${r.ok&&!r.lines.length?"Didn't work":G.fh(tot)+" / "+DAY+"h"}</span>
       ${tot>DAY+1e-6?`<span class="twarn" style="color:#ffd28a;border-color:#8a6a2a;background:rgba(245,176,65,.12)">${G.fh(tot-DAY)} overtime</span>`:""}
       ${off?`<span class="lbl">Day off in the plan</span>`:""}
       ${r.ok?`<span class="tok">Confirmed</span>`:""}${r.sent?`<span class="tsent">Sent${r.changed?" - changed since":""}</span>`:""}
@@ -121,10 +121,11 @@ function renderTime(){
         <input data-th="${d}|${i}" type="number" step="0.25" min="0" value="${l.h}" aria-label="Hours">
         <button data-tx="${d}|${i}" title="Remove line" aria-label="Remove line">✕</button></div>`).join("")}
       ${extH&&!r.lines.length?`<div class="draft">Already logged in the time invoice app (${G.fh(extH)}). Nothing to do here.</div>`:""}
-      ${!off&&!future&&tot<DAY-1e-6&&!(extH&&!r.lines.length)?`<div class="ask">That's ${G.fh(tot)}. What else did you do for the other ${G.fh(DAY-tot)}?
-        <div class="row">${QUICK.map(([q])=>`<button class="btn sm" data-tq="${d}|${esc(q)}">${esc(q)}</button>`).join("")}<button class="btn sm" data-ta="${d}">Something else…</button></div></div>`:""}
+      ${!off&&!future&&!r.ok&&tot<DAY-1e-6&&!(extH&&!r.lines.length)?`<div class="ask">${tot?`That's ${G.fh(tot)}. Short day, or did you do something else for the other ${G.fh(DAY-tot)}?`:`Nothing logged. Did you work this day?`}
+        <div class="row">${QUICK.map(([q])=>`<button class="btn sm" data-tq="${d}|${esc(q)}">${esc(q)}</button>`).join("")}<button class="btn sm" data-ta="${d}">Something else…</button>
+        ${tot?`<button class="btn sm" data-tc="${d}">That's all, short day</button>`:`<button class="btn sm" data-tc="${d}">Didn't work</button>`}</div></div>`:""}
       <div class="tft"><button class="btn sm" data-ta="${d}">+ Line</button>${suggest(d).length?`<button class="btn sm" data-tf="${d}">Fill from plan</button>`:""}
-        <span style="flex:1"></span>${r.ok?`<button class="btn sm" data-tu="${d}">Unconfirm</button>`:`<button class="btn sm ${tot>=DAY-1e-6?"primary":""}" data-tc="${d}">Confirm day</button>`}</div></div>`;
+        <span style="flex:1"></span>${r.ok?`<button class="btn sm" data-tu="${d}">Unconfirm</button>`:(r.lines.length?`<button class="btn sm ${tot>=DAY-1e-6?"primary":""}" data-tc="${d}">Confirm ${G.fh(tot)}${tot>DAY+1e-6?" (overtime)":tot<DAY-1e-6?" (short day)":""}</button>`:"")}</div></div>`;
   });
   h+=`<div class="tft" style="margin-top:12px"><b>Week: ${G.fh(wkTot)}</b><span style="flex:1"></span>
     <button class="btn ${ready.length?"primary":""}" id="tSend" ${ready.length?"":"disabled"}>Send ${ready.length} confirmed day${ready.length===1?"":"s"} to time invoice app</button></div>`;
@@ -141,9 +142,8 @@ function renderTime(){
     if(!shopJob(d)) tmsg=`No "${MONTHS[P().fromIso(d).getMonth()]} shop" job in the time invoice app yet - pick a job for that line.`; render(); });
   B.querySelectorAll("[data-tf]").forEach(el=>el.onclick=()=>{ const d=el.dataset.tf; const sg=suggest(d); edit(d,r=>{ const have=new Set(r.lines.filter(l=>l.gj).map(l=>l.gj)); sg.forEach(l=>{ if(!l.gj||!have.has(l.gj)) r.lines.push(l); }); }); });
   B.querySelectorAll("[data-tc]").forEach(el=>el.onclick=()=>{ const d=el.dataset.tc; const r=dayRec(d); const tot=total(r);
-    if(tot<DAY-1e-6){ tmsg=`${P().dlabel(d)} only adds up to ${P().fh(tot)}. What else did you do? Add a line for the other ${P().fh(DAY-tot)}.`; render(); return; }
     if(r.lines.some(l=>!l.ti)){ tmsg="Pick a time-invoice job for every line first."; render(); return; }
-    edit(d,x=>{ x.ok=true; }); tmsg=`${P().dlabel(d)} confirmed.`; render(); });
+    edit(d,x=>{ x.ok=true; }); tmsg=`${P().dlabel(d)} confirmed${tot?` (${P().fh(tot)})`:" as not worked"}.`; render(); });
   B.querySelectorAll("[data-tu]").forEach(el=>el.onclick=()=>edit(el.dataset.tu,r=>{ r.ok=false; }));
   $("#tSend").onclick=()=>prepSend(ready);
   B.querySelectorAll("[data-sgo]").forEach(b=>b.onclick=()=>doSend(b.dataset.sgo==="skip"));
@@ -188,7 +188,7 @@ function pending(){ if(!P()||!P().loaded()) return [];
   const p=plan(); const start=p.timeStart; if(!start) return [];
   const today=todayIso(), out=[]; const x=P().fromIso(start);
   while(iso(x)<=today){ const d=iso(x), w=x.getDay();
-    if(w!==0&&w!==6&&!P().isOff(ME,d)){ const r=dayRec(d); const late=d<today||new Date().getHours()+new Date().getMinutes()/60>=15.5;
+    const r0=T()[d]; if(((w!==0&&w!==6)||(r0&&r0.lines&&r0.lines.length))&&!P().isOff(ME,d)){ const r=dayRec(d); const late=d<today||new Date().getHours()+new Date().getMinutes()/60>=15.5;
       if(!r.ok&&late&&!theirs(d).length) out.push({d,tot:total(r),draft:r.draft}); }
     x.setDate(x.getDate()+1); }
   return out; }
@@ -196,7 +196,7 @@ window.timeTab=()=>{ const n=pending().length; return `<button class="tab ${cur=
 window.renderTime=renderTime;
 const _auto=autoTodos;
 autoTodos=function(){ const out=_auto();
-  try{ pending().forEach(x=>{ const text=`Log your time for ${P().dlabel(x.d)} (${x.draft&&x.tot?"plan says "+P().fh(x.tot)+", confirm it":P().fh(x.tot)+" of 8h so far"})`; out.push({text,c:"#7fe3a0",view:"time"}); });
+  try{ pending().forEach(x=>{ const text=`Log your time for ${P().dlabel(x.d)} (${x.draft&&x.tot?"plan says "+P().fh(x.tot)+", confirm it":(x.tot?P().fh(x.tot)+" so far, not confirmed":"nothing logged")})`; out.push({text,c:"#7fe3a0",view:"time"}); });
     const G=P(); if(G&&G.loaded()){ const lastMon=iso(G.monday(-1)), thisMon=iso(G.monday(0)); const unsent=Object.entries(T()).filter(([d,r])=>d>=lastMon&&d<thisMon&&r.ok&&(!r.sent||r.changed));
       if(unsent.length) out.push({text:`Send last week's time to the time invoice app (${unsent.length} day${unsent.length===1?"":"s"} confirmed)`,c:"#7fe3a0",view:"time"}); }
   }catch(e){}
