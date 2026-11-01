@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Reads texts from picked contacts and records audio for the GVC Shop app. */
+/** Reads texts from picked contacts and records audio for the GVC Vault app. */
 @CapacitorPlugin(
     name = "ShopNative",
     permissions = {

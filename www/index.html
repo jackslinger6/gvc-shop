@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>GVC Shop</title>
+<title>GVC Vault</title>
 <script>
 window.__errs=[];
 function __showErr(m){ try{ window.__errs.push(m); var d=document.getElementById("errbar"); if(!d){ d=document.createElement("div"); d.id="errbar"; d.style.cssText="margin:12px 16px;padding:10px 12px;border:1px solid #5c2a26;border-radius:10px;background:#2a1513;color:#ffb3ab;font:13px/1.4 system-ui,sans-serif;white-space:pre-wrap;word-break:break-word"; (document.body||document.documentElement).appendChild(d); } d.textContent="Something went wrong - send Claude a screenshot of this:\n"+window.__errs.slice(-4).join("\n"); }catch(e){} }
@@ -285,7 +285,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 <body>
 <header>
   <h1 class="title">GORDEYVILLE CUSTOMS</h1>
-  <div class="sub">ORDER STATUS</div>
+  <div class="sub">VAULT</div>
 </header>
 <div class="wrap">
   <section class="login" id="login" hidden>
@@ -668,7 +668,7 @@ async function loadJobs(){
   if(error){ $("#status").textContent="Couldn't load the board: "+error.message; return; }
   (data||[]).forEach(r=>{ jobVer[r.id]=r.updated_at; });
   const all=(data||[]).map(r=>({id:r.id,...r.data})).map(j=>({...j,stage:SIDX[j.stage]!=null?j.stage:"prep"})); jobs=all.filter(j=>!j.archived); archivedJobs=all.filter(j=>j.archived);
-  render();
+  render(); widgetRefresh();
 }
 function showLogin(msg,bad){ $("#login").hidden=false; $("#app").hidden=true; $("#chatFab").hidden=true; $("#chatP").classList.remove("on"); if(msg){ $("#lMsg").textContent=msg; $("#lMsg").className="msg"+(bad?" bad":""); } }
 async function startApp(){
@@ -892,7 +892,7 @@ async function loadSide(){
   if(!db) return;
   const [t,s]=await Promise.all([sb.from("gvc_todos").select("*").order("created_at"), sb.from("gvc_suggestions").select("id,created_at,source,from_name,source_at,source_text,job_id,summary,changes,status").eq("status","new")]);
   if(!t.error) todos=t.data||[]; if(!s.error) suggs=s.data||[];
-  render(); loadParts();
+  render(); loadParts(); widgetRefresh();
 }
 async function addTodos(rows){
   const { error } = await sb.from("gvc_todos").insert(rows);
@@ -1003,7 +1003,7 @@ async function pickContacts(){
       <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="cSave">Save</button><button class="btn" type="button" id="cCancel">Cancel</button></div>`;
     $("#cCancel").onclick=closeDlg;
     $("#cSave").onclick=()=>{ const sel=[...D.querySelectorAll("[data-i]")].filter(x=>x.checked).map(x=>list[+x.dataset.i]); LS.set("gvc_sms_contacts",sel.map(c=>({key:c.key,address:c.address,name:c.name}))); closeDlg(); render(); checkTexts(true); };
-  }catch(e){ D.innerHTML=`<h2>Text contacts</h2><div class="tnote">Couldn't read texts: ${esc(e.message||e)}. Allow SMS and Contacts permission for GVC Shop.</div><button class="btn" type="button" onclick="closeDlg()">Close</button>`; }
+  }catch(e){ D.innerHTML=`<h2>Text contacts</h2><div class="tnote">Couldn't read texts: ${esc(e.message||e)}. Allow SMS and Contacts permission for GVC Vault.</div><button class="btn" type="button" onclick="closeDlg()">Close</button>`; }
 }
 /* ---- recording (phone app) ---- */
 const recState={on:false,t0:0,timer:null};

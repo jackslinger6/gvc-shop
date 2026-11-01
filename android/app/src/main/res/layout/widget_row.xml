@@ -40,9 +40,9 @@
             android:layout_marginLeft="8dp"
             android:maxWidth="150dp"
             android:maxLines="2"
-            android:gravity="right"
+            android:gravity="center"
             android:textStyle="bold"
-            android:textSize="11.5sp"
+            android:textSize="11sp"
             android:textColor="#FF9AA0A8"/>
     </LinearLayout>
     <TextView
@@ -51,8 +51,19 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="3dp"
         android:layout_marginLeft="17dp"
-        android:maxLines="2"
+        android:maxLines="4"
         android:ellipsize="end"
+        android:lineSpacingExtra="2dp"
         android:textColor="#FF9AA0A8"
         android:textSize="12sp"/>
+    <ProgressBar
+        android:id="@+id/r_prog"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="5dp"
+        android:layout_marginTop="7dp"
+        android:layout_marginLeft="17dp"
+        android:max="100"
+        android:progressDrawable="@drawable/widget_progress"
+        android:visibility="gone"/>
 </LinearLayout>

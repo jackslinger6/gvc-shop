@@ -35,7 +35,7 @@ public class RecorderService extends Service {
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pi = PendingIntent.getActivity(this, 7, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
-        Notification n = b.setContentTitle("GVC Shop is recording")
+        Notification n = b.setContentTitle("GVC Vault is recording")
             .setContentText("Open the app and tap Stop when you're done.")
             .setSmallIcon(android.R.drawable.presence_audio_online)
             .setOngoing(true)

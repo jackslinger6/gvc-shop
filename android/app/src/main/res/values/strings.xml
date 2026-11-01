@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">GVC Shop</string>
-    <string name="title_activity_main">GVC Shop</string>
+    <string name="app_name">GVC Vault</string>
+    <string name="title_activity_main">GVC Vault</string>
     <string name="package_name">com.gordeyville.shop</string>
     <string name="custom_url_scheme">com.gordeyville.shop</string>
-    <string name="widget_description">Shop board: pipeline, orders and shop floor at a glance</string>
+    <string name="widget_description">Gordeyville Customs Vault: to do, pipeline, orders and shop floor at a glance</string>
 </resources>

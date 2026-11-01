@@ -14,12 +14,13 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-/** Full-page home-screen widget: header, three tabs and a scrolling list. */
+/** Full-page home-screen widget: header, four tabs (To do / Pipeline / Orders / Shop) and a scrolling list. */
 public class ShopWidgetProvider extends AppWidgetProvider {
     public static final String ACTION_TAB = "com.gordeyville.shop.WIDGET_TAB";
     public static final String ACTION_REFRESH = "com.gordeyville.shop.WIDGET_REFRESH";
-    static final int[] TAB_IDS = {R.id.tab_pipeline, R.id.tab_orders, R.id.tab_shop};
-    static final String[] TAB_LABELS = {"Pipeline", "Orders", "Shop floor"};
+    static final int[] TAB_IDS = {R.id.tab_todo, R.id.tab_pipeline, R.id.tab_orders, R.id.tab_shop};
+    static final String[] TAB_LABELS = {"To do", "Pipeline", "Orders", "Shop"};
+    static final int[] TAB_ON = {R.drawable.widget_tab_on_todo, R.drawable.widget_tab_on_pipe, R.drawable.widget_tab_on_order, R.drawable.widget_tab_on_build};
 
     @Override
     public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
@@ -59,7 +60,8 @@ public class ShopWidgetProvider extends AppWidgetProvider {
 
     static RemoteViews buildViews(Context ctx, int widgetId) {
         SharedPreferences p = ctx.getSharedPreferences(Feed.PREFS, 0);
-        String tab = p.getString(Feed.PREF_TAB, "orders");
+        String tab = p.getString(Feed.PREF_TAB, "todo");
+        int ti = 0; for (int i = 0; i < Feed.TABS.length; i++) if (Feed.TABS[i].equals(tab)) ti = i;
         RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_shop);
 
         // list adapter (the data uri makes each widget get its own factory)
@@ -77,29 +79,32 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         // header buttons
         Intent openApp = new Intent(ctx, MainActivity.class);
         openApp.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        openApp.putExtra(Feed.EXTRA_TAB, tab.equals("shop") ? "build" : tab.equals("orders") ? "ordering" : "pipeline");
+        openApp.putExtra(Feed.EXTRA_TAB, Feed.APP_TABS[ti]);
         v.setOnClickPendingIntent(R.id.open, PendingIntent.getActivity(ctx, 200 + widgetId, openApp, flags(false)));
-        v.setOnClickPendingIntent(R.id.title, PendingIntent.getActivity(ctx, 300 + widgetId, openApp, flags(false)));
+        v.setOnClickPendingIntent(R.id.title_box, PendingIntent.getActivity(ctx, 300 + widgetId, openApp, flags(false)));
         Intent ref = new Intent(ctx, ShopWidgetProvider.class).setAction(ACTION_REFRESH);
         v.setOnClickPendingIntent(R.id.refresh, PendingIntent.getBroadcast(ctx, 400 + widgetId, ref, flags(false)));
 
         // tabs
-        long fetched = p.getLong("shown_counts_at", 0);
-        String counts = p.getString("counts", "0,0,0");
+        String counts = p.getString("counts", "0,0,0,0");
         String[] c = counts.split(",");
-        for (int i = 0; i < 3; i++) {
+        int review = p.getInt("review", 0);
+        for (int i = 0; i < TAB_IDS.length; i++) {
             Intent t = new Intent(ctx, ShopWidgetProvider.class).setAction(ACTION_TAB).putExtra(Feed.EXTRA_TAB, Feed.TABS[i]);
             v.setOnClickPendingIntent(TAB_IDS[i], PendingIntent.getBroadcast(ctx, 500 + i * 50 + widgetId, t, flags(false)));
             int n = 0;
             try { n = Integer.parseInt(c[i].trim()); } catch (Exception ignored) {}
-            v.setTextViewText(TAB_IDS[i], TAB_LABELS[i] + (n > 0 ? "  " + n : ""));
+            // the To do tab shows its item count; the boards show how many jobs need attention
+            String extra = n > 0 ? "  " + n : "";
+            if (i == 0 && review > 0) extra += " ✉";
+            v.setTextViewText(TAB_IDS[i], TAB_LABELS[i] + extra);
             boolean on = Feed.TABS[i].equals(tab);
-            v.setInt(TAB_IDS[i], "setBackgroundResource", on ? R.drawable.widget_tab_on : R.drawable.widget_tab_off);
-            v.setTextColor(TAB_IDS[i], on ? 0xFFFFFFFF : (n > 0 ? Feed.C_RED : Feed.C_MUTED));
+            v.setInt(TAB_IDS[i], "setBackgroundResource", on ? TAB_ON[i] : R.drawable.widget_tab_off);
+            v.setTextColor(TAB_IDS[i], on ? 0xFFFFFFFF : (n > 0 && i > 0 ? Feed.C_RED : Feed.C_MUTED));
         }
         long at = p.getLong(Feed.PREF_FETCHED, 0);
         String err = p.getString("last_error", "");
-        String upd = at > 0 ? "Updated " + new SimpleDateFormat("h:mm a", Locale.CANADA).format(new Date(at)) : "";
+        String upd = at > 0 ? "VAULT  ·  updated " + new SimpleDateFormat("h:mm a", Locale.CANADA).format(new Date(at)).toLowerCase(Locale.CANADA) : "VAULT";
         v.setTextViewText(R.id.updated, err.isEmpty() ? upd : err);
         return v;
     }

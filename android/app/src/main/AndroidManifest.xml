@@ -26,7 +26,7 @@
 
         <receiver
             android:name=".ShopWidgetProvider"
-            android:label="GVC Shop board"
+            android:label="GVC Vault board"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
