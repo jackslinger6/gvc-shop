@@ -153,6 +153,11 @@ table.at tr:hover td{background:rgba(255,255,255,.02)}
 .sb.now{border:1px solid var(--c);background:var(--c);color:#111;font-weight:700;box-shadow:0 0 10px var(--c)}
 .waits{font-size:12px;color:var(--muted);border:1px dashed #3a3e45;border-radius:7px;padding:6px}
 td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
+.wchips{display:flex;gap:4px;flex-wrap:wrap}
+.wc{font:inherit;font-size:11.5px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+.wc.on{background:rgba(255,138,42,.18);border-color:#ff8a2a;color:#ffd0a8}
+.cprog{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:11.5px;color:var(--muted)}.cprog .prog{flex:1;margin:0}
+.lane .wchips{margin-top:6px}
 .rmb{background:none;border:0;color:var(--dim);cursor:pointer;font-size:16px;padding:2px 6px}
 .rmb:hover{color:#ff9b91}
 .login{max-width:380px;margin:30px auto;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
@@ -330,9 +335,11 @@ const ST={
  arrived:{t:"Arrived - not counted",c:"#f5b041"}, received:{t:"Received - counted",c:"#3ad06b"}, hold:{t:"On hold",c:"#6c727a"}, declined:{t:"Declined",c:"#4a4f56"}
 };
 const CREW=["Kyle","Colton","Aaron","Cooper"];
-const AST={bend:{t:"Waiting on bending",c:"#e04fa0"},ready:{t:"Ready for fab",c:"#2f8ff0"},prog:{t:"In progress",c:"#ff8a2a"},qc:{t:"Inspection",c:"#9b4dff"},done:{t:"Done",c:"#3ad06b"}};
+const AST={bend:{t:"Waiting on bending",c:"#e04fa0"},ready:{t:"Ready to start",c:"#2f8ff0"},prog:{t:"In progress",c:"#ff8a2a"},qc:{t:"Inspection",c:"#9b4dff"},done:{t:"Done",c:"#3ad06b"}};
 const FAB_STAGES=["bending","fab","paint","assembly"];
 const asmDone=j=>(j.assemblies||[]).filter(a=>a.status==="done").length;
+const whoList=a=>String(a.who||"").split(",").map(x=>x.trim()).filter(Boolean);
+const whoChips=(j,i,a)=>`<div class="wchips">${CREW.map(c=>`<button type="button" class="wc ${whoList(a).includes(c)?"on":""}" data-wj="${esc(j.id)}" data-wi="${i}" data-wc="${c}" aria-pressed="${whoList(a).includes(c)}">${c}</button>`).join("")}</div>`;
 const finalLocked=(j,a)=>a.final&&(j.assemblies||[]).some(x=>!x.final&&x.status!=="done");
 const ACTIVE=s=>s.status!=="hold"&&s.status!=="declined";
 let db=null, jobs=[], todos=[], suggs=[], openId=null, cur="todo";
@@ -371,7 +378,7 @@ function render(){
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
     const js=jobs.filter(j=>stOf(j).board===b.k); const at=js.filter(needsAttention).length;
     return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct">${js.length}</span>${at?`<span class="at">${at}</span>`:""}</button>`;
-  }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!x.a.who&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!x.a.who&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
+  }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
   { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
   if(cur==="todo"){ renderTodo(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
@@ -384,6 +391,7 @@ function render(){
       <div class="cards">${list.map(j=>`<button class="card" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
         <div class="nm">${folder}<span>${esc(j.name)}</span></div>
         ${j.summary?`<div class="tx">${esc(j.summary)}</div>`:""}
+        ${(j.assemblies||[]).length?`<div class="cprog"><div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div><span>${Math.round(asmDone(j)/j.assemblies.length*100)}% · ${asmDone(j)} of ${j.assemblies.length} tasks</span></div>`:""}
         ${B.k==="ordering"&&(j.suppliers||[]).length?`<div class="sups">${j.suppliers.map(supLine).join("")}</div>`:""}
         ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div><div class="pct">${asmDone(j)} of ${j.assemblies.length} assemblies done</div>`:""}
         ${flags(j).join("")}</button>`).join("")}</div></section>`;
@@ -407,16 +415,17 @@ function crewItems(){
   const out=[]; jobs.filter(j=>FAB_STAGES.includes(j.stage)).forEach(j=>(j.assemblies||[]).forEach((a,i)=>out.push({j,a,i}))); return out;
 }
 function asmSel(j,i,a,kind){
-  if(kind==="who") return `<select data-aj="${esc(j.id)}" data-ai="${i}" data-ak="who" aria-label="Assign ${esc(a.name)}"><option value="">Unassigned</option>${CREW.map(c=>`<option ${a.who===c?"selected":""}>${c}</option>`).join("")}</select>`;
+  if(kind==="who") return whoChips(j,i,a);
   if(finalLocked(j,a)) return `<div class="lock">Waits on the other assemblies</div>`;
   return `<select data-aj="${esc(j.id)}" data-ai="${i}" data-ak="status" aria-label="Status of ${esc(a.name)}">${Object.entries(AST).map(([k,v])=>`<option value="${k}" ${a.status===k?"selected":""}>${v.t}</option>`).join("")}</select>`;
 }
 function wireAsm(root){
   root.querySelectorAll("[data-ak]").forEach(el=>el.onchange=()=>setAsm(el.dataset.aj,+el.dataset.ai,el.dataset.ak,el.value));
+  root.querySelectorAll("[data-wc]").forEach(el=>el.onclick=()=>{ const j=jobs.find(x=>x.id===el.dataset.wj); const a=j.assemblies[+el.dataset.wi]; const L=whoList(a); const c=el.dataset.wc; const n=L.includes(c)?L.filter(x=>x!==c):[...L,c]; setAsm(el.dataset.wj,+el.dataset.wi,"who",n.join(", ")); });
 }
 async function setAsm(jid,i,k,v){
   const j=structuredClone(jobs.find(x=>x.id===jid)); const a=j.assemblies[i]; const old=a[k]; a[k]=v;
-  const label=k==="who"?(v?`Assigned ${a.name} to ${v}`:`Unassigned ${a.name}`):`${a.name}: ${AST[v].t}`;
+  const label=k==="who"?(v?`${a.name}: ${v}`:`Unassigned ${a.name}`):`${a.name}: ${AST[v].t}`;
   j.log=[...(j.log||[]),{at:new Date().toISOString(),text:label}];
   await put(j,label);
 }
@@ -424,7 +433,7 @@ function renderCrew(items){
   $("#board").className="lanes"; $("#board").style.gridTemplateColumns="";
   const live=items.filter(x=>x.a.status!=="done");
   $("#board").innerHTML=[...CREW,""].map(c=>{
-    const mine=live.filter(x=>(x.a.who||"")===c&&!(c===""&&finalLocked(x.j,x.a)));
+    const mine=live.filter(x=>c?whoList(x.a).includes(c):(!whoList(x.a).length&&!finalLocked(x.j,x.a)));
     return `<section class="col lane" style="--c:${c?"var(--orange)":"#6c727a"}"><div class="colhead"><h2>${c||"Unassigned"}</h2><div class="n">${mine.length||""}</div></div>
      <div class="cards">${mine.map(x=>{const st=AST[x.a.status]||AST.ready;return `<div class="card" style="--c:${st.c}">
        <div class="nm"><span class="dot" style="background:${st.c};margin-top:5px"></span><span>${esc(x.a.name)}</span></div>
@@ -478,15 +487,15 @@ function drawDlg(){
      <label>Stage<select id="fStage">${stageOpts}</select></label>
    </div>
    <label style="margin-top:8px">Card note<input id="fSum" value="${esc(j.summary||"")}" placeholder="One line shown on the card"></label>
-   ${(FAB_STAGES.includes(j.stage)||(j.assemblies||[]).length)?`<div class="sec"><span>Assemblies${(j.assemblies||[]).length?` · ${asmDone(j)} of ${j.assemblies.length} done`:""}</span><button class="btn sm" type="button" id="addAsm">+ Add assembly</button></div>
+   ${true?`<div class="sec"><span>Tasks${(j.assemblies||[]).length?` · ${asmDone(j)} of ${j.assemblies.length} done (${Math.round(asmDone(j)/j.assemblies.length*100)}%)`:""}</span><button class="btn sm" type="button" id="addAsm">+ Add tasks</button></div>
    ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div>`:""}
-   ${(j.assemblies||[]).length?`<div class="atw"><table class="at"><thead><tr><th>Assembly</th><th>Who</th>${Object.entries(AST).map(([k,v])=>`<th class="sc" style="--c:${v.c}">${v.t}</th>`).join("")}<th></th></tr></thead><tbody>
+   ${(j.assemblies||[]).length?`<div class="atw"><table class="at"><thead><tr><th>Task</th><th>Who</th>${Object.entries(AST).map(([k,v])=>`<th class="sc" style="--c:${v.c}">${v.t}</th>`).join("")}<th></th></tr></thead><tbody>
    ${j.assemblies.map((a,k)=>{const keys=Object.keys(AST);const si=keys.indexOf(a.status);const locked=finalLocked(j,a);
      return `<tr><td><div class="an2">${esc(a.name)}</div>${(a.meta||a.final)?`<div class="am2">${esc(a.meta||"")}${a.final?(a.meta?" · ":"")+"Final assembly":""}</div>`:""}</td>
-     <td>${asmSel(j,k,a,"who").replace("<select ","<select class=\"who\" ")}</td>
-     ${locked?`<td colspan="${keys.length}"><div class="waits">Waits until every other assembly is done</div></td>`:keys.map((key,ki)=>`<td><button type="button" class="sb ${ki<si?"past":ki===si?"now":""}" style="--c:${AST[key].c}" data-sj="${esc(j.id)}" data-si="${k}" data-ss="${key}" aria-label="${esc(a.name)}: ${AST[key].t}" aria-pressed="${ki===si}">${ki===si?"●":""}</button></td>`).join("")}
+     <td>${asmSel(j,k,a,"who")}</td>
+     ${locked?`<td colspan="${keys.length}"><div class="waits">Waits until every other task is done</div></td>`:keys.map((key,ki)=>`<td><button type="button" class="sb ${ki<si?"past":ki===si?"now":""}" style="--c:${AST[key].c}" data-sj="${esc(j.id)}" data-si="${k}" data-ss="${key}" aria-label="${esc(a.name)}: ${AST[key].t}" aria-pressed="${ki===si}">${ki===si?"●":""}</button></td>`).join("")}
      <td><button type="button" class="rmb" data-rmasm="${k}" aria-label="Remove ${esc(a.name)}">×</button></td></tr>`;}).join("")}
-   </tbody></table></div>`:`<div class="empty" style="text-align:left">Split this job into its assemblies so you can hand them out.</div>`}
+   </tbody></table></div>`:`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.</div>`}
    <div id="newAsm"></div>`:""}
    <div class="sec"><span>Suppliers</span><button class="btn sm" type="button" id="addSup">+ Add supplier</button></div>
    ${(j.suppliers||[]).map((x,k)=>{const st=ST[x.status]||ST.sent;return `<div class="supbox" style="--c:${st.c}">
@@ -512,10 +521,15 @@ function drawDlg(){
   $("#dlg").querySelectorAll("[data-ss]").forEach(b=>b.onclick=()=>{ if(b.classList.contains('now')) return; setAsm(b.dataset.sj,+b.dataset.si,'status',b.dataset.ss); });
   $("#dlg").querySelectorAll("[data-rmasm]").forEach(b=>b.onclick=async()=>{const jj=structuredClone(job());const n=jj.assemblies[+b.dataset.rmasm].name;jj.assemblies.splice(+b.dataset.rmasm,1);await put(jj,`Removed ${n} from ${jj.name}`);});
   const aa=$("#addAsm"); if(aa) aa.onclick=()=>{
-    $("#newAsm").innerHTML=`<div class="row" style="margin-top:8px"><label>Assembly<input id="naName" placeholder="Driver belly box"></label><label>Note<input id="naMeta" placeholder="1/8 alum, bent"></label>
-      <label style="flex:0 0 auto;min-width:0;flex-direction:row;align-items:center;gap:6px;padding-bottom:9px"><input type="checkbox" id="naFinal" style="width:auto">Final assembly</label><button class="btn primary" type="button" id="naAdd">Add</button></div>`;
-    $("#naAdd").onclick=async()=>{const n=$("#naName").value.trim(); if(!n){$("#err").textContent="Enter the assembly name.";return;}
-      const jj=collect(); jj.assemblies=[...(jj.assemblies||[]),{id:uid(),name:n,meta:$("#naMeta").value.trim(),status:"ready",who:"",final:$("#naFinal").checked}]; await put(jj,`Added ${n} to ${jj.name}`);};
+    const pick=new Set();
+    $("#newAsm").innerHTML=`<label style="margin-top:8px">Tasks - one per line<textarea id="naList" rows="5" placeholder="Strip the walls off&#10;Cut the existing frame out&#10;Rebuild the frame structure"></textarea></label>
+      <div class="row" style="margin-top:6px;align-items:center;gap:8px"><span class="tnote" style="margin:0">Who:</span><div class="wchips" id="naWho">${CREW.map(c=>`<button type="button" class="wc" data-pc="${c}">${c}</button>`).join("")}</div>
+      <label style="flex:0 0 auto;min-width:0;flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="naFinal" style="width:auto">Last one waits for the rest</label><span style="flex:1"></span><button class="btn primary" type="button" id="naAdd">Add tasks</button></div>`;
+    $("#naWho").querySelectorAll("[data-pc]").forEach(b=>b.onclick=()=>{ const c=b.dataset.pc; pick.has(c)?pick.delete(c):pick.add(c); b.classList.toggle("on",pick.has(c)); });
+    $("#naList").focus();
+    $("#naAdd").onclick=async()=>{const lines=$("#naList").value.split(/\n/).map(x=>x.replace(/^[-*•\d.)\s]+/,"").trim()).filter(Boolean); if(!lines.length){$("#err").textContent="Type at least one task.";return;}
+      const fin=$("#naFinal").checked; const who=[...pick].join(", ");
+      const jj=collect(); jj.assemblies=[...(jj.assemblies||[]),...lines.map((n,ix)=>({id:uid(),name:n,meta:"",status:"ready",who,final:fin&&ix===lines.length-1}))]; await put(jj,`Added ${lines.length} task${lines.length>1?"s":""} to ${jj.name}`);};
   };
   $("#dlg").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeSup(+b.dataset.del));
 }
@@ -708,10 +722,10 @@ function autoTodos(){
     if(j.stage==="bending") add(`Bend parts: ${j.name}`,"var(--pink)",{job:j.id});
   });
   const items=crewItems().filter(x=>x.a.status!=="done");
-  const idle=CREW.filter(c=>c!=="Kyle"&&!items.some(x=>x.a.who===c));
+  const idle=CREW.filter(c=>c!=="Kyle"&&!items.some(x=>whoList(x.a).includes(c)));
   const fl=parts.filter(p=>p.stock_flat>0); if(fl.length) add(`${fl.reduce((a,p)=>a+p.stock_flat,0)} pcs sitting flat could be bent (${fl.length} part${fl.length>1?"s":""}) - see Bend list`,"var(--pink)",{view:"inv",low:true});
   if(idle.length) add(`Give work to ${idle.join(", ")}`,"var(--orange)",{view:"crew"});
-  const un=items.filter(x=>!x.a.who&&!finalLocked(x.j,x.a));
+  const un=items.filter(x=>!whoList(x.a).length&&!finalLocked(x.j,x.a));
   if(un.length) add(`Assign ${un.length} assembl${un.length>1?"ies":"y"} (${[...new Set(un.map(x=>x.j.name))].join(", ")})`,"var(--orange)",{view:"crew"});
   const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   return out.filter(x=>!hidden.has(x.text));

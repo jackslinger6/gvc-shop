@@ -151,6 +151,8 @@ const ITEM = (TOOL.input_schema.properties.suggestions as any).items;
 const CHAT_TOOLS = [
   { name: "add_todo", description: "Add a to-do to Kyle's list right away.", input_schema: { type: "object", properties: { text: { type: "string" }, job_id: { type: ["string", "null"] } }, required: ["text"] } },
   { name: "complete_todo", description: "Mark one of Kyle's open to-dos done, by its id.", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "add_tasks", description: "Add tasks (work steps) to a job right away so Kyle can assign and check them off. Use short task names in shop language. who = crew names doing it (Kyle, Colton, Aaron, Cooper) or empty.",
+    input_schema: { type: "object", properties: { job_id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } }, last_waits_for_rest: { type: "boolean" } }, required: ["job_id", "tasks"] } },
   { name: "propose_update", description: "Propose a change to a job (stage, card status, log entry, supplier status, new job). It goes to Kyle's review list - he taps Accept to apply it. Use for any board change.",
     input_schema: { type: "object", properties: Object.fromEntries(Object.entries(ITEM.properties).filter(([k]) => k !== "ref" && k !== "relevant")), required: ["summary"] } },
 ];
@@ -161,12 +163,12 @@ async function chat(sb: any, msgs: any[], ctx: any = {}) {
     sb.from("gvc_todos").select("id,text,job_id,from_name,created_at").is("done_at", null).neq("source", "auto"),
   ]);
   const jobs = (rows || []).map(({ id, data: j }: any) => ({ ...compactJobs([{ id, data: j }])[0], recent_log: (j.log || []).slice(-6).map((l: any) => (l.at || "").slice(0, 10) + " " + l.text),
-    assemblies: (j.assemblies || []).map((a: any) => ({ name: a.name, status: a.status, who: a.who || "unassigned" })) }));
+    tasks: (j.assemblies || []).map((a: any) => ({ name: a.name, status: a.status, who: a.who || "unassigned" })) }));
   const system = `You are the assistant inside Kyle's GVC Shop app. Kyle is a Red Seal welder and shop lead at Gordeyville Customs in Grande Prairie, Alberta (custom truck decks, BBQ trailers, service bodies). Talk like a helpful coworker: short, plain, no fluff.
 People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
 You can answer questions about the board, help plan the day, and use tools: add_todo and complete_todo act right away; propose_update sends a change to Kyle's review list (never claim a job was changed - say it's waiting for him to accept).
-Assembly statuses: bend=waiting on bending, ready=ready for fab, prog=in progress, qc=inspection, done.
+Each job can have tasks (work steps) with who and status: bend=waiting on bending, ready=ready to start, prog=in progress, qc=inspection, done. Use add_tasks to break a job down when Kyle asks.
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}
 Jobs: ${JSON.stringify(jobs)}
@@ -201,6 +203,17 @@ Parts sitting flat in inventory that could be bent: ${JSON.stringify(ctx.flat_to
         } else if (u.name === "complete_todo") {
           const { error } = await sb.from("gvc_todos").update({ done_at: new Date().toISOString() }).eq("id", u.input.id);
           if (error) throw error; actions.push("Marked done: " + ((todos || []).find((t: any) => t.id === u.input.id)?.text || "to-do"));
+        } else if (u.name === "add_tasks") {
+          const { data: row, error: e1 } = await sb.from("gvc_jobs").select("id,data").eq("id", u.input.job_id).single();
+          if (e1 || !row) throw new Error("job not found");
+          const list = (u.input.tasks || []).filter((t: any) => t && t.name);
+          const add = list.map((t: any, ix: number) => ({ id: crypto.randomUUID().slice(0, 8), name: t.name, meta: "", status: "ready", who: (t.who || []).join(", "), final: !!u.input.last_waits_for_rest && ix === list.length - 1 }));
+          const d = row.data || {};
+          d.assemblies = [...(d.assemblies || []), ...add];
+          d.log = [...(d.log || []), { at: new Date().toISOString(), text: `Added ${add.length} tasks (Ask Claude)` }];
+          const { error: e2 } = await sb.from("gvc_jobs").update({ data: d }).eq("id", row.id);
+          if (e2) throw e2;
+          actions.push(`Added ${add.length} task${add.length > 1 ? "s" : ""} to ${d.name}`);
         } else if (u.name === "propose_update") {
           const { summary, job_id, ...changes } = u.input;
           const { error } = await sb.from("gvc_suggestions").insert({ source: "chat", source_ref: "chat:" + Date.now() + "#" + (++n), from_name: "Chat", source_at: new Date().toISOString(), source_text: String(messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-1)[0]?.content || ""), job_id: job_id || null, summary, changes, status: "new" });
