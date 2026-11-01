@@ -162,6 +162,32 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .login .msg.bad{color:#ff9b91}
 .signout{background:none;border:0;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
 .empty{color:var(--dim);font-size:12px;text-align:center;padding:8px 0}
+/* ---- inventory ---- */
+.inv{margin-top:12px}
+.invtop .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.invtop .stats div{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:rgba(0,0,0,.28)}
+.invtop .stats b{display:block;font-size:18px}.invtop .stats span{font-size:11.5px;color:var(--dim)}
+.invtop .stats .warn{border-color:rgba(224,79,160,.6)}.invtop .stats .warn b{color:#ff9fd2}
+.chip{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip.on{background:#2a3340;border-color:#9fb3c8}
+.ig h3{font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:15px;margin:16px 0 6px}
+.ig h3 .n{color:var(--dim);font-family:Inter,sans-serif;font-size:12px}
+.pr{border:1px solid var(--line);border-radius:10px;background:linear-gradient(180deg,var(--panel2),var(--panel));margin-bottom:6px;overflow:hidden}
+.prh{display:flex;gap:10px;align-items:center;padding:7px 9px;cursor:pointer}
+.pth{width:54px;height:54px;flex:none;border-radius:6px;object-fit:contain;background:#fff}
+.pth.ph{background:linear-gradient(135deg,var(--m),#2b2f35);display:flex;align-items:center;justify-content:center;text-align:center;padding:3px}
+.pth.ph span{font-size:9.5px;line-height:1.1;color:#111;font-weight:600;mix-blend-mode:normal}
+.pth.big{width:100%;height:auto;max-height:260px;aspect-ratio:auto}.pth.ph.big{height:140px}.pth.ph.big span{font-size:14px}
+.prm{flex:1;min-width:0}.pn{font-weight:600;font-size:14px}.pm{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pq{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:40%}
+.qb{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:rgba(58,208,107,.12);color:#8fe3a8;border:1px solid rgba(58,208,107,.35);white-space:nowrap}
+.qb.zero{background:transparent;color:var(--dim);border-color:var(--line)}
+.qb.flat{background:rgba(224,79,160,.14);color:#ff9fd2;border-color:rgba(224,79,160,.5)}
+.qb.short{background:rgba(229,72,59,.14);color:#ff9b91;border-color:rgba(229,72,59,.45)}
+.prx{display:grid;grid-template-columns:minmax(0,260px) 1fr;gap:12px;padding:4px 10px 12px}
+.prx dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:13px}.prx dt{color:var(--dim)}.prx dd{margin:0}
+.prx a{color:#8fd3ff}
+@media (max-width:600px){ .invtop .stats{grid-template-columns:repeat(2,1fr)} .prx{grid-template-columns:1fr} .tab[data-b=inv]{grid-column:1/-1} }
 /* ---- chat ---- */
 .chatfab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:9;border-radius:999px;padding:12px 18px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .chatp{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:min(420px,calc(100vw - 24px));height:min(620px,calc(100vh - 60px));z-index:11;display:none;flex-direction:column;background:#141619;border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.7);overflow:hidden}
@@ -344,9 +370,10 @@ function render(){
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
     const js=jobs.filter(j=>stOf(j).board===b.k); const at=js.filter(needsAttention).length;
     return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct">${js.length}</span>${at?`<span class="at">${at}</span>`:""}</button>`;
-  }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!x.a.who&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!x.a.who&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`;
+  }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!x.a.who&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!x.a.who&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
-  if(cur==="todo"){ renderTodo(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
+  { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
+  if(cur==="todo"){ renderTodo(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
   const B=BOARDS.find(b=>b.k===cur);
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
@@ -540,7 +567,7 @@ $("#addJob").onclick=async()=>{
 };
 
 const START_HASH=location.hash||"";
-const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew"];
+const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","inv"];
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
@@ -592,6 +619,71 @@ $("#lUp").onclick=async()=>{
   if(error){ showLogin(error.message, true); return; }
   if(data.session) await startApp(); else showLogin("Check your email and tap the confirm link, then come back and sign in.");
 };
+/* ---------- Inventory (mirror of Robin's spreadsheet) ---------- */
+let parts=[], invMeta=null, invQ="", invF="all", invOpen=new Set(), imgUrls={};
+const MATC={Aluminum:"#9fb3c8",Steel:"#7d8590","Stainless Steel":"#c9d3dc",Birch:"#c9a46a",Plywood:"#c9a46a"};
+const money=n=>"$"+(Number(n)||0).toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
+const inStock=p=>(p.stock_bent||0)+(p.stock_flat||0);
+const isShort=p=>p.ordering==="Min-max"&&p.qty_per_truck>0&&inStock(p)<p.qty_per_truck&&!/no longer used/i.test(p.part_status||"");
+async function loadParts(){
+  if(!db) return;
+  const [p,m]=await Promise.all([sb.from("gvc_parts").select("*").order("sort"), sb.from("gvc_meta").select("value").eq("key","inventory_sync").maybeSingle()]);
+  if(!p.error) parts=p.data||[]; if(m.data) invMeta=m.data.value;
+  const need=parts.filter(x=>x.img_path&&!imgUrls[x.img_path]).map(x=>x.img_path);
+  if(need.length){ const r=await sb.storage.from("gvc-parts").createSignedUrls(need,60*60*12); (r.data||[]).forEach(u=>{ if(u.signedUrl) imgUrls[u.path]=u.signedUrl; }); }
+  if(cur==="inv") render();
+}
+function partThumb(p,big){
+  const u=p.img_path&&imgUrls[p.img_path];
+  if(u) return `<img class="pth${big?" big":""}" src="${u}" alt="${esc(p.name)}" loading="lazy" data-zoom="${esc(p.part_no)}">`;
+  return `<div class="pth ph${big?" big":""}" style="--m:${MATC[p.material]||"#555"}"><span>${esc((p.description||p.material||"").replace(/"/g,"″"))}</span></div>`;
+}
+function renderInv(){
+  const B=$("#board"); B.className="inv"; B.style.gridTemplateColumns="";
+  const q=invQ.toLowerCase();
+  let list=parts.filter(p=>!q||[p.name,p.part_no,p.description,p.material,p.assembly].join(" ").toLowerCase().includes(q));
+  if(invF==="flat") list=list.filter(p=>p.stock_flat>0);
+  if(invF==="short") list=list.filter(isShort);
+  if(invF==="stock") list=list.filter(p=>inStock(p)>0);
+  const flatPcs=parts.reduce((a,p)=>a+(p.stock_flat||0),0), flatParts=parts.filter(p=>p.stock_flat>0).length, value=parts.reduce((a,p)=>a+(Number(p.unit_price)||0)*inStock(p),0), short=parts.filter(isShort).length;
+  const groups=[...new Set(list.map(p=>p.assembly||"Other"))];
+  const chip=(k,t)=>`<button class="chip ${invF===k?"on":""}" type="button" data-f="${k}">${t}</button>`;
+  B.innerHTML=`<div class="invtop">
+     <div class="stats"><div><b>${parts.length}</b><span>parts</span></div><div><b>${money(value)}</b><span>in stock</span></div><div class="${flatPcs?"warn":""}"><b>${flatPcs}</b><span>pcs flat</span></div><div><b>${short}</b><span>short for a truck</span></div></div>
+     <div class="row" style="gap:8px;flex-wrap:wrap;margin:10px 0">${chip("all","All")}${chip("flat",`Flat - to bend${flatParts?" ("+flatParts+")":""}`)}${chip("short","Short")}${chip("stock","In stock")}
+       <input id="invQ" placeholder="Search parts, numbers, material…" value="${esc(invQ)}" style="flex:1;min-width:180px">
+       <button class="btn" type="button" id="bendList">Bend list</button></div>
+     <div class="tnote">Picker truck parts from Robin's spreadsheet (New_Shop_Master_Inventory.xlsx)${invMeta?.at?" · synced "+fmt(invMeta.at):""}. Counts are changed in the spreadsheet.</div></div>
+   ${groups.map(g=>{const gl=list.filter(p=>(p.assembly||"Other")===g); return `<section class="ig"><h3>${esc(g)} <span class="n">${gl.length}</span></h3>${gl.map(p=>{const o=invOpen.has(p.part_no);return `<div class="pr ${o?"open":""}" data-p="${esc(p.part_no)}">
+      <div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${esc(p.part_no)} · ${esc(p.description||"")}${p.qty_per_truck?` · ${p.qty_per_truck}/truck`:""}</div>
+        ${/no longer used|unknown|confirm/i.test((p.part_status||"")+(p.to_order||""))?`<div class="pm" style="color:#ffb070">${esc(p.part_status||p.to_order)}</div>`:""}</div>
+        <div class="pq">${p.stock_flat?`<span class="qb flat">${p.stock_flat} flat</span>`:""}<span class="qb ${inStock(p)?"":"zero"}">${p.stock_bent||0}${p.stock_flat?" bent":""}</span>${isShort(p)?`<span class="qb short">short</span>`:""}</div></div>
+      ${o?`<div class="prx">${partThumb(p,true)}<dl>
+        <dt>Part #</dt><dd>${esc(p.part_no)}</dd><dt>Material</dt><dd>${esc([p.description,p.material].filter(Boolean).join(" · "))}</dd>
+        <dt>Per truck</dt><dd>${p.qty_per_truck??"-"}</dd><dt>In stock</dt><dd>${p.stock_bent||0} bent · ${p.stock_flat||0} flat</dd>
+        <dt>Unit price</dt><dd>${p.unit_price!=null?money(p.unit_price):"-"}</dd><dt>$ in stock</dt><dd>${money((Number(p.unit_price)||0)*inStock(p))}</dd>
+        <dt>Ordering</dt><dd>${esc(p.ordering||"-")}${p.pending?` · pending ${p.pending}`:""}</dd>
+        ${p.to_order||p.part_status?`<dt>Note</dt><dd>${esc([p.to_order,p.part_status].filter(Boolean).join(" · "))}</dd>`:""}
+        ${p.pdf_url||p.dxf_url?`<dt>Files</dt><dd>${p.pdf_url?`<a href="${esc(p.pdf_url)}" target="_blank" rel="noopener">Bend drawing (PDF)</a> `:""}${p.dxf_url?`<a href="${esc(p.dxf_url)}" target="_blank" rel="noopener">DXF</a>`:""}</dd>`:""}
+      </dl></div>`:""}</div>`;}).join("")}</section>`;}).join("")||`<div class="tnote">${parts.length?"No parts match.":"Loading inventory…"}</div>`}`;
+  B.querySelectorAll("[data-f]").forEach(el=>el.onclick=()=>{invF=el.dataset.f;render();});
+  const qi=$("#invQ"); qi.oninput=()=>{invQ=qi.value; const pos=qi.selectionStart; render(); const n=$("#invQ"); n.focus(); n.setSelectionRange(pos,pos);};
+  B.querySelectorAll(".prh").forEach(el=>el.onclick=e=>{ if(e.target.dataset.zoom) return; const k=el.parentElement.dataset.p; invOpen.has(k)?invOpen.delete(k):invOpen.add(k); render(); });
+  B.querySelectorAll("[data-zoom]").forEach(el=>el.onclick=e=>{e.stopPropagation(); zoomImg(el.src,el.alt);});
+  $("#bendList").onclick=showBendList;
+}
+function zoomImg(src,alt){ openId=null; $("#dlg").innerHTML=`<img src="${src}" alt="${esc(alt)}" style="width:100%;border-radius:8px;background:#fff"><div class="row" style="margin-top:10px"><button class="btn" type="button" onclick="closeDlg()">Close</button></div>`; $("#scrim").classList.add("on"); }
+function bendText(list){ return "Flat parts to bend ("+list.reduce((a,p)=>a+p.stock_flat,0)+" pcs)\n"+list.map(p=>`- ${p.stock_flat} x ${p.name} (${p.part_no}) - ${p.description||p.material||""}`).join("\n"); }
+function showBendList(){
+  const list=parts.filter(p=>p.stock_flat>0).sort((a,b)=>(a.material||"").localeCompare(b.material||"")||(a.sort-b.sort));
+  openId=null; const D=$("#dlg");
+  D.innerHTML=`<h2 style="margin:0 0 4px">Bend list</h2><div class="tnote">${list.length?`${list.reduce((a,p)=>a+p.stock_flat,0)} pcs sitting flat across ${list.length} parts.`:"Nothing sitting flat right now."}</div>
+   ${list.map(p=>`<div class="pr"><div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${esc(p.part_no)} · ${esc(p.description||"")}</div>${p.pdf_url?`<a class="pm" href="${esc(p.pdf_url)}" target="_blank" rel="noopener">Bend drawing</a>`:""}</div><div class="pq"><span class="qb flat">${p.stock_flat} flat</span></div></div></div>`).join("")}
+   <div class="row" style="margin-top:12px;gap:8px">${list.length?`<button class="btn primary" type="button" id="blShare">${navigator.share?"Share list":"Copy list"}</button>`:""}<button class="btn" type="button" onclick="closeDlg()">Close</button></div>`;
+  $("#scrim").classList.add("on");
+  const b=$("#blShare"); if(b) b.onclick=async()=>{ const t=bendText(list); try{ if(navigator.share) await navigator.share({title:"Bend list",text:t}); else { await navigator.clipboard.writeText(t); b.textContent="Copied"; } }catch(e){} };
+}
+
 /* ---------- To do + AI inbox ---------- */
 const Native = (window.capacitorExports && Widget) ? window.capacitorExports.registerPlugin("ShopNative") : null;
 const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
@@ -614,6 +706,7 @@ function autoTodos(){
   });
   const items=crewItems().filter(x=>x.a.status!=="done");
   const idle=CREW.filter(c=>c!=="Kyle"&&!items.some(x=>x.a.who===c));
+  const fl=parts.filter(p=>p.stock_flat>0); if(fl.length) add(`${fl.reduce((a,p)=>a+p.stock_flat,0)} pcs sitting flat could be bent (${fl.length} part${fl.length>1?"s":""}) - see Bend list`,"var(--pink)",{view:"inv",low:true});
   if(idle.length) add(`Give work to ${idle.join(", ")}`,"var(--orange)",{view:"crew"});
   const un=items.filter(x=>!x.a.who&&!finalLocked(x.j,x.a));
   if(un.length) add(`Assign ${un.length} assembl${un.length>1?"ies":"y"} (${[...new Set(un.map(x=>x.j.name))].join(", ")})`,"var(--orange)",{view:"crew"});
@@ -676,7 +769,7 @@ async function loadSide(){
   if(!db) return;
   const [t,s]=await Promise.all([sb.from("gvc_todos").select("*").order("created_at"), sb.from("gvc_suggestions").select("id,created_at,source,from_name,source_at,source_text,job_id,summary,changes,status").eq("status","new")]);
   if(!t.error) todos=t.data||[]; if(!s.error) suggs=s.data||[];
-  render();
+  render(); loadParts();
 }
 async function addTodos(rows){
   const { error } = await sb.from("gvc_todos").insert(rows);
