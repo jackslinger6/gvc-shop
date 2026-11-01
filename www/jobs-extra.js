@@ -2,7 +2,7 @@
    Every job name starts with its job number: "2011G - Kirby Controls Enclosure".
    Archived jobs (j.archived) are hidden from boards, crew and planner, and live in Finished jobs. */
 (()=>{
-const NUM_RE=/^\s*(\d{4}[A-Za-z0-9_]{0,4})\s*[-–:]?\s*/;
+const NUM_RE=/^\s*(\d{4}[A-Za-z0-9_]{0,4}|INV)\b\s*[-–:]?\s*/i;
 const jobNum=n=>{ const m=String(n||"").match(NUM_RE); return m?m[1].toUpperCase():""; };
 const rest=n=>String(n||"").replace(NUM_RE,"").trim();
 const withNum=(num,name)=>{ num=String(num||"").trim().toUpperCase(); const r=rest(name)||String(name||"").trim(); return num?`${num} - ${r}`:r; };
