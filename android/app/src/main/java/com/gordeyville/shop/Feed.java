@@ -186,6 +186,46 @@ public final class Feed {
         }
     }
 
+    static String paintText(String st) {
+        switch (st) {
+            case "sent": return "Dropped off - waiting";
+            case "approved": return "Booked in";
+            case "production": return "Being painted";
+            case "ready": return "Ready to pick up";
+            case "arrived": return "Back in the shop";
+            case "received": return "Back - checked";
+            default: return statusText(st);
+        }
+    }
+
+    /** "Colton, Cooper · last planned Mon" from the week plan; "" if the job has no open tasks. */
+    static String eta(JSONObject j, JSONObject plan) {
+        JSONArray asm = j.optJSONArray("assemblies");
+        if (asm == null || asm.length() == 0) return "";
+        Set<String> people = new java.util.LinkedHashSet<>(); Set<String> openKeys = new HashSet<>(); int open = 0;
+        for (int k = 0; k < asm.length(); k++) { JSONObject a = asm.optJSONObject(k); if (a == null || a.optString("status").equals("done")) continue;
+            open++; people.addAll(who(a)); openKeys.add("j:" + j.optString("id") + ":" + a.optString("id")); }
+        if (open == 0) return "All tasks done";
+        if (people.isEmpty()) return "Not assigned · " + open + " task" + (open > 1 ? "s" : "") + " open";
+        String last = null; int placed = 0;
+        JSONObject sched = plan.optJSONObject("sched");
+        if (sched != null) for (String p : CREW) { JSONObject days = sched.optJSONObject(p); if (days == null) continue;
+            Iterator<String> it = days.keys();
+            while (it.hasNext()) { String d = it.next(); JSONArray l = days.optJSONArray(d); if (l == null) continue;
+                for (int i = 0; i < l.length(); i++) if (openKeys.contains(l.optString(i))) { placed++; if (last == null || d.compareTo(last) > 0) last = d; } } }
+        String names = String.join(", ", people);
+        if (last == null) return names + " · not on the week plan yet";
+        String today = todayIso(), when;
+        try {
+            SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            long diff = (f.parse(last).getTime() - f.parse(today).getTime()) / 86400000L;
+            when = diff < 0 ? "plan ran past " + new SimpleDateFormat("EEE MMM d", Locale.CANADA).format(f.parse(last)) + " - reschedule"
+                 : diff == 0 ? "done today" : diff == 1 ? "done tomorrow" : diff < 6 ? "done " + new SimpleDateFormat("EEE", Locale.CANADA).format(f.parse(last))
+                 : "done " + new SimpleDateFormat("EEE MMM d", Locale.CANADA).format(f.parse(last));
+        } catch (Exception e) { when = "planned"; }
+        return names + " · " + when;
+    }
+
     static String asmText(String st) {
         switch (st) {
             case "bend": return "Waiting on bending";
@@ -449,8 +489,23 @@ public final class Feed {
                 for (JSONObject j : list) {
                     Row r = jobRow(j, "build");
                     int[] pr = taskProgress(j);
-                    if (pr != null) { r.sub = pr[0] + " of " + pr[1] + " tasks done"; r.progress = pr[1] > 0 ? (int) Math.round(pr[0] * 100.0 / pr[1]) : 0; }
-                    else r.sub = j.optString("summary");
+                    SpannableStringBuilder sb = new SpannableStringBuilder();
+                    if (pr != null) { sb.append(pr[0] + " of " + pr[1] + " tasks done"); r.progress = pr[1] > 0 ? (int) Math.round(pr[0] * 100.0 / pr[1]) : 0; }
+                    else if (!j.optString("summary").isEmpty()) sb.append(j.optString("summary"));
+                    // paint shop / other suppliers still in play
+                    JSONArray sups = j.optJSONArray("suppliers");
+                    if (sups != null) for (int i = 0; i < sups.length(); i++) {
+                        JSONObject x = sups.optJSONObject(i);
+                        if (x == null || !active(x) || x.optString("status").equals("received")) continue;
+                        if (sb.length() > 0) sb.append("\n");
+                        int st0 = sb.length(); sb.append("● ");
+                        sb.setSpan(new ForegroundColorSpan(statusColor(x.optString("status"))), st0, st0 + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        sb.append(x.optString("name")).append("  ").append(s[0].equals("paint") ? paintText(x.optString("status")) : statusText(x.optString("status")));
+                    }
+                    // who's on it and the last day it's planned for
+                    String eta = eta(j, plan);
+                    if (!eta.isEmpty()) { if (sb.length() > 0) sb.append("\n"); int e0 = sb.length(); sb.append(eta); sb.setSpan(new ForegroundColorSpan(eta.startsWith("Not") ? C_MUTED : C_AMBER), e0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); }
+                    r.sub = sb;
                     res.rows.add(r);
                 }
             }

@@ -400,6 +400,29 @@ window.planLines=function(){ if(!planLoaded) return [];
     const placed=new Set(); CREW.forEach(p=>{for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(k));});
     const un=Object.values(M.T).filter(t=>!t.done&&!placed.has(t.key)); if(un.length) out.push(`[crew schedule] not scheduled yet: `+un.map(t=>`${t.name} (${t.job}, ${fh(H(t))})`).join("; "));
     return out; }catch(e){ return []; } };
+/* "Colton · done Mon end of day" for a job card: people on its open tasks and when the last scheduled one finishes. */
+window.jobEta=function(jid){
+  if(!planLoaded) return null;
+  try{
+    const {M,R}=MC(); const today=iso(new Date()), tn=dnum(today);
+    const ts=Object.values(M.T).filter(t=>t.jid===jid);
+    if(!ts.length) return null;
+    const open=ts.filter(t=>!t.done);
+    if(!open.length) return {kind:"done",text:"All tasks done"};
+    const who=[...new Set(open.flatMap(t=>t.who))];
+    let end=null, unsched=0, late=false;
+    open.forEach(t=>{ const ends=t.who.map(w=>R[w]&&R[w][t.key]?R[w][t.key].e:null).filter(x=>x!=null); if(!ends.length){ unsched++; return; } const e=Math.max(...ends); if(end==null||e>end) end=e; });
+    if(!who.length) return {kind:"none",text:`Not assigned · ${open.length} task${open.length>1?"s":""} open`};
+    const names=who.join(", ");
+    if(end==null) return {kind:"unsched",text:`${names} · not on the week plan yet`};
+    const d=Math.floor(end/100), h=end%100; const dd=fromIso(today); dd.setDate(dd.getDate()+(d-tn)); const di=iso(dd);
+    const when=d===tn?"today":d===tn+1?"tomorrow":(d-tn)<6?dd.toLocaleDateString("en-CA",{weekday:"short"}):dlabel(di);
+    if(d<tn) late=true;
+    const tod=h>=7.9?"end of day":h<=0.1?"first thing":"~"+clock(h);
+    const txt=late?`${names} · plan ran past ${dlabel(di)} - reschedule`:`${names} · done ${when} ${tod}`+(unsched?` · ${unsched} not scheduled`:"");
+    return {kind:late?"late":"ok",text:txt};
+  }catch(e){ return null; }
+};
 window.gvcPlan={get:()=>plan,loaded:()=>planLoaded,save:savePlan,model,compute,mc:MC,dirty:()=>{mc=null;},isOff,iso,dlabel,fromIso,monday,clock,fh,H};
 if(db) loadPlan();
 })();
