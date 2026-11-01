@@ -47,7 +47,7 @@ jobs:
       - name: Publish as the latest release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
+          tag_name: v1.0.${{ github.run_number }}
           name: GVC Shop build ${{ github.run_number }}
           body: "Install on your phone: tap gvc-shop.apk below. Always-current link: https://github.com/${{ github.repository }}/releases/latest/download/gvc-shop.apk"
           files: gvc-shop.apk
