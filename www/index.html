@@ -264,6 +264,14 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
   .trk .where{margin-bottom:8px}
   .trk .hdr{display:none}
 }
+.prx .drw{grid-column:1/-1}
+.drw{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;width:100%}
+.dtile{font:inherit;color:var(--text);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:8px;padding:6px;cursor:pointer;width:min(260px,100%);text-align:left}
+.dtile:hover{border-color:#5a5f68}
+.dtile .dimg{background:#fff;border-radius:5px;height:150px;display:flex;align-items:center;justify-content:center;color:#666;font-size:12px;overflow:hidden}
+.dtile .dimg img{max-width:100%;max-height:100%;object-fit:contain}
+.dtile span{display:block;font-size:12px;color:var(--muted);margin-top:5px}
+.drw .dbtns{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;width:100%}
 </style>
 </head>
 <body>
@@ -683,13 +691,52 @@ function renderInv(){
         <dt>Unit price</dt><dd>${p.unit_price!=null?money(p.unit_price):"-"}</dd><dt>$ in stock</dt><dd>${money((Number(p.unit_price)||0)*inStock(p))}</dd>
         <dt>Ordering</dt><dd>${esc(p.ordering||"-")}${p.pending?` · pending ${p.pending}`:""}</dd>
         ${p.to_order||p.part_status?`<dt>Note</dt><dd>${esc([p.to_order,p.part_status].filter(Boolean).join(" · "))}</dd>`:""}
-        ${p.pdf_url||p.dxf_url?`<dt>Files</dt><dd>${p.pdf_url?`<a href="${esc(p.pdf_url)}" target="_blank" rel="noopener">Bend drawing (PDF)</a> `:""}${p.dxf_url?`<a href="${esc(p.dxf_url)}" target="_blank" rel="noopener">DXF</a>`:""}</dd>`:""}
-      </dl></div>`:""}</div>`;}).join("")}</section>`;}).join("")||`<div class="tnote">${parts.length?"No parts match.":"Loading inventory…"}</div>`}`;
+      </dl>${drawBlock(p)}</div>`:""}</div>`;}).join("")}</section>`;}).join("")||`<div class="tnote">${parts.length?"No parts match.":"Loading inventory…"}</div>`}`;
   B.querySelectorAll("[data-f]").forEach(el=>el.onclick=()=>{invF=el.dataset.f;render();});
   const qi=$("#invQ"); qi.oninput=()=>{invQ=qi.value; const pos=qi.selectionStart; render(); const n=$("#invQ"); n.focus(); n.setSelectionRange(pos,pos);};
   B.querySelectorAll(".prh").forEach(el=>el.onclick=e=>{ if(e.target.dataset.zoom) return; const k=el.parentElement.dataset.p; invOpen.has(k)?invOpen.delete(k):invOpen.add(k); render(); });
   B.querySelectorAll("[data-zoom]").forEach(el=>el.onclick=e=>{e.stopPropagation(); zoomImg(el.src,el.alt);});
+  wireDraw(B);
   $("#bendList").onclick=showBendList;
+  invOpen.forEach(k=>{ const p=parts.find(x=>x.part_no===k); if(p) needDrawUrls(p); });
+}
+/* drawings: bend drawing image, flat pattern from the DXF, PDF + DXF downloads (Supabase storage gvc-parts) */
+const fileUrls={}; let drawPending=new Set();
+async function needDrawUrls(p){
+  const want=[p.draw_path,p.flat_path].filter(x=>x&&!fileUrls[x]&&!drawPending.has(x)); if(!want.length) return;
+  want.forEach(x=>drawPending.add(x));
+  const r=await sb.storage.from("gvc-parts").createSignedUrls(want,60*60*12); (r.data||[]).forEach(u=>{ if(u.signedUrl) fileUrls[u.path]=u.signedUrl; drawPending.delete(u.path); });
+  if(cur==="inv") render();
+}
+function drawBlock(p){
+  if(!p.draw_path&&!p.flat_path&&!p.dxf_path&&!p.pdf_path) return `<div class="tnote" style="margin-top:8px">No bend drawing or DXF on file for this part yet.</div>`;
+  const d=p.draw_path&&fileUrls[p.draw_path], f=p.flat_path&&fileUrls[p.flat_path];
+  const size=p.flat_w?`${(+p.flat_w).toFixed(3).replace(/\.?0+$/,"")}" × ${(+p.flat_h).toFixed(3).replace(/\.?0+$/,"")}" flat`:"";
+  return `<div class="drw">
+    ${p.draw_path?`<button type="button" class="dtile" data-dview="draw" data-p="${esc(p.part_no)}"><div class="dimg">${d?`<img src="${d}" alt="Bend drawing ${esc(p.part_no)}">`:"Loading…"}</div><span>Bend drawing</span></button>`:""}
+    ${p.flat_path?`<button type="button" class="dtile" data-dview="flat" data-p="${esc(p.part_no)}"><div class="dimg">${f?`<img src="${f}" alt="Flat pattern ${esc(p.part_no)}">`:"Loading…"}</div><span>Flat pattern (DXF)${size?" · "+size:""}</span></button>`:""}
+    <div class="dbtns">${p.pdf_path?`<button class="btn sm" type="button" data-dfile="${esc(p.pdf_path)}" data-dname="${esc(p.part_no)}.pdf">Open PDF</button>`:""}${p.dxf_path?`<button class="btn sm" type="button" data-dfile="${esc(p.dxf_path)}" data-dname="${esc(p.part_no)}.dxf" data-ddl="1">Download DXF</button>`:""}</div>
+    ${p.dxf_damaged?`<div class="tnote" style="color:#ffb070;margin-top:6px">Heads up: this DXF file is damaged (a few lines at the end are cut off - often a bend line). The preview skips them. Check it before sending it to the laser.</div>`:""}
+  </div>`;
+}
+function wireDraw(root){
+  root.querySelectorAll("[data-dview]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const p=parts.find(x=>x.part_no===el.dataset.p); const path=el.dataset.dview==="draw"?p.draw_path:p.flat_path; const u=fileUrls[path]; if(u) viewDrawing(u,(el.dataset.dview==="draw"?"Bend drawing":"Flat pattern")+" - "+p.part_no+" "+p.name, el.dataset.dview==="flat"); });
+  root.querySelectorAll("[data-dfile]").forEach(el=>el.onclick=async e=>{ e.stopPropagation(); el.disabled=true;
+    const r=await sb.storage.from("gvc-parts").createSignedUrl(el.dataset.dfile,60*30,el.dataset.ddl?{download:el.dataset.dname}:undefined); el.disabled=false;
+    if(r.data&&r.data.signedUrl) window.open(r.data.signedUrl,"_blank"); });
+}
+function viewDrawing(src,title,flat){
+  openId=null; let z=1; const D=$("#dlg");
+  D.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center;gap:8px"><b style="font-size:14px">${esc(title)}</b><span style="flex:1"></span><button class="btn sm" type="button" id="zOut">−</button><button class="btn sm" type="button" id="zIn">+</button><button class="btn sm" type="button" onclick="closeDlg()">Close</button></div>
+    <div id="zBox" style="overflow:auto;max-height:78vh;margin-top:8px;background:#fff;border-radius:8px;touch-action:pan-x pan-y"><img id="zImg" src="${src}" alt="${esc(title)}" style="width:100%;display:block;${flat?"padding:10px;box-sizing:border-box":""}"></div>`;
+  $("#scrim").classList.add("on");
+  const set=n=>{ z=Math.max(1,Math.min(5,n)); $("#zImg").style.width=(z*100)+"%"; };
+  $("#zIn").onclick=()=>set(z+0.75); $("#zOut").onclick=()=>set(z-0.75);
+  let d0=null,z0=1; const box=$("#zBox");
+  box.addEventListener("touchstart",e=>{ if(e.touches.length===2){ d0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); z0=z; } },{passive:true});
+  box.addEventListener("touchmove",e=>{ if(e.touches.length===2&&d0){ e.preventDefault(); const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); set(z0*d/d0); } },{passive:false});
+  box.addEventListener("touchend",()=>{ d0=null; });
+  $("#zImg").ondblclick=()=>set(z>1?1:2.5);
 }
 function zoomImg(src,alt){ openId=null; $("#dlg").innerHTML=`<img src="${src}" alt="${esc(alt)}" style="width:100%;border-radius:8px;background:#fff"><div class="row" style="margin-top:10px"><button class="btn" type="button" onclick="closeDlg()">Close</button></div>`; $("#scrim").classList.add("on"); }
 function bendText(list){ return "Flat parts to bend ("+list.reduce((a,p)=>a+p.stock_flat,0)+" pcs)\n"+list.map(p=>`- ${p.stock_flat} x ${p.name} (${p.part_no}) - ${p.description||p.material||""}`).join("\n"); }
@@ -697,9 +744,10 @@ function showBendList(){
   const list=parts.filter(p=>p.stock_flat>0).sort((a,b)=>(a.material||"").localeCompare(b.material||"")||(a.sort-b.sort));
   openId=null; const D=$("#dlg");
   D.innerHTML=`<h2 style="margin:0 0 4px">Bend list</h2><div class="tnote">${list.length?`${list.reduce((a,p)=>a+p.stock_flat,0)} pcs sitting flat across ${list.length} parts.`:"Nothing sitting flat right now."}</div>
-   ${list.map(p=>`<div class="pr"><div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${esc(p.part_no)} · ${esc(p.description||"")}</div>${p.pdf_url?`<a class="pm" href="${esc(p.pdf_url)}" target="_blank" rel="noopener">Bend drawing</a>`:""}</div><div class="pq"><span class="qb flat">${p.stock_flat} flat</span></div></div></div>`).join("")}
+   ${list.map(p=>`<div class="pr"><div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${esc(p.part_no)} · ${esc(p.description||"")}</div>${p.draw_path?`<button class="btn sm" type="button" data-bl="${esc(p.part_no)}" style="margin-top:4px">Bend drawing</button>`:""}</div><div class="pq"><span class="qb flat">${p.stock_flat} flat</span></div></div></div>`).join("")}
    <div class="row" style="margin-top:12px;gap:8px">${list.length?`<button class="btn primary" type="button" id="blShare">${navigator.share?"Share list":"Copy list"}</button>`:""}<button class="btn" type="button" onclick="closeDlg()">Close</button></div>`;
   $("#scrim").classList.add("on");
+  D.querySelectorAll("[data-bl]").forEach(el=>el.onclick=async()=>{ const p=parts.find(x=>x.part_no===el.dataset.bl); if(!fileUrls[p.draw_path]){ const r=await sb.storage.from("gvc-parts").createSignedUrl(p.draw_path,3600); if(r.data) fileUrls[p.draw_path]=r.data.signedUrl; } viewDrawing(fileUrls[p.draw_path],"Bend drawing - "+p.part_no+" "+p.name,false); });
   const b=$("#blShare"); if(b) b.onclick=async()=>{ const t=bendText(list); try{ if(navigator.share) await navigator.share({title:"Bend list",text:t}); else { await navigator.clipboard.writeText(t); b.textContent="Copied"; } }catch(e){} };
 }
 
