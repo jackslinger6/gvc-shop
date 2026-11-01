@@ -35,13 +35,18 @@ const TOOL = {
           type: "object",
           properties: {
             ref: { type: "string", description: "The ref of the message this comes from" },
-            relevant: { type: "boolean", description: "false if the message has nothing to do with shop jobs" },
+            relevant: { type: "boolean", description: "false if the message has nothing to do with shop jobs and holds no task for Kyle" },
             job_id: { type: ["string", "null"], description: "id of the existing job it is about, or null" },
             new_job_name: { type: ["string", "null"], description: "Only if it clearly describes a new job not on the board" },
             summary: { type: "string", description: "One short plain sentence for Kyle: what happened and what you suggest" },
             stage: { type: ["string", "null"], enum: [...Object.keys(STAGES), null], description: "Move the job to this stage, only if the message clearly says so" },
             job_summary: { type: ["string", "null"], description: "New one-line status for the job card, if it should change" },
             log: { type: ["string", "null"], description: "Short log entry to add to the job" },
+            todos: {
+              type: ["array", "null"],
+              description: "Tasks Kyle himself has to do that come out of this message, e.g. 'Meet with Jesse about the hitch', 'Draw the rear bracket', 'Email Russel the corrected BOM'. Only tasks for Kyle (in recordings he may be addressed as Kyle). Short imperative wording.",
+              items: { type: "object", properties: { text: { type: "string" }, job_id: { type: ["string", "null"] } }, required: ["text"] },
+            },
             supplier: {
               type: ["object", "null"],
               properties: {
@@ -89,6 +94,7 @@ async function suggest(sb: any, items: any[]) {
 
   const system = `You help Kyle, a welder and shop lead at Gordeyville Customs (custom truck decks, BBQ trailers), keep his job board current.
 Messages come from his texts and recorded shop conversations. Randy releases jobs, Jesse Dirksen is the engineer, Jesse Eherer is at Russel Metals (laser cutting supplier), William Hofer is at Grandview Fabrication, Robin handles stock, Colton/Aaron/Cooper are crew.
+Pull out any to-dos meant for Kyle (things he was asked to do or said he would do).
 Only propose a change when the message clearly supports it. Never invent quote numbers, prices or dates. Keep summaries short and plain.
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}

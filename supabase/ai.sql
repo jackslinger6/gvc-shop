@@ -28,3 +28,21 @@ create policy gvc_audio_members on storage.objects for all to authenticated
   with check (bucket_id = 'gvc-audio' and public.gvc_is_member());
 
 select 'ok' as result, (select count(*) from public.gvc_suggestions) as suggestions;
+
+-- To-dos (manual, or accepted from AI suggestions)
+create table if not exists public.gvc_todos (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  text text not null,
+  job_id text,
+  source text,           -- 'manual' | 'sms' | 'recording'
+  from_name text,
+  done_at timestamptz
+);
+alter table public.gvc_todos enable row level security;
+drop policy if exists gvc_todos_members on public.gvc_todos;
+create policy gvc_todos_members on public.gvc_todos for all to authenticated
+  using (public.gvc_is_member()) with check (public.gvc_is_member());
+do $$ begin
+  begin alter publication supabase_realtime add table public.gvc_todos; exception when duplicate_object then null; end;
+end $$;
