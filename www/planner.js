@@ -102,7 +102,7 @@ async function savePlan(){
 function model(){
   const T={};
   jobs.filter(j=>j.stage!=="done").forEach(j=>(j.assemblies||[]).forEach(a=>{ if(!a.id) return; const key="j:"+j.id+":"+a.id;
-    T[key]={key,jid:j.id,aid:a.id,job:j.name,name:a.name,h:plan.hours[key]??null,who:whoList(a),needs:(plan.needs[key]||[]).slice(),done:a.status==="done",color:jobColor(j.id)}; }));
+    T[key]={key,jid:j.id,aid:a.id,job:j.name,name:a.name,ncr:a.ncr||null,h:plan.hours[key]??null,who:whoList(a),needs:(plan.needs[key]||[]).slice(),done:a.status==="done",color:jobColor(j.id)}; }));
   Object.entries(plan.extra||{}).forEach(([id,x])=>{ const key="x:"+id;
     T[key]={key,xid:id,job:x.job||"Other",name:x.name,h:x.h??null,who:(x.who||[]).slice(),needs:(plan.needs[key]||[]).slice(),done:!!x.done,at:x.at??null,errand:!!x.errand,color:x.errand?ERR_C:"#8e96a3"}; });
   const S={}; CREW.forEach(p=>{ S[p]={}; const src=(plan.sched||{})[p]||{}; for(const d in src){ const l=(src[d]||[]).filter(k=>T[k]&&T[k].who.includes(p)); if(l.length) S[p][d]=l; } });
@@ -232,7 +232,7 @@ function blk(M,t,p,d,r,bad){
   if(r&&p&&others.length&&r.w<0.05) return `<div class="pblk ${sel===t.key?"sel":""}" style="--c:${t.color};opacity:.5" data-k="${esc(t.key)}" data-p="${p}" data-d="${d}">🔗 ${esc(t.name)} <small>${others.join(", ")} finish${others.length>1?"":"es"} it before ${p} gets there</small></div>`;
   return `<div class="pblk ${sel===t.key?"sel":""} ${bad?"bad":""} ${t.done?"done":""} ${t.at!=null?"fx":""}" style="--c:${t.color};${p?`min-height:${Math.max(24,share*9)}px`:""}${past&&!t.done?";opacity:.65":""}" data-k="${esc(t.key)}" ${p?`data-p="${p}" data-d="${d}"`:""}>
    ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${esc(t.name)} · ${fh(share)}${t.h==null?"?":""}
-   <small>${r?`${clock(r.s)}–${clock(r.e)}${pauses?" (paused)":""} · `:""}${esc(t.job)}${solo?" · "+solo:""}${others.length?(p?" · with ":" · ")+others.join(", "):""}${after.length?" · after "+esc(after.join(", ")):""}</small></div>`;
+   <small>${t.ncr?`<b style="color:#ff9b91">NCR-${String(t.ncr).padStart(3,"0")}</b> · `:""}${r?`${clock(r.s)}–${clock(r.e)}${pauses?" (paused)":""} · `:""}${esc(t.job)}${solo?" · "+solo:""}${others.length?(p?" · with ":" · ")+others.join(", "):""}${after.length?" · after "+esc(after.join(", ")):""}</small></div>`;
 }
 function renderWeek(){
   const B=$("#board"); B.className="wkv"; B.style.gridTemplateColumns="";
