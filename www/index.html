@@ -784,7 +784,7 @@ let chatMsgs=LS.get("gvc_chat",[]), chatBusy=false;
 function drawChat(){
   const M=$("#chatM");
   M.innerHTML=(chatMsgs.length?"":`<div class="hint">Ask me about your jobs, suppliers or crew - "what's waiting on Russel?", "what should Cooper do next?", "remind me to call William Monday". On your phone, tap the mic on the keyboard to talk.</div>`)+
-    chatMsgs.map(m=>m.role==="act"?`<div class="act">✓ ${esc(m.content)}</div>`:`<div class="b ${m.role==="user"?"u":"a"}">${esc(m.content)}</div>`).join("")+(chatBusy?`<div class="b a" style="color:var(--dim)">Thinking…</div>`:"");
+    chatMsgs.map(m=>m.role==="act"?`<div class="act">✓ ${esc(m.content)}</div>`:`<div class="b ${m.role==="user"?"u":"a"}">${m.role==="user"?esc(m.content):esc(m.content).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^#+\s*(.+)$/gm,"<b>$1</b>").replace(/^- /gm,"• ")}</div>`).join("")+(chatBusy?`<div class="b a" style="color:var(--dim)">Thinking…</div>`:"");
   M.scrollTop=M.scrollHeight;
 }
 async function sendChat(){
