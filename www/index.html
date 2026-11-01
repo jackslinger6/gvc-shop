@@ -208,6 +208,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .chatp .act{align-self:flex-start;font-size:12px;color:#8fe3a8;background:rgba(58,208,107,.08);border:1px solid rgba(58,208,107,.3);border-radius:8px;padding:4px 8px}
 .chatp .ci{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
 .chatp .ci textarea{flex:1;resize:none;height:42px;max-height:120px}
+.chatp #chatMic.on{background:#c0392b;border-color:#e5483b;color:#fff;animation:pulse 1.4s infinite}
 .chatp .hint{font-size:12px;color:var(--dim);padding:4px 2px}
 @media (max-width:600px){ .chatp{right:0;left:0;bottom:0;width:100%;height:85vh;border-radius:14px 14px 0 0} }
 /* ---- To do ---- */
@@ -303,7 +304,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 <button class="btn primary chatfab" type="button" id="chatFab" hidden>💬 Ask Claude</button>
 <section class="chatp" id="chatP" aria-label="Ask Claude"><div class="ch">Ask Claude<span class="sp"></span><button type="button" id="chatClear">Clear</button><button type="button" id="chatX" style="font-size:18px">✕</button></div>
 <div class="cm" id="chatM"></div>
-<div class="ci"><textarea id="chatIn" placeholder="Ask about jobs, plan the day, add a to-do…" aria-label="Message"></textarea><button class="btn primary" type="button" id="chatGo">Send</button></div></section>
+<div class="ci"><textarea id="chatIn" placeholder="Ask about jobs, plan the day, add a to-do…" aria-label="Message"></textarea><button class="btn" type="button" id="chatMic" title="Talk" aria-label="Talk to Claude">🎤</button><button class="btn primary" type="button" id="chatGo">Send</button></div></section>
 <div class="toast" id="toast" role="status"><span id="toastTx"></span><button type="button" id="toastUndo">Undo</button></div>
 <div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"><div class="dlg" id="dlg"></div></div>
 
@@ -925,6 +926,35 @@ $("#chatX").onclick=()=>{ $("#chatP").classList.remove("on"); $("#chatFab").hidd
 $("#chatClear").onclick=()=>{ chatMsgs=[]; LS.set("gvc_chat",[]); drawChat(); };
 $("#chatGo").onclick=sendChat;
 $("#chatIn").onkeydown=e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendChat(); } };
+
+/* ---- talk to Claude ---- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let micOn=false, rec=null, mrec=null, chunks=[], micBase="";
+function micUI(on){ micOn=on; const b=$("#chatMic"); b.classList.toggle("on",on); b.textContent=on?"■":"🎤"; b.title=on?"Stop and send":"Talk"; }
+async function micStart(){
+  const box=$("#chatIn"); micBase=box.value?box.value.trim()+" ":"";
+  if(SR && !Widget){
+    rec=new SR(); rec.lang="en-CA"; rec.continuous=true; rec.interimResults=true;
+    let finalTx="";
+    rec.onresult=e=>{ let interim=""; for(let i=e.resultIndex;i<e.results.length;i++){ const t=e.results[i][0].transcript; if(e.results[i].isFinal) finalTx+=t+" "; else interim+=t; } box.value=micBase+finalTx+interim; };
+    rec.onerror=e=>{ if(e.error==="not-allowed") chatMsgs.push({role:"assistant",content:"Chrome blocked the microphone. Click the mic icon in the address bar and allow it."}); micUI(false); drawChat(); };
+    rec.onend=()=>{ if(micOn){ micUI(false); if(box.value.trim()) sendChat(); } };
+    rec.start(); micUI(true); return;
+  }
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({audio:true});
+    chunks=[]; mrec=new MediaRecorder(st); mrec.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+    mrec.onstop=async()=>{ st.getTracks().forEach(t=>t.stop()); micUI(false);
+      const blob=new Blob(chunks,{type:mrec.mimeType||"audio/webm"}); box.value=micBase+"(listening…)";
+      const b64=await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(String(fr.result).split(",")[1]); fr.readAsDataURL(blob); });
+      const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"stt",audio:b64,mime:blob.type}});
+      if(error||data?.error){ box.value=micBase; chatMsgs.push({role:"assistant",content:"Couldn't hear that: "+(data?.error||error.message)}); drawChat(); return; }
+      box.value=micBase+(data.text||""); if(box.value.trim()) sendChat(); };
+    mrec.start(); micUI(true);
+  }catch(e){ chatMsgs.push({role:"assistant",content:"No microphone access: "+(e.message||e)}); drawChat(); }
+}
+function micStop(){ if(rec){ try{ rec.stop(); }catch(e){} rec=null; } else if(mrec&&mrec.state!=="inactive"){ mrec.stop(); } else micUI(false); }
+$("#chatMic").onclick=()=>{ micOn?micStop():micStart(); };
 
 const HOME_URL="https://jackslinger6.github.io/gvc-shop/";
 $("#lForgot").onclick=async()=>{

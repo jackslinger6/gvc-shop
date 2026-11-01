@@ -238,6 +238,19 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     if (body.action === "suggest") return json(await suggest(sb, body.items || []));
+    if (body.action === "stt") {
+      const bytes = Uint8Array.from(atob(String(body.audio || "")), (c) => c.charCodeAt(0));
+      if (bytes.length > 24_000_000) return json({ error: "Recording too long" }, 400);
+      const mime = String(body.mime || "audio/webm");
+      const ext = mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm";
+      const fd = new FormData();
+      fd.append("file", new File([bytes], "speech." + ext, { type: mime }));
+      fd.append("model", "whisper-1");
+      fd.append("prompt", "Gordeyville Customs shop talk: Randy, Jesse, Robin, Colton, Aaron, Cooper, Kyle, Russel Metals, Grandview, Kirby, Craig's trailer, picker truck, belly box, shovel rack, headache rack.");
+      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + (Deno.env.get("OPENAI_API_KEY") || "") }, body: fd });
+      if (!r.ok) return json({ error: "Whisper " + r.status }, 500);
+      return json({ text: (await r.json()).text || "" });
+    }
     if (body.action === "chat") return json(await chat(sb, body.messages || [], body.context || {}));
 
     if (body.action === "recording") {
