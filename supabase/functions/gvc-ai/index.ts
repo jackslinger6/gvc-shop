@@ -155,12 +155,18 @@ const CHAT_TOOLS = [
     input_schema: { type: "object", properties: { job_id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } }, last_waits_for_rest: { type: "boolean" } }, required: ["job_id", "tasks"] } },
   { name: "propose_update", description: "Propose a change to a job (stage, card status, log entry, supplier status, new job). It goes to Kyle's review list - he taps Accept to apply it. Use for any board change.",
     input_schema: { type: "object", properties: Object.fromEntries(Object.entries(ITEM.properties).filter(([k]) => k !== "ref" && k !== "relevant")), required: ["summary"] } },
+  { name: "save_app_note", description: "Save a feature request, change, or bug report about THIS APP for Kyle to build with Claude Code at home. Use once you and Kyle have talked it through enough that someone could build it. Write details as a clear spec: the problem, how it should work step by step, any examples Kyle gave.",
+    input_schema: { type: "object", properties: { kind: { type: "string", enum: ["idea", "change", "bug"], description: "idea = new feature, change = existing feature should work differently, bug = something broken" }, area: { type: "string", description: "Part of the app, e.g. To do, Week planner, My time, NCRs, Inventory, Chat, Recording, Texts, Email, Job card" }, title: { type: "string", description: "Short name, under 60 chars" }, details: { type: "string" } }, required: ["kind", "title", "details"] } },
+  { name: "update_app_note", description: "Add to or rewrite an app note that's already saved (use the id from the saved notes list) instead of saving a duplicate.",
+    input_schema: { type: "object", properties: { id: { type: "string" }, details: { type: "string", description: "The full updated spec" }, title: { type: "string" } }, required: ["id", "details"] } },
 ];
+const APP_FEATURES = `What the app already does: To do tab (auto reminders from job stages, suppliers, idle crew, flat parts, schedule clashes, unlogged time, undecided NCRs; Kyle's own to-dos; review list of suggestions from texts/emails/recordings that Kyle accepts). Boards: Pipeline (released, check drawings, make DXFs), Orders (preparing, quote, production, pick up, arrived, received - with suppliers per job), Shop floor (bending, fab, paint, assembly, done). Job card: stage, folder, note, tasks with who/status and progress %, suppliers, NCRs, notes log. Crew tab: Week plan (drag-and-drop weekly schedule per person, 8h days, hour estimates, shared tasks split by crew-hours, days off, "send someone now" errands, task dependencies with clash alerts) and Lanes view. My time tab: Kyle's daily hours prefilled from the plan, confirm days, send to his separate time invoice app with a button. NCRs: log on a job (type, fix, rework steps with hours, material $), NCR log with cost. Inventory tab: mirror of Robin's spreadsheet (synced daily), part pictures, flat vs bent stock, bend list. Phone: record conversations (Whisper transcribes, suggestions come out), reads texts from picked contacts. Hourly email check (weekdays) turns Kyle's work emails into suggestions. This chat (with mic on PC). Kyle's undo button. PC web version and Android app.`;
 
 async function chat(sb: any, msgs: any[], ctx: any = {}) {
-  const [{ data: rows }, { data: todos }] = await Promise.all([
+  const [{ data: rows }, { data: todos }, { data: notes }] = await Promise.all([
     sb.from("gvc_jobs").select("id,data"),
     sb.from("gvc_todos").select("id,text,job_id,from_name,created_at").is("done_at", null).neq("source", "auto"),
+    sb.from("gvc_feedback").select("id,kind,area,title,status").in("status", ["new", "planned"]).order("created_at"),
   ]);
   const jobs = (rows || []).map(({ id, data: j }: any) => ({ ...compactJobs([{ id, data: j }])[0], recent_log: (j.log || []).slice(-6).map((l: any) => (l.at || "").slice(0, 10) + " " + l.text),
     tasks: (j.assemblies || []).map((a: any) => ({ name: a.name, status: a.status, who: a.who || "unassigned" })) }));
@@ -175,7 +181,11 @@ Jobs: ${JSON.stringify(jobs)}
 Kyle's open to-dos (with ids, for complete_todo): ${JSON.stringify(todos || [])}
 What Kyle's To do tab shows right now (board reminders are generated from job stages/suppliers/crew; to-dos are his own): ${JSON.stringify(ctx.todo_tab || [])}
 Suggestions waiting for his review: ${JSON.stringify(ctx.waiting_review || [])}
-Parts sitting flat in inventory that could be bent: ${JSON.stringify(ctx.flat_to_bend || [])}`;
+Parts sitting flat in inventory that could be bent: ${JSON.stringify(ctx.flat_to_bend || [])}
+
+You also help Kyle improve this app. ${APP_FEATURES}
+When Kyle wants something the app doesn't do, wants a feature to work differently, or says something isn't working: talk it through like a product partner. Ask at most one or two short questions if it's unclear (what problem it solves, how he pictures it working, an example), suggest a simpler way if there is one, then save it with save_app_note (or update_app_note if it's already in the list). You can't change the app yourself - say it's saved and you'll build it together with Claude at home. Don't save the same thing twice.
+App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x.id, kind: x.kind, area: x.area, title: x.title, status: x.status })))}`;
   const messages: any[] = msgs.slice(-20).map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 8000) }));
   const actions: string[] = [];
   let n = 0;
@@ -218,6 +228,14 @@ Parts sitting flat in inventory that could be bent: ${JSON.stringify(ctx.flat_to
           const { summary, job_id, ...changes } = u.input;
           const { error } = await sb.from("gvc_suggestions").insert({ source: "chat", source_ref: "chat:" + Date.now() + "#" + (++n), from_name: "Chat", source_at: new Date().toISOString(), source_text: String(messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-1)[0]?.content || ""), job_id: job_id || null, summary, changes, status: "new" });
           if (error) throw error; actions.push("Suggested: " + summary + " (waiting for you in To do)");
+        } else if (u.name === "save_app_note") {
+          const said = messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-6).map((m: any) => "Kyle: " + m.content).join("\n");
+          const { error } = await sb.from("gvc_feedback").insert({ kind: u.input.kind || "idea", area: u.input.area || null, title: String(u.input.title).slice(0, 120), details: u.input.details, conversation: said.slice(0, 6000) });
+          if (error) throw error; actions.push("Saved app " + (u.input.kind === "bug" ? "bug" : "idea") + ": " + u.input.title);
+        } else if (u.name === "update_app_note") {
+          const upd: any = { details: u.input.details, updated_at: new Date().toISOString() }; if (u.input.title) upd.title = u.input.title;
+          const { error } = await sb.from("gvc_feedback").update(upd).eq("id", u.input.id);
+          if (error) throw error; actions.push("Updated app note: " + (u.input.title || ((notes || []).find((x: any) => x.id === u.input.id)?.title) || "note"));
         } else res = "unknown tool";
       } catch (e) { res = "error: " + ((e as any).message || e); }
       results.push({ type: "tool_result", tool_use_id: u.id, content: res });
