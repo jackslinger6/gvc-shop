@@ -162,6 +162,22 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .login .msg.bad{color:#ff9b91}
 .signout{background:none;border:0;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
 .empty{color:var(--dim);font-size:12px;text-align:center;padding:8px 0}
+/* ---- chat ---- */
+.chatfab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:9;border-radius:999px;padding:12px 18px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.chatp{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:min(420px,calc(100vw - 24px));height:min(620px,calc(100vh - 60px));z-index:11;display:none;flex-direction:column;background:#141619;border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.7);overflow:hidden}
+.chatp.on{display:flex}
+.chatp .ch{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:15px}
+.chatp .ch .sp{flex:1}
+.chatp .ch button{background:none;border:0;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-transform:none;letter-spacing:0;font-family:Inter,sans-serif}
+.chatp .cm{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.chatp .b{max-width:88%;padding:8px 11px;border-radius:12px;font-size:14px;line-height:1.4;white-space:pre-wrap;word-wrap:break-word}
+.chatp .b.u{align-self:flex-end;background:#3a2a1a;border:1px solid #6b4a26}
+.chatp .b.a{align-self:flex-start;background:var(--panel2);border:1px solid var(--line)}
+.chatp .act{align-self:flex-start;font-size:12px;color:#8fe3a8;background:rgba(58,208,107,.08);border:1px solid rgba(58,208,107,.3);border-radius:8px;padding:4px 8px}
+.chatp .ci{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
+.chatp .ci textarea{flex:1;resize:none;height:42px;max-height:120px}
+.chatp .hint{font-size:12px;color:var(--dim);padding:4px 2px}
+@media (max-width:600px){ .chatp{right:0;left:0;bottom:0;width:100%;height:85vh;border-radius:14px 14px 0 0} }
 /* ---- To do ---- */
 .todo{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;margin-top:12px}
 .tbox{border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);padding:12px 12px 8px}
@@ -252,6 +268,10 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
   <div style="text-align:center;margin:-20px 0 30px"><button class="signout" type="button" id="signOut">Sign out</button></div>
   </div>
 </div>
+<button class="btn primary chatfab" type="button" id="chatFab" hidden>💬 Ask Claude</button>
+<section class="chatp" id="chatP" aria-label="Ask Claude"><div class="ch">Ask Claude<span class="sp"></span><button type="button" id="chatClear">Clear</button><button type="button" id="chatX" style="font-size:18px">✕</button></div>
+<div class="cm" id="chatM"></div>
+<div class="ci"><textarea id="chatIn" placeholder="Ask about jobs, plan the day, add a to-do…" aria-label="Message"></textarea><button class="btn primary" type="button" id="chatGo">Send</button></div></section>
 <div class="toast" id="toast" role="status"><span id="toastTx"></span><button type="button" id="toastUndo">Undo</button></div>
 <div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"><div class="dlg" id="dlg"></div></div>
 
@@ -546,12 +566,12 @@ async function loadJobs(){
   jobs=(data||[]).map(r=>({id:r.id,...r.data})).map(j=>({...j,stage:SIDX[j.stage]!=null?j.stage:"prep"}));
   render();
 }
-function showLogin(msg,bad){ $("#login").hidden=false; $("#app").hidden=true; if(msg){ $("#lMsg").textContent=msg; $("#lMsg").className="msg"+(bad?" bad":""); } }
+function showLogin(msg,bad){ $("#login").hidden=false; $("#app").hidden=true; $("#chatFab").hidden=true; $("#chatP").classList.remove("on"); if(msg){ $("#lMsg").textContent=msg; $("#lMsg").className="msg"+(bad?" bad":""); } }
 async function startApp(){
   const { data:key, error } = await sb.rpc("gvc_widget_key");
   if(error){ await sb.auth.signOut(); showLogin("This account isn't on the shop list yet. Ask Kyle to add your email.", true); return; }
   try{ Widget && await Widget.setKey({ key }); }catch(e){}
-  $("#login").hidden=true; $("#app").hidden=false;
+  $("#login").hidden=true; $("#app").hidden=false; $("#chatFab").hidden=$("#chatP").classList.contains("on");
   db=sb; await loadJobs(); loadSide(); setTimeout(()=>checkTexts(false),1500);
   if(Native){ try{ const st=await Native.recStatus(); if(st.on&&!recState.on){ recState.on=true; recState.t0=st.startedAt||Date.now(); recState.timer=setInterval(()=>{const b=$("#recBtn"); if(b) b.textContent="■ Stop recording "+recClock();},1000); render(); } }catch(e){} }
   if(channel) sb.removeChannel(channel);
@@ -758,6 +778,33 @@ async function toggleRec(){
     await loadSide();
   }catch(e){ recState.on=false; clearInterval(recState.timer); setAiMsg("Recording: "+(e.message||e)); render(); }
 }
+
+/* ---- chat ---- */
+let chatMsgs=LS.get("gvc_chat",[]), chatBusy=false;
+function drawChat(){
+  const M=$("#chatM");
+  M.innerHTML=(chatMsgs.length?"":`<div class="hint">Ask me about your jobs, suppliers or crew - "what's waiting on Russel?", "what should Cooper do next?", "remind me to call William Monday". On your phone, tap the mic on the keyboard to talk.</div>`)+
+    chatMsgs.map(m=>m.role==="act"?`<div class="act">✓ ${esc(m.content)}</div>`:`<div class="b ${m.role==="user"?"u":"a"}">${esc(m.content)}</div>`).join("")+(chatBusy?`<div class="b a" style="color:var(--dim)">Thinking…</div>`:"");
+  M.scrollTop=M.scrollHeight;
+}
+async function sendChat(){
+  const t=$("#chatIn").value.trim(); if(!t||chatBusy) return;
+  $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
+  try{
+    const hist=chatMsgs.filter(m=>m.role!=="act").slice(-20);
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist}});
+    if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
+    (data.actions||[]).forEach(a=>chatMsgs.push({role:"act",content:a}));
+    chatMsgs.push({role:"assistant",content:data.reply||"Done."});
+    if((data.actions||[]).length) loadSide();
+  }catch(e){ chatMsgs.push({role:"assistant",content:"Sorry - something went wrong: "+(e.message||e)}); }
+  chatBusy=false; chatMsgs=chatMsgs.slice(-40); LS.set("gvc_chat",chatMsgs); drawChat();
+}
+$("#chatFab").onclick=()=>{ $("#chatP").classList.add("on"); $("#chatFab").hidden=true; drawChat(); setTimeout(()=>$("#chatIn").focus(),50); };
+$("#chatX").onclick=()=>{ $("#chatP").classList.remove("on"); $("#chatFab").hidden=false; };
+$("#chatClear").onclick=()=>{ chatMsgs=[]; LS.set("gvc_chat",[]); drawChat(); };
+$("#chatGo").onclick=sendChat;
+$("#chatIn").onkeydown=e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendChat(); } };
 
 const HOME_URL="https://jackslinger6.github.io/gvc-shop/";
 $("#lForgot").onclick=async()=>{

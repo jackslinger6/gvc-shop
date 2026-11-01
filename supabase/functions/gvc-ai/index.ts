@@ -145,6 +145,72 @@ async function transcribe(sb: any, path: string, hint: string) {
   return (await r.json()).text as string;
 }
 
+
+// ---------- chat ----------
+const ITEM = (TOOL.input_schema.properties.suggestions as any).items;
+const CHAT_TOOLS = [
+  { name: "add_todo", description: "Add a to-do to Kyle's list right away.", input_schema: { type: "object", properties: { text: { type: "string" }, job_id: { type: ["string", "null"] } }, required: ["text"] } },
+  { name: "complete_todo", description: "Mark one of Kyle's open to-dos done, by its id.", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "propose_update", description: "Propose a change to a job (stage, card status, log entry, supplier status, new job). It goes to Kyle's review list - he taps Accept to apply it. Use for any board change.",
+    input_schema: { type: "object", properties: Object.fromEntries(Object.entries(ITEM.properties).filter(([k]) => k !== "ref" && k !== "relevant")), required: ["summary"] } },
+];
+
+async function chat(sb: any, msgs: any[]) {
+  const [{ data: rows }, { data: todos }] = await Promise.all([
+    sb.from("gvc_jobs").select("id,data"),
+    sb.from("gvc_todos").select("id,text,job_id,from_name,created_at").is("done_at", null).neq("source", "auto"),
+  ]);
+  const jobs = (rows || []).map(({ id, data: j }: any) => ({ ...compactJobs([{ id, data: j }])[0], recent_log: (j.log || []).slice(-6).map((l: any) => (l.at || "").slice(0, 10) + " " + l.text),
+    assemblies: (j.assemblies || []).map((a: any) => ({ name: a.name, status: a.status, who: a.who || "unassigned" })) }));
+  const system = `You are the assistant inside Kyle's GVC Shop app. Kyle is a Red Seal welder and shop lead at Gordeyville Customs in Grande Prairie, Alberta (custom truck decks, BBQ trailers, service bodies). Talk like a helpful coworker: short, plain, no fluff.
+People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
+Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
+You can answer questions about the board, help plan the day, and use tools: add_todo and complete_todo act right away; propose_update sends a change to Kyle's review list (never claim a job was changed - say it's waiting for him to accept).
+Assembly statuses: bend=waiting on bending, ready=ready for fab, prog=in progress, qc=inspection, done.
+Stages: ${JSON.stringify(STAGES)}
+Supplier statuses: ${SUP_STATUS.join(", ")}
+Jobs: ${JSON.stringify(jobs)}
+Kyle's open to-dos: ${JSON.stringify(todos || [])}`;
+  const messages: any[] = msgs.slice(-20).map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 8000) }));
+  const actions: string[] = [];
+  let n = 0;
+  for (let turn = 0; turn < 4; turn++) {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, tools: CHAT_TOOLS, messages }),
+    });
+    if (!r.ok) throw new Error("Claude API " + r.status + ": " + (await r.text()).slice(0, 300));
+    const out = await r.json();
+    const uses = (out.content || []).filter((c: any) => c.type === "tool_use");
+    if (!uses.length || out.stop_reason !== "tool_use") {
+      const text = (out.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n").trim();
+      return { reply: text, actions };
+    }
+    messages.push({ role: "assistant", content: out.content });
+    const results: any[] = [];
+    for (const u of uses) {
+      let res = "ok";
+      try {
+        if (u.name === "add_todo") {
+          const { error } = await sb.from("gvc_todos").insert({ text: u.input.text, job_id: u.input.job_id || null, source: "chat", from_name: "Chat" });
+          if (error) throw error; actions.push("Added to-do: " + u.input.text);
+        } else if (u.name === "complete_todo") {
+          const { error } = await sb.from("gvc_todos").update({ done_at: new Date().toISOString() }).eq("id", u.input.id);
+          if (error) throw error; actions.push("Marked done: " + ((todos || []).find((t: any) => t.id === u.input.id)?.text || "to-do"));
+        } else if (u.name === "propose_update") {
+          const { summary, job_id, ...changes } = u.input;
+          const { error } = await sb.from("gvc_suggestions").insert({ source: "chat", source_ref: "chat:" + Date.now() + "#" + (++n), from_name: "Chat", source_at: new Date().toISOString(), source_text: String(messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-1)[0]?.content || ""), job_id: job_id || null, summary, changes, status: "new" });
+          if (error) throw error; actions.push("Suggested: " + summary + " (waiting for you in To do)");
+        } else res = "unknown tool";
+      } catch (e) { res = "error: " + ((e as any).message || e); }
+      results.push({ type: "tool_result", tool_use_id: u.id, content: res });
+    }
+    messages.push({ role: "user", content: results });
+  }
+  return { reply: "Done.", actions };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -156,6 +222,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     if (body.action === "suggest") return json(await suggest(sb, body.items || []));
+    if (body.action === "chat") return json(await chat(sb, body.messages || []));
 
     if (body.action === "recording") {
       const { data: rows } = await sb.from("gvc_jobs").select("id,data");
