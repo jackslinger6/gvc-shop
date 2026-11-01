@@ -162,7 +162,39 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .login .msg.bad{color:#ff9b91}
 .signout{background:none;border:0;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
 .empty{color:var(--dim);font-size:12px;text-align:center;padding:8px 0}
+/* ---- To do ---- */
+.todo{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;margin-top:12px}
+.tbox{border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);padding:12px 12px 8px}
+.tbox h3{font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.tbox h3 .n{font-size:12px;color:var(--muted);font-family:Inter,sans-serif;letter-spacing:0}
+.ti{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-top:1px solid rgba(255,255,255,.06)}
+.ti:first-of-type{border-top:0}
+.ti .ck{flex:none;width:22px;height:22px;border-radius:6px;border:1.5px solid #5a5f68;background:transparent;cursor:pointer;margin-top:1px;color:transparent;font-size:14px;line-height:18px;padding:0}
+.ti .ck:hover{border-color:var(--green);color:var(--green)}
+.ti .bar{flex:none;width:3px;align-self:stretch;border-radius:2px;background:var(--c,#6c727a)}
+.ti .body{flex:1;min-width:0}
+.ti .tt{font-size:14px;line-height:1.35}
+.ti .meta{font-size:11.5px;color:var(--dim);margin-top:2px}
+.ti .go{background:none;border:0;color:var(--muted);font:inherit;font-size:11.5px;padding:0;cursor:pointer;text-decoration:underline}
+.addtodo{display:flex;gap:8px;margin:2px 0 8px}
+.addtodo input{flex:1}
+.sg{border:1px solid var(--line);border-radius:10px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:10px 11px;margin-bottom:10px}
+.sg .hd{font-size:11.5px;color:var(--dim);display:flex;gap:6px;align-items:center}
+.sg .sm{font-weight:600;font-size:14px;margin:4px 0 6px;line-height:1.35}
+.sg ul{margin:0 0 8px;padding-left:18px;font-size:13px;color:var(--muted)}
+.sg details{font-size:12px;color:var(--dim);margin-bottom:8px}
+.sg pre{white-space:pre-wrap;font:inherit;font-size:12px;color:var(--muted);max-height:180px;overflow:auto;margin:6px 0 0;background:rgba(0,0,0,.3);padding:8px;border-radius:6px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.btn.rec{border-color:#7a2a24;color:#ffb3ab}
+.btn.rec.on{background:#c0392b;color:#fff;border-color:#e5483b;animation:pulse 1.4s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(229,72,59,.18)}}
+.paste textarea{width:100%;min-height:70px;resize:vertical;margin-bottom:6px}
+.tnote{font-size:12px;color:var(--dim);margin:2px 0 10px}
+.clist label{display:flex;gap:10px;align-items:center;padding:8px 2px;border-top:1px solid rgba(255,255,255,.06);font-size:14px}
+.clist label span{color:var(--dim);font-size:12px}
 @media (max-width:900px){
+  .todo{grid-template-columns:1fr}
+  .tab[data-b=todo]{grid-column:1/-1}
   .tabs{display:grid;grid-template-columns:1fr 1fr;width:100%}
   .tab{font-size:14px;padding:8px 10px;justify-content:center}
   .bar{gap:8px}
@@ -256,7 +288,7 @@ const FAB_STAGES=["bending","fab","paint","assembly"];
 const asmDone=j=>(j.assemblies||[]).filter(a=>a.status==="done").length;
 const finalLocked=(j,a)=>a.final&&(j.assemblies||[]).some(x=>!x.final&&x.status!=="done");
 const ACTIVE=s=>s.status!=="hold"&&s.status!=="declined";
-let db=null, jobs=[], openId=null, cur="ordering";
+let db=null, jobs=[], todos=[], suggs=[], openId=null, cur="todo";
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const days=iso=>iso?Math.floor((Date.now()-new Date(iso).getTime())/86400000):null;
@@ -288,12 +320,13 @@ const folder=`<svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"
 
 function render(){
   const crewAsm=crewItems();
-  $("#tabs").innerHTML=BOARDS.map(b=>{
+  const tdCount=autoTodos().length+todos.filter(t=>!t.done_at&&t.source!=="auto").length, sgNew=suggs.filter(x=>x.status==="new").length;
+  $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
     const js=jobs.filter(j=>stOf(j).board===b.k); const at=js.filter(needsAttention).length;
     return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct">${js.length}</span>${at?`<span class="at">${at}</span>`:""}</button>`;
   }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!x.a.who&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!x.a.who&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
-  if(cur==="crew"){ renderCrew(crewAsm); } else {
+  if(cur==="todo"){ renderTodo(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
   const B=BOARDS.find(b=>b.k===cur);
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
@@ -480,14 +513,14 @@ function supForm(){
   };
 }
 $("#addJob").onclick=async()=>{
-  const first=BOARDS.find(b=>b.k===cur).stages[0].k;
+  const first=(BOARDS.find(b=>b.k===cur)||BOARDS[0]).stages[0].k;
   const id=uid(); const data={name:"New job",folder:"",summary:"",stage:first,suppliers:[],log:[],order:Date.now()};
   if(!db){ jobs.push({id,...data}); render(); openJob(id); pushUndo(id,null,"Added a new job"); return; }
   try{ await saveJob(id,data); jobs.push({id,...data}); openJob(id); pushUndo(id,null,"Added a new job"); }catch(e){ $("#status").textContent="Couldn't add job: "+(e.message||e); }
 };
 
 const START_HASH=location.hash||"";
-const VIEWS=[...BOARDS.map(b=>b.k),"crew"];
+const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew"];
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
@@ -519,9 +552,10 @@ async function startApp(){
   if(error){ await sb.auth.signOut(); showLogin("This account isn't on the shop list yet. Ask Kyle to add your email.", true); return; }
   try{ Widget && await Widget.setKey({ key }); }catch(e){}
   $("#login").hidden=true; $("#app").hidden=false;
-  db=sb; await loadJobs();
+  db=sb; await loadJobs(); loadSide(); setTimeout(()=>checkTexts(false),1500);
+  if(Native){ try{ const st=await Native.recStatus(); if(st.on&&!recState.on){ recState.on=true; recState.t0=st.startedAt||Date.now(); recState.timer=setInterval(()=>{const b=$("#recBtn"); if(b) b.textContent="■ Stop recording "+recClock();},1000); render(); } }catch(e){} }
   if(channel) sb.removeChannel(channel);
-  channel=sb.channel("gvc_jobs").on("postgres_changes",{event:"*",schema:"public",table:"gvc_jobs"},()=>loadJobs()).subscribe();
+  channel=sb.channel("gvc_jobs").on("postgres_changes",{event:"*",schema:"public",table:"gvc_jobs"},()=>loadJobs()).on("postgres_changes",{event:"*",schema:"public",table:"gvc_todos"},()=>loadSide()).on("postgres_changes",{event:"*",schema:"public",table:"gvc_suggestions"},()=>loadSide()).subscribe();
 }
 $("#lIn").onclick=async()=>{
   const email=$("#lEmail").value.trim(), password=$("#lPass").value;
@@ -538,6 +572,193 @@ $("#lUp").onclick=async()=>{
   if(error){ showLogin(error.message, true); return; }
   if(data.session) await startApp(); else showLogin("Check your email and tap the confirm link, then come back and sign in.");
 };
+/* ---------- To do + AI inbox ---------- */
+const Native = (window.capacitorExports && Widget) ? window.capacitorExports.registerPlugin("ShopNative") : null;
+const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+function autoTodos(){
+  const out=[]; const add=(text,c,o={})=>out.push({text,c,...o});
+  const live=jobs.filter(j=>!j.sample);
+  live.forEach(j=>{
+    const a=(j.suppliers||[]).filter(ACTIVE);
+    if(j.stage==="released") add(`Look over new job: ${j.name}`,"var(--pipe)",{job:j.id});
+    if(j.stage==="drawings") add(`Check drawings: ${j.name}`,"var(--blue)",{job:j.id});
+    if(j.stage==="dxfs") add(`Make DXFs: ${j.name}`,"var(--cyan)",{job:j.id});
+    if(j.stage==="prep") add(`Send the order: ${j.name}`,"var(--red)",{job:j.id});
+    if(j.stage==="quote"){
+      a.filter(x=>x.status==="quote").forEach(x=>add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id}));
+      a.filter(x=>x.status==="sent"&&days(x.sent)>=2).forEach(x=>add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id}));
+    }
+    if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id});
+    if(j.stage==="arrived") add(`Count & check: ${j.name}`,"var(--amber)",{job:j.id});
+    if(j.stage==="bending") add(`Bend parts: ${j.name}`,"var(--pink)",{job:j.id});
+  });
+  const items=crewItems().filter(x=>x.a.status!=="done");
+  const idle=CREW.filter(c=>c!=="Kyle"&&!items.some(x=>x.a.who===c));
+  if(idle.length) add(`Give work to ${idle.join(", ")}`,"var(--orange)",{view:"crew"});
+  const un=items.filter(x=>!x.a.who&&!finalLocked(x.j,x.a));
+  if(un.length) add(`Assign ${un.length} assembl${un.length>1?"ies":"y"} (${[...new Set(un.map(x=>x.j.name))].join(", ")})`,"var(--orange)",{view:"crew"});
+  const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
+  return out.filter(x=>!hidden.has(x.text));
+}
+const SRC={sms:"💬",recording:"🎙",manual:"📋"};
+function sgBullets(s){
+  const c=s.changes||{}, j=jobs.find(x=>x.id===s.job_id), b=[];
+  if(j) b.push(`Job: ${esc(j.name)}`); else if(c.new_job_name) b.push(`New job: ${esc(c.new_job_name)}`);
+  if(c.stage&&STAGES[SIDX[c.stage]]) b.push(`Move to ${STAGES[SIDX[c.stage]].bt}: ${STAGES[SIDX[c.stage]].t}`);
+  if(c.supplier){const p=c.supplier; b.push(`${esc(p.name)}: ${[p.status&&ST[p.status]?ST[p.status].t:"",p.quoteNo?"#"+esc(p.quoteNo):"",p.total?esc(p.total):"",p.lead?"lead "+esc(p.lead):"",p.note?esc(p.note):""].filter(Boolean).join(" · ")}`);}
+  if(c.job_summary) b.push(`Card status: ${esc(c.job_summary)}`);
+  if(c.log) b.push(`Log: ${esc(c.log)}`);
+  (c.todos||[]).forEach(t=>b.push(`<b>To do:</b> ${esc(t.text)}`));
+  return b;
+}
+function renderTodo(){
+  const B=$("#board"); B.className="todo"; B.style.gridTemplateColumns="";
+  const auto=autoTodos(), mine=todos.filter(t=>!t.done_at&&t.source!=="auto").sort((a,b)=>a.created_at<b.created_at?-1:1);
+  const doneRecent=todos.filter(t=>t.done_at&&t.source!=="auto").sort((a,b)=>a.done_at<b.done_at?1:-1).slice(0,8);
+  const review=suggs.filter(x=>x.status==="new").sort((a,b)=>a.created_at<b.created_at?1:-1);
+  const jn=id=>{const j=jobs.find(x=>x.id===id);return j?j.name:"";};
+  B.innerHTML=`<section class="tbox"><h3>To do <span class="n">${auto.length+mine.length}</span></h3>
+    <div class="addtodo"><input id="tdNew" placeholder="Add a to-do…" aria-label="New to-do"><button class="btn" type="button" id="tdAdd">Add</button></div>
+    ${mine.map(t=>`<div class="ti" style="--c:#ffd28a"><button class="ck" type="button" data-done="${t.id}" title="Mark done">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">${[t.from_name?esc(t.from_name):"",t.job_id&&jn(t.job_id)?`<button class="go" type="button" data-job="${esc(t.job_id)}">${esc(jn(t.job_id))}</button>`:"",fmt(t.created_at)].filter(Boolean).join(" · ")}</div></div></div>`).join("")}
+    ${auto.map((t,i)=>`<div class="ti" style="--c:${t.c}"><button class="ck" type="button" data-auto="${i}" title="Done / hide">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">From the board · <button class="go" type="button" ${t.job?`data-job="${esc(t.job)}">Open job`:`data-view="${t.view}">Open ${t.view}`}</button></div></div></div>`).join("")}
+    ${!auto.length&&!mine.length?`<div class="tnote">Nothing to do. Nice.</div>`:""}
+    ${doneRecent.length?`<details style="margin-top:8px"><summary class="tnote" style="cursor:pointer">Recently done (${doneRecent.length})</summary>${doneRecent.map(t=>`<div class="ti"><button class="ck" type="button" data-undone="${t.id}" title="Not done" style="color:var(--green);border-color:var(--green)">✓</button><div class="body"><div class="tt" style="color:var(--dim);text-decoration:line-through">${esc(t.text)}</div></div></div>`).join("")}</details>`:""}
+  </section>
+  <section class="tbox"><h3>From texts &amp; recordings <span class="n">${review.length?review.length+" to review":""}</span></h3>
+    <div class="tools">
+      ${Native?`<button class="btn rec ${recState.on?"on":""}" type="button" id="recBtn">${recState.on?"■ Stop recording "+recClock():"● Record"}</button>
+      <button class="btn" type="button" id="smsNow">Check texts</button><button class="btn ghost" type="button" id="smsPick">Text contacts (${LS.get("gvc_sms_contacts",[]).length})</button>`:""}
+      <button class="btn ghost" type="button" id="pasteBtn">Paste a message</button>
+    </div>
+    <div class="tnote" id="aiMsg">${aiMsg||""}</div>
+    <div class="paste" id="pasteBox" hidden><textarea id="pasteTx" placeholder="Paste a text, email or notes - Claude will suggest job updates and to-dos."></textarea><div class="row"><button class="btn primary sm" type="button" id="pasteGo">Send to Claude</button></div></div>
+    ${review.map(x=>`<div class="sg"><div class="hd">${SRC[x.source]||"•"} ${esc(x.from_name||x.source)} · ${fmt(x.source_at||x.created_at)}</div>
+      <div class="sm">${esc(x.summary)}</div><ul>${sgBullets(x).map(b=>`<li>${b}</li>`).join("")}</ul>
+      ${x.source_text?`<details><summary>Original</summary><pre>${esc(x.source_text)}</pre></details>`:""}
+      <div class="row"><button class="btn primary sm" type="button" data-acc="${x.id}">Accept</button><button class="btn sm" type="button" data-dis="${x.id}">Dismiss</button></div></div>`).join("")||`<div class="tnote">Nothing waiting. ${Native?"Texts from your picked contacts are checked when you open the app.":"Paste a message or use the phone app to record and read texts."}</div>`}
+  </section>`;
+  const addT=async()=>{const v=$("#tdNew").value.trim(); if(!v) return; await addTodos([{text:v,source:"manual"}]); };
+  $("#tdAdd").onclick=addT; $("#tdNew").onkeydown=e=>{if(e.key==="Enter") addT();};
+  B.querySelectorAll("[data-done]").forEach(el=>el.onclick=()=>setTodo(el.dataset.done,true));
+  B.querySelectorAll("[data-undone]").forEach(el=>el.onclick=()=>setTodo(el.dataset.undone,false));
+  B.querySelectorAll("[data-auto]").forEach(el=>el.onclick=()=>addTodos([{text:auto[+el.dataset.auto].text,source:"auto",done_at:new Date().toISOString()}]));
+  B.querySelectorAll("[data-job]").forEach(el=>el.onclick=()=>openJob(el.dataset.job));
+  B.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>{cur=el.dataset.view;render();});
+  B.querySelectorAll("[data-acc]").forEach(el=>el.onclick=()=>acceptSugg(el.dataset.acc));
+  B.querySelectorAll("[data-dis]").forEach(el=>el.onclick=()=>setSugg(el.dataset.dis,"dismissed"));
+  $("#pasteBtn").onclick=()=>{$("#pasteBox").hidden=!$("#pasteBox").hidden; if(!$("#pasteBox").hidden) $("#pasteTx").focus();};
+  $("#pasteGo").onclick=async()=>{const t=$("#pasteTx").value.trim(); if(!t) return; await askAI([{ref:"paste:"+Date.now(),source:"manual",from:"Pasted",at:new Date().toISOString(),text:t}]);};
+  if(Native){ $("#recBtn").onclick=toggleRec; $("#smsNow").onclick=()=>checkTexts(true); $("#smsPick").onclick=pickContacts; }
+}
+let aiMsg="";
+function setAiMsg(m){ aiMsg=m; const el=$("#aiMsg"); if(el) el.textContent=m; }
+async function loadSide(){
+  if(!db) return;
+  const [t,s]=await Promise.all([sb.from("gvc_todos").select("*").order("created_at"), sb.from("gvc_suggestions").select("id,created_at,source,from_name,source_at,source_text,job_id,summary,changes,status").eq("status","new")]);
+  if(!t.error) todos=t.data||[]; if(!s.error) suggs=s.data||[];
+  render();
+}
+async function addTodos(rows){
+  const { error } = await sb.from("gvc_todos").insert(rows);
+  if(error){ setAiMsg("Couldn't save to-do: "+error.message); return; }
+  await loadSide();
+}
+async function setTodo(id,done){
+  const { error } = await sb.from("gvc_todos").update({done_at:done?new Date().toISOString():null}).eq("id",id);
+  if(error){ setAiMsg("Couldn't update: "+error.message); return; }
+  await loadSide();
+}
+async function setSugg(id,status){ await sb.from("gvc_suggestions").update({status}).eq("id",id); suggs=suggs.filter(x=>x.id!==id); render(); }
+async function askAI(items){
+  setAiMsg("Asking Claude…");
+  const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"suggest",items}});
+  if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} setAiMsg("Claude: "+m); return false; }
+  setAiMsg(data.added?`${data.added} new suggestion${data.added>1?"s":""} below.`:"Nothing job-related in that.");
+  const pt=$("#pasteTx"); if(pt) pt.value="";
+  await loadSide(); return true;
+}
+async function acceptSugg(id){
+  const s=suggs.find(x=>x.id===id); if(!s) return; const c=s.changes||{}; const now=new Date().toISOString();
+  const from=s.from_name?` (from ${s.from_name})`:"";
+  let jid=s.job_id&&jobs.some(x=>x.id===s.job_id)?s.job_id:null, j, prev=null;
+  if(jid){ j=structuredClone(jobs.find(x=>x.id===jid)); prev=raw(jid); delete j.id; }
+  else if(c.new_job_name){ jid=uid(); j={name:c.new_job_name,folder:"",summary:"",stage:c.stage||"released",suppliers:[],log:[],order:Date.now()}; }
+  try{
+    if(j){
+      if(c.stage&&SIDX[c.stage]!=null&&c.stage!==j.stage){ j.stage=c.stage; j.log=[...(j.log||[]),{at:now,text:`Moved to ${STAGES[SIDX[c.stage]].t}${from}`}]; }
+      if(c.job_summary) j.summary=c.job_summary;
+      if(c.log) j.log=[...(j.log||[]),{at:now,text:c.log+from}];
+      if(c.supplier&&c.supplier.name){
+        const p=c.supplier; const sup=j.suppliers=j.suppliers||[];
+        let x=sup.find(y=>p.id&&y.id===p.id)||sup.find(y=>first(y.name).toLowerCase()===first(p.name).toLowerCase());
+        if(!x){ x={id:uid(),name:p.name,contact:"",scope:"",quoteNo:"",total:"",lead:"",note:"",status:"sent",sent:now}; sup.push(x); }
+        ["status","quoteNo","lead","total","note"].forEach(k=>{ if(p[k]) x[k]=p[k]; }); x.updated=now;
+      }
+      await saveJob(jid,j); pushUndo(jid,prev,"Applied: "+(s.summary||"suggestion"));
+    }
+    if((c.todos||[]).length) await sb.from("gvc_todos").insert(c.todos.map(t=>({text:t.text,job_id:(t.job_id&&jobs.some(x=>x.id===t.job_id))?t.job_id:jid,source:s.source,from_name:s.from_name})));
+    await setSugg(id,"accepted"); await loadSide();
+  }catch(e){ setAiMsg("Couldn't apply: "+(e.message||e)); }
+}
+/* ---- texts (phone app) ---- */
+let smsBusy=false, smsLast=0;
+async function checkTexts(manual){
+  if(!Native||smsBusy) return; if(!manual&&Date.now()-smsLast<5*60000) return;
+  const contacts=LS.get("gvc_sms_contacts",[]);
+  if(!contacts.length){ if(manual) pickContacts(); return; }
+  smsBusy=true; smsLast=Date.now();
+  try{
+    const since=LS.get("gvc_sms_since",Date.now()-2*86400000);
+    if(manual) setAiMsg("Reading texts…");
+    const r=await Native.smsSince({since,addresses:contacts.map(c=>c.address)});
+    const msgs=r.messages||[];
+    if(!msgs.length){ if(manual) setAiMsg("No new texts from your picked contacts."); return; }
+    const by={}; msgs.forEach(m=>{(by[m.key]=by[m.key]||[]).push(m);});
+    const items=Object.values(by).map(list=>{const who=(contacts.find(c=>c.key===list[0].key)||{}).name||list[0].name||list[0].address;
+      return {ref:"sms:"+list[list.length-1].id, source:"sms", from:who, at:new Date(list[list.length-1].date).toISOString(),
+        text:list.map(m=>`[${new Date(m.date).toLocaleString("en-CA",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}] ${m.sent?"Kyle":who}: ${m.body}`).join("\n")};});
+    const ok=await askAI(items);
+    if(ok) LS.set("gvc_sms_since",Math.max(...msgs.map(m=>m.date)));
+  }catch(e){ setAiMsg("Texts: "+(e.message||e)); }
+  finally{ smsBusy=false; }
+}
+async function pickContacts(){
+  openId=null; const D=$("#dlg"); D.innerHTML=`<h2 style="margin:0 0 6px">Text contacts</h2><div class="tnote">Loading recent texts…</div>`; $("#scrim").classList.add("on");
+  try{
+    const r=await Native.smsSenders(); const picked=LS.get("gvc_sms_contacts",[]); const pk=new Set(picked.map(c=>c.key));
+    const list=[...picked.filter(p=>!(r.senders||[]).some(s=>s.key===p.key)),...(r.senders||[])];
+    D.innerHTML=`<h2 style="margin:0 0 6px">Text contacts</h2><div class="tnote">Only texts with the people you tick are read and sent to Claude. Everything else stays on your phone.</div>
+      <div class="clist">${list.map((c,i)=>`<label><input type="checkbox" data-i="${i}" ${pk.has(c.key)?"checked":""}> ${esc(c.name||c.address)} <span>${esc(c.name?c.address:"")}</span></label>`).join("")||`<div class="tnote">No texts found in the last 60 days.</div>`}</div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="cSave">Save</button><button class="btn" type="button" id="cCancel">Cancel</button></div>`;
+    $("#cCancel").onclick=closeDlg;
+    $("#cSave").onclick=()=>{ const sel=[...D.querySelectorAll("[data-i]")].filter(x=>x.checked).map(x=>list[+x.dataset.i]); LS.set("gvc_sms_contacts",sel.map(c=>({key:c.key,address:c.address,name:c.name}))); closeDlg(); render(); checkTexts(true); };
+  }catch(e){ D.innerHTML=`<h2>Text contacts</h2><div class="tnote">Couldn't read texts: ${esc(e.message||e)}. Allow SMS and Contacts permission for GVC Shop.</div><button class="btn" type="button" onclick="closeDlg()">Close</button>`; }
+}
+/* ---- recording (phone app) ---- */
+const recState={on:false,t0:0,timer:null};
+const recClock=()=>{const s=Math.floor((Date.now()-recState.t0)/1000);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
+async function toggleRec(){
+  try{
+    if(!recState.on){
+      await Native.recStart(); recState.on=true; recState.t0=Date.now();
+      recState.timer=setInterval(()=>{const b=$("#recBtn"); if(b) b.textContent="■ Stop recording "+recClock();},1000);
+      render(); return;
+    }
+    clearInterval(recState.timer); recState.on=false; render();
+    setAiMsg("Saving recording…");
+    const r=await Native.recStop();
+    const bin=atob(r.base64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+    const path=`rec/${new Date().toISOString().replace(/[:.]/g,"-")}.m4a`;
+    const up=await sb.storage.from("gvc-audio").upload(path,new Blob([u8],{type:"audio/mp4"}),{contentType:"audio/mp4"});
+    if(up.error) throw new Error("upload: "+up.error.message);
+    setAiMsg(`Transcribing ${Math.round(r.ms/60000)||"<1"} min and asking Claude…`);
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"recording",path,at:new Date(recState.t0).toISOString()}});
+    if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
+    setAiMsg(data.added?`Recording done - ${data.added} suggestion${data.added>1?"s":""} below.`:"Recording transcribed - nothing job-related found.");
+    await loadSide();
+  }catch(e){ recState.on=false; clearInterval(recState.timer); setAiMsg("Recording: "+(e.message||e)); render(); }
+}
+
 const HOME_URL="https://jackslinger6.github.io/gvc-shop/";
 $("#lForgot").onclick=async()=>{
   const email=$("#lEmail").value.trim();
@@ -557,7 +778,7 @@ $("#lSetPass").onclick=async()=>{
 };
 $("#signOut").onclick=async()=>{ try{ Widget && await Widget.signOut(); }catch(e){} await sb.auth.signOut(); jobs=[]; db=null; showLogin("Signed out."); };
 if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
-document.addEventListener("visibilitychange",()=>{ if(!document.hidden && db) loadJobs(); });
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden && db){ loadJobs(); loadSide(); checkTexts(false); } });
 render();
 (async()=>{
   let done=false;

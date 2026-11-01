@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(WidgetBridge.class);
+        registerPlugin(ShopNative.class);
         super.onCreate(savedInstanceState);
     }
 }

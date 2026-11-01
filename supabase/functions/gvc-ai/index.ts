@@ -94,7 +94,7 @@ async function suggest(sb: any, items: any[]) {
 
   const system = `You help Kyle, a welder and shop lead at Gordeyville Customs (custom truck decks, BBQ trailers), keep his job board current.
 Messages come from his texts and recorded shop conversations. Randy releases jobs, Jesse Dirksen is the engineer, Jesse Eherer is at Russel Metals (laser cutting supplier), William Hofer is at Grandview Fabrication, Robin handles stock, Colton/Aaron/Cooper are crew.
-Pull out any to-dos meant for Kyle (things he was asked to do or said he would do).
+Pull out any to-dos meant for Kyle (things he was asked to do or said he would do). Don't make to-dos the board already reminds him of from stages and supplier statuses (reviewing a quote that is marked 'quote', following up on a sent order, picking up, counting, bending) - set the status instead.
 Only propose a change when the message clearly supports it. Never invent quote numbers, prices or dates. Keep summaries short and plain.
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}
