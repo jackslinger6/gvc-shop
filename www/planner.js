@@ -28,7 +28,14 @@ css.textContent=`
 .wkv .palert{border:1px solid #5c2a26;background:#2a1513;color:#ffb3ab;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px}
 .wkv .palert .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .wkv .ppool{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-radius:8px;background:rgba(0,0,0,.3);border:1px solid var(--line);min-height:42px}
-.wkv .ppool .pblk{margin:0;max-width:220px}
+.wkv .ppool{flex-direction:column;align-items:stretch}
+.wkv .ppool .pblk{margin:0;max-width:240px}
+.wkv .pgrp{border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:6px}
+.wkv .pgrp:last-child{border-bottom:0;padding-bottom:0}
+.wkv .pgh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;margin-bottom:5px}
+.wkv .pgh .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+.wkv .pgl{display:flex;flex-wrap:wrap;gap:6px}
+.wkv .pblk.nr{opacity:.5;border-left-style:dotted}
 .wkv .pwrap{overflow-x:auto;margin-top:8px}
 .wkv table.pg{width:100%;min-width:640px;border-collapse:separate;border-spacing:4px;table-layout:fixed}
 .wkv table.pg th{font-family:Oswald,sans-serif;font-weight:500;letter-spacing:.04em;font-size:13px;color:var(--muted);text-align:left;padding:2px 4px}
@@ -71,7 +78,9 @@ const dnum=s=>{const [y,m,d]=s.split("-").map(Number);return Math.round(Date.UTC
 const fromIso=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);};
 const dlabel=s=>fromIso(s).toLocaleDateString("en-CA",{weekday:"short",month:"short",day:"numeric"});
 function monday(off){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7)+off*7);return d;}
-function weekDays(){const s=monday(wk),o=[];for(let i=0;i<weeks*7;i++){const d=new Date(s);d.setDate(s.getDate()+i);const w=d.getDay();if(!weekend&&(w===0||w===6))continue;o.push(iso(d));}return o;}
+// On Sat/Sun "This week" means the week coming up.
+function planMonday(off){const w=new Date().getDay();return monday(off+((w===0||w===6)?1:0));}
+function weekDays(){const s=planMonday(wk),o=[];for(let i=0;i<weeks*7;i++){const d=new Date(s);d.setDate(s.getDate()+i);const w=d.getDay();if(!weekend&&(w===0||w===6))continue;o.push(iso(d));}return o;}
 const DS=()=>Number(plan.start)||8;
 const H=t=>t.h==null?2:Number(t.h);
 const nowH=()=>{const n=new Date();return n.getHours()+n.getMinutes()/60-DS();};
@@ -102,7 +111,9 @@ async function savePlan(){
 function model(){
   const T={};
   jobs.filter(j=>j.stage!=="done").forEach(j=>(j.assemblies||[]).forEach(a=>{ if(!a.id) return; const key="j:"+j.id+":"+a.id;
-    T[key]={key,jid:j.id,aid:a.id,job:j.name,name:a.name,ncr:a.ncr||null,h:plan.hours[key]??null,who:whoList(a),needs:(plan.needs[key]||[]).slice(),done:a.status==="done",color:jobColor(j.id)}; }));
+    const sx=SIDX[j.stage]??0, stg=STAGES[sx];
+    const why=a.status==="bend"?"Waiting on bending":finalLocked(j,a)?"Waits for the other tasks":(stg&&stg.board!=="build"&&!["arrived","recv"].includes(j.stage))?`Parts not in yet (${stg.t})`:"";
+    T[key]={key,jid:j.id,aid:a.id,job:j.name,stageIdx:sx,why,name:a.name,ncr:a.ncr||null,h:plan.hours[key]??null,who:whoList(a),needs:(plan.needs[key]||[]).slice(),done:a.status==="done",color:jobColor(j.id)}; }));
   Object.entries(plan.extra||{}).forEach(([id,x])=>{ const key="x:"+id;
     T[key]={key,xid:id,job:x.job||"Other",name:x.name,h:x.h??null,who:(x.who||[]).slice(),needs:(plan.needs[key]||[]).slice(),done:!!x.done,at:x.at??null,errand:!!x.errand,color:x.errand?ERR_C:"#8e96a3"}; });
   const S={}; CREW.forEach(p=>{ S[p]={}; const src=(plan.sched||{})[p]||{}; for(const d in src){ const l=(src[d]||[]).filter(k=>T[k]&&T[k].who.includes(p)); if(l.length) S[p][d]=l; } });
@@ -229,10 +240,11 @@ function blk(M,t,p,d,r,bad){
   const after=t.needs.map(n=>M.T[n]&&M.T[n].name).filter(Boolean);
   const today=iso(new Date()); const past=r&&(d<today||(d===today&&r.e<=nowH()+1e-6));
   const pauses=r&&t.at==null&&(r.e-r.s)>r.w+1e-6;
+  if(!p&&t.why) return `<div class="pblk nr ${sel===t.key?"sel":""}" style="--c:${t.color}" data-k="${esc(t.key)}">${esc(t.name)} · ${fh(H(t))}${t.h==null?"?":""}<small>${esc(t.why)}${t.who.length?" · "+t.who.join(", "):""}</small></div>`;
   if(r&&p&&others.length&&r.w<0.05) return `<div class="pblk ${sel===t.key?"sel":""}" style="--c:${t.color};opacity:.5" data-k="${esc(t.key)}" data-p="${p}" data-d="${d}">🔗 ${esc(t.name)} <small>${others.join(", ")} finish${others.length>1?"":"es"} it before ${p} gets there</small></div>`;
   return `<div class="pblk ${sel===t.key?"sel":""} ${bad?"bad":""} ${t.done?"done":""} ${t.at!=null?"fx":""}" style="--c:${t.color};${p?`min-height:${Math.max(24,share*9)}px`:""}${past&&!t.done?";opacity:.65":""}" data-k="${esc(t.key)}" ${p?`data-p="${p}" data-d="${d}"`:""}>
    ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${esc(t.name)} · ${fh(share)}${t.h==null?"?":""}
-   <small>${t.ncr?`<b style="color:#ff9b91">NCR-${String(t.ncr).padStart(3,"0")}</b> · `:""}${r?`${clock(r.s)}–${clock(r.e)}${pauses?" (paused)":""} · `:""}${esc(t.job)}${solo?" · "+solo:""}${others.length?(p?" · with ":" · ")+others.join(", "):""}${after.length?" · after "+esc(after.join(", ")):""}</small></div>`;
+   <small>${t.ncr?`<b style="color:#ff9b91">NCR-${String(t.ncr).padStart(3,"0")}</b> · `:""}${r?`${clock(r.s)}–${clock(r.e)}${pauses?" (paused)":""} · `:""}${p?esc(t.job):""}${solo?(p?" · ":"")+solo:""}${others.length?(p?" · with ":"")+others.join(", "):""}${after.length?" · after "+esc(after.join(", ")):""}</small></div>`;
 }
 function renderWeek(){
   const B=$("#board"); B.className="wkv"; B.style.gridTemplateColumns="";
@@ -240,9 +252,12 @@ function renderWeek(){
   const M=model(), R=compute(M), C=conflicts(M,R), D=weekDays(), today=iso(new Date());
   lastM=M; const bad=new Set(C.map(c=>c.id));
   const placed=new Set(); CREW.forEach(p=>{ for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(k)); });
-  const pool=Object.values(M.T).filter(t=>!t.done&&!placed.has(t.key)).sort((a,b)=>a.job.localeCompare(b.job));
+  const pool=Object.values(M.T).filter(t=>!t.done&&!placed.has(t.key));
+  const groups={}; pool.forEach(t=>{ const g=groups[t.jid||("x:"+t.job)]=groups[t.jid||("x:"+t.job)]||{job:t.job,color:t.color,stageIdx:t.jid?t.stageIdx:-1,list:[]}; g.list.push(t); });
+  const gl=Object.values(groups).sort((a,b)=>{ const ar=a.list.some(t=>!t.why), br=b.list.some(t=>!t.why); return (br-ar)||(b.stageIdx-a.stageIdx)||a.job.localeCompare(b.job); });
+  gl.forEach(g=>g.list.sort((a,b)=>(!!a.why-!!b.why)));
   lastFix=C.map(c=>({c,opts:fixes(M,c)}));
-  const ws=fromIso(D[0]||iso(monday(wk))), we=fromIso(D[D.length-1]||iso(monday(wk)));
+  const ws=fromIso(D[0]||iso(planMonday(wk))), we=fromIso(D[D.length-1]||iso(planMonday(wk)));
   const rng=`${ws.toLocaleDateString("en-CA",{month:"short",day:"numeric"})} – ${we.toLocaleDateString("en-CA",{month:"short",day:"numeric"})}`;
   const jobOpts=jobs.filter(j=>j.stage!=="done").map(j=>`<option value="${esc(j.id)}">${esc(j.name)}</option>`).join("");
   let h=`<div class="pbar"><button class="btn sm" data-wk="-1" aria-label="Previous week">‹</button><button class="btn sm" data-wk="0">This week</button><button class="btn sm" data-wk="1" aria-label="Next week">›</button>
@@ -257,7 +272,7 @@ function renderWeek(){
     return `<div class="palert">⚠ <b>${esc(t.name)}</b> (${t.who.join(", ")}, ${dlabel(Object.keys(M.S[t.who[0]]||{}).find(d=>M.S[t.who[0]][d].includes(t.key))||today)} ${clock(f.c.ds)}) needs <b>${esc(p.name)}</b> first, but ${f.c.pe==null?"that isn't scheduled yet.":`${p.who.join(" + ")} won't finish it until ${clock(f.c.pe)}.`}
       <div class="row">${f.opts.length?f.opts.map((o,j)=>`<button class="btn sm" data-fx="${i}:${j}">${esc(o.label)}</button>`).join(""):"<span>No quick fix - drag things around.</span>"}</div></div>`; }).join("");
   h+=`<div class="lbl" style="margin:8px 0 4px">Not scheduled (${pool.length}). Drag onto someone's day; drag back here to unschedule.</div>
-   <div class="ppool">${pool.length?pool.map(t=>blk(M,t)).join(""):'<span class="lbl">Everything is scheduled.</span>'}</div>`;
+   <div class="ppool">${pool.length?gl.map(g=>{ const st=g.stageIdx>=0?STAGES[g.stageIdx]:null; return `<div class="pgrp"><div class="pgh"><span class="dot" style="background:${g.color}"></span><b>${esc(g.job)}</b>${st?`<span class="lbl">${st.bt} · ${st.t}</span>`:""}<span class="lbl">${g.list.filter(t=>!t.why).length} ready${g.list.some(t=>t.why)?`, ${g.list.filter(t=>t.why).length} not ready`:""}</span></div><div class="pgl">${g.list.map(t=>blk(M,t)).join("")}</div></div>`; }).join(""):'<span class="lbl">Everything is scheduled.</span>'}</div>`;
   h+=`<div class="pwrap"><table class="pg"><thead><tr><th class="day"></th>${CREW.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>`;
   D.forEach(d=>{ h+=`<tr><th class="day ${d===today?"today":""}">${dlabel(d).replace(", ","<br>")}${d===today?"<br>today":""}</th>`+CREW.map(p=>{
     if(isOff(p,d)) return `<td class="off" data-p="${p}" data-d="${d}"><div class="ld"><span>Day off</span><button data-off="${p}|${d}" title="Working this day">undo</button></div></td>`;

@@ -47,6 +47,11 @@ const TOOL = {
               description: "Tasks Kyle himself has to do that come out of this message, e.g. 'Meet with Jesse about the hitch', 'Draw the rear bracket', 'Email Russel the corrected BOM'. Only tasks for Kyle (in recordings he may be addressed as Kyle). Short imperative wording.",
               items: { type: "object", properties: { text: { type: "string" }, job_id: { type: ["string", "null"] } }, required: ["text"] },
             },
+            tasks: {
+              type: ["array", "null"],
+              description: "Work steps for the job if the message spells them out (e.g. 'strip the deck, then pull the wiring'). Short shop-language names; who = crew doing it if named.",
+              items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] },
+            },
             supplier: {
               type: ["object", "null"],
               properties: {
@@ -153,6 +158,9 @@ const CHAT_TOOLS = [
   { name: "complete_todo", description: "Mark one of Kyle's open to-dos done, by its id.", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "add_tasks", description: "Add tasks (work steps) to a job right away so Kyle can assign and check them off. Use short task names in shop language. who = crew names doing it (Kyle, Colton, Aaron, Cooper) or empty.",
     input_schema: { type: "object", properties: { job_id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } }, last_waits_for_rest: { type: "boolean" } }, required: ["job_id", "tasks"] } },
+  { name: "create_job", description: "Create a new job on the board right away, with its tasks, when Kyle asks for one. The tasks land in the Not scheduled pool of the week planner so Kyle can drag them onto people's days. Include every work step Kyle mentioned.",
+    input_schema: { type: "object", properties: { name: { type: "string" }, stage: { type: "string", enum: Object.keys(STAGES) }, summary: { type: "string", description: "One line for the job card" }, log: { type: "string", description: "Short note about where this came from" },
+      tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } } }, required: ["name", "stage"] } },
   { name: "propose_update", description: "Propose a change to a job (stage, card status, log entry, supplier status, new job). It goes to Kyle's review list - he taps Accept to apply it. Use for any board change.",
     input_schema: { type: "object", properties: Object.fromEntries(Object.entries(ITEM.properties).filter(([k]) => k !== "ref" && k !== "relevant")), required: ["summary"] } },
   { name: "save_app_note", description: "Save a feature request, change, or bug report about THIS APP for Kyle to build with Claude Code at home. Use once you and Kyle have talked it through enough that someone could build it. Write details as a clear spec: the problem, how it should work step by step, any examples Kyle gave.",
@@ -173,8 +181,9 @@ async function chat(sb: any, msgs: any[], ctx: any = {}) {
   const system = `You are the assistant inside Kyle's GVC Shop app. Kyle is a Red Seal welder and shop lead at Gordeyville Customs in Grande Prairie, Alberta (custom truck decks, BBQ trailers, service bodies). Talk like a helpful coworker: short, plain, no fluff.
 People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
-You can answer questions about the board, help plan the day, and use tools: add_todo and complete_todo act right away; propose_update sends a change to Kyle's review list (never claim a job was changed - say it's waiting for him to accept).
-Each job can have tasks (work steps) with who and status: bend=waiting on bending, ready=ready to start, prog=in progress, qc=inspection, done. Use add_tasks to break a job down when Kyle asks.
+You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, create_job and add_tasks act right away; propose_update sends a change to an existing job to Kyle's review list (never claim that change was made - say it's waiting for him to accept).
+When Kyle asks for a new job, use create_job (not propose_update) and put all the work steps he mentioned in it as tasks, in one go - don't make him ask twice. Tasks automatically show up in the Not scheduled pool on the Crew tab's week planner, grouped by job, so he can drag them onto people's days. Who on a task is just a suggestion until he schedules it.
+Each job can have tasks (work steps) with who and status: bend=waiting on bending, ready=ready to start, prog=in progress, qc=inspection, done. Use add_tasks to add steps to an existing job.
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}
 Jobs: ${JSON.stringify(jobs)}
@@ -223,7 +232,17 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           d.log = [...(d.log || []), { at: new Date().toISOString(), text: `Added ${add.length} tasks (Ask Claude)` }];
           const { error: e2 } = await sb.from("gvc_jobs").update({ data: d }).eq("id", row.id);
           if (e2) throw e2;
-          actions.push(`Added ${add.length} task${add.length > 1 ? "s" : ""} to ${d.name}`);
+          actions.push(`Added ${add.length} task${add.length > 1 ? "s" : ""} to ${d.name} (in Not scheduled on the Crew tab)`);
+        } else if (u.name === "create_job") {
+          const id = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+          const now = new Date().toISOString();
+          const tasks = (u.input.tasks || []).filter((t: any) => t && t.name).map((t: any) => ({ id: crypto.randomUUID().slice(0, 8), name: t.name, meta: "", status: "ready", who: (t.who || []).join(", "), final: false }));
+          const data = { name: u.input.name, folder: "", summary: u.input.summary || "", stage: (STAGES as any)[u.input.stage] ? u.input.stage : "released", suppliers: [], assemblies: tasks, order: Date.now(),
+            log: [{ at: now, text: (u.input.log || "Job created") + " (Ask Claude)" }] };
+          const { error } = await sb.from("gvc_jobs").insert({ id, data });
+          if (error) throw error;
+          res = "created job id " + id;
+          actions.push(`Created job ${u.input.name}${tasks.length ? ` with ${tasks.length} task${tasks.length > 1 ? "s" : ""} (in Not scheduled on the Crew tab)` : ""}`);
         } else if (u.name === "propose_update") {
           const { summary, job_id, ...changes } = u.input;
           const { error } = await sb.from("gvc_suggestions").insert({ source: "chat", source_ref: "chat:" + Date.now() + "#" + (++n), from_name: "Chat", source_at: new Date().toISOString(), source_text: String(messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-1)[0]?.content || ""), job_id: job_id || null, summary, changes, status: "new" });

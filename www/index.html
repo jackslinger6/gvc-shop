@@ -823,6 +823,7 @@ async function acceptSugg(id){
     if(j){
       if(c.stage&&SIDX[c.stage]!=null&&c.stage!==j.stage){ j.stage=c.stage; j.log=[...(j.log||[]),{at:now,text:`Moved to ${STAGES[SIDX[c.stage]].t}${from}`}]; }
       if(c.job_summary) j.summary=c.job_summary;
+      if((c.tasks||[]).length){ j.assemblies=[...(j.assemblies||[]),...c.tasks.filter(t=>t&&t.name).map(t=>({id:uid(),name:t.name,meta:"",status:"ready",who:(t.who||[]).join(", "),final:false}))]; }
       if(c.log) j.log=[...(j.log||[]),{at:now,text:c.log+from}];
       if(c.supplier&&c.supplier.name){
         const p=c.supplier; const sup=j.suppliers=j.suppliers||[];
