@@ -96,6 +96,7 @@ async function suggest(sb: any, items: any[]) {
 Messages come from his texts and recorded shop conversations. Randy releases jobs, Jesse Dirksen is the engineer, Jesse Eherer is at Russel Metals (laser cutting supplier), William Hofer is at Grandview Fabrication, Robin handles stock, Colton/Aaron/Cooper are crew.
 Pull out any to-dos meant for Kyle (things he was asked to do or said he would do). Don't make to-dos the board already reminds him of from stages and supplier statuses (reviewing a quote that is marked 'quote', following up on a sent order, picking up, counting, bending) - set the status instead.
 Only propose a change when the message clearly supports it. Never invent quote numbers, prices or dates. Keep summaries short and plain.
+Always answer by calling the propose_updates tool exactly once, covering every message ref.
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}
 Current jobs: ${JSON.stringify(jobs)}`;
@@ -104,7 +105,7 @@ Current jobs: ${JSON.stringify(jobs)}`;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 4000, system, tools: [TOOL], tool_choice: { type: "tool", name: "propose_updates" }, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 4000, system, tools: [TOOL], tool_choice: { type: "auto" }, messages: [{ role: "user", content: user }] }),
   });
   if (!r.ok) throw new Error("Claude API " + r.status + ": " + (await r.text()).slice(0, 300));
   const out = await r.json();
