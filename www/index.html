@@ -196,6 +196,8 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
     <label>Email<input id="lEmail" type="email" autocomplete="username" placeholder="name@example.com"></label>
     <label>Password<input id="lPass" type="password" autocomplete="current-password"></label>
     <div class="row" style="margin-top:14px"><button class="btn primary" type="button" id="lIn">Sign in</button><button class="btn" type="button" id="lUp">Create account</button></div>
+    <div class="row" style="margin-top:8px"><button class="btn" type="button" id="lForgot" style="background:none;border:none;padding:4px 0;text-decoration:underline;color:var(--dim)">Forgot password?</button></div>
+    <div id="lNew" hidden style="margin-top:12px"><label>New password</label><input type="password" id="lNewPass" autocomplete="new-password"><div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="lSetPass">Save new password</button></div></div>
     <div class="msg" id="lMsg">Use your work email. First time here? Pick a password and tap Create account, then confirm it from the email.</div>
   </section>
   <div id="app" hidden>
@@ -484,13 +486,14 @@ $("#addJob").onclick=async()=>{
   try{ await saveJob(id,data); jobs.push({id,...data}); openJob(id); pushUndo(id,null,"Added a new job"); }catch(e){ $("#status").textContent="Couldn't add job: "+(e.message||e); }
 };
 
+const START_HASH=location.hash||"";
 const VIEWS=[...BOARDS.map(b=>b.k),"crew"];
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
 const SB_URL="https://bfbhosvkzdxjcmvofotk.supabase.co", SB_KEY="sb_publishable_2aeUuYaGA1iLXKNfTeiMhQ_-KelUydR";
 const Widget = (window.capacitorExports && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.capacitorExports.registerPlugin("WidgetBridge") : null;
-const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
+const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: !Widget, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
 let channel=null;
 function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 async function saveJob(id,data){
@@ -535,6 +538,23 @@ $("#lUp").onclick=async()=>{
   if(error){ showLogin(error.message, true); return; }
   if(data.session) await startApp(); else showLogin("Check your email and tap the confirm link, then come back and sign in.");
 };
+const HOME_URL="https://jackslinger6.github.io/gvc-shop/";
+$("#lForgot").onclick=async()=>{
+  const email=$("#lEmail").value.trim();
+  if(!email){ showLogin("Type your email above first, then tap Forgot password.", true); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: HOME_URL });
+  if(error){ showLogin(error.message, true); return; }
+  showLogin("Reset link sent to "+email+". Open it (on this computer is easiest) and pick a new password.");
+};
+let recovering=false;
+sb.auth.onAuthStateChange((ev)=>{ if(ev==="PASSWORD_RECOVERY"){ recovering=true; showLogin("Pick a new password (8+ characters)."); $("#lNew").hidden=false; } });
+$("#lSetPass").onclick=async()=>{
+  const password=$("#lNewPass").value;
+  if(password.length<8){ showLogin("Use at least 8 characters.", true); return; }
+  const { error } = await sb.auth.updateUser({ password });
+  if(error){ showLogin(error.message, true); return; }
+  recovering=false; $("#lNew").hidden=true; history.replaceState(null,"",location.pathname); await startApp();
+};
 $("#signOut").onclick=async()=>{ try{ Widget && await Widget.signOut(); }catch(e){} await sb.auth.signOut(); jobs=[]; db=null; showLogin("Signed out."); };
 if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden && db) loadJobs(); });
@@ -545,6 +565,7 @@ render();
   try{
     const { data } = await sb.auth.getSession();
     done=true;
+    if(recovering || /type=recovery/.test(START_HASH)){ recovering=true; showLogin("Pick a new password (8+ characters)."); $("#lNew").hidden=false; return; }
     if(data && data.session) await startApp(); else showLogin();
   }catch(e){ done=true; showLogin("Couldn't start: "+(e.message||e), true); }
 })();
