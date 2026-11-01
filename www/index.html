@@ -450,7 +450,9 @@ async function undo(){
   $("#toastUndo").style.display=undoStack.length?"":"none";
   if(!undoStack.length) $("#undoBtn").classList.remove("on"); else $("#undoBtn").title="Undo: "+undoStack[undoStack.length-1].label+" (Ctrl+Z)";
 }
-$("#undoBtn").onclick=undo; $("#toastUndo").onclick=undo;
+let todoUndoFn=null;
+function todoToast(label,fn){ todoUndoFn=fn; $("#toastUndo").style.display=""; $("#toastTx").textContent=label; $("#toast").classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>{$("#toast").classList.remove("on"); todoUndoFn=null;},8000); }
+$("#undoBtn").onclick=undo; $("#toastUndo").onclick=()=>{ if(todoUndoFn){ const f=todoUndoFn; todoUndoFn=null; $("#toast").classList.remove("on"); f(); } else undo(); };
 document.addEventListener("keydown",e=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); undo(); }});
 const raw=id=>{const j=jobs.find(x=>x.id===id); if(!j) return null; const {id:_,...d}=j; return d;};
 function job(){return jobs.find(j=>j.id===openId);}
@@ -727,7 +729,7 @@ function sgBullets(s){
 function renderTodo(){
   const B=$("#board"); B.className="todo"; B.style.gridTemplateColumns="";
   const auto=autoTodos(), mine=todos.filter(t=>!t.done_at&&t.source!=="auto").sort((a,b)=>a.created_at<b.created_at?-1:1);
-  const doneRecent=todos.filter(t=>t.done_at&&t.source!=="auto").sort((a,b)=>a.done_at<b.done_at?1:-1).slice(0,8);
+  const doneRecent=todos.filter(t=>t.done_at).sort((a,b)=>a.done_at<b.done_at?1:-1).slice(0,8);
   const review=suggs.filter(x=>x.status==="new").sort((a,b)=>a.created_at<b.created_at?1:-1);
   const jn=id=>{const j=jobs.find(x=>x.id===id);return j?j.name:"";};
   B.innerHTML=`<section class="tbox"><h3>To do <span class="n">${auto.length+mine.length}</span></h3>
@@ -752,9 +754,9 @@ function renderTodo(){
   </section>`;
   const addT=async()=>{const v=$("#tdNew").value.trim(); if(!v) return; await addTodos([{text:v,source:"manual"}]); };
   $("#tdAdd").onclick=addT; $("#tdNew").onkeydown=e=>{if(e.key==="Enter") addT();};
-  B.querySelectorAll("[data-done]").forEach(el=>el.onclick=()=>setTodo(el.dataset.done,true));
-  B.querySelectorAll("[data-undone]").forEach(el=>el.onclick=()=>setTodo(el.dataset.undone,false));
-  B.querySelectorAll("[data-auto]").forEach(el=>el.onclick=()=>addTodos([{text:auto[+el.dataset.auto].text,source:"auto",done_at:new Date().toISOString()}]));
+  B.querySelectorAll("[data-done]").forEach(el=>el.onclick=()=>{ el.disabled=true; const id=el.dataset.done, t=todos.find(x=>x.id===id); setTodo(id,true); todoToast("Done: "+(t?t.text:"to-do"),()=>setTodo(id,false)); });
+  B.querySelectorAll("[data-undone]").forEach(el=>el.onclick=()=>{ const t=todos.find(x=>x.id===el.dataset.undone); if(t&&t.source==="auto") unhideAuto(t.text); else setTodo(el.dataset.undone,false); });
+  B.querySelectorAll("[data-auto]").forEach(el=>el.onclick=()=>{ el.disabled=true; const tx=auto[+el.dataset.auto].text; addTodos([{text:tx,source:"auto",done_at:new Date().toISOString()}]); todoToast("Cleared: "+tx,()=>unhideAuto(tx)); });
   B.querySelectorAll("[data-job]").forEach(el=>el.onclick=()=>openJob(el.dataset.job));
   B.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>{cur=el.dataset.view;render();});
   B.querySelectorAll("[data-acc]").forEach(el=>el.onclick=()=>acceptSugg(el.dataset.acc));
@@ -774,6 +776,11 @@ async function loadSide(){
 async function addTodos(rows){
   const { error } = await sb.from("gvc_todos").insert(rows);
   if(error){ setAiMsg("Couldn't save to-do: "+error.message); return; }
+  await loadSide();
+}
+async function unhideAuto(text){
+  const { error } = await sb.from("gvc_todos").delete().eq("source","auto").eq("text",text);
+  if(error){ setAiMsg("Couldn't undo: "+error.message); return; }
   await loadSide();
 }
 async function setTodo(id,done){
@@ -885,7 +892,7 @@ async function sendChat(){
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
   try{
     const hist=chatMsgs.filter(m=>m.role!=="act").slice(-20);
-    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist}});
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
     if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
     (data.actions||[]).forEach(a=>chatMsgs.push({role:"act",content:a}));
     chatMsgs.push({role:"assistant",content:data.reply||"Done."});

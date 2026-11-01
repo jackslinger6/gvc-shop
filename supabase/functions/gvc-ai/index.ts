@@ -155,7 +155,7 @@ const CHAT_TOOLS = [
     input_schema: { type: "object", properties: Object.fromEntries(Object.entries(ITEM.properties).filter(([k]) => k !== "ref" && k !== "relevant")), required: ["summary"] } },
 ];
 
-async function chat(sb: any, msgs: any[]) {
+async function chat(sb: any, msgs: any[], ctx: any = {}) {
   const [{ data: rows }, { data: todos }] = await Promise.all([
     sb.from("gvc_jobs").select("id,data"),
     sb.from("gvc_todos").select("id,text,job_id,from_name,created_at").is("done_at", null).neq("source", "auto"),
@@ -170,7 +170,10 @@ Assembly statuses: bend=waiting on bending, ready=ready for fab, prog=in progres
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}
 Jobs: ${JSON.stringify(jobs)}
-Kyle's open to-dos: ${JSON.stringify(todos || [])}`;
+Kyle's open to-dos (with ids, for complete_todo): ${JSON.stringify(todos || [])}
+What Kyle's To do tab shows right now (board reminders are generated from job stages/suppliers/crew; to-dos are his own): ${JSON.stringify(ctx.todo_tab || [])}
+Suggestions waiting for his review: ${JSON.stringify(ctx.waiting_review || [])}
+Parts sitting flat in inventory that could be bent: ${JSON.stringify(ctx.flat_to_bend || [])}`;
   const messages: any[] = msgs.slice(-20).map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 8000) }));
   const actions: string[] = [];
   let n = 0;
@@ -222,7 +225,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     if (body.action === "suggest") return json(await suggest(sb, body.items || []));
-    if (body.action === "chat") return json(await chat(sb, body.messages || []));
+    if (body.action === "chat") return json(await chat(sb, body.messages || [], body.context || {}));
 
     if (body.action === "recording") {
       const { data: rows } = await sb.from("gvc_jobs").select("id,data");
