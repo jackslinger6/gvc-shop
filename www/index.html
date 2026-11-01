@@ -409,7 +409,7 @@ function render(){
   }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+(window.timeTab?window.timeTab():"")+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
   { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
-  if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="ncr"){ if(window.renderNcr) window.renderNcr(); } else if(cur==="ideas"){ if(window.renderIdeas) window.renderIdeas(); } else if(cur==="archive"){ if(window.renderArchive) window.renderArchive(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
+  if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="ncr"){ if(window.renderNcr) window.renderNcr(); } else if(cur==="ideas"){ if(window.renderIdeas) window.renderIdeas(); } else if(cur==="archive"){ if(window.renderArchive) window.renderArchive(); } else if(cur==="revs"){ if(window.renderRevs) window.renderRevs(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
   const B=BOARDS.find(b=>b.k===cur);
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
@@ -612,7 +612,7 @@ $("#addJob").onclick=async()=>{
 };
 
 const START_HASH=location.hash||"";
-const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas","archive"];
+const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas","archive","revs"];
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
@@ -881,7 +881,8 @@ function askOutcome(it,finish){
   D.innerHTML=`<h3 style="margin:0 0 4px">${it.ncr?"What did you decide?":"How did it go?"}</h3><div class="tnote" style="margin:0 0 10px">${esc(it.text)}</div>
     <label>${it.ncr?"The decision":"What was decided / what happened"}<textarea id="ocNote" rows="3" placeholder="${it.ncr?"e.g. Cut the bottom flange off both doors, touch up paint":"e.g. Randy wants the hitch moved 2 inches back"}"></textarea></label>
     ${x?`<div class="tnote" style="margin:10px 0 4px">Fix</div><div class="wchips" id="ocFix">${(window.ncrFixes||[]).filter(f=>f!=="Deciding").map(f=>`<button type="button" class="wc" data-of="${esc(f)}">${esc(f)}</button>`).join("")}</div>
-      <label style="margin-top:10px">Rework steps - one per line, hours at the end (they go to Not scheduled on the Crew tab)<textarea id="ocSteps" rows="3" placeholder="Cut bottom flange off doors 2h&#10;Grind and touch up paint 1h"></textarea></label>`:""}
+      <label style="margin-top:10px">Rework steps - one per line, hours at the end (they go to Not scheduled on the Crew tab)<textarea id="ocSteps" rows="3" placeholder="Cut bottom flange off doors 2h&#10;Grind and touch up paint 1h"></textarea></label>
+      <label style="margin-top:10px;flex-direction:row;align-items:center;gap:8px;display:flex"><input type="checkbox" id="ocRev" style="width:auto">Also change the model - add a revision for Jessie</label>`:""}
     ${!j?`<label style="margin-top:10px">Which job? (so the note lands on it)<select id="ocJob"><option value="">No job</option>${jobs.map(y=>`<option value="${esc(y.id)}">${esc(y.name)}</option>`).join("")}</select></label>`:`<div class="tnote" style="margin-top:8px">Saved to the notes on ${esc(j.name)}.</div>`}
     <div class="row" style="margin-top:12px;gap:8px;justify-content:flex-end"><button class="btn ghost" type="button" id="ocX">Cancel</button><button class="btn" type="button" id="ocSkip">Done, no note</button><button class="btn primary" type="button" id="ocSave">Save and mark done</button></div>`;
   $("#scrim").classList.add("on"); setTimeout(()=>{ const n=$("#ocNote"); if(n) n.focus(); },30);
@@ -894,6 +895,7 @@ function askOutcome(it,finish){
     $("#ocSave").disabled=true;
     try{
       if(x) await window.ncrDecide(j.id,it.ncr,{fix,note,steps});
+      if(x&&($("#ocRev")||{}).checked&&window.addRevisionQuick) await window.addRevisionQuick({job_id:j.id,ncr:it.ncr,kind:"fix",part:x.what,what:note||"Change the model so this doesn't happen again (see NCR)."});
       else if(jid){ const jj=structuredClone(jobs.find(y=>y.id===jid)); jj.log=[...(jj.log||[]),{at:new Date().toISOString(),text:`Decided: ${note} (re: ${it.text})`}]; const {id,...data}=jj; await saveJob(id,data); }
       if(it.todoId) await sb.from("gvc_todos").update({outcome:note||null,job_id:jid||null}).eq("id",it.todoId);
     }catch(e){ setAiMsg("Couldn't save the note: "+(e.message||e)); }
@@ -1010,7 +1012,7 @@ async function sendChat(){
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
   try{
     const hist=chatMsgs.filter(m=>m.role!=="act").slice(-20);
-    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...(window.planLines?window.planLines():[]),...(window.ncrLines?window.ncrLines():[]),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...(window.planLines?window.planLines():[]),...(window.ncrLines?window.ncrLines():[]),...(window.revLines?window.revLines():[]),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
     if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
     (data.actions||[]).forEach(a=>chatMsgs.push({role:"act",content:a}));
     chatMsgs.push({role:"assistant",content:data.reply||"Done."});
@@ -1095,5 +1097,6 @@ render();
 <script src="ncr.js"></script>
 <script src="ideas.js"></script>
 <script src="jobs-extra.js"></script>
+<script src="revisions.js"></script>
 </body>
 </html>

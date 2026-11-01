@@ -63,12 +63,13 @@ function section(j){
     return `<div class="ncard" style="--c:${stColor[s.st]}"><div class="nh"><b>${tag(x.n)}</b><span style="flex:1">${esc(x.what)}</span><span class="nst" style="color:${stColor[s.st]};border-color:${stColor[s.st]}">${s.st}</span></div>
       ${x.decision?`<div class="nm" style="color:var(--text)">Decided: ${esc(x.decision)}</div>`:""}
       <div class="nm">${esc(x.type)} · ${esc(x.fix)} · ${s.h?s.h+"h":"0h"} rework${s.unk?` (+${s.unk} task${s.unk>1?"s":""} with no estimate)`:""}${x.mat?` · ${money(x.mat)} material`:""} · logged ${fmt(x.at)}</div>
+      ${(window.revsFor?window.revsFor(j.id,x.n):[]).map(r=>`<div class="nm">Model revision ${window.revTag(r.n)}: ${esc(r.what)} · <b>${window.revStatus(r.status)}</b></div>`).join("")}
       ${s.ts.length?`<div class="nm">Rework: ${s.ts.map(a=>`${a.status==="done"?"✓ ":""}${esc(a.name)}${planHours(j.id,a.id)!=null?" "+planHours(j.id,a.id)+"h":""}`).join(" · ")}</div>`:""}
       <div class="nrow"><select data-nfix="${x.n}" aria-label="Fix">${FIXES.map(f=>`<option ${x.fix===f?"selected":""}>${f}</option>`).join("")}</select>
         <input data-nstep="${x.n}" placeholder="Add rework step, e.g. Re-drill holes 1.5h" style="flex:1;min-width:180px"><button class="btn sm" type="button" data-nstepgo="${x.n}">Add</button>
         ${untagged.length?`<select data-ntag="${x.n}" aria-label="Tag an existing task"><option value="">Tag an existing task…</option>${untagged.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")}</select>`:""}
         <span class="lbl" style="font-size:12px;color:var(--muted)">$</span><input data-nmat="${x.n}" type="number" min="0" value="${x.mat||""}" placeholder="material" style="width:84px">
-        <button class="btn sm" type="button" data-nclose="${x.n}">${x.closed?"Reopen":"Close"}</button><button class="btn sm danger" type="button" data-ndel="${x.n}" aria-label="Delete ${tag(x.n)}">Delete</button></div></div>`; }).join("");
+        <button class="btn sm" type="button" data-nrev="${x.n}">Model change → Jessie</button><button class="btn sm" type="button" data-nclose="${x.n}">${x.closed?"Reopen":"Close"}</button><button class="btn sm danger" type="button" data-ndel="${x.n}" aria-label="Delete ${tag(x.n)}">Delete</button></div></div>`; }).join("");
   if(!list.length&&!form) h+=`<div class="empty" style="text-align:left">No NCRs. If something was designed, ordered or built wrong, log it here so the rework and cost get tracked.</div>`;
   return h+`</div>`;
 }
@@ -100,6 +101,7 @@ drawDlg=function(){
   D.querySelectorAll("[data-nstep]").forEach(el=>el.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); addStep(+el.dataset.nstep); } });
   D.querySelectorAll("[data-ntag]").forEach(el=>el.onchange=()=>{ if(!el.value) return; mut(`Tagged task as rework for ${tag(+el.dataset.ntag)}`,jj=>{ const a=jj.assemblies.find(x=>x.id===el.value); if(a) a.ncr=+el.dataset.ntag; }); });
   D.querySelectorAll("[data-ntask]").forEach(el=>el.onchange=()=>mut(el.value?`Tagged task as rework for ${tag(+el.value)}`:"Untagged rework task",jj=>{ const a=jj.assemblies.find(x=>x.id===el.dataset.ntask); if(!a) return false; if(el.value) a.ncr=+el.value; else delete a.ncr; }));
+  D.querySelectorAll("[data-nrev]").forEach(b=>b.onclick=()=>{ const x=j.ncrs.find(y=>y.n===+b.dataset.nrev); if(window.newRevision) window.newRevision({job:j.id,ncr:x.n,kind:"fix",part:x.what,what:x.decision||""}); });
   D.querySelectorAll("[data-nclose]").forEach(b=>b.onclick=()=>mut(`${tag(+b.dataset.nclose)} ${b.textContent==="Close"?"closed":"reopened"}`,jj=>{ const x=jj.ncrs.find(y=>y.n===+b.dataset.nclose); x.closed=!x.closed; }));
   D.querySelectorAll("[data-ndel]").forEach(b=>b.onclick=()=>mut(`${tag(+b.dataset.ndel)} deleted`,jj=>{ const n=+b.dataset.ndel; jj.ncrs=jj.ncrs.filter(x=>x.n!==n); (jj.assemblies||[]).forEach(a=>{ if(a.ncr===n) delete a.ncr; }); }));
 };
