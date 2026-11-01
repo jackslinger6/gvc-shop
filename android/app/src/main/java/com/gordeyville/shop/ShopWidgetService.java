@@ -61,6 +61,7 @@ public class ShopWidgetService extends RemoteViewsService {
             if (r.header) {
                 RemoteViews h = new RemoteViews(ctx.getPackageName(), R.layout.widget_header);
                 h.setTextViewText(R.id.h_title, r.title);
+                h.setTextColor(R.id.h_title, r.dim ? 0xFF6C727A : 0xFFD7D1C8);
                 return h;
             }
             RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_row);

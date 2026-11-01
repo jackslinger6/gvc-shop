@@ -46,7 +46,7 @@ public final class Feed {
             C_PURPLE = 0xFFC6A6FF, C_GRAY = 0xFF8E96A3;
 
     public static final class Row {
-        public boolean header;
+        public boolean header, dim;
         public String title = "", sub = "", badge = "", job = "", tab = "";
         public int dot = C_GRAY, badgeColor = C_MUTED;
     }
@@ -198,6 +198,7 @@ public final class Feed {
     }
 
     static Row header(String t) { Row r = new Row(); r.header = true; r.title = t; return r; }
+    static Row emptyHeader(String t) { Row r = header(t + "  ·  none"); r.dim = true; return r; }
 
     static List<JSONObject> inStage(JSONArray jobs, String stage) {
         List<JSONObject> out = new ArrayList<>();
@@ -245,7 +246,7 @@ public final class Feed {
         if (tab.equals("pipeline")) {
             for (String[] s : PIPE) {
                 List<JSONObject> list = inStage(jobs, s[0]);
-                if (list.isEmpty()) continue;
+                if (list.isEmpty()) { res.rows.add(emptyHeader(s[1])); continue; }
                 res.rows.add(header(s[1] + "  " + list.size()));
                 for (JSONObject j : list) {
                     Row r = jobRow(j, "pipeline");
@@ -257,7 +258,7 @@ public final class Feed {
         } else if (tab.equals("orders")) {
             for (String[] s : ORDER) {
                 List<JSONObject> list = inStage(jobs, s[0]);
-                if (list.isEmpty()) continue;
+                if (list.isEmpty()) { res.rows.add(emptyHeader(s[1])); continue; }
                 res.rows.add(header(s[1] + "  " + list.size()));
                 for (JSONObject j : list) {
                     Row r = jobRow(j, "ordering");
@@ -280,7 +281,8 @@ public final class Feed {
         } else {
             for (String[] s : BUILD) {
                 List<JSONObject> list = inStage(jobs, s[0]);
-                if (list.isEmpty() || s[0].equals("done")) continue;
+                if (s[0].equals("done")) continue;
+                if (list.isEmpty()) { res.rows.add(emptyHeader(s[1])); continue; }
                 res.rows.add(header(s[1] + "  " + list.size()));
                 for (JSONObject j : list) {
                     Row r = jobRow(j, "build");

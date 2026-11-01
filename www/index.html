@@ -64,6 +64,7 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .colhead{position:relative;padding:14px 8px 10px;text-align:center;background:rgba(0,0,0,.35);border-bottom:1px solid rgba(255,255,255,.06)}
 .colhead:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--c);box-shadow:0 0 12px var(--c)}
 .colhead h2{margin:0;font-family:Oswald,sans-serif;font-weight:600;font-size:17px;letter-spacing:.04em;text-transform:uppercase;line-height:1.05;color:#ece8e2;min-height:36px;display:flex;align-items:center;justify-content:center}
+.colhead .none{display:none;font-size:12px;color:var(--dim)}
 .colhead .n{font-size:11px;color:var(--dim);margin-top:3px;min-height:13px}
 .cards{padding:10px 8px;display:flex;flex-direction:column;gap:10px;flex:1}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:10px;padding:10px 10px 8px;cursor:pointer;text-align:left;color:inherit;font:inherit;width:100%}
@@ -165,7 +166,13 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
   .tabs{display:grid;grid-template-columns:1fr 1fr;width:100%}
   .tab{font-size:14px;padding:8px 10px;justify-content:center}
   .bar{gap:8px}
-  .col.emptycol{display:none}
+  .col.emptycol{border-radius:8px !important}
+  .col.emptycol .colhead{padding:7px 10px;text-align:left;display:flex;align-items:center;gap:8px}
+  .col.emptycol .colhead:before{height:100%;width:3px;right:auto;bottom:0;box-shadow:none;opacity:.7}
+  .col.emptycol .colhead h2{font-size:13px;min-height:0;justify-content:flex-start;color:var(--dim);padding-left:6px}
+  .col.emptycol .colhead .n{display:none}
+  .col.emptycol .colhead .none{display:inline}
+  .col.emptycol .cards{display:none}
   .dlg{padding:14px 12px}
   .scrim{padding:10px 6px}
   .lanes{grid-template-columns:1fr !important;gap:12px}
@@ -290,7 +297,7 @@ function render(){
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
   $("#board").innerHTML=B.stages.map(s=>{
     const list=jobs.filter(j=>j.stage===s.k).sort((x,y)=>(x.order||0)-(y.order||0));
-    return `<section class="col ${list.length?"":"emptycol"}" style="--c:${s.c}"><div class="colhead"><h2>${s.t}</h2><div class="n">${list.length||""}</div></div>
+    return `<section class="col ${list.length?"":"emptycol"}" style="--c:${s.c}"><div class="colhead"><h2>${s.t}</h2><span class="none">none</span><div class="n">${list.length||""}</div></div>
       <div class="cards">${list.map(j=>`<button class="card" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
         <div class="nm">${folder}<span>${esc(j.name)}</span></div>
         ${j.summary?`<div class="tx">${esc(j.summary)}</div>`:""}
