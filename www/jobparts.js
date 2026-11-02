@@ -29,7 +29,7 @@ let q="", flt="all", mat="";
 
 async function load(jobNo,force){
   if(!force&&cache[jobNo]) return cache[jobNo];
-  if(!window.sb) return [];
+  if(typeof sb==="undefined") return [];
   const r=await sb.from("gvc_job_parts").select("*").eq("job_no",jobNo).order("assembly").order("part_no");
   cache[jobNo]=r.data||[]; return cache[jobNo];
 }
@@ -158,7 +158,7 @@ drawDlg=function(){
   const bar=D.querySelector(".stagebar"); if(!bar) return;
   const b=document.createElement("button"); b.className="btn sm"; b.type="button"; b.id="jpBtn"; b.textContent="Parts & drawings";
   const cnt=cache[no]; if(cnt) b.textContent=`Parts & drawings (${cnt.length})`;
-  else if(window.sb) sb.from("gvc_job_parts").select("id",{count:"exact",head:true}).eq("job_no",no).then(r=>{ if(r.count) b.textContent=`Parts & drawings (${r.count})`; });
+  else if(typeof sb!=="undefined") sb.from("gvc_job_parts").select("id",{count:"exact",head:true}).eq("job_no",no).then(r=>{ if(r.count) b.textContent=`Parts & drawings (${r.count})`; });
   b.onclick=()=>{ q=""; flt="all"; mat=""; openJobParts(no,j.name); };
   const row=document.createElement("div"); row.className="row"; row.style.marginTop="8px"; row.appendChild(b); bar.after(row);
 };
