@@ -100,7 +100,8 @@ async function loadPlan(force){
   reloadWanted=false; planLoading=true;
   try{
     const {data,error}=await sb.from("gvc_plan").select("data,updated_at").eq("id","main").maybeSingle();
-    if(!error&&data){ plan=Object.assign(BLANK(),data.data||{}); planVer=data.updated_at; mc=null; }
+    if(error||!data){ return; }   // failed load: stay "not loaded" so nothing can save a blank plan over the real one
+    plan=Object.assign(BLANK(),data.data||{}); planVer=data.updated_at; mc=null;
     planLoaded=true;
     if(!planCh) planCh=sb.channel("gvc_plan").on("postgres_changes",{event:"*",schema:"public",table:"gvc_plan"},p=>{
       // our own save comes back as an event too - skip it, otherwise it would reload over edits made since
@@ -117,6 +118,7 @@ let lastSaveAt=0, saving=false, saveChain=Promise.resolve();
 // Saves only if nobody else changed the plan since we loaded it; otherwise reload instead of overwriting their change.
 function savePlan(){ saveChain=saveChain.then(doSave,doSave); return saveChain; }
 async function doSave(){
+  if(!planLoaded||!planVer){ await loadPlan(true); say("Couldn't save yet - the plan hadn't loaded. Loaded it now; redo your last change."); return false; }
   saving=true; lastSaveAt=Date.now();
   try{
     const nv=new Date().toISOString();
