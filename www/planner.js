@@ -236,6 +236,37 @@ async function commit(M2,label,undoable=true){
 }
 function say(s){ msg=s; const el=document.querySelector(".wkv .pmsg"); if(el) el.textContent=s; }
 
+/* ---------- auto-place new assignments (Nov 2) ----------
+   As soon as someone is put on a task (job card, Assignment panel, Ask Claude, another phone), the task drops into
+   that person's calendar as their next thing: first work day from today (not off, under 8h) after what they already
+   have. Shared tasks go on the same day as whoever already has it. Tasks waiting on something stay in the pool. */
+let assignSnap=null;
+function nextSlot(M,p,t){
+  const share=H(t)/Math.max(1,t.who.length);
+  let x=new Date(); x.setHours(0,0,0,0);
+  for(let i=0;i<40;i++,x.setDate(x.getDate()+1)){
+    const w=x.getDay(), d=iso(x);
+    if((w===0||w===6)&&!weekend) continue; if(isOff(p,d)) continue;
+    const used=(M.S[p][d]||[]).reduce((a,k)=>{ const o=M.T[k]; return a+(o&&!o.done?H(o)/Math.max(1,o.who.length):0); },0);
+    if(used+share<=8.01||used===0) return d;
+  }
+  return null;
+}
+function syncAssign(){
+  if(!planLoaded||saving||!jobs.length) return;
+  const M=model(); const cur={};
+  for(const k in M.T){ const t=M.T[k]; if(!t.jid||t.done) continue; cur[k]={who:t.who.slice(),ready:!t.why}; }
+  if(!assignSnap){ assignSnap=cur; return; }
+  const placed=[];
+  for(const k in cur){ const t=M.T[k], was=assignSnap[k]; if(!cur[k].ready) continue;
+    t.who.forEach(p=>{ if(!CREW.includes(p)||dayOf(M,p,k)!=null) return;
+      const isNew=!was||!was.who.includes(p)||!was.ready; if(!isNew) return;
+      const mate=t.who.find(w=>w!==p&&dayOf(M,w,k)!=null); let d=mate?dayOf(M,mate,k):null;
+      if(d&&isOff(p,d)) d=null; if(!d) d=nextSlot(M,p,t); if(!d) return;
+      L(M,p,d).push(k); placed.push(`${t.name} → ${p}, ${dlabel(d)}`); }); }
+  assignSnap=cur;
+  if(placed.length){ commit(M,placed.length===1?placed[0]:`Added ${placed.length} tasks to the calendar`,true); say(placed.length===1?`On the calendar: ${placed[0]}`:`On the calendar: ${placed.join("; ")}`); }
+}
 /* ---------- actions ---------- */
 function doMove(k,fp,fd,tp,td,idx){
   const M=model(); const t=M.T[k]; if(!t) return;
@@ -429,7 +460,7 @@ bar.querySelectorAll("[data-cv]").forEach(b=>b.onclick=()=>{ view=b.dataset.cv; 
 const _renderCrew=renderCrew;
 renderCrew=function(items){ if(view==="week") renderWeek(); else _renderCrew(items); };
 const _render=render;
-render=function(){ mc=null; _render(); bar.style.display=cur==="crew"?"":"none"; bar.querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===view)); };
+render=function(){ mc=null; _render(); try{ syncAssign(); }catch(e){ console.warn("auto-place",e); } bar.style.display=cur==="crew"?"":"none"; bar.querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===view)); };
 const _auto=autoTodos;
 autoTodos=function(){ const out=_auto(); if(!planLoaded) return out;
   try{ const {M,R}=MC(),today=iso(new Date()),lim=iso(new Date(Date.now()+2*86400000));
