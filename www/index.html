@@ -239,6 +239,13 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .ti .body{flex:1;min-width:0}
 .ti .tt{font-size:14px;line-height:1.35}
 .ti .meta{font-size:11.5px;color:var(--dim);margin-top:2px}
+.ti .lw{position:relative;flex:none;align-self:center}
+.ti .later{font:inherit;font-size:11.5px;color:var(--dim);background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer;opacity:.55}
+.ti:hover .later,.ti .later:focus{opacity:1;color:var(--text)}
+@media (hover:none){.ti .later{opacity:1}}
+.latermenu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:flex;flex-direction:column;min-width:120px;background:#1b1e22;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.6);overflow:hidden}
+.latermenu button{font:inherit;font-size:13px;color:var(--text);background:none;border:0;text-align:left;padding:8px 12px;cursor:pointer}
+.latermenu button:hover{background:rgba(255,255,255,.06)}
 .ti .go{background:none;border:0;color:var(--muted);font:inherit;font-size:11.5px;padding:0;cursor:pointer;text-decoration:underline}
 .addtodo{display:flex;gap:8px;margin:2px 0 8px}
 .addtodo input{flex:1}
@@ -437,7 +444,7 @@ function cardTitle(j){
 }
 function render(){
   const crewAsm=crewItems();
-  const tdCount=autoTodos().length+todos.filter(t=>!t.done_at&&t.source!=="auto").length, sgNew=suggs.filter(x=>x.status==="new").length;
+  const tdCount=liveAuto().length+liveMine().length, sgNew=suggs.filter(x=>x.status==="new").length;
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
     const js=jobs.filter(j=>stOf(j).board===b.k); const at=js.filter(needsAttention).length;
     return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct">${js.length}</span>${at?`<span class="at">${at}</span>`:""}</button>`;
@@ -907,17 +914,62 @@ function sgBullets(s){
   if(!b.length) row("Note","log","Nothing to change - accepting just clears it.");
   return b;
 }
+/* ---- Later (snooze) ----
+   Own to-dos: snooze_until on the row. Board reminders: a source="snooze" row keyed by the reminder text
+   with numbers blanked out (so "10 pcs sitting flat" stays snoozed when it becomes 12). */
+const SNOOZE_FAR="2099-01-01T00:00:00Z";
+const snKey=tx=>String(tx||"").replace(/\d+(\.\d+)?/g,"#").trim().toLowerCase();
+const isSnoozed=t=>!!(t&&t.snooze_until&&new Date(t.snooze_until)>new Date());
+const snoozeRows=()=>todos.filter(t=>t.source==="snooze"&&isSnoozed(t));
+const snoozedAuto=tx=>snoozeRows().find(r=>snKey(r.text)===snKey(tx));
+const isMine=t=>!t.done_at&&t.source!=="auto"&&t.source!=="snooze";
+function liveAuto(){ return autoTodos().filter(t=>!snoozedAuto(t.text)); }
+function liveMine(){ return todos.filter(t=>isMine(t)&&!isSnoozed(t)); }
+function snoozeUntil(kind){
+  const d=new Date(); d.setHours(6,0,0,0);
+  if(kind==="tomorrow"){ d.setDate(d.getDate()+1); while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()+1); return d.toISOString(); }
+  if(kind==="week"){ d.setDate(d.getDate()+((8-d.getDay())%7||7)); return d.toISOString(); }
+  return SNOOZE_FAR;
+}
+const snoozeLabel=iso=>!iso?"":iso>="2099"?"Someday":new Date(iso).toLocaleDateString("en-CA",{weekday:"short",month:"short",day:"numeric"});
+async function snoozeItem(o,kind){
+  const until=snoozeUntil(kind);
+  let r;
+  if(o.id) r=await sb.from("gvc_todos").update({snooze_until:until}).eq("id",o.id);
+  else { await sb.from("gvc_todos").delete().eq("source","snooze").eq("text",o.text);
+    r=await sb.from("gvc_todos").insert({text:o.text,source:"snooze",done_at:new Date().toISOString(),snooze_until:until,job_id:o.job||null}); }
+  if(r.error){ setAiMsg("Couldn't move it to Later: "+r.error.message); return; }
+  await loadSide(); todoToast(`Later (${snoozeLabel(until)}): ${o.text}`,()=>unsnooze(o.id?{id:o.id}:{text:o.text}));
+}
+async function unsnooze(o){
+  const r=o.id&&todos.find(t=>t.id===o.id&&t.source!=="snooze")
+    ? await sb.from("gvc_todos").update({snooze_until:null}).eq("id",o.id)
+    : await sb.from("gvc_todos").delete().eq("source","snooze").eq(o.id?"id":"text",o.id||o.text);
+  if(r.error){ setAiMsg("Couldn't bring it back: "+r.error.message); return; }
+  await loadSide();
+}
+function laterMenu(btn,o){
+  document.querySelectorAll(".latermenu").forEach(m=>m.remove());
+  const m=document.createElement("div"); m.className="latermenu";
+  m.innerHTML=`<button type="button" data-k="tomorrow">Tomorrow</button><button type="button" data-k="week">Next week</button><button type="button" data-k="someday">Someday</button>`;
+  btn.after(m);
+  m.querySelectorAll("button").forEach(b=>b.onclick=e=>{e.stopPropagation(); m.remove(); snoozeItem(o,b.dataset.k);});
+  setTimeout(()=>document.addEventListener("click",function off(ev){ if(!m.contains(ev.target)){ m.remove(); document.removeEventListener("click",off);} }),0);
+}
 function renderTodo(){
   const B=$("#board"); B.className="todo"; B.style.gridTemplateColumns="";
-  const auto=autoTodos(), mine=todos.filter(t=>!t.done_at&&t.source!=="auto").sort((a,b)=>a.created_at<b.created_at?-1:1);
-  const doneRecent=todos.filter(t=>t.done_at).sort((a,b)=>a.done_at<b.done_at?1:-1).slice(0,8);
+  const auto=liveAuto(), mine=liveMine().sort((a,b)=>a.created_at<b.created_at?-1:1);
+  const later=[...todos.filter(t=>isMine(t)&&isSnoozed(t)).map(t=>({id:t.id,text:t.text,until:t.snooze_until})),
+    ...autoTodos().filter(t=>snoozedAuto(t.text)).map(t=>{const r=snoozedAuto(t.text);return {id:r.id,text:t.text,until:r.snooze_until,auto:true};})].sort((a,b)=>a.until<b.until?-1:1);
+  const doneRecent=todos.filter(t=>t.done_at&&t.source!=="snooze").sort((a,b)=>a.done_at<b.done_at?1:-1).slice(0,8);
   const review=suggs.filter(x=>x.status==="new").sort((a,b)=>a.created_at<b.created_at?1:-1);
   const jn=id=>{const j=jobs.find(x=>x.id===id);return j?j.name:"";};
   B.innerHTML=`<section class="tbox"><h3>To do <span class="n">${auto.length+mine.length}</span></h3>
     <div class="addtodo"><input id="tdNew" placeholder="Add a to-do…" aria-label="New to-do"><button class="btn" type="button" id="tdAdd">Add</button></div>
-    ${mine.map(t=>`<div class="ti" style="--c:#ffd28a"><button class="ck" type="button" data-done="${t.id}" title="Mark done">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">${[t.from_name?esc(t.from_name):"",t.job_id&&jn(t.job_id)?`<button class="go" type="button" data-job="${esc(t.job_id)}">${esc(jn(t.job_id))}</button>`:"",fmt(t.created_at)].filter(Boolean).join(" · ")}</div></div></div>`).join("")}
-    ${auto.map((t,i)=>`<div class="ti" style="--c:${t.c}"><button class="ck" type="button" data-auto="${i}" title="Done / hide">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">From the board · <button class="go" type="button" ${t.job?`data-job="${esc(t.job)}">Open job`:`data-view="${t.view}">Open ${t.view}`}</button></div></div></div>`).join("")}
+    ${mine.map(t=>`<div class="ti" style="--c:#ffd28a"><button class="ck" type="button" data-done="${t.id}" title="Mark done">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">${[t.from_name?esc(t.from_name):"",t.job_id&&jn(t.job_id)?`<button class="go" type="button" data-job="${esc(t.job_id)}">${esc(jn(t.job_id))}</button>`:"",fmt(t.created_at)].filter(Boolean).join(" · ")}</div></div><div class="lw"><button class="later" type="button" data-snz="${t.id}" title="Not now - move to Later">Later</button></div></div>`).join("")}
+    ${auto.map((t,i)=>`<div class="ti" style="--c:${t.c}"><button class="ck" type="button" data-auto="${i}" title="Done / hide">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">From the board · <button class="go" type="button" ${t.job?`data-job="${esc(t.job)}">Open job`:`data-view="${t.view}">Open ${t.view}`}</button></div></div><div class="lw"><button class="later" type="button" data-snza="${i}" title="Not now - move to Later">Later</button></div></div>`).join("")}
     ${!auto.length&&!mine.length?`<div class="tnote">Nothing to do. Nice.</div>`:""}
+    ${later.length?`<details class="laterbox" style="margin-top:10px"><summary class="tnote" style="cursor:pointer">Later (${later.length})</summary>${later.map(t=>`<div class="ti"><span class="bar" style="--c:#6c727a"></span><div class="body"><div class="tt" style="color:var(--muted)">${esc(t.text)}</div><div class="meta">Back ${esc(snoozeLabel(t.until))}${t.auto?" · from the board":""}</div></div><div class="lw"><button class="later" type="button" data-unsnz="${esc(t.id)}">Bring back</button></div></div>`).join("")}</details>`:""}
     ${doneRecent.length?`<details style="margin-top:8px"><summary class="tnote" style="cursor:pointer">Recently done (${doneRecent.length})</summary>${doneRecent.map(t=>`<div class="ti"><button class="ck" type="button" data-undone="${t.id}" title="Not done" style="color:var(--green);border-color:var(--green)">✓</button><div class="body"><div class="tt" style="color:var(--dim);text-decoration:line-through">${esc(t.text)}</div>${t.outcome?`<div class="meta" style="color:var(--text)">Decided: ${esc(t.outcome)}</div>`:""}</div></div>`).join("")}</details>`:""}
   </section>
   <section class="tbox"><h3>From texts &amp; recordings <span class="n">${review.length?review.length+" to review":""}</span></h3>
@@ -943,6 +995,9 @@ function renderTodo(){
   B.querySelectorAll("[data-auto]").forEach(el=>el.onclick=()=>{ const it=auto[+el.dataset.auto], tx=it.text;
     const fin=outcome=>{ el.disabled=true; addTodos([{text:tx,source:"auto",done_at:new Date().toISOString(),job_id:it.job||null,outcome:outcome||null}]); todoToast("Cleared: "+tx,()=>unhideAuto(tx)); };
     if(it.ncr||isDecision(tx)) askOutcome({text:tx,job:it.job,ncr:it.ncr},fin); else fin(); });
+  B.querySelectorAll("[data-snz]").forEach(el=>el.onclick=e=>{e.stopPropagation(); const t=todos.find(x=>x.id===el.dataset.snz); if(t) laterMenu(el,{id:t.id,text:t.text});});
+  B.querySelectorAll("[data-snza]").forEach(el=>el.onclick=e=>{e.stopPropagation(); const it=auto[+el.dataset.snza]; if(it) laterMenu(el,{text:it.text,job:it.job});});
+  B.querySelectorAll("[data-unsnz]").forEach(el=>el.onclick=()=>unsnooze({id:el.dataset.unsnz}));
   B.querySelectorAll("[data-job]").forEach(el=>el.onclick=()=>openJob(el.dataset.job));
   B.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>{cur=el.dataset.view;render();});
   B.querySelectorAll("[data-acc]").forEach(el=>el.onclick=()=>acceptSugg(el.dataset.acc));
@@ -1128,7 +1183,7 @@ async function sendChat(){
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
   try{
     const hist=chatMsgs.filter(m=>m.role!=="act").slice(-20);
-    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...(window.planLines?window.planLines():[]),...(window.ncrLines?window.ncrLines():[]),...(window.revLines?window.revLines():[]),...(window.consLines?window.consLines():[]),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
+    const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...liveAuto().map(t=>"[board reminder] "+t.text),...(window.planLines?window.planLines():[]),...(window.ncrLines?window.ncrLines():[]),...(window.revLines?window.revLines():[]),...(window.consLines?window.consLines():[]),...liveMine().map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
     if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
     (data.actions||[]).forEach(a=>chatMsgs.push({role:"act",content:a}));
     chatMsgs.push({role:"assistant",content:data.reply||((data.actions||[]).length?"Done - see above.":"I didn't change anything.")});
