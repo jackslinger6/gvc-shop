@@ -627,7 +627,7 @@ function drawDlg(){
    ${(j.suppliers||[]).map((x,k)=>{const st=ST[x.status]||ST.sent;return `<div class="supbox" style="--c:${st.c}">
      <div class="top"><div><b>${esc(x.name)}</b>${x.contact?` <span style="color:var(--muted)">· ${esc(x.contact)}</span>`:""}
        <div class="meta">${x.scope?esc(x.scope)+" · ":""}${x.sent?"Sent "+fmt(x.sent):"Not sent yet"}${x.updated?" · last update "+fmt(x.updated):""}</div></div>
-       <button class="btn sm danger" type="button" data-del="${k}">Remove</button></div>
+       <span style="display:flex;gap:6px">${window.openCount?`<button class="btn sm${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">Count</button>`:""}<button class="btn sm danger" type="button" data-del="${k}">Remove</button></span></div>
      <div class="row" style="margin-top:8px">
        <label>Status<select data-f="status" data-i="${k}">${stOpts(x)}</select></label>
        <label>Quote #<input data-f="quoteNo" data-i="${k}" value="${esc(x.quoteNo||"")}"></label>
@@ -658,6 +658,7 @@ function drawDlg(){
       const jj=collect(); jj.assemblies=[...(jj.assemblies||[]),...lines.map((n,ix)=>({id:uid(),name:n,meta:"",status:"ready",who,final:fin&&ix===lines.length-1}))]; await put(jj,`Added ${lines.length} task${lines.length>1?"s":""} to ${jj.name}`);};
   };
   $("#dlg").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeSup(+b.dataset.del));
+  $("#dlg").querySelectorAll("[data-scnt]").forEach(b=>b.onclick=async()=>{ const jid=openId; const j=collect(); if(JSON.stringify(j)!==JSON.stringify(job())) await put(j); window.openCount(jid,b.dataset.scnt); });
 }
 function collect(){
   const j=structuredClone(job());
@@ -904,13 +905,13 @@ function autoTodos(){
       a.filter(x=>x.status==="sent"&&days(x.sent)>=2).forEach(x=>add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id}));
     }
     if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id});
-    if(j.stage==="arrived") add(`Count & check: ${j.name}`,"var(--amber)",{job:j.id});
+    if(j.stage==="arrived"){ const cs=a.find(x=>x.status==="arrived")||a.find(x=>x.status!=="received")||a[0]; add(`Count & check: ${j.name}`,"var(--amber)",{job:j.id,count:cs?cs.id:null}); }
     if(j.stage==="bending") add(`Bend parts: ${j.name}`,"var(--pink)",{job:j.id});
     offOrders(j).forEach(x=>{
       if(x.status==="quote") add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id});
       else if(x.status==="sent"&&days(x.sent)>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id});
       else if(x.status==="ready") add(`Pick up at ${first(x.name)} - ${j.name}`,"var(--cyan)",{job:j.id});
-      else if(x.status==="arrived") add(`Count & check ${first(x.name)} order - ${j.name}`,"var(--amber)",{job:j.id});
+      else if(x.status==="arrived") add(`Count & check ${first(x.name)} order - ${j.name}`,"var(--amber)",{job:j.id,count:x.id});
     });
   });
   const items=crewItems().filter(x=>x.a.status!=="done");
@@ -999,7 +1000,7 @@ function renderTodo(){
   B.innerHTML=`<section class="tbox"><h3>To do <span class="n">${auto.length+mine.length}</span></h3>
     <div class="addtodo"><input id="tdNew" placeholder="Add a to-do…" aria-label="New to-do"><button class="btn" type="button" id="tdAdd">Add</button></div>
     ${mine.map(t=>`<div class="ti" style="--c:#ffd28a"><button class="ck" type="button" data-done="${t.id}" title="Mark done">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">${[t.from_name?esc(t.from_name):"",t.job_id&&jn(t.job_id)?`<button class="go" type="button" data-job="${esc(t.job_id)}">${esc(jn(t.job_id))}</button>`:"",fmt(t.created_at)].filter(Boolean).join(" · ")}</div></div><div class="lw"><button class="later" type="button" data-snz="${t.id}" title="Not now - move to Later">Later</button></div></div>`).join("")}
-    ${auto.map((t,i)=>`<div class="ti" style="--c:${t.c}"><button class="ck" type="button" data-auto="${i}" title="Done / hide">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">From the board · <button class="go" type="button" ${t.job?`data-job="${esc(t.job)}">Open job`:`data-view="${t.view}">Open ${t.view}`}</button></div></div><div class="lw"><button class="later" type="button" data-snza="${i}" title="Not now - move to Later">Later</button></div></div>`).join("")}
+    ${auto.map((t,i)=>`<div class="ti" style="--c:${t.c}"><button class="ck" type="button" data-auto="${i}" title="Done / hide">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">From the board · <button class="go" type="button" ${t.job?`data-job="${esc(t.job)}">Open job`:`data-view="${t.view}">Open ${t.view}`}</button></div>${t.count&&window.openCount?`<button class="btn sm primary" type="button" style="margin-top:6px" data-cnt="${esc(t.job)}|${esc(t.count)}">Count it</button>`:""}</div><div class="lw"><button class="later" type="button" data-snza="${i}" title="Not now - move to Later">Later</button></div></div>`).join("")}
     ${!auto.length&&!mine.length?`<div class="tnote">Nothing to do. Nice.</div>`:""}
     ${later.length?`<details class="laterbox" style="margin-top:10px"><summary class="tnote" style="cursor:pointer">Later (${later.length})</summary>${later.map(t=>`<div class="ti"><span class="bar" style="--c:#6c727a"></span><div class="body"><div class="tt" style="color:var(--muted)">${esc(t.text)}</div><div class="meta">Back ${esc(snoozeLabel(t.until))}${t.auto?" · from the board":""}</div></div><div class="lw"><button class="later" type="button" data-unsnz="${esc(t.id)}">Bring back</button></div></div>`).join("")}</details>`:""}
     ${doneRecent.length?`<details style="margin-top:8px"><summary class="tnote" style="cursor:pointer">Recently done (${doneRecent.length})</summary>${doneRecent.map(t=>`<div class="ti"><button class="ck" type="button" data-undone="${t.id}" title="Not done" style="color:var(--green);border-color:var(--green)">✓</button><div class="body"><div class="tt" style="color:var(--dim);text-decoration:line-through">${esc(t.text)}</div>${t.outcome?`<div class="meta" style="color:var(--text)">Decided: ${esc(t.outcome)}</div>`:""}</div></div>`).join("")}</details>`:""}
@@ -1029,6 +1030,7 @@ function renderTodo(){
     if(it.ncr||isDecision(tx)) askOutcome({text:tx,job:it.job,ncr:it.ncr},fin); else fin(); });
   B.querySelectorAll("[data-snz]").forEach(el=>el.onclick=e=>{e.stopPropagation(); const t=todos.find(x=>x.id===el.dataset.snz); if(t) laterMenu(el,{id:t.id,text:t.text});});
   B.querySelectorAll("[data-snza]").forEach(el=>el.onclick=e=>{e.stopPropagation(); const it=auto[+el.dataset.snza]; if(it) laterMenu(el,{text:it.text,job:it.job});});
+  B.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const [jid,sid]=el.dataset.cnt.split("|"); window.openCount(jid,sid); });
   B.querySelectorAll("[data-unsnz]").forEach(el=>el.onclick=()=>unsnooze({id:el.dataset.unsnz}));
   B.querySelectorAll("[data-job]").forEach(el=>el.onclick=()=>openJob(el.dataset.job));
   B.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>{cur=el.dataset.view;render();});
@@ -1303,6 +1305,7 @@ render();
 <script src="jobparts.js"></script>
 <script src="revisions.js"></script>
 <script src="consumables.js"></script>
+<script src="counts.js"></script>
 <script src="nav.js"></script>
 </body>
 </html>
