@@ -143,6 +143,56 @@ public final class Feed {
     }
 
     static String first(String n) { return n == null ? "" : n.split(" ")[0]; }
+
+    /* ---- Orders follow the orders (same rules as the web app, Nov 2 2026) ---- */
+    static final List<String> ORDER_STAGES = Arrays.asList("prep", "quote", "prod", "pickup", "arrived", "recv");
+    /** board column for an order's status */
+    static String supCol(String st) {
+        switch (st) {
+            case "sent": case "replied": case "quote": return "quote";
+            case "approved": case "production": return "prod";
+            case "ready": return "pickup";
+            case "arrived": return "arrived";
+            case "received": return "recv";
+            default: return "";
+        }
+    }
+    /** local calendar day (yyyy-MM-dd) of a UTC ISO time */
+    static String localDay(String iso) {
+        if (iso == null || iso.length() < 19) return "";
+        try {
+            SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US);
+            f.setTimeZone(TimeZone.getTimeZone("UTC"));
+            return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(f.parse(iso.substring(0, 19)));
+        } catch (Exception e) { return ""; }
+    }
+    static boolean recvToday(JSONObject x) {
+        if (!x.optString("status").equals("received")) return false;
+        String at = x.optString("receivedAt", ""); if (at.isEmpty()) at = x.optString("updated", "");
+        return localDay(at).equals(todayIso());
+    }
+    /** open orders on a job that isn't in an Orders stage (reorders, replacement parts); paint jobs excluded */
+    static List<JSONObject> offOrders(JSONObject j) {
+        List<JSONObject> out = new ArrayList<>();
+        String st = j.optString("stage");
+        if (ORDER_STAGES.contains(st) || st.equals("paint")) return out;
+        JSONArray sups = j.optJSONArray("suppliers"); if (sups == null) return out;
+        for (int i = 0; i < sups.length(); i++) { JSONObject x = sups.optJSONObject(i);
+            if (x == null || !active(x) || supCol(x.optString("status")).isEmpty()) continue;
+            if (x.optString("status").equals("received") && !recvToday(x)) continue;
+            out.add(x); }
+        return out;
+    }
+    /** a job in the Received stage drops off the Orders board the day after everything came in */
+    static boolean recvStale(JSONObject j) {
+        if (!j.optString("stage").equals("recv")) return false;
+        JSONArray sups = j.optJSONArray("suppliers"); if (sups == null) return true;
+        for (int i = 0; i < sups.length(); i++) { JSONObject x = sups.optJSONObject(i);
+            if (x != null && active(x) && (!x.optString("status").equals("received") || recvToday(x))) return false; }
+        return true;
+    }
+    /** reminder keys ignore numbers, so "10 pcs flat" stays hidden/snoozed when it becomes 12 */
+    static String hideKey(String t) { return t == null ? "" : t.replaceAll("\\d+(\\.\\d+)?", "#").trim().toLowerCase(Locale.US); }
     static String todayIso() { return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()); }
 
     /** "Kyle, Colton" -> [Kyle, Colton] */
@@ -270,6 +320,13 @@ public final class Feed {
             return new String[]{"Pick up" + who, "cyan"};
         }
         if (stage.equals("arrived")) return new String[]{"Count & check", "amber"};
+        for (JSONObject x : offOrders(j)) {
+            String st = x.optString("status"), n = first(x.optString("name"));
+            if (st.equals("quote")) return new String[]{n + " quote waiting on you", "orange"};
+            if (st.equals("sent") && days(x.optString("sent")) >= 2) return new String[]{n + ": no reply " + days(x.optString("sent")) + "d", "red"};
+            if (st.equals("ready")) return new String[]{"Pick up at " + n, "cyan"};
+            if (st.equals("arrived")) return new String[]{"Count & check " + n, "amber"};
+        }
         if (stage.equals("bending")) return new String[]{"Needs bending", "pink"};
         return new String[]{"", ""};
     }
@@ -360,7 +417,7 @@ public final class Feed {
         JSONArray todos = feed.optJSONArray("todos"); if (todos == null) todos = new JSONArray();
         JSONArray hiddenArr = feed.optJSONArray("hidden");
         Set<String> hidden = new HashSet<>();
-        if (hiddenArr != null) for (int i = 0; i < hiddenArr.length(); i++) hidden.add(hiddenArr.optString(i));
+        if (hiddenArr != null) for (int i = 0; i < hiddenArr.length(); i++) hidden.add(hideKey(hiddenArr.optString(i)));
         JSONObject plan = feed.optJSONObject("plan"); if (plan == null) plan = new JSONObject();
         res.review = feed.optInt("review", 0);
         Map<String, String> jobName = new LinkedHashMap<>();
@@ -391,6 +448,13 @@ public final class Feed {
                 case "bending": reminders.add(todo("Bend parts: " + n, C_PINK, id, "build")); break;
                 default: break;
             }
+            for (JSONObject x : offOrders(j)) {
+                String xs = x.optString("status"), xn = first(x.optString("name"));
+                if (xs.equals("quote")) reminders.add(todo("Review " + xn + "'s quote" + (x.optString("quoteNo").isEmpty() ? "" : " #" + x.optString("quoteNo")) + " - " + n, C_ORANGE, id, "ordering"));
+                else if (xs.equals("sent") && days(x.optString("sent")) >= 2) reminders.add(todo("Follow up with " + xn + " - " + n + " (no reply " + days(x.optString("sent")) + "d)", C_RED, id, "ordering"));
+                else if (xs.equals("ready")) reminders.add(todo("Pick up at " + xn + " - " + n, C_CYAN, id, "ordering"));
+                else if (xs.equals("arrived")) reminders.add(todo("Count & check " + xn + " order - " + n, C_AMBER, id, "ordering"));
+            }
             // NCRs still being decided
             JSONArray ncrs = j.optJSONArray("ncrs");
             if (ncrs != null) for (int k = 0; k < ncrs.length(); k++) { JSONObject x = ncrs.optJSONObject(k);
@@ -411,7 +475,7 @@ public final class Feed {
                 if (w.isEmpty() && !finalLocked(j, a)) { unassigned++; unJobs.add(j.optString("name")); } }
         }
         if (!idle.isEmpty()) reminders.add(todo("Give work to " + String.join(", ", idle), C_ORANGE, null, "crew"));
-        if (unassigned > 0) reminders.add(todo("Assign " + unassigned + " task" + (unassigned > 1 ? "s" : "") + " (" + String.join(", ", unJobs) + ")", C_ORANGE, null, "crew"));
+        if (unassigned > 0) reminders.add(todo("Assign " + unassigned + " assembl" + (unassigned > 1 ? "ies" : "y") + " (" + String.join(", ", unJobs) + ")", C_ORANGE, null, "crew"));
         List<String> noNum = new ArrayList<>(); List<String> doneJobs = new ArrayList<>(); String firstNoNum = null, firstDone = null;
         for (int i = 0; i < jobs.length(); i++) { JSONObject j = jobs.optJSONObject(i); if (j == null || j.optBoolean("sample")) continue;
             if (!j.optString("name").matches("(?is)^\\s*(\\d{4}[A-Za-z0-9_]{0,4}|INV)\\b.*")) { noNum.add(j.optString("name")); if (firstNoNum == null) firstNoNum = j.optString("id"); }
@@ -419,7 +483,10 @@ public final class Feed {
         if (!noNum.isEmpty()) reminders.add(todo("Add job numbers: " + String.join(", ", noNum), 0xFFF5B041, firstNoNum, "build"));
         if (!doneJobs.isEmpty()) reminders.add(todo("Archive finished job" + (doneJobs.size() > 1 ? "s" : "") + ": " + String.join(", ", doneJobs), 0xFF3AD06B, firstDone, "build"));
         Iterator<Row> it = reminders.iterator();
-        while (it.hasNext()) if (hidden.contains(it.next().title)) it.remove();
+        while (it.hasNext()) if (hidden.contains(hideKey(it.next().title))) it.remove();
+        // jobs only "need you" while one of their reminders is still live (not cleared or snoozed)
+        Set<String> liveJobs = new HashSet<>(); boolean assignLive = false;
+        for (Row r : reminders) { if (!r.job.isEmpty()) liveJobs.add(r.job); if (r.title.startsWith("Assign ")) assignLive = true; }
 
         // ---- attention counts per tab ----
         res.counts[0] = reminders.size() + todos.length();
@@ -427,11 +494,12 @@ public final class Feed {
             JSONObject j = jobs.optJSONObject(i);
             if (j == null || j.optBoolean("sample")) continue;
             String st = j.optString("stage");
-            boolean att = !flag(j)[0].isEmpty();
-            if (stageIndex(ORDER, st) >= 0 && att) res.counts[2]++;
+            boolean att = !flag(j)[0].isEmpty() && liveJobs.contains(j.optString("id"));
+            boolean onOrders = (stageIndex(ORDER, st) >= 0 && !recvStale(j)) || !offOrders(j).isEmpty();
+            if (onOrders && att) res.counts[2]++;
             if (stageIndex(BUILD, st) >= 0 && att) res.counts[3]++;
         }
-        res.counts[3] += unassigned;
+        if (assignLive) res.counts[3] += unassigned;
 
         if (tab.equals("todo")) {
             if (res.review > 0) { Row r = todo(res.review + " suggestion" + (res.review > 1 ? "s" : "") + " from texts & recordings to review", C_AMBER, null, "todo"); r.badge = "Review"; r.badgeColor = C_AMBER; r.pill = pillFor(C_AMBER); res.rows.add(r); }
@@ -458,8 +526,24 @@ public final class Feed {
         } else if (tab.equals("orders")) {
             for (String[] s : ORDER) {
                 List<JSONObject> list = inStage(jobs, s[0]);
-                if (list.isEmpty()) { res.rows.add(emptyHeader(s[1], stageColor(s[0]))); continue; }
-                res.rows.add(header(s[1] + "  " + list.size(), stageColor(s[0])));
+                list.removeIf(Feed::recvStale);
+                List<JSONObject> extraJobs = new ArrayList<>();
+                for (int i = 0; i < jobs.length(); i++) { JSONObject j = jobs.optJSONObject(i); if (j == null) continue;
+                    for (JSONObject x : offOrders(j)) if (supCol(x.optString("status")).equals(s[0])) { extraJobs.add(j); break; } }
+                if (list.isEmpty() && extraJobs.isEmpty()) { res.rows.add(emptyHeader(s[1], stageColor(s[0]))); continue; }
+                res.rows.add(header(s[1] + "  " + (list.size() + extraJobs.size()), stageColor(s[0])));
+                for (JSONObject j : extraJobs) {
+                    Row r = jobRow(j, "ordering");
+                    SpannableStringBuilder sb = new SpannableStringBuilder();
+                    int t0 = sb.length(); sb.append("Extra order · job is on the shop floor");
+                    sb.setSpan(new ForegroundColorSpan(C_DIM), t0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    for (JSONObject x : offOrders(j)) { if (!supCol(x.optString("status")).equals(s[0])) continue;
+                        sb.append("\n"); int st0 = sb.length(); sb.append("● ");
+                        sb.setSpan(new ForegroundColorSpan(statusColor(x.optString("status"))), st0, st0 + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        sb.append(x.optString("name")).append("  ").append(statusText(x.optString("status")));
+                        if (x.optString("status").equals("sent")) { long d = days(x.optString("sent")); if (d >= 0) sb.append(d < 1 ? " · today" : " · " + d + "d"); } }
+                    r.sub = sb; res.rows.add(r);
+                }
                 for (JSONObject j : list) {
                     Row r = jobRow(j, "ordering");
                     JSONArray sups = j.optJSONArray("suppliers");
@@ -532,22 +616,23 @@ public final class Feed {
                 JSONObject days = sched.optJSONObject(p);
                 JSONArray list = days == null ? null : days.optJSONArray(today);
                 List<Row> mine = new ArrayList<>();
+                Map<String, Row> byJob = new LinkedHashMap<>(); Map<String, Double> jobH = new LinkedHashMap<>(); Map<String, List<String>> jobT = new LinkedHashMap<>();
                 double tot = 0;
                 if (list != null) for (int i = 0; i < list.length(); i++) {
                     String key = list.optString(i);
-                    Row r = new Row(); r.tab = "crew";
                     if (key.startsWith("j:")) {
                         JSONObject[] ja = tasks.get(key); if (ja == null) continue;
                         JSONObject j = ja[0], a = ja[1];
                         if (a.optString("status").equals("done") || !who(a).contains(p)) continue;
                         placedToday.add(key);
                         double h = hours.has(key) ? hours.optDouble(key, 2) : 2;
+                        String jid = j.optString("id");
+                        Row r = byJob.get(jid);
+                        if (r == null) { r = new Row(); r.tab = "crew"; r.title = j.optString("name"); r.job = jid; r.dot = stageColor(j.optString("stage"));
+                            byJob.put(jid, r); jobH.put(jid, 0.0); jobT.put(jid, new ArrayList<>()); mine.add(r); }
+                        jobH.put(jid, jobH.get(jid) + h);
                         List<String> others = who(a); others.remove(p);
-                        r.title = a.optString("name");
-                        r.sub = j.optString("name") + (others.isEmpty() ? "" : "  ·  with " + String.join(", ", others));
-                        r.badge = fh(h) + (hours.has(key) ? "" : "?") + "  " + asmText(a.optString("status"));
-                        r.badgeColor = asmColor(a.optString("status")); r.pill = pillFor(r.badgeColor); r.dot = r.badgeColor;
-                        r.job = j.optString("id");
+                        jobT.get(jid).add(a.optString("name") + (others.isEmpty() ? "" : " (with " + String.join(", ", others) + ")"));
                         tot += h;
                     } else if (key.startsWith("x:")) {
                         JSONObject x = extra.optJSONObject(key.substring(2)); if (x == null || x.optBoolean("done")) continue;
@@ -555,11 +640,21 @@ public final class Feed {
                         if (w != null) for (int k = 0; k < w.length(); k++) if (p.equals(w.optString(k))) mineToo = true;
                         if (!mineToo) continue;
                         double h = x.has("h") && !x.isNull("h") ? x.optDouble("h", 2) : 2;
+                        Row r = new Row(); r.tab = "crew";
                         r.title = x.optString("name"); r.sub = x.optBoolean("errand") ? "Errand" : x.optString("job", "Other");
                         r.badge = fh(h); r.badgeColor = x.optBoolean("errand") ? C_AMBER : C_GRAY; r.pill = pillFor(r.badgeColor); r.dot = r.badgeColor;
-                        tot += h;
-                    } else continue;
-                    mine.add(r);
+                        tot += h; mine.add(r);
+                    }
+                }
+                // job rows: "All day" or hours, task count, the tasks underneath
+                for (Map.Entry<String, Row> e : byJob.entrySet()) {
+                    Row r = e.getValue(); double h = jobH.get(e.getKey()); List<String> ts = jobT.get(e.getKey());
+                    boolean allDay = h >= 7.5 && byJob.size() == 1 && mine.size() == 1;
+                    r.badge = (allDay ? "All day" : fh(h)) + "  ·  " + ts.size() + " task" + (ts.size() > 1 ? "s" : "");
+                    r.badgeColor = C_BLUE; r.pill = pillFor(C_BLUE);
+                    List<String> show = new ArrayList<>(ts.size() > 4 ? ts.subList(0, 4) : ts);
+                    if (ts.size() > 4) show.add("+ " + (ts.size() - 4) + " more");
+                    r.sub = String.join("\n", show);
                 }
                 if (isOff) { crew.add(header(p + "  ·  day off", C_DIM)); continue; }
                 if (mine.isEmpty()) { Row r = header(p + "  ·  nothing scheduled" + (weekend ? "" : " today"), C_DIM); r.dim = true; crew.add(r); continue; }
