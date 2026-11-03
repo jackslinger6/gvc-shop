@@ -732,7 +732,17 @@ function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 /* Each job is one JSON row. jobVer remembers the updated_at we last loaded for each job; a save only goes through
    if the row still has that updated_at, so two devices (or you + Ask Claude) can't silently overwrite each other. */
 const jobVer={};
+/* Picking a job up from paint means paint is over: if a "pick up ... paint" task is done while the job sits at Paint, move it to Assembly. */
+const PAINT_PICKUP=/pick(ed)?\s*(it\s*)?up\b.*\bpaint|\bfrom\s+paint/i;
+function paintPickupAdvance(data){
+  if(!data||data.stage!=="paint") return;
+  const t=(data.assemblies||[]).find(a=>a.status==="done"&&PAINT_PICKUP.test(a.name||""));
+  if(!t) return;
+  data.stage="assembly";
+  data.log=[...(data.log||[]),{at:new Date().toISOString(),text:`Moved to Shop floor: Assembly / Install (done: ${t.name})`}];
+}
 async function saveJob(id,data){
+  paintPickupAdvance(data);
   const ver=jobVer[id];
   if(ver){
     const r=await sb.from("gvc_jobs").update({ data }).eq("id",id).eq("updated_at",ver).select("updated_at");
