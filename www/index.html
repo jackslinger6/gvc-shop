@@ -1229,6 +1229,10 @@ $("#msBtn").onclick=async()=>{
   chatMsgs.push({role:"assistant",content:"Sign in as kyle.gvc@hotmail.com in the page that opened and tap Accept. Then come back here - the Outlook button turns to ✓."}); drawChat();
   let n=0; const t=setInterval(async()=>{ await msRefresh(); if((msState&&msState.connected)||++n>40) clearInterval(t); },5000);
 };
+/* coming back from the Outlook sign-in: #outlook=ok|fail&msg=... */
+(()=>{ const m=(location.hash||"").match(/^#outlook=(ok|fail)&msg=(.*)$/); if(!m) return;
+  try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
+  setTimeout(()=>{ alert((m[1]==="ok"?"✅ ":"⚠️ ")+decodeURIComponent(m[2])); if(typeof msRefresh==="function") msRefresh(); },1200); })();
 async function sendChat(){
   const t=$("#chatIn").value.trim(); if(!t||chatBusy) return;
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();

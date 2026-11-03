@@ -4,14 +4,14 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const REDIRECT = (Deno.env.get("SUPABASE_URL") || "") + "/functions/v1/gvc-ms-auth";
-const page = (title: string, msg: string, ok = true) => new Response(`<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title>
-<body style="font-family:system-ui,sans-serif;background:#141619;color:#e9e6e1;display:grid;place-items:center;height:100vh;margin:0">
-<div style="max-width:420px;text-align:center;padding:20px"><div style="font-size:42px">${ok ? "✅" : "⚠️"}</div><h2>${title}</h2><p style="color:#9aa0a8">${msg}</p></div></body>`,
-  { status: ok ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8" } });
+// Supabase serves function responses on its own domain as plain text (no web pages), so send the person
+// back to the app with the result in the address; the app shows it.
+const APP = "https://jackslinger6.github.io/gvc-shop/";
+const page = (title: string, msg: string, ok = true) => new Response(null, { status: 302, headers: { Location: APP + "#outlook=" + (ok ? "ok" : "fail") + "&msg=" + encodeURIComponent(title + ": " + msg) } });
 
 Deno.serve(async (req) => {
   const u = new URL(req.url);
-  const code = u.searchParams.get("code"), state = u.searchParams.get("state"), err = u.searchParams.get("error_description") || u.searchParams.get("error");
+  const code = u.searchParams.get("code"), state = u.searchParams.get("state"), err = [u.searchParams.get("error"), u.searchParams.get("error_description")].filter(Boolean).join(" - ");
   if (err) return page("Not connected", "Microsoft said: " + err, false);
   if (!code || !state) return page("Not connected", "Missing code - start again from the app (Ask Claude → Outlook).", false);
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
