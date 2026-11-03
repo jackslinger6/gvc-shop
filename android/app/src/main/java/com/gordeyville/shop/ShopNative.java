@@ -23,6 +23,11 @@ import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import androidx.core.content.FileProvider;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -216,5 +221,63 @@ public class ShopNative extends Plugin {
         o.put("on", RecorderService.isRecording());
         o.put("startedAt", RecorderService.startedAt);
         call.resolve(o);
+    }
+
+    /* ---------- in-app update (downloads the latest APK from GitHub releases and opens the installer) ---------- */
+    @PluginMethod
+    public void appVersion(PluginCall call) {
+        JSObject o = new JSObject();
+        try {
+            android.content.pm.PackageInfo pi = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
+            o.put("name", pi.versionName);
+            o.put("code", Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode);
+        } catch (Exception e) { o.put("name", "?"); o.put("code", 0); }
+        o.put("canInstall", Build.VERSION.SDK_INT < 26 || getContext().getPackageManager().canRequestPackageInstalls());
+        call.resolve(o);
+    }
+
+    /** Opens the "Install unknown apps" setting for this app (needed once before the first in-app update). */
+    @PluginMethod
+    public void allowInstalls(PluginCall call) {
+        try {
+            Intent i = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getContext().getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (Exception e) { call.reject("Couldn't open the setting: " + e.getMessage()); }
+    }
+
+    @PluginMethod
+    public void installUpdate(PluginCall call) {
+        String url = call.getString("url", "https://github.com/jackslinger6/gvc-shop/releases/latest/download/gvc-shop.apk");
+        if (Build.VERSION.SDK_INT >= 26 && !getContext().getPackageManager().canRequestPackageInstalls()) { call.reject("NEED_PERMISSION"); return; }
+        new Thread(() -> {
+            try {
+                File dir = new File(getContext().getCacheDir(), "update"); dir.mkdirs();
+                File apk = new File(dir, "gvc-shop.apk"); if (apk.exists()) apk.delete();
+                HttpURLConnection c = null; String u = url;
+                for (int hop = 0; hop < 6; hop++) {   // GitHub redirects to its file host
+                    c = (HttpURLConnection) new URL(u).openConnection();
+                    c.setInstanceFollowRedirects(false); c.setConnectTimeout(15000); c.setReadTimeout(30000);
+                    int code = c.getResponseCode();
+                    if (code >= 300 && code < 400) { u = c.getHeaderField("Location"); c.disconnect(); continue; }
+                    if (code != 200) throw new Exception("HTTP " + code);
+                    break;
+                }
+                long total = c.getContentLengthLong(), got = 0; int lastPct = -1;
+                try (InputStream in = c.getInputStream(); FileOutputStream out = new FileOutputStream(apk)) {
+                    byte[] buf = new byte[65536]; int n;
+                    while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); got += n;
+                        int pct = total > 0 ? (int) (got * 100 / total) : -1;
+                        if (pct != lastPct && pct % 5 == 0) { lastPct = pct; JSObject ev = new JSObject(); ev.put("pct", pct); ev.put("bytes", got); notifyListeners("updateProgress", ev); } }
+                }
+                Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", apk);
+                Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setDataAndType(uri, "application/vnd.android.package-archive");
+                i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+                JSObject o = new JSObject(); o.put("bytes", got); call.resolve(o);
+            } catch (Exception e) { call.reject("Download failed: " + e.getMessage()); }
+        }).start();
     }
 }
