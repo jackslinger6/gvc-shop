@@ -4,7 +4,7 @@
      hours:{taskKey:h}, needs:{taskKey:[taskKey]}, start:8 }
    Job tasks are "j:<jobId>:<taskId>" (who/status stay on the job); planner-only tasks are "x:<id>". */
 (()=>{
-const PCOL=["#2f8ff0","#ff8a2a","#3ad06b","#e04fa0","#9b4dff","#22c3e6","#e5483b","#c9a46a"];
+const PCOL=window.JOB_COLORS||["#2f8ff0","#ff8a2a","#3ad06b","#e04fa0","#9b4dff","#22c3e6","#e5483b","#c9a46a"];
 const ERR_C="#f5b041";
 const BLANK=()=>({sched:{},off:{},extra:{},hours:{},needs:{},start:8});
 let plan=BLANK(), planLoaded=false, planLoading=false, planCh=null;
@@ -87,8 +87,7 @@ const nowH=()=>{const n=new Date();return n.getHours()+n.getMinutes()/60-DS();};
 function clock(a){let t=DS()+(a%100),h=Math.floor(t+1e-9),m=Math.round((t-h)*60);if(m===60){h++;m=0;}const hh=h>12?h-12:h;return `${hh}:${String(m).padStart(2,"0")}`;}
 const fh=x=>`${+Number(x).toFixed(1)}h`;
 const isOff=(p,d)=>((plan.off||{})[p]||[]).includes(d);
-function jobColor(jid){const ids=jobs.map(j=>j.id).sort();return PCOL[Math.max(0,ids.indexOf(jid))%PCOL.length];}
-window.jobColor=jobColor;   // same per-job colour used on the To do suggestion cards
+const jobColor=window.jobColor||(jid=>{const ids=jobs.map(j=>j.id).sort();return PCOL[Math.max(0,ids.indexOf(jid))%PCOL.length];});   // defined in index.html; shared with the To do suggestion cards
 
 let planVer=null, reloadWanted=false;
 const sameVer=(a,b)=>!!a&&!!b&&(a===b||new Date(a).getTime()===new Date(b).getTime());
