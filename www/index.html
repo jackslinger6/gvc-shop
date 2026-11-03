@@ -72,6 +72,8 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .card .nm{font-weight:600;font-size:14px;line-height:1.25;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .card .jnum{font-family:Oswald,sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.06em;color:#ffd0a8;background:rgba(255,138,42,.14);border:1px solid rgba(255,138,42,.4);border-radius:5px;padding:1px 6px;flex:0 0 auto}
 .card .jname{min-width:0}
+.card.offo{border-style:dashed}
+.card .offtag{font-size:11px;color:var(--dim);margin-top:3px}
 .card .tx{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .card .sups{margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.06)}
 .flag{display:inline-block;margin-top:7px;margin-right:4px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px}
@@ -398,6 +400,21 @@ const whoList=a=>String(a.who||"").split(",").map(x=>x.trim()).filter(Boolean);
 const whoChips=(j,i,a)=>`<div class="wchips">${CREW.map(c=>`<button type="button" class="wc ${whoList(a).includes(c)?"on":""}" data-wj="${esc(j.id)}" data-wi="${i}" data-wc="${c}" aria-pressed="${whoList(a).includes(c)}">${c}</button>`).join("")}</div>`;
 const finalLocked=(j,a)=>a.final&&(j.assemblies||[]).some(x=>!x.final&&x.status!=="done");
 const ACTIVE=s=>s.status!=="hold"&&s.status!=="declined";
+/* ---- Orders board follows the ORDERS, not only the job stage (2026-11-02) ----
+   - A job on the Pipeline or Shop floor with an open order (reorder, replacement part) gets a card on the Orders board
+     in the column for that order's status, and the same reminders as a normal order.
+   - A received order stays in Received until the end of the day it came in, then drops off (the record stays on the job).
+   - Paint-stage jobs are left alone: their supplier is the paint shop, shown on the Shop floor card. */
+const ORDER_STAGES=["prep","quote","prod","pickup","arrived","recv"];
+const SUP_COL={sent:"quote",replied:"quote",quote:"quote",approved:"prod",production:"prod",ready:"pickup",arrived:"arrived",received:"recv"};
+const recvAt=x=>x.receivedAt||x.updated||"";
+const recvToday=x=>x.status==="received"&&!!recvAt(x)&&new Date(recvAt(x)).toDateString()===new Date().toDateString();
+const offStage=j=>!ORDER_STAGES.includes(j.stage)&&j.stage!=="paint";
+/* orders on a job that isn't in an Orders stage, that belong on the board */
+const offOrders=j=>offStage(j)?(j.suppliers||[]).filter(x=>ACTIVE(x)&&SUP_COL[x.status]&&(x.status!=="received"||recvToday(x))):[];
+/* a job sitting in the Received stage drops off the board the day after everything came in */
+const recvStale=j=>j.stage==="recv"&&!(j.suppliers||[]).filter(ACTIVE).some(x=>x.status!=="received"||recvToday(x));
+const onOrdersBoard=j=>(ORDER_STAGES.includes(j.stage)&&!recvStale(j))||offOrders(j).length>0;
 let db=null, jobs=[], archivedJobs=[], todos=[], suggs=[], openId=null, cur="todo";
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -415,6 +432,10 @@ function flags(j){
     a.filter(x=>x.status==="sent"&&days(x.sent)>=2).forEach(x=>out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`));
   }
   if(s==="pickup") out.push(`<span class="flag go">Pick up${a[0]?" at "+esc(first(a[0].name)):""}</span>`);
+  offOrders(j).forEach(x=>{ if(x.status==="quote") out.push(`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`);
+    else if(x.status==="sent"&&days(x.sent)>=2) out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`);
+    else if(x.status==="ready") out.push(`<span class="flag go">Pick up at ${esc(first(x.name))}</span>`);
+    else if(x.status==="arrived") out.push(`<span class="flag count">Count &amp; check ${esc(first(x.name))}</span>`); });
   if(s==="arrived") out.push(`<span class="flag count">Count &amp; check</span>`);
   if(s==="bending") out.push(`<span class="flag bend">Needs bending</span>`);
   return out;
@@ -447,7 +468,7 @@ function render(){
   const crewAsm=crewItems();
   const tdCount=liveAuto().length+liveMine().length, sgNew=suggs.filter(x=>x.status==="new").length;
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
-    const js=jobs.filter(j=>stOf(j).board===b.k); const at=js.filter(needsAttention).length;
+    const js=b.k==="ordering"?jobs.filter(onOrdersBoard):jobs.filter(j=>stOf(j).board===b.k); const at=js.filter(needsAttention).length;
     return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct">${js.length}</span>${at?`<span class="at">${at}</span>`:""}</button>`;
   }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${liveAuto().some(t=>/^Assign \d+ assembl/.test(t.text))&&crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+(window.timeTab?window.timeTab():"")+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)&&liveAuto().some(t=>/sitting flat/.test(t.text))?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
@@ -457,8 +478,9 @@ function render(){
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
   $("#board").innerHTML=B.stages.map(s=>{
-    const list=jobs.filter(j=>j.stage===s.k).sort((x,y)=>(x.order||0)-(y.order||0));
-    return `<section class="col ${list.length?"":"emptycol"}" style="--c:${s.c}"><div class="colhead"><h2>${s.t}</h2><span class="none">none</span><div class="n">${list.length||""}</div></div>
+    const list=jobs.filter(j=>j.stage===s.k&&!(s.k==="recv"&&recvStale(j))).sort((x,y)=>(x.order||0)-(y.order||0));
+    const extra=B.k==="ordering"?jobs.filter(j=>offOrders(j).some(x=>SUP_COL[x.status]===s.k)).sort((x,y)=>(x.order||0)-(y.order||0)):[];
+    return `<section class="col ${list.length+extra.length?"":"emptycol"}" style="--c:${s.c}"><div class="colhead"><h2>${s.t}</h2><span class="none">none</span><div class="n">${(list.length+extra.length)||""}</div></div>
       <div class="cards">${list.map(j=>`<button class="card" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
         ${cardTitle(j)}
         ${j.summary?`<div class="tx">${esc(j.summary)}</div>`:""}
@@ -466,7 +488,10 @@ function render(){
         ${B.k==="ordering"&&(j.suppliers||[]).length?`<div class="sups">${j.suppliers.map(x=>supLine(x,j.stage)).join("")}</div>`:""}
         ${B.k==="build"&&(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status!=="received").length?`<div class="sups">${j.suppliers.filter(x=>ACTIVE(x)&&x.status!=="received").map(x=>supLine(x,j.stage)).join("")}</div>`:""}
         ${B.k==="build"?etaStrip(j):""}
-        ${flags(j).join("")}</button>`).join("")}</div></section>`;
+        ${flags(j).join("")}</button>`).join("")}${extra.map(j=>{const os=offOrders(j).filter(x=>SUP_COL[x.status]===s.k);return `<button class="card offo" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
+        ${cardTitle(j)}<div class="offtag">${esc(stOf(j).bt)} · ${esc(stOf(j).t)} - extra order</div>
+        <div class="sups">${os.map(x=>supLine(x,"quote")).join("")}</div>
+        ${os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(x.sent)>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span>`:x.status==="arrived"?`<span class="flag count">Count &amp; check</span>`:"").join("")}</button>`;}).join("")}</div></section>`;
   }).join("");
   $("#board").querySelectorAll(".card").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
   }
@@ -637,7 +662,7 @@ function drawDlg(){
 function collect(){
   const j=structuredClone(job());
   j.name=$("#fName").value.trim()||j.name; j.folder=$("#fFolder").value.trim(); j.summary=$("#fSum").value.trim(); j.stage=$("#fStage").value;
-  $("#dlg").querySelectorAll("[data-f]").forEach(el=>{const x=j.suppliers[+el.dataset.i];const f=el.dataset.f;if((x[f]||"")!==el.value){x[f]=el.value;x.updated=new Date().toISOString();}});
+  $("#dlg").querySelectorAll("[data-f]").forEach(el=>{const x=j.suppliers[+el.dataset.i];const f=el.dataset.f;if((x[f]||"")!==el.value){x[f]=el.value;x.updated=new Date().toISOString();if(f==="status"&&el.value==="received") x.receivedAt=x.updated;}});
   return j;
 }
 async function put(j,label){
@@ -881,6 +906,12 @@ function autoTodos(){
     if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id});
     if(j.stage==="arrived") add(`Count & check: ${j.name}`,"var(--amber)",{job:j.id});
     if(j.stage==="bending") add(`Bend parts: ${j.name}`,"var(--pink)",{job:j.id});
+    offOrders(j).forEach(x=>{
+      if(x.status==="quote") add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id});
+      else if(x.status==="sent"&&days(x.sent)>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id});
+      else if(x.status==="ready") add(`Pick up at ${first(x.name)} - ${j.name}`,"var(--cyan)",{job:j.id});
+      else if(x.status==="arrived") add(`Count & check ${first(x.name)} order - ${j.name}`,"var(--amber)",{job:j.id});
+    });
   });
   const items=crewItems().filter(x=>x.a.status!=="done");
   const idle=CREW.filter(c=>c!=="Kyle"&&!items.some(x=>whoList(x.a).includes(c)));
@@ -1085,7 +1116,7 @@ async function acceptSugg(id){
         const p=c.supplier; const sup=j.suppliers=j.suppliers||[];
         let x=sup.find(y=>p.id&&y.id===p.id)||sup.find(y=>first(y.name).toLowerCase()===first(p.name).toLowerCase());
         if(!x){ x={id:uid(),name:p.name,contact:"",scope:"",quoteNo:"",total:"",lead:"",note:"",status:"sent",sent:now}; sup.push(x); }
-        ["status","quoteNo","lead","total","note"].forEach(k=>{ if(p[k]) x[k]=p[k]; }); x.updated=now;
+        const wasRecv=x.status==="received"; ["status","quoteNo","lead","total","note"].forEach(k=>{ if(p[k]) x[k]=p[k]; }); x.updated=now; if(x.status==="received"&&!wasRecv) x.receivedAt=now;
       }
       await saveJob(jid,j); pushUndo(jid,prev,"Applied: "+(s.summary||"suggestion"));
     }
