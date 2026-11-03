@@ -88,6 +88,7 @@ function clock(a){let t=DS()+(a%100),h=Math.floor(t+1e-9),m=Math.round((t-h)*60)
 const fh=x=>`${+Number(x).toFixed(1)}h`;
 const isOff=(p,d)=>((plan.off||{})[p]||[]).includes(d);
 function jobColor(jid){const ids=jobs.map(j=>j.id).sort();return PCOL[Math.max(0,ids.indexOf(jid))%PCOL.length];}
+window.jobColor=jobColor;   // same per-job colour used on the To do suggestion cards
 
 let planVer=null, reloadWanted=false;
 const sameVer=(a,b)=>!!a&&!!b&&(a===b||new Date(a).getTime()===new Date(b).getTime());

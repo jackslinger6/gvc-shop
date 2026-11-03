@@ -246,9 +246,9 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .sg .hd{font-size:11.5px;color:var(--dim);display:flex;gap:6px;align-items:center}
 .sg .sm{font-weight:600;font-size:14px;margin:4px 0 6px;line-height:1.35}
 .sg .tags{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
-.sg .sgjob{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);background:rgba(255,138,42,.08);border:1px solid rgba(255,138,42,.35);border-radius:7px;padding:3px 8px 3px 4px;cursor:pointer;max-width:100%}
+.sg .sgjob{--c:#ff8a2a;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);background:color-mix(in srgb,var(--c) 14%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);border-left:4px solid var(--c);border-radius:7px;padding:3px 8px 3px 5px;cursor:pointer;max-width:100%}
 .sg .sgjob.new{cursor:default;border-style:dashed}
-.sg .sgjob .jnum{font-family:Oswald,sans-serif;font-weight:600;font-size:12px;letter-spacing:.06em;color:#ffd0a8;background:rgba(255,138,42,.16);border:1px solid rgba(255,138,42,.4);border-radius:5px;padding:0 6px}
+.sg .sgjob .jnum{font-family:Oswald,sans-serif;font-weight:600;font-size:12px;letter-spacing:.06em;color:#fff;background:var(--c);border-radius:5px;padding:0 6px}
 .sg .sgsup{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:7px;padding:3px 9px}
 .sg .sgsup i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c)}
 .sg .sgsup span{color:var(--muted);font-size:11.5px}
@@ -885,7 +885,8 @@ const SRC={sms:"💬",recording:"🎙",manual:"📋",email:"✉️",chat:"🗨"}
 function sgTags(s){
   const c=s.changes||{}, j=jobs.find(x=>x.id===s.job_id), t=[];
   if(j){ const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
-    t.push(`<button class="sgjob" type="button" data-job="${esc(j.id)}" title="Open job">${num?`<span class="jnum">${esc(num)}</span>`:""}<span>${esc(rest)}</span></button>`); }
+    const col=window.jobColor?window.jobColor(j.id):"#ff8a2a";
+    t.push(`<button class="sgjob" type="button" data-job="${esc(j.id)}" title="Open job" style="--c:${col}">${num?`<span class="jnum">${esc(num)}</span>`:""}<span>${esc(rest)}</span></button>`); }
   else if(c.new_job_name) t.push(`<span class="sgjob new"><span class="jnum">NEW JOB</span><span>${esc(c.new_job_name)}</span></span>`);
   if(c.supplier&&c.supplier.name){ const p=c.supplier, st=p.status&&ST[p.status]?ST[p.status]:null;
     t.push(`<span class="sgsup" style="--c:${st?st.c:"#8e96a3"}"><i></i><b>${esc(p.name)}</b>${st?`<span>${esc(st.t)}</span>`:""}</span>`); }
@@ -895,7 +896,7 @@ function sgBullets(s){
   const c=s.changes||{}, b=[];
   const row=(k,cls,html)=>b.push(`<div class="act ${cls}"><span class="k">${k}</span><span class="v">${html}</span></div>`);
   if(c.stage&&STAGES[SIDX[c.stage]]) row("Move","move",`${esc(STAGES[SIDX[c.stage]].bt)} → ${esc(STAGES[SIDX[c.stage]].t)}`);
-  if(c.supplier){const p=c.supplier; const d=[p.quoteNo?"#"+esc(p.quoteNo):"",p.total?esc(p.total):"",p.lead?"lead "+esc(p.lead):"",p.note?esc(p.note):""].filter(Boolean).join(" · "); if(d||p.status) row("Vendor","sup",`${p.status&&ST[p.status]?esc(ST[p.status].t):""}${d?(p.status?" · ":"")+d:""}`);}
+  if(c.supplier){const p=c.supplier; const d=[p.quoteNo?"#"+esc(p.quoteNo):"",p.total?esc(p.total):"",p.lead?"lead "+esc(p.lead):"",p.note?esc(p.note):""].filter(Boolean).join(" · "); if(d||p.status) row("Order","sup",`${p.status&&ST[p.status]?esc(ST[p.status].t):""}${d?(p.status?" · ":"")+d:""}`);}
   if(c.job_summary) row("Card","card",esc(c.job_summary));
   if((c.tasks||[]).length) row("Tasks","tasks",c.tasks.filter(t=>t&&t.name).map(t=>esc(t.name)+((t.who||[]).length?" ("+esc(t.who.join(", "))+")":"")).join("; "));
   if(c.log) row("Log","log",esc(c.log));
