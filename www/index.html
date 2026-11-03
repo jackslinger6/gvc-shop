@@ -245,7 +245,21 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .sg{border:1px solid var(--line);border-radius:10px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:10px 11px;margin-bottom:10px}
 .sg .hd{font-size:11.5px;color:var(--dim);display:flex;gap:6px;align-items:center}
 .sg .sm{font-weight:600;font-size:14px;margin:4px 0 6px;line-height:1.35}
-.sg ul{margin:0 0 8px;padding-left:18px;font-size:13px;color:var(--muted)}
+.sg .tags{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+.sg .sgjob{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);background:rgba(255,138,42,.08);border:1px solid rgba(255,138,42,.35);border-radius:7px;padding:3px 8px 3px 4px;cursor:pointer;max-width:100%}
+.sg .sgjob.new{cursor:default;border-style:dashed}
+.sg .sgjob .jnum{font-family:Oswald,sans-serif;font-weight:600;font-size:12px;letter-spacing:.06em;color:#ffd0a8;background:rgba(255,138,42,.16);border:1px solid rgba(255,138,42,.4);border-radius:5px;padding:0 6px}
+.sg .sgsup{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:7px;padding:3px 9px}
+.sg .sgsup i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c)}
+.sg .sgsup span{color:var(--muted);font-size:11.5px}
+.sg .acts{display:flex;flex-direction:column;gap:5px;margin:0 0 9px}
+.sg .act{display:grid;grid-template-columns:58px 1fr;gap:8px;align-items:start;font-size:13px;color:var(--muted);line-height:1.35}
+.sg .act .k{font-family:Oswald,sans-serif;font-size:11px;letter-spacing:.08em;text-transform:uppercase;text-align:center;border-radius:5px;padding:2px 4px;margin-top:1px;color:var(--dim);border:1px solid var(--line);background:rgba(255,255,255,.03)}
+.sg .act.move .k{color:#9fd1ff;border-color:rgba(47,143,240,.45);background:rgba(47,143,240,.12)}
+.sg .act.sup .k{color:#ffc39a;border-color:rgba(255,138,42,.45);background:rgba(255,138,42,.1)}
+.sg .act.tasks .k,.sg .act.card .k{color:#c9b3ff;border-color:rgba(155,77,255,.45);background:rgba(155,77,255,.12)}
+.sg .act.todo{color:var(--text);font-weight:600;background:rgba(255,210,138,.08);border:1px solid rgba(255,210,138,.35);border-radius:7px;padding:6px 8px 6px 6px}
+.sg .act.todo .k{color:#1b1b1b;background:#ffd28a;border-color:#ffd28a;font-weight:700}
 .sg details{font-size:12px;color:var(--dim);margin-bottom:8px}
 .sg pre{white-space:pre-wrap;font:inherit;font-size:12px;color:var(--muted);max-height:180px;overflow:auto;margin:6px 0 0;background:rgba(0,0,0,.3);padding:8px;border-radius:6px}
 .tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
@@ -867,14 +881,26 @@ function autoTodos(){
   return out.filter(x=>!hidden.has(x.text));
 }
 const SRC={sms:"💬",recording:"🎙",manual:"📋",email:"✉️",chat:"🗨"};
+/* suggestion card body: job + vendor as tags (like the job board), then one row per action with a clear label */
+function sgTags(s){
+  const c=s.changes||{}, j=jobs.find(x=>x.id===s.job_id), t=[];
+  if(j){ const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
+    t.push(`<button class="sgjob" type="button" data-job="${esc(j.id)}" title="Open job">${num?`<span class="jnum">${esc(num)}</span>`:""}<span>${esc(rest)}</span></button>`); }
+  else if(c.new_job_name) t.push(`<span class="sgjob new"><span class="jnum">NEW JOB</span><span>${esc(c.new_job_name)}</span></span>`);
+  if(c.supplier&&c.supplier.name){ const p=c.supplier, st=p.status&&ST[p.status]?ST[p.status]:null;
+    t.push(`<span class="sgsup" style="--c:${st?st.c:"#8e96a3"}"><i></i><b>${esc(p.name)}</b>${st?`<span>${esc(st.t)}</span>`:""}</span>`); }
+  return t;
+}
 function sgBullets(s){
-  const c=s.changes||{}, j=jobs.find(x=>x.id===s.job_id), b=[];
-  if(j) b.push(`Job: ${esc(j.name)}`); else if(c.new_job_name) b.push(`New job: ${esc(c.new_job_name)}`);
-  if(c.stage&&STAGES[SIDX[c.stage]]) b.push(`Move to ${STAGES[SIDX[c.stage]].bt}: ${STAGES[SIDX[c.stage]].t}`);
-  if(c.supplier){const p=c.supplier; b.push(`${esc(p.name)}: ${[p.status&&ST[p.status]?ST[p.status].t:"",p.quoteNo?"#"+esc(p.quoteNo):"",p.total?esc(p.total):"",p.lead?"lead "+esc(p.lead):"",p.note?esc(p.note):""].filter(Boolean).join(" · ")}`);}
-  if(c.job_summary) b.push(`Card status: ${esc(c.job_summary)}`);
-  if(c.log) b.push(`Log: ${esc(c.log)}`);
-  (c.todos||[]).forEach(t=>b.push(`<b>To do:</b> ${esc(t.text)}`));
+  const c=s.changes||{}, b=[];
+  const row=(k,cls,html)=>b.push(`<div class="act ${cls}"><span class="k">${k}</span><span class="v">${html}</span></div>`);
+  if(c.stage&&STAGES[SIDX[c.stage]]) row("Move","move",`${esc(STAGES[SIDX[c.stage]].bt)} → ${esc(STAGES[SIDX[c.stage]].t)}`);
+  if(c.supplier){const p=c.supplier; const d=[p.quoteNo?"#"+esc(p.quoteNo):"",p.total?esc(p.total):"",p.lead?"lead "+esc(p.lead):"",p.note?esc(p.note):""].filter(Boolean).join(" · "); if(d||p.status) row("Vendor","sup",`${p.status&&ST[p.status]?esc(ST[p.status].t):""}${d?(p.status?" · ":"")+d:""}`);}
+  if(c.job_summary) row("Card","card",esc(c.job_summary));
+  if((c.tasks||[]).length) row("Tasks","tasks",c.tasks.filter(t=>t&&t.name).map(t=>esc(t.name)+((t.who||[]).length?" ("+esc(t.who.join(", "))+")":"")).join("; "));
+  if(c.log) row("Log","log",esc(c.log));
+  (c.todos||[]).forEach(t=>row("To do","todo",esc(t.text)));
+  if(!b.length) row("Note","log","Nothing to change - accepting just clears it.");
   return b;
 }
 function renderTodo(){
@@ -900,7 +926,7 @@ function renderTodo(){
     <div class="tnote" id="aiMsg">${aiMsg||""}</div>
     <div class="paste" id="pasteBox" hidden><textarea id="pasteTx" placeholder="Paste a text, email or notes - Claude will suggest job updates and to-dos."></textarea><div class="row"><button class="btn primary sm" type="button" id="pasteGo">Send to Claude</button></div></div>
     ${review.map(x=>`<div class="sg"><div class="hd">${SRC[x.source]||"•"} ${esc(x.from_name||x.source)} · ${fmt(x.source_at||x.created_at)}</div>
-      <div class="sm">${esc(x.summary)}</div><ul>${sgBullets(x).map(b=>`<li>${b}</li>`).join("")}</ul>
+      <div class="sm">${esc(x.summary)}</div>${sgTags(x).length?`<div class="tags">${sgTags(x).join("")}</div>`:""}<div class="acts">${sgBullets(x).join("")}</div>
       ${x.source_text?`<details><summary>Original</summary><pre>${esc(x.source_text)}</pre></details>`:""}
       <div class="row"><button class="btn primary sm" type="button" data-acc="${x.id}">Accept</button><button class="btn sm" type="button" data-dis="${x.id}">Dismiss</button></div></div>`).join("")||`<div class="tnote">Nothing waiting. ${Native?"Texts from your picked contacts are checked when you open the app.":"Paste a message or use the phone app to record and read texts."}</div>`}
   </section>`;
