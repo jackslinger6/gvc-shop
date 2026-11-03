@@ -56,7 +56,23 @@ css.textContent=`
 .wkv .pblk.fx{border-left-style:dashed}
 .wkv .pind{height:3px;background:var(--orange);border-radius:2px;margin:1px 0 3px}
 .wkv .pghost{position:absolute;pointer-events:none;opacity:.9;z-index:20;width:150px}
-.wkv .ppanel{border-top:1px solid var(--line);margin-top:8px;padding-top:10px;font-size:13px}
+.wkv .psplit{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;align-items:start;margin-top:8px}
+.wkv .psplit .pwrap{margin-top:0}
+.wkv .ppanel{position:sticky;top:10px;border:1px solid var(--line);border-radius:10px;background:rgba(0,0,0,.3);padding:10px 12px;font-size:13px}
+.wkv .pph{font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:13px;color:var(--muted);margin-bottom:6px}
+.wkv .pjob{border-radius:6px;padding:5px 7px;margin-bottom:3px;line-height:1.25;font-size:12px;cursor:pointer;background:color-mix(in srgb,var(--c) 22%,transparent);border-left:4px solid var(--c);color:var(--text)}
+.wkv .pjob .pjh{display:flex;justify-content:space-between;gap:6px;font-weight:600}
+.wkv .pjob .pjn{font-family:Oswald,sans-serif;font-weight:500;letter-spacing:.04em;color:#fff;background:var(--c);border-radius:4px;padding:0 4px;font-size:11px}
+.wkv .pjob .pjc{color:var(--muted)}
+.wkv .pjob small{display:block;color:var(--muted);font-size:10.5px;margin-top:2px}
+.wkv .pjob.sel{outline:1.5px solid #fff}.wkv .pjob.bad{box-shadow:inset 0 0 0 1.5px #e5483b}.wkv .pjob.done{opacity:.45}
+.wkv .pjsub{margin:-1px 0 5px 6px;padding-left:5px;border-left:1px dashed var(--line)}
+.wkv .pjrow{display:flex;gap:4px;align-items:flex-start}
+.wkv .pjrow .pblk{flex:1;min-width:0}
+.wkv .pblk.psub{font-size:11.5px;padding:3px 6px}
+.wkv .pck{flex:none;width:20px;height:20px;margin-top:2px;border-radius:5px;border:1.5px solid #5a5f68;background:transparent;color:transparent;font-size:12px;line-height:16px;padding:0;cursor:pointer}
+.wkv .pck.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}
+@media (max-width:1000px){ .wkv .psplit{grid-template-columns:1fr} .wkv .ppanel{position:static} }
 .wkv .ppanel .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px}
 .wkv .ppanel select{font:inherit;font-size:12.5px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px;max-width:100%}
 .wkv .ppanel b{font-weight:600;min-width:30px;text-align:center}
@@ -230,7 +246,7 @@ function doMove(k,fp,fd,tp,td,idx){
   if(fp!==tp&&t.who.includes(tp)) rmK(M,tp,dayOf(M,tp,k),k);
   if(!t.who.includes(tp)) t.who.push(tp);
   t.at=null;
-  const l=L(M,tp,td); l.splice(Math.min(idx,l.length),0,k);
+  const l=L(M,tp,td); const at=idx&&typeof idx==="object"?(l.indexOf(idx.before)<0?l.length:l.indexOf(idx.before)):Math.min(idx,l.length); l.splice(at,0,k);
   let note="";
   t.who.forEach(w=>{ if(w===tp) return; const dw=dayOf(M,w,k); if(dw!==td){ rmK(M,w,dw,k); if(isOff(w,td)){ t.who=t.who.filter(x=>x!==w); note=` (${w} is off that day, so they came off it)`; } else L(M,w,td).push(k); } });
   commit(M,`${t.name} → ${tp}, ${dlabel(td)}${note}`);
@@ -262,6 +278,7 @@ async function quickAdd(name,h,jid){
 
 /* ---------- render ---------- */
 let lastM=null, lastFix=[], openRow="";
+const openG=new Set();   // expanded job blocks "person|day|job"
 function blk(M,t,p,d,r,bad){
   const share=r?r.w:H(t); const others=p?t.who.filter(w=>w!==p):(t.who.length>1?t.who:[]); const solo=!p&&t.who.length===1?t.who[0]:"";
   const after=t.needs.map(n=>M.T[n]&&M.T[n].name).filter(Boolean);
@@ -272,6 +289,31 @@ function blk(M,t,p,d,r,bad){
   return `<div class="pblk ${sel===t.key?"sel":""} ${bad?"bad":""} ${t.done?"done":""} ${t.at!=null?"fx":""}" style="--c:${t.color};${p?`min-height:${Math.max(24,share*9)}px`:""}${past&&!t.done?";opacity:.65":""}" data-k="${esc(t.key)}" ${p?`data-p="${p}" data-d="${d}"`:""}>
    ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${esc(t.name)} · ${fh(share)}${t.h==null?"?":""}
    <small>${t.ncr?`<b style="color:#ff9b91">NCR-${String(t.ncr).padStart(3,"0")}</b> · `:""}${r?`${clock(r.s)}–${clock(r.e)}${pauses?" (paused)":""} · `:""}${p?esc(t.job):""}${solo?(p?" · ":"")+solo:""}${others.length?(p?" · with ":"")+others.join(", "):""}${after.length?" · after "+esc(after.join(", ")):""}</small></div>`;
+}
+/* A person's day shows one block per JOB (height = hours), not every task. Tap it to see and tick off the tasks.
+   Fixed-time errands stay as their own blocks. */
+function dayCell(M,R,p,d,ids,bad){
+  const groups=[]; const byJob={};
+  ids.forEach(k=>{ const t=M.T[k]; if(!t) return;
+    if(t.at!=null){ groups.push({solo:k}); return; }
+    const g=t.jid||("x:"+t.job);
+    if(!byJob[g]){ byJob[g]={g,keys:[],t}; groups.push(byJob[g]); }
+    byJob[g].keys.push(k); });
+  return groups.map(G=>{
+    if(G.solo) return blk(M,M.T[G.solo],p,d,R[p][G.solo],bad.has(G.solo));
+    if(G.keys.length===1&&!openG.has(`${p}|${d}|${G.g}`)) return blk(M,M.T[G.keys[0]],p,d,R[p][G.keys[0]],bad.has(G.keys[0]));
+    const rs=G.keys.map(k=>R[p][k]).filter(Boolean);
+    const hrs=rs.reduce((a,r)=>a+r.w,0), s0=Math.min(...rs.map(r=>r.s)), e0=Math.max(...rs.map(r=>r.e));
+    const done=G.keys.filter(k=>M.T[k].done).length, anyBad=G.keys.some(k=>bad.has(k)), anySel=G.keys.includes(sel);
+    const key=`${p}|${d}|${G.g}`, open=openG.has(key);
+    const allDay=hrs>=7.5&&ids.length===G.keys.length;
+    const nm=String(G.t.job).replace(/^\s*\S+\s*[-–:]\s*/,"")||G.t.job, num=window.jobNum?window.jobNum(G.t.job):"";
+    return `<div class="pjob ${anyBad?"bad":""} ${anySel?"sel":""} ${done===G.keys.length?"done":""}" style="--c:${G.t.color};${open?"":`min-height:${Math.max(30,hrs*9)}px`}" data-g="${esc(key)}" data-k="${esc(G.keys[0])}" data-p="${p}" data-d="${d}">
+      <div class="pjh"><span>${num?`<b class="pjn">${esc(num)}</b> `:""}${esc(nm)}</span><span class="pjc">${open?"▾":"▸"}</span></div>
+      <small>${allDay?"All day":`${clock(s0)}–${clock(e0)}`} · ${fh(hrs)} · ${done?`${done} of ${G.keys.length} done`:`${G.keys.length} tasks`}${anyBad?" · ⚠ clash":""}</small></div>`
+      +(open?`<div class="pjsub">${G.keys.map(k=>{ const t=M.T[k], r=R[p][k]; const oth=t.who.filter(w=>w!==p);
+        return `<div class="pjrow"><button class="pck ${t.done?"on":""}" type="button" data-pck="${esc(k)}" title="${t.done?"Not done":"Done"}">✓</button><div class="pblk psub ${sel===k?"sel":""} ${bad.has(k)?"bad":""} ${t.done?"done":""}" style="--c:${t.color}" data-k="${esc(k)}" data-p="${p}" data-d="${d}">${oth.length?"🔗 ":""}${t.needs.length?"🔒 ":""}${esc(t.name)} · ${fh(r?r.w:H(t))}${t.h==null?"?":""}${oth.length?`<small>with ${esc(oth.join(", "))}</small>`:""}</div></div>`; }).join("")}</div>`:"");
+  }).join("");
 }
 function renderWeek(){
   const B=$("#board"); B.className="wkv"; B.style.gridTemplateColumns="";
@@ -300,12 +342,12 @@ function renderWeek(){
       <div class="row">${f.opts.length?f.opts.map((o,j)=>`<button class="btn sm" data-fx="${i}:${j}">${esc(o.label)}</button>`).join(""):"<span>No quick fix - drag things around.</span>"}</div></div>`; }).join("");
   h+=`<div class="lbl" style="margin:8px 0 4px">Not scheduled (${pool.length}). Drag onto someone's day; drag back here to unschedule.</div>
    <div class="ppool">${pool.length?gl.map(g=>{ const st=g.stageIdx>=0?STAGES[g.stageIdx]:null; return `<div class="pgrp"><div class="pgh"><span class="dot" style="background:${g.color}"></span><b>${esc(g.job)}</b>${st?`<span class="lbl">${st.bt} · ${st.t}</span>`:""}<span class="lbl">${g.list.filter(t=>!t.why).length} ready${g.list.some(t=>t.why)?`, ${g.list.filter(t=>t.why).length} not ready`:""}</span></div><div class="pgl">${g.list.map(t=>blk(M,t)).join("")}</div></div>`; }).join(""):'<span class="lbl">Everything is scheduled.</span>'}</div>`;
-  h+=`<div class="pwrap"><table class="pg"><thead><tr><th class="day"></th>${CREW.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>`;
+  h+=`<div class="psplit"><div class="pwrap"><table class="pg"><thead><tr><th class="day"></th>${CREW.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>`;
   D.forEach(d=>{ h+=`<tr><th class="day ${d===today?"today":""}">${dlabel(d).replace(", ","<br>")}${d===today?"<br>today":""}</th>`+CREW.map(p=>{
     if(isOff(p,d)) return `<td class="off" data-p="${p}" data-d="${d}"><div class="ld"><span>Day off</span><button data-off="${p}|${d}" title="Working this day">undo</button></div></td>`;
     const ids=M.S[p][d]||[]; const used=ids.reduce((a,k)=>a+(R[p][k]?R[p][k].w:0),0);
-    return `<td data-p="${p}" data-d="${d}"><div class="ld ${used>8.01?"over":""}"><span>${used?fh(used)+" / 8h":"Open"}</span><button data-off="${p}|${d}" title="Mark ${p} off ${dlabel(d)}">off</button></div>${ids.map(k=>blk(M,M.T[k],p,d,R[p][k],bad.has(k))).join("")}</td>`; }).join("")+`</tr>`; });
-  h+=`</tbody></table></div><div class="ppanel" id="pPanel"></div>`;
+    return `<td data-p="${p}" data-d="${d}"><div class="ld ${used>8.01?"over":""}"><span>${used?fh(used)+" / 8h":"Open"}</span><button data-off="${p}|${d}" title="Mark ${p} off ${dlabel(d)}">off</button></div>${dayCell(M,R,p,d,ids,bad)}</td>`; }).join("")+`</tr>`; });
+  h+=`</tbody></table></div><div class="ppanel" id="pPanel"></div></div>`;
   B.innerHTML=h;
   panel(M);
   B.querySelectorAll("[data-wk]").forEach(b=>b.onclick=()=>{ const v=+b.dataset.wk; wk=v===0?0:wk+v; render(); });
@@ -319,12 +361,13 @@ function renderWeek(){
   $("#pIg").onclick=()=>sendNow($("#pIp").value,$("#pIw").value.trim()||"Errand",+$("#pIh").value);
   B.querySelectorAll("[data-fx]").forEach(b=>b.onclick=()=>{ const [i,j]=b.dataset.fx.split(":").map(Number); const o=lastFix[i].opts[j]; const M2=model(); o.fn(M2); commit(M2,o.label); say(o.label+"."); });
   B.querySelectorAll("[data-off]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const [p,d]=b.dataset.off.split("|"); toggleOff(p,d); });
+  B.querySelectorAll("[data-pck]").forEach(b=>{ b.onpointerdown=e=>e.stopPropagation(); b.onclick=e=>{ e.stopPropagation(); const k=b.dataset.pck; const M2=model(); const t2=M2.T[k]; if(!t2) return; t2.done=!t2.done; commit(M2,`${t2.name}: ${t2.done?"done":"not done"}`); }; });
 }
 function panel(M){
   const el=$("#pPanel"); const t=M.T[sel];
-  if(!t){ el.innerHTML=`<span class="lbl">Tap a block to set hours, who's on it, or what it waits for. 🔗 shared (crew-hours split so everyone finishes together) · 🔒 waits on another task · dashed = fixed-time errand · "?" = no estimate yet (counted as 2h).</span>`; return; }
+  if(!t){ el.innerHTML=`<div class="pph">Assignment</div><span class="lbl">Tap a task - in Not scheduled, or inside a job block on someone's day - to set who's on it, how long it takes and what it waits for. Tap a job block to open its task list; tick tasks off there.<br><br>🔗 shared (crew-hours split so everyone finishes together) · 🔒 waits on another task · dashed = fixed-time errand · "?" = no estimate yet (counted as 2h).</span>`; return; }
   const others=Object.values(M.T).filter(x=>x.key!==t.key&&!x.done).sort((a,b)=>a.job.localeCompare(b.job));
-  el.innerHTML=`<div><span style="color:${t.color}">${esc(t.job)}</span> · <b style="font-weight:600">${esc(t.name)}</b>${t.jid?` <button class="btn sm ghost" id="pOpen">Open job</button>`:""}</div>
+  el.innerHTML=`<div class="pph">Assignment</div><div><span style="color:${t.color}">${esc(t.job)}</span> · <b style="font-weight:600">${esc(t.name)}</b>${t.jid?` <button class="btn sm ghost" id="pOpen">Open job</button>`:""}</div>
    <div class="row"><span class="lbl">${t.who.length>1?"Crew-hours":"Hours"}</span><button class="btn sm" data-ph="-0.5">−</button><b>${t.h==null?"?":t.h}</b><button class="btn sm" data-ph="0.5">+</button>${[1,2,4,8].map(x=>`<button class="btn sm ${t.h===x?"primary":""}" data-phs="${x}">${x}h</button>`).join("")}</div>
    <div class="row"><span class="lbl">On it</span>${CREW.map(c=>`<button class="wc ${t.who.includes(c)?"on":""}" data-pw="${c}">${c}</button>`).join("")}</div>
    <div class="row"><span class="lbl">Has to wait for</span><select id="pNd"><option value="">Nothing</option>${others.map(o=>`<option value="${esc(o.key)}" ${t.needs.includes(o.key)?"selected":""}>${esc(o.job)} · ${esc(o.name)}</option>`).join("")}</select></div>
@@ -348,11 +391,13 @@ function panel(M){
 /* ---------- drag (mouse + touch) ---------- */
 let drag=null;
 function target(x,y){ const el=document.elementFromPoint(x,y); if(!el) return null; const td=el.closest(".wkv td[data-p]"); if(td) return {td}; if(el.closest(".wkv .ppool")) return {pool:true}; return null; }
-function idxIn(td,y){ const bs=[...td.querySelectorAll(".pblk")].filter(b=>!b.classList.contains("fx")&&!(b.dataset.k===drag.k&&b.dataset.p===drag.fp&&b.dataset.d===drag.fd));
+function idxIn(td,y){ const bs=[...td.querySelectorAll(".pblk,.pjob")].filter(b=>!b.classList.contains("fx")&&!(b.dataset.k===drag.k&&b.dataset.p===drag.fp&&b.dataset.d===drag.fd));
   let i=bs.findIndex(b=>{const r=b.getBoundingClientRect();return y<r.top+r.height/2;}); return {i:i<0?bs.length:i,bs}; }
-document.addEventListener("pointerdown",e=>{ if(cur!=="crew"||view!=="week") return; const b=e.target.closest(".wkv .pblk"); if(!b) return;
+document.addEventListener("pointerdown",e=>{ if(cur!=="crew"||view!=="week") return;
+  const g=e.target.closest(".wkv .pjob"); if(g){ drag={grp:g.dataset.g,x0:e.clientX,y0:e.clientY,moved:false,el:g}; return; }
+  const b=e.target.closest(".wkv .pblk"); if(!b) return;
   drag={k:b.dataset.k,fp:b.dataset.p||null,fd:b.dataset.d||null,x0:e.clientX,y0:e.clientY,el:b,moved:false}; });
-document.addEventListener("pointermove",e=>{ if(!drag) return;
+document.addEventListener("pointermove",e=>{ if(!drag||drag.grp) return;
   if(!drag.moved&&Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<7) return;
   const W=document.querySelector(".wkv"); if(!W){ drag=null; return; }
   if(!drag.moved){ drag.moved=true; drag.g=drag.el.cloneNode(true); drag.g.classList.add("pghost"); W.appendChild(drag.g); drag.el.style.opacity=".3"; }
@@ -365,11 +410,12 @@ document.addEventListener("pointermove",e=>{ if(!drag) return;
   const {i,bs}=idxIn(tg.td,e.clientY); const ind=document.createElement("div"); ind.className="pind"; if(bs[i]) bs[i].before(ind); else tg.td.appendChild(ind);
 },{passive:false});
 function endDrag(e,cancel){ if(!drag) return; const d=drag; drag=null;
+  if(d.grp){ if(!cancel&&Math.hypot(e.clientX-d.x0,e.clientY-d.y0)<10){ if(openG.has(d.grp)) openG.delete(d.grp); else openG.add(d.grp); render(); } return; }
   if(d.g) d.g.remove();
   if(!d.moved){ if(!cancel){ sel=sel===d.k?null:d.k; render(); } return; }
   const tg=cancel?null:target(e.clientX,e.clientY);
   if(tg&&tg.pool) doMove(d.k,d.fp,d.fd,null);
-  else if(tg&&tg.td){ const dd={k:d.k,fp:d.fp,fd:d.fd}; drag=dd; const {i}=idxIn(tg.td,e.clientY); drag=null; doMove(d.k,d.fp,d.fd,tg.td.dataset.p,tg.td.dataset.d,i); }
+  else if(tg&&tg.td){ const dd={k:d.k,fp:d.fp,fd:d.fd}; drag=dd; const {i,bs}=idxIn(tg.td,e.clientY); drag=null; doMove(d.k,d.fp,d.fd,tg.td.dataset.p,tg.td.dataset.d,bs[i]?{before:bs[i].dataset.k}:9999); }
   else render();
 }
 document.addEventListener("pointerup",e=>endDrag(e,false));
