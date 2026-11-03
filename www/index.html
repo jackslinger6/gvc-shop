@@ -358,7 +358,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
   </div>
 </div>
 <button class="btn primary chatfab" type="button" id="chatFab" hidden>💬 Ask Claude</button>
-<section class="chatp" id="chatP" aria-label="Ask Claude"><div class="ch">Ask Claude<span class="sp"></span><button type="button" id="chatClear">Clear</button><button type="button" id="chatX" style="font-size:18px">✕</button></div>
+<section class="chatp" id="chatP" aria-label="Ask Claude"><div class="ch">Ask Claude<span class="sp"></span><button type="button" id="msBtn" title="Connect kyle.gvc Outlook so Claude can read email and write drafts">✉ Outlook</button><button type="button" id="chatClear">Clear</button><button type="button" id="chatX" style="font-size:18px">✕</button></div>
 <div class="cm" id="chatM"></div>
 <div class="ci"><textarea id="chatIn" placeholder="Ask about jobs, plan the day, add a to-do…" aria-label="Message"></textarea><button class="btn" type="button" id="chatMic" title="Talk" aria-label="Talk to Claude">🎤</button><button class="btn primary" type="button" id="chatGo">Send</button></div></section>
 <div class="toast" id="toast" role="status"><span id="toastTx"></span><button type="button" id="toastUndo">Undo</button></div>
@@ -1213,9 +1213,22 @@ let chatMsgs=LS.get("gvc_chat",[]), chatBusy=false;
 function drawChat(){
   const M=$("#chatM");
   M.innerHTML=(chatMsgs.length?"":`<div class="hint">Ask me about your jobs, suppliers or crew - "what's waiting on Russel?", "what should Cooper do next?", "remind me to call William Monday". On your phone, tap the mic on the keyboard to talk.</div>`)+
-    chatMsgs.map(m=>m.role==="act"?`<div class="act">✓ ${esc(m.content)}</div>`:`<div class="b ${m.role==="user"?"u":"a"}">${m.role==="user"?esc(m.content):esc(m.content).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^#+\s*(.+)$/gm,"<b>$1</b>").replace(/^- /gm,"• ")}</div>`).join("")+(chatBusy?`<div class="b a" style="color:var(--dim)">Thinking…</div>`:"");
+    chatMsgs.map(m=>m.role==="act"?`<div class="act">✓ ${esc(m.content).replace(/\[\[open:(https?:[^\]\s]+)\]\]/g,(_,u)=>`<a href="${u}" target="_blank" rel="noopener" style="color:#7be29b;font-weight:600;white-space:nowrap">Open draft ↗</a>`)}</div>`:`<div class="b ${m.role==="user"?"u":"a"}">${m.role==="user"?esc(m.content):esc(m.content).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^#+\s*(.+)$/gm,"<b>$1</b>").replace(/^- /gm,"• ")}</div>`).join("")+(chatBusy?`<div class="b a" style="color:var(--dim)">Thinking…</div>`:"");
   M.scrollTop=M.scrollHeight;
 }
+/* Outlook connection (Claude reads kyle.gvc email and writes drafts - it can't send) */
+let msState=null;
+async function msRefresh(){ try{ const {data}=await sb.functions.invoke("gvc-ai",{body:{action:"ms_status"}}); msState=data||null; }catch(e){ msState=null; }
+  const b=$("#msBtn"); if(!b) return; b.textContent=msState&&msState.connected?"✉ Outlook ✓":"✉ Connect Outlook"; b.title=msState&&msState.connected?`Connected: ${msState.email} - Claude can read email and write drafts (never sends). Tap to reconnect.`:"Connect kyle.gvc Outlook so Claude can read email and write drafts"; }
+$("#msBtn").onclick=async()=>{
+  if(msState&&msState.connected&&!confirm(`Outlook is connected (${msState.email}). Connect again?`)) return;
+  const {data,error}=await sb.functions.invoke("gvc-ai",{body:{action:"ms_start"}});
+  let m=data&&data.error; if(error&&!m){ try{ m=(await error.context.json()).error; }catch(e){ m=error.message; } }
+  if(m||!data||!data.url){ alert("Can't connect yet: "+(m||"no sign-in link")); return; }
+  window.open(data.url,"_blank");
+  chatMsgs.push({role:"assistant",content:"Sign in as kyle.gvc@hotmail.com in the page that opened and tap Accept. Then come back here - the Outlook button turns to ✓."}); drawChat();
+  let n=0; const t=setInterval(async()=>{ await msRefresh(); if((msState&&msState.connected)||++n>40) clearInterval(t); },5000);
+};
 async function sendChat(){
   const t=$("#chatIn").value.trim(); if(!t||chatBusy) return;
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
@@ -1234,7 +1247,7 @@ window.addEventListener("scroll",()=>{ const y=window.scrollY, f=$("#chatFab"); 
   const nearBottom=window.innerHeight+y>=document.documentElement.scrollHeight-140;
   if(nearBottom||y>lastY+4) f.classList.add("tuck"); else if(y<lastY-4) f.classList.remove("tuck");
   lastY=y; },{passive:true});
-$("#chatFab").onclick=()=>{ const f=$("#chatFab"); if(f.classList.contains("tuck")){ f.classList.remove("tuck"); } $("#chatP").classList.add("on"); $("#chatFab").hidden=true; drawChat(); setTimeout(()=>$("#chatIn").focus(),50); };
+$("#chatFab").onclick=()=>{ const f=$("#chatFab"); if(f.classList.contains("tuck")){ f.classList.remove("tuck"); } $("#chatP").classList.add("on"); $("#chatFab").hidden=true; drawChat(); msRefresh(); setTimeout(()=>$("#chatIn").focus(),50); };
 $("#chatX").onclick=()=>{ $("#chatP").classList.remove("on"); $("#chatFab").hidden=false; };
 $("#chatClear").onclick=()=>{ chatMsgs=[]; LS.set("gvc_chat",[]); drawChat(); };
 $("#chatGo").onclick=sendChat;

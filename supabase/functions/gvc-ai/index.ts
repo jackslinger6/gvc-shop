@@ -151,6 +151,32 @@ async function transcribe(sb: any, path: string, hint: string) {
 }
 
 
+// ---------- Outlook (Microsoft Graph) - drafts only, never send ----------
+const MS_REDIRECT = (Deno.env.get("SUPABASE_URL") || "") + "/functions/v1/gvc-ms-auth";
+const msAdmin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+async function msToken(): Promise<string> {
+  const admin = msAdmin();
+  const { data: row } = await admin.from("gvc_ms").select("refresh_token").eq("id", "main").maybeSingle();
+  if (!row?.refresh_token) throw new Error("Outlook isn't connected yet - tap Outlook at the top of the Ask Claude panel to connect it");
+  const body = new URLSearchParams({ client_id: Deno.env.get("MS_CLIENT_ID") || "", client_secret: Deno.env.get("MS_CLIENT_SECRET") || "", grant_type: "refresh_token", refresh_token: row.refresh_token, scope: "offline_access Mail.ReadWrite User.Read" });
+  const r = await fetch("https://login.microsoftonline.com/consumers/oauth2/v2.0/token", { method: "POST", body });
+  const t = await r.json();
+  if (!r.ok || !t.access_token) throw new Error("Outlook sign-in expired - reconnect it (Ask Claude → Outlook). " + (t.error_description || t.error || ""));
+  if (t.refresh_token && t.refresh_token !== row.refresh_token) await admin.from("gvc_ms").update({ refresh_token: t.refresh_token, updated_at: new Date().toISOString() }).eq("id", "main");
+  return t.access_token;
+}
+async function graph(path: string, init: any = {}) {
+  const tok = await msToken();
+  const r = await fetch("https://graph.microsoft.com/v1.0" + path, { ...init, headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json", ...(init.headers || {}) } });
+  if (r.status === 204) return {};
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error("Outlook: " + (j?.error?.message || r.status));
+  return j;
+}
+const addr = (a: string) => ({ emailAddress: { address: a } });
+const htmlToText = (h: string) => String(h || "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<br\s*\/?>(\s*)/gi, "\n").replace(/<\/(p|div|tr|li)>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\n{3,}/g, "\n\n").trim();
+const textToHtml = (t: string) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+
 // ---------- chat ----------
 const ITEM = (TOOL.input_schema.properties.suggestions as any).items;
 const CHAT_TOOLS = [
@@ -182,6 +208,12 @@ const CHAT_TOOLS = [
       add_steps: { type: "array", items: { type: "object", properties: { name: { type: "string" }, h: { type: "number" } }, required: ["name"] } }, mat: { type: "number" }, closed: { type: "boolean" } }, required: ["job_id", "n"] } },
   { name: "add_revision", description: "Add a model revision for Jessie (the engineer): something to change in his model or drawings. kind fix = it didn't fit/work; improvement = works, but better next time. Link it to an NCR number if there is one.",
     input_schema: { type: "object", properties: { job_id: { type: ["string", "null"] }, what: { type: "string" }, part: { type: "string" }, kind: { type: "string", enum: ["fix", "improvement"] }, ncr: { type: "number" } }, required: ["what"] } },
+  { name: "find_emails", description: "Search Kyle's work email (kyle.gvc Outlook) - by words, sender or subject. Returns the newest matches with ids for read_email / draft_email replies.",
+    input_schema: { type: "object", properties: { query: { type: "string", description: "Words to search, e.g. 'Grandview FAB-0121' or a person's name" }, from: { type: "string", description: "Sender email or name, optional" }, top: { type: "number" } } } },
+  { name: "read_email", description: "Read one email in full (by id from find_emails).", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "draft_email", description: "Write an email as a DRAFT in Kyle's Outlook (kyle.gvc) - Kyle reviews and presses Send himself; there is no way to send. For a reply, pass reply_to_id (from find_emails) so it stays in the thread with the quoted email below. Plain text body, written as Kyle, short and plain.",
+    input_schema: { type: "object", properties: { to: { type: "array", items: { type: "string" } }, cc: { type: "array", items: { type: "string" } }, subject: { type: "string" }, body: { type: "string" },
+      reply_to_id: { type: "string", description: "id of the email being replied to" }, reply_all: { type: "boolean" }, job_id: { type: ["string", "null"], description: "job it's about - logged on the job" } }, required: ["body"] } },
   { name: "update_app_note", description: "Add to or rewrite an app note that's already saved (use the id from the saved notes list) instead of saving a duplicate.",
     input_schema: { type: "object", properties: { id: { type: "string" }, details: { type: "string", description: "The full updated spec" }, title: { type: "string" } }, required: ["id", "details"] } },
 ];
@@ -200,9 +232,10 @@ async function chat(sb: any, msgs: any[], ctx: any = {}) {
 People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
 You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, clear_reminder, create_job, add_tasks, add_ncr, update_ncr and add_revision act right away; propose_update sends a change to an existing job to Kyle's review list (never claim that change was made - say it's waiting for him to accept).
-HARD RULES ABOUT DOING THINGS: nothing happens unless you call a tool and its result says ok. Never say "done", "doing it now" or "I'll take care of it" unless the tool result for that exact thing came back ok. If a tool result starts with "error", tell Kyle it failed and why. Things you have NO tool for - say so plainly in one line and tell him where to do it himself: logging or changing his hours (My time tab), scheduling or moving tasks onto days or people (Jobs > Crew & week plan), reading or sending email, accepting suggestions in his review list, changing job stages directly (use propose_update). Don't pretend. When Kyle lists several things in one message, go through every one: call the tools you can, and for each thing you can't do, say that in the reply.
+HARD RULES ABOUT DOING THINGS: nothing happens unless you call a tool and its result says ok. Never say "done", "doing it now" or "I'll take care of it" unless the tool result for that exact thing came back ok. If a tool result starts with "error", tell Kyle it failed and why. Things you have NO tool for - say so plainly in one line and tell him where to do it himself: logging or changing his hours (My time tab), scheduling or moving tasks onto days or people (Jobs > Crew & week plan), sending email (you only write drafts - Kyle presses Send in Outlook), accepting suggestions in his review list, changing job stages directly (use propose_update). Don't pretend. When Kyle lists several things in one message, go through every one: call the tools you can, and for each thing you can't do, say that in the reply.
 Every job name starts with its job number, like "2011G - Kirby Controls Enclosure" (G, PT, BQ, DT suffixes). When Kyle asks for a new job and hasn't given the number, ask for it once; if he doesn't know it yet, create it without one (the app flags it).
 When Kyle asks for a new job, use create_job (not propose_update) and put all the work steps he mentioned in it as tasks, in one go - don't make him ask twice. Tasks automatically show up in the Not scheduled pool on the Crew tab's week planner, grouped by job, so he can drag them onto people's days. Who on a task is just a suggestion until he schedules it.
+EMAIL (Outlook kyle.gvc, drafts only): use find_emails / read_email to look things up, draft_email to write. You can never send - say "it's in your Outlook drafts, check it and press Send". Rules from Kyle: always CC Randy at gordeyvillecustoms@hotmail.com on emails to suppliers (never randy.gvc@hotmail.com - old address). State materials exactly as Kyle gives them (e.g. 16 GA (0.0598") 304 2B stainless). Suppliers: Russel Metals - Jesse Eherer jeherer@russelmetals.com (laser cutting only); LSM - Dennis Shmyr counter@golsm.com (shears and bends); Grandview Fabrication - William Hofer; Alloy Industries - big bends. Jessie Dirksen (engineer) - jessie.gvc@hotmail.com. Randy - gordeyvillecustoms@hotmail.com. Write as Kyle: short, plain, no fluff, sign off "Kyle". For replies, find the email first and pass reply_to_id. Don't promise attachments - you can't attach files yet.
 NCRs: when Kyle says something was designed, ordered or built wrong (or a supplier/material problem, or a customer change that means rework), log it with add_ncr on that job - type, fix (Deciding if he hasn't decided), any rework steps with hours, material $ if he says. If the model or drawings need changing too, fill model_revision so Jessie gets it. Use update_ncr to record a decision, add steps, or close one. NCR numbers are shown as NCR-001 etc.
 Each job can have tasks (work steps) with who and status: bend=waiting on bending, ready=ready to start, prog=in progress, qc=inspection, done. Use add_tasks to add steps to an existing job.
 Stages: ${JSON.stringify(STAGES)}
@@ -343,6 +376,38 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           const { data: r, error } = await sb.from("gvc_revisions").insert({ job_id: u.input.job_id || null, part: u.input.part || null, what: u.input.what, kind: u.input.kind || "improvement", ncr: u.input.ncr || null }).select("n").single();
           if (error) throw error;
           actions.push(`Added model revision REV-${String(r.n).padStart(3, "0")} for Jessie: ${u.input.what}`);
+        } else if (u.name === "find_emails") {
+          const top = Math.min(15, Math.max(1, Number(u.input.top) || 8));
+          const q = [u.input.query, u.input.from ? `from:${u.input.from}` : ""].filter(Boolean).join(" ").replace(/"/g, "");
+          const path = q ? `/me/messages?$search="${encodeURIComponent(q)}"&$top=${top}&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isDraft`
+                         : `/me/mailFolders/inbox/messages?$top=${top}&$orderby=receivedDateTime desc&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isDraft`;
+          const j = await graph(path);
+          const list = (j.value || []).map((m: any) => ({ id: m.id, subject: m.subject, from: m.from?.emailAddress?.name + " <" + m.from?.emailAddress?.address + ">", to: (m.toRecipients || []).map((x: any) => x.emailAddress?.address).join(", "), at: m.receivedDateTime, preview: String(m.bodyPreview || "").slice(0, 300), draft: m.isDraft || undefined }));
+          list.sort((a: any, b: any) => String(b.at).localeCompare(String(a.at)));
+          res = JSON.stringify(list);
+        } else if (u.name === "read_email") {
+          const m = await graph(`/me/messages/${encodeURIComponent(u.input.id)}?$select=subject,from,toRecipients,ccRecipients,receivedDateTime,body,hasAttachments`);
+          res = JSON.stringify({ subject: m.subject, from: m.from?.emailAddress, to: (m.toRecipients || []).map((x: any) => x.emailAddress?.address), cc: (m.ccRecipients || []).map((x: any) => x.emailAddress?.address), at: m.receivedDateTime, attachments: m.hasAttachments, body: htmlToText(m.body?.content || "").slice(0, 12000) });
+        } else if (u.name === "draft_email") {
+          let d: any;
+          if (u.input.reply_to_id) {
+            d = await graph(`/me/messages/${encodeURIComponent(u.input.reply_to_id)}/${u.input.reply_all ? "createReplyAll" : "createReply"}`, { method: "POST", body: JSON.stringify({ comment: u.input.body }) });
+            const patch: any = {};
+            if ((u.input.cc || []).length) { const have = new Set((d.ccRecipients || []).map((x: any) => String(x.emailAddress?.address || "").toLowerCase())); patch.ccRecipients = [...(d.ccRecipients || []), ...u.input.cc.filter((a: string) => !have.has(a.toLowerCase())).map(addr)]; }
+            if ((u.input.to || []).length) { const have = new Set((d.toRecipients || []).map((x: any) => String(x.emailAddress?.address || "").toLowerCase())); patch.toRecipients = [...(d.toRecipients || []), ...u.input.to.filter((a: string) => !have.has(a.toLowerCase())).map(addr)]; }
+            if (u.input.subject) patch.subject = u.input.subject;
+            if (Object.keys(patch).length) d = await graph(`/me/messages/${d.id}`, { method: "PATCH", body: JSON.stringify(patch) });
+          } else {
+            if (!(u.input.to || []).length) throw new Error("who is it to?");
+            d = await graph(`/me/messages`, { method: "POST", body: JSON.stringify({ subject: u.input.subject || "", body: { contentType: "HTML", content: textToHtml(u.input.body) }, toRecipients: u.input.to.map(addr), ccRecipients: (u.input.cc || []).map(addr) }) });
+          }
+          const to = (d.toRecipients || []).map((x: any) => x.emailAddress?.address).join(", ");
+          if (u.input.job_id) {
+            const { data: row } = await sb.from("gvc_jobs").select("id,data").eq("id", u.input.job_id).maybeSingle();
+            if (row) { const jd = row.data || {}; jd.log = [...(jd.log || []), { at: new Date().toISOString(), text: `Email drafted to ${to}: ${d.subject || ""} (Ask Claude - in Outlook drafts)` }]; await sb.from("gvc_jobs").update({ data: jd }).eq("id", row.id); }
+          }
+          res = "ok - draft saved in Outlook (not sent)";
+          actions.push(`Draft in your Outlook: "${d.subject || "(no subject)"}" to ${to || "?"} - check it and press Send [[open:${d.webLink || "https://outlook.live.com/mail/0/drafts"}]]`);
         } else if (u.name === "save_app_note") {
           const said = messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-6).map((m: any) => "Kyle: " + m.content).join("\n");
           const { error } = await sb.from("gvc_feedback").insert({ kind: u.input.kind || "idea", area: u.input.area || null, title: String(u.input.title).slice(0, 120), details: u.input.details, conversation: said.slice(0, 6000) });
@@ -385,6 +450,18 @@ Deno.serve(async (req) => {
       return json({ text: (await r.json()).text || "" });
     }
     if (body.action === "chat") return json(await chat(sb, body.messages || [], body.context || {}));
+    if (body.action === "ms_status") {
+      const { data } = await msAdmin().from("gvc_ms").select("email,updated_at").eq("id", "main").maybeSingle();
+      return json({ connected: !!data, email: data?.email || "", ready: !!Deno.env.get("MS_CLIENT_ID") });
+    }
+    if (body.action === "ms_start") {
+      if (!Deno.env.get("MS_CLIENT_ID")) return json({ error: "Outlook isn't set up on the server yet (MS_CLIENT_ID missing)" }, 400);
+      const state = crypto.randomUUID();
+      const { error } = await msAdmin().from("gvc_ms_state").insert({ state });
+      if (error) return json({ error: error.message }, 500);
+      const q = new URLSearchParams({ client_id: Deno.env.get("MS_CLIENT_ID")!, response_type: "code", redirect_uri: MS_REDIRECT, response_mode: "query", scope: "offline_access Mail.ReadWrite User.Read", state, prompt: "select_account", login_hint: "kyle.gvc@hotmail.com" });
+      return json({ url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?" + q.toString() });
+    }
 
     if (body.action === "recording") {
       const { data: rows } = await sb.from("gvc_jobs").select("id,data");
