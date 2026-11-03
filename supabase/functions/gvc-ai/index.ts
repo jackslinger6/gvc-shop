@@ -168,6 +168,20 @@ const CHAT_TOOLS = [
     input_schema: { type: "object", properties: { name: { type: "string", description: "Specific name, e.g. 'T91 flux core .045', 'ER70S-6 hard wire .035', 'Contact tips .035 (Miller)'" }, category: { type: "string", enum: ["Welding wire", "Contact tips", "Nozzles & diffusers", "Gas", "Grinding & cutting discs", "Rod", "Safety", "Other"] }, unit: { type: "string", description: "spools, boxes, each, bottles, packs..." }, qty: { type: "number", description: "How many there are right now (this records a count)" }, min_qty: { type: "number", description: "Order more when it gets down to this" }, notes: { type: "string" } }, required: ["name"] } },
   { name: "save_app_note", description: "Save a feature request, change, or bug report about THIS APP for Kyle to build with Claude Code at home. Use once you and Kyle have talked it through enough that someone could build it. Write details as a clear spec: the problem, how it should work step by step, any examples Kyle gave.",
     input_schema: { type: "object", properties: { kind: { type: "string", enum: ["idea", "change", "bug"], description: "idea = new feature, change = existing feature should work differently, bug = something broken" }, area: { type: "string", description: "Part of the app, e.g. To do, Week planner, My time, NCRs, Inventory, Chat, Recording, Texts, Email, Job card" }, title: { type: "string", description: "Short name, under 60 chars" }, details: { type: "string" } }, required: ["kind", "title", "details"] } },
+  { name: "add_ncr", description: "Log an NCR (non-conformance) on a job right away: something designed, ordered or built wrong, a supplier/material problem, or a customer change that means rework. Rework steps become job tasks tagged to the NCR (they land in Not scheduled on the week planner). Set model_revision when the engineer's model/drawings need changing too - that adds a model revision for Jessie, linked to the NCR.",
+    input_schema: { type: "object", properties: { job_id: { type: "string" }, what: { type: "string", description: "What went wrong, one short line, e.g. 'Bottom door flange hits the Rat Pack'" },
+      type: { type: "string", enum: ["Design / drawing", "Ordered wrong", "Built wrong", "Supplier / material", "Customer change", "Other"] },
+      fix: { type: "string", enum: ["Rework", "Scrap and remake", "Use as is", "Deciding"], description: "Deciding if Kyle hasn't decided yet" },
+      decision: { type: "string", description: "What was decided, if Kyle said" },
+      steps: { type: "array", items: { type: "object", properties: { name: { type: "string" }, h: { type: "number", description: "hours, if Kyle gave them" } }, required: ["name"] } },
+      mat: { type: "number", description: "Extra material cost in dollars, if known" },
+      model_revision: { type: "string", description: "If the model/drawings need changing: what Jessie should change (one line). Leave out otherwise." },
+      part: { type: "string", description: "Part number or name the revision is about, if known" } }, required: ["job_id", "what", "type"] } },
+  { name: "update_ncr", description: "Change an existing NCR on a job: set the fix or the decision, add rework steps, set material $, or close/reopen it. Use the NCR number (n) from the job's ncrs list.",
+    input_schema: { type: "object", properties: { job_id: { type: "string" }, n: { type: "number" }, fix: { type: "string", enum: ["Rework", "Scrap and remake", "Use as is", "Deciding"] }, decision: { type: "string" },
+      add_steps: { type: "array", items: { type: "object", properties: { name: { type: "string" }, h: { type: "number" } }, required: ["name"] } }, mat: { type: "number" }, closed: { type: "boolean" } }, required: ["job_id", "n"] } },
+  { name: "add_revision", description: "Add a model revision for Jessie (the engineer): something to change in his model or drawings. kind fix = it didn't fit/work; improvement = works, but better next time. Link it to an NCR number if there is one.",
+    input_schema: { type: "object", properties: { job_id: { type: ["string", "null"] }, what: { type: "string" }, part: { type: "string" }, kind: { type: "string", enum: ["fix", "improvement"] }, ncr: { type: "number" } }, required: ["what"] } },
   { name: "update_app_note", description: "Add to or rewrite an app note that's already saved (use the id from the saved notes list) instead of saving a duplicate.",
     input_schema: { type: "object", properties: { id: { type: "string" }, details: { type: "string", description: "The full updated spec" }, title: { type: "string" } }, required: ["id", "details"] } },
 ];
@@ -180,14 +194,16 @@ async function chat(sb: any, msgs: any[], ctx: any = {}) {
     sb.from("gvc_feedback").select("id,kind,area,title,status").in("status", ["new", "planned"]).order("created_at"),
   ]);
   const jobs = (rows || []).map(({ id, data: j }: any) => ({ ...compactJobs([{ id, data: j }])[0], recent_log: (j.log || []).slice(-6).map((l: any) => (l.at || "").slice(0, 10) + " " + l.text),
-    tasks: (j.assemblies || []).map((a: any) => ({ name: a.name, status: a.status, who: a.who || "unassigned" })) }));
+    tasks: (j.assemblies || []).map((a: any) => ({ name: a.name, status: a.status, who: a.who || "unassigned", ncr: a.ncr || undefined })),
+    ncrs: (j.ncrs || []).map((x: any) => ({ n: x.n, what: x.what, type: x.type, fix: x.fix, decision: x.decision || undefined, closed: !!x.closed })) }));
   const system = `You are the assistant inside Kyle's GVC Shop app. Kyle is a Red Seal welder and shop lead at Gordeyville Customs in Grande Prairie, Alberta (custom truck decks, BBQ trailers, service bodies). Talk like a helpful coworker: short, plain, no fluff.
 People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
-You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, clear_reminder, create_job and add_tasks act right away; propose_update sends a change to an existing job to Kyle's review list (never claim that change was made - say it's waiting for him to accept).
+You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, clear_reminder, create_job, add_tasks, add_ncr, update_ncr and add_revision act right away; propose_update sends a change to an existing job to Kyle's review list (never claim that change was made - say it's waiting for him to accept).
 HARD RULES ABOUT DOING THINGS: nothing happens unless you call a tool and its result says ok. Never say "done", "doing it now" or "I'll take care of it" unless the tool result for that exact thing came back ok. If a tool result starts with "error", tell Kyle it failed and why. Things you have NO tool for - say so plainly in one line and tell him where to do it himself: logging or changing his hours (My time tab), scheduling or moving tasks onto days or people (Jobs > Crew & week plan), reading or sending email, accepting suggestions in his review list, changing job stages directly (use propose_update). Don't pretend. When Kyle lists several things in one message, go through every one: call the tools you can, and for each thing you can't do, say that in the reply.
 Every job name starts with its job number, like "2011G - Kirby Controls Enclosure" (G, PT, BQ, DT suffixes). When Kyle asks for a new job and hasn't given the number, ask for it once; if he doesn't know it yet, create it without one (the app flags it).
 When Kyle asks for a new job, use create_job (not propose_update) and put all the work steps he mentioned in it as tasks, in one go - don't make him ask twice. Tasks automatically show up in the Not scheduled pool on the Crew tab's week planner, grouped by job, so he can drag them onto people's days. Who on a task is just a suggestion until he schedules it.
+NCRs: when Kyle says something was designed, ordered or built wrong (or a supplier/material problem, or a customer change that means rework), log it with add_ncr on that job - type, fix (Deciding if he hasn't decided), any rework steps with hours, material $ if he says. If the model or drawings need changing too, fill model_revision so Jessie gets it. Use update_ncr to record a decision, add steps, or close one. NCR numbers are shown as NCR-001 etc.
 Each job can have tasks (work steps) with who and status: bend=waiting on bending, ready=ready to start, prog=in progress, qc=inspection, done. Use add_tasks to add steps to an existing job.
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}
@@ -282,6 +298,51 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           if (ex) { const { error } = await sb.from("gvc_consumables").update(patch).eq("id", ex.id); if (error) throw error; }
           else { const { error } = await sb.from("gvc_consumables").insert({ name: nm, category: "Other", ...patch }); if (error) throw error; }
           actions.push(`${ex ? "Updated" : "Added"} consumable: ${nm}${u.input.qty != null ? ` (${u.input.qty}${u.input.unit ? " " + u.input.unit : ""})` : ""}${u.input.min_qty != null ? `, keep ${u.input.min_qty}` : ""}`);
+        } else if (u.name === "add_ncr" || u.name === "update_ncr") {
+          const { data: row, error: e1 } = await sb.from("gvc_jobs").select("id,data").eq("id", u.input.job_id).single();
+          if (e1 || !row) throw new Error("job not found");
+          const d = row.data || {}; d.ncrs = d.ncrs || []; const now = new Date().toISOString();
+          let n: number, label: string;
+          if (u.name === "add_ncr") {
+            const { data: all } = await sb.from("gvc_jobs").select("data");
+            n = (all || []).reduce((m: number, r: any) => Math.max(m, ...((r.data?.ncrs || []).map((x: any) => x.n || 0))), 0) + 1;
+            d.ncrs.push({ n, what: u.input.what, type: u.input.type || "Other", fix: u.input.fix || "Deciding", mat: u.input.mat || 0, closed: false, at: now, ...(u.input.decision ? { decision: u.input.decision } : {}) });
+            label = `NCR-${String(n).padStart(3, "0")} logged: ${u.input.what} (Ask Claude)`;
+          } else {
+            n = Number(u.input.n); const x = d.ncrs.find((y: any) => y.n === n); if (!x) throw new Error(`no NCR-${String(n).padStart(3, "0")} on this job`);
+            if (u.input.fix) x.fix = u.input.fix; if (u.input.decision) x.decision = u.input.decision; if (u.input.mat != null) x.mat = u.input.mat; if (u.input.closed != null) x.closed = !!u.input.closed;
+            label = `NCR-${String(n).padStart(3, "0")} updated${u.input.fix ? ": " + u.input.fix : ""}${u.input.decision ? " - " + u.input.decision : ""}${u.input.closed ? " (closed)" : ""} (Ask Claude)`;
+          }
+          const steps = (u.input.steps || u.input.add_steps || []).filter((t: any) => t && t.name);
+          const add = steps.map((t: any) => ({ id: crypto.randomUUID().slice(0, 8), name: t.name, meta: "", status: "ready", who: "", final: false, ncr: n, _h: t.h }));
+          d.assemblies = [...(d.assemblies || []), ...add.map(({ _h, ...a }: any) => a)];
+          d.log = [...(d.log || []), { at: now, text: label }];
+          const { error: e2 } = await sb.from("gvc_jobs").update({ data: d }).eq("id", row.id);
+          if (e2) throw e2;
+          // rework hours go in the week plan's hour estimates
+          const hrs = add.filter((a: any) => a._h != null);
+          if (hrs.length) {
+            for (let tries = 0; tries < 3; tries++) {
+              const { data: pl } = await sb.from("gvc_plan").select("data,updated_at").eq("id", "main").maybeSingle();
+              if (!pl) break; const pd = pl.data || {}; pd.hours = pd.hours || {};
+              hrs.forEach((a: any) => { pd.hours[`j:${row.id}:${a.id}`] = a._h; });
+              const { data: up } = await sb.from("gvc_plan").update({ data: pd, updated_at: new Date().toISOString() }).eq("id", "main").eq("updated_at", pl.updated_at).select("updated_at");
+              if (up && up.length) break;
+            }
+          }
+          const tagN = `NCR-${String(n).padStart(3, "0")}`;
+          let rev = "";
+          if (u.name === "add_ncr" && u.input.model_revision) {
+            const { data: r, error: e3 } = await sb.from("gvc_revisions").insert({ job_id: row.id, part: u.input.part || null, what: u.input.model_revision, kind: "fix", ncr: n }).select("n").single();
+            if (e3) throw new Error("NCR saved, but the model revision failed: " + e3.message);
+            rev = ` + model revision REV-${String(r.n).padStart(3, "0")} for Jessie`;
+          }
+          res = `ok ${tagN}`;
+          actions.push(`${u.name === "add_ncr" ? "Logged" : "Updated"} ${tagN} on ${d.name}${add.length ? ` with ${add.length} rework step${add.length > 1 ? "s" : ""} (in Not scheduled)` : ""}${rev}`);
+        } else if (u.name === "add_revision") {
+          const { data: r, error } = await sb.from("gvc_revisions").insert({ job_id: u.input.job_id || null, part: u.input.part || null, what: u.input.what, kind: u.input.kind || "improvement", ncr: u.input.ncr || null }).select("n").single();
+          if (error) throw error;
+          actions.push(`Added model revision REV-${String(r.n).padStart(3, "0")} for Jessie: ${u.input.what}`);
         } else if (u.name === "save_app_note") {
           const said = messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-6).map((m: any) => "Kyle: " + m.content).join("\n");
           const { error } = await sb.from("gvc_feedback").insert({ kind: u.input.kind || "idea", area: u.input.area || null, title: String(u.input.title).slice(0, 120), details: u.input.details, conversation: said.slice(0, 6000) });
