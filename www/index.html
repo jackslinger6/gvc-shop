@@ -1131,7 +1131,7 @@ async function sendChat(){
     const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"chat",messages:hist,context:{todo_tab:[...autoTodos().map(t=>"[board reminder] "+t.text),...(window.planLines?window.planLines():[]),...(window.ncrLines?window.ncrLines():[]),...(window.revLines?window.revLines():[]),...(window.consLines?window.consLines():[]),...todos.filter(t=>!t.done_at&&t.source!=="auto").map(t=>"[to-do] "+t.text+(t.from_name?" (from "+t.from_name+")":""))],waiting_review:suggs.filter(x=>x.status==="new").map(x=>x.summary),flat_to_bend:parts.filter(p=>p.stock_flat>0).map(p=>p.stock_flat+" x "+p.name+" ("+p.part_no+")")}}});
     if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
     (data.actions||[]).forEach(a=>chatMsgs.push({role:"act",content:a}));
-    chatMsgs.push({role:"assistant",content:data.reply||"Done."});
+    chatMsgs.push({role:"assistant",content:data.reply||((data.actions||[]).length?"Done - see above.":"I didn't change anything.")});
     if((data.actions||[]).length) loadSide();
   }catch(e){ chatMsgs.push({role:"assistant",content:"Sorry - something went wrong: "+(e.message||e)}); }
   chatBusy=false; chatMsgs=chatMsgs.slice(-40); LS.set("gvc_chat",chatMsgs); drawChat();

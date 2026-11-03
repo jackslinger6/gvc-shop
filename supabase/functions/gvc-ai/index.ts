@@ -155,7 +155,8 @@ async function transcribe(sb: any, path: string, hint: string) {
 const ITEM = (TOOL.input_schema.properties.suggestions as any).items;
 const CHAT_TOOLS = [
   { name: "add_todo", description: "Add a to-do to Kyle's list right away.", input_schema: { type: "object", properties: { text: { type: "string" }, job_id: { type: ["string", "null"] } }, required: ["text"] } },
-  { name: "complete_todo", description: "Mark one of Kyle's open to-dos done, by its id.", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "complete_todo", description: "Mark one of Kyle's own to-dos done, by its id (only to-dos from the 'open to-dos' list - board reminders have no id, use clear_reminder for those).", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "clear_reminder", description: "Hide a [board reminder] from Kyle's To do tab (the auto ones like 'Give work to Aaron', 'Look over new job: ...', 'Log your time ...'). Pass the reminder text exactly as it appears in the To do tab list, without the [board reminder] prefix. It comes back on its own if the situation changes.", input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
   { name: "add_tasks", description: "Add tasks (work steps) to a job right away so Kyle can assign and check them off. Use short task names in shop language. who = crew names doing it (Kyle, Colton, Aaron, Cooper) or empty.",
     input_schema: { type: "object", properties: { job_id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } }, last_waits_for_rest: { type: "boolean" } }, required: ["job_id", "tasks"] } },
   { name: "create_job", description: "Create a new job on the board right away, with its tasks, when Kyle asks for one. The tasks land in the Not scheduled pool of the week planner so Kyle can drag them onto people's days. Include every work step Kyle mentioned.",
@@ -183,7 +184,8 @@ async function chat(sb: any, msgs: any[], ctx: any = {}) {
   const system = `You are the assistant inside Kyle's GVC Shop app. Kyle is a Red Seal welder and shop lead at Gordeyville Customs in Grande Prairie, Alberta (custom truck decks, BBQ trailers, service bodies). Talk like a helpful coworker: short, plain, no fluff.
 People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
-You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, create_job and add_tasks act right away; propose_update sends a change to an existing job to Kyle's review list (never claim that change was made - say it's waiting for him to accept).
+You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, clear_reminder, create_job and add_tasks act right away; propose_update sends a change to an existing job to Kyle's review list (never claim that change was made - say it's waiting for him to accept).
+HARD RULES ABOUT DOING THINGS: nothing happens unless you call a tool and its result says ok. Never say "done", "doing it now" or "I'll take care of it" unless the tool result for that exact thing came back ok. If a tool result starts with "error", tell Kyle it failed and why. Things you have NO tool for - say so plainly in one line and tell him where to do it himself: logging or changing his hours (My time tab), scheduling or moving tasks onto days or people (Jobs > Crew & week plan), reading or sending email, accepting suggestions in his review list, changing job stages directly (use propose_update). Don't pretend. When Kyle lists several things in one message, go through every one: call the tools you can, and for each thing you can't do, say that in the reply.
 Every job name starts with its job number, like "2011G - Kirby Controls Enclosure" (G, PT, BQ, DT suffixes). When Kyle asks for a new job and hasn't given the number, ask for it once; if he doesn't know it yet, create it without one (the app flags it).
 When Kyle asks for a new job, use create_job (not propose_update) and put all the work steps he mentioned in it as tasks, in one go - don't make him ask twice. Tasks automatically show up in the Not scheduled pool on the Crew tab's week planner, grouped by job, so he can drag them onto people's days. Who on a task is just a suggestion until he schedules it.
 Each job can have tasks (work steps) with who and status: bend=waiting on bending, ready=ready to start, prog=in progress, qc=inspection, done. Use add_tasks to add steps to an existing job.
@@ -202,19 +204,26 @@ When Kyle wants something the app doesn't do, wants a feature to work differentl
 App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x.id, kind: x.kind, area: x.area, title: x.title, status: x.status })))}`;
   const messages: any[] = msgs.slice(-20).map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 8000) }));
   const actions: string[] = [];
+  const failed: string[] = [];
   let n = 0;
-  for (let turn = 0; turn < 4; turn++) {
+  const wrapUp = (text: string) => {
+    let reply = (text || "").trim();
+    if (!reply) reply = actions.length ? "Done - see the list above." : failed.length ? "I couldn't do that." : "I didn't change anything.";
+    if (failed.length && !/couldn't|failed|error/i.test(reply)) reply += "\n\nCouldn't do: " + failed.join("; ");
+    return { reply, actions };
+  };
+  for (let turn = 0; turn < 6; turn++) {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, tools: CHAT_TOOLS, messages }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 4000, system, tools: CHAT_TOOLS, messages }),
     });
     if (!r.ok) throw new Error("Claude API " + r.status + ": " + (await r.text()).slice(0, 300));
     const out = await r.json();
     const uses = (out.content || []).filter((c: any) => c.type === "tool_use");
     if (!uses.length || out.stop_reason !== "tool_use") {
       const text = (out.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n").trim();
-      return { reply: text, actions };
+      return wrapUp(text);
     }
     messages.push({ role: "assistant", content: out.content });
     const results: any[] = [];
@@ -225,8 +234,17 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           const { error } = await sb.from("gvc_todos").insert({ text: u.input.text, job_id: u.input.job_id || null, source: "chat", from_name: "Chat" });
           if (error) throw error; actions.push("Added to-do: " + u.input.text);
         } else if (u.name === "complete_todo") {
+          const td = (todos || []).find((t: any) => t.id === u.input.id);
+          if (!td) throw new Error("no open to-do with that id - board reminders have no id, use clear_reminder with the reminder text");
           const { error } = await sb.from("gvc_todos").update({ done_at: new Date().toISOString() }).eq("id", u.input.id);
-          if (error) throw error; actions.push("Marked done: " + ((todos || []).find((t: any) => t.id === u.input.id)?.text || "to-do"));
+          if (error) throw error; actions.push("Marked done: " + td.text);
+        } else if (u.name === "clear_reminder") {
+          const want = String(u.input.text || "").replace(/^\[board reminder\]\s*/i, "").trim();
+          const list = (ctx.todo_tab || []).filter((x: any) => typeof x === "string" && x.startsWith("[board reminder] ")).map((x: string) => x.slice("[board reminder] ".length));
+          const hit = list.find((x: string) => x === want) || list.find((x: string) => x.toLowerCase() === want.toLowerCase()) || (list.filter((x: string) => x.toLowerCase().includes(want.toLowerCase())).length === 1 ? list.find((x: string) => x.toLowerCase().includes(want.toLowerCase())) : null);
+          if (!hit) throw new Error("no board reminder matches '" + want + "' - reminders on the tab right now: " + list.join(" | "));
+          const { error } = await sb.from("gvc_todos").insert({ text: hit, source: "auto", done_at: new Date().toISOString() });
+          if (error) throw error; actions.push("Cleared reminder: " + hit);
         } else if (u.name === "add_tasks") {
           const { data: row, error: e1 } = await sb.from("gvc_jobs").select("id,data").eq("id", u.input.job_id).single();
           if (e1 || !row) throw new Error("job not found");
@@ -273,12 +291,12 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           const { error } = await sb.from("gvc_feedback").update(upd).eq("id", u.input.id);
           if (error) throw error; actions.push("Updated app note: " + (u.input.title || ((notes || []).find((x: any) => x.id === u.input.id)?.title) || "note"));
         } else res = "unknown tool";
-      } catch (e) { res = "error: " + ((e as any).message || e); }
+      } catch (e) { res = "error: " + ((e as any).message || e); failed.push(`${u.name}${u.input?.text ? " (" + String(u.input.text).slice(0, 60) + ")" : ""}: ${(e as any).message || e}`); }
       results.push({ type: "tool_result", tool_use_id: u.id, content: res });
     }
     messages.push({ role: "user", content: results });
   }
-  return { reply: "Done.", actions };
+  return wrapUp("");
 }
 
 Deno.serve(async (req) => {
