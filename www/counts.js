@@ -224,6 +224,7 @@ async function finish(){
       const myMiss=mine.filter(i=>got(i)<(i.qty||0)).map(i=>`${i.part_no||i.name} (${got(i)} of ${i.qty})`).join(", ");
       if(sup){ sup.status="received"; sup.updated=now; sup.receivedAt=now; if(myMiss) sup.note=((sup.note?sup.note+" | ":"")+"Short: "+myMiss).slice(0,1000); }
       j.log=[...(j.log||[]),{at:now,text:`Counted ${sup?sup.name:"order"}${sup&&sup.quoteNo?" #"+sup.quoteNo:""}: ${gt} of ${pcs} pcs${myMiss?" - short: "+myMiss:" - all here"}${st.sets.length>1?" (combined order with "+st.sets.filter((_,x)=>x!==g).map(o=>jobOf(o.jobId).name).join(", ")+")":""}`}];
+      if(window.autoToShop) window.autoToShop(j);
       await sb.from("gvc_counts").update({done_at:now}).eq("job_id",S.jobId).eq("sup_id",S.supId);
       if(!await put(j,`Counted ${sup?sup.name:"order"} - ${j.name}`)) ok=false;
     }

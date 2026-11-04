@@ -417,6 +417,15 @@ const offOrders=j=>offStage(j)?(j.suppliers||[]).filter(x=>ACTIVE(x)&&SUP_COL[x.
 /* a job sitting in the Received stage drops off the board the day after everything came in */
 const recvStale=j=>j.stage==="recv"&&!(j.suppliers||[]).filter(ACTIVE).some(x=>x.status!=="received"||recvToday(x));
 const onOrdersBoard=j=>(ORDER_STAGES.includes(j.stage)&&!recvStale(j))||offOrders(j).length>0;
+/* when the last open order on a job is counted / marked received, the job moves to the Shop floor (Fabrication).
+   Not for the standing INV job. Returns true if it moved. (Kyle, 2026-11-04) */
+window.autoToShop=j=>{
+  if(!j||!ORDER_STAGES.includes(j.stage)||j.id==="inventory"||/^INV\b/i.test(j.name||"")) return false;
+  const act=(j.suppliers||[]).filter(ACTIVE);
+  if(!act.length||!act.every(x=>x.status==="received")) return false;
+  j.stage="fab"; j.log=[...(j.log||[]),{at:new Date().toISOString(),text:"All orders received - moved to Shop floor (Fabrication)."}];
+  return true;
+};
 let db=null, jobs=[], archivedJobs=[], todos=[], suggs=[], openId=null, cur="todo";
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -667,7 +676,9 @@ function drawDlg(){
 function collect(){
   const j=structuredClone(job());
   j.name=$("#fName").value.trim()||j.name; j.folder=$("#fFolder").value.trim(); j.summary=$("#fSum").value.trim(); j.stage=$("#fStage").value;
-  $("#dlg").querySelectorAll("[data-f]").forEach(el=>{const x=j.suppliers[+el.dataset.i];const f=el.dataset.f;if((x[f]||"")!==el.value){x[f]=el.value;x.updated=new Date().toISOString();if(f==="status"&&el.value==="received") x.receivedAt=x.updated;}});
+  $("#dlg").querySelectorAll("[data-f]").forEach(el=>{const x=j.suppliers[+el.dataset.i];const f=el.dataset.f;if((x[f]||"")!==el.value){x[f]=el.value;x.updated=new Date().toISOString();if(f==="status"&&el.value==="received"){ x.receivedAt=x.updated; j._newRecv=true; }}});
+  if(j._newRecv){ delete j._newRecv; if(window.autoToShop(j)) j._moved=true; }
+  if(j._moved){ delete j._moved; const fs=$("#fStage"); if(fs) fs.value=j.stage; }
   return j;
 }
 async function put(j,label){
