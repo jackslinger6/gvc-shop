@@ -153,10 +153,15 @@ let mc=null;
 function MC(){ if(!mc){ const M=model(); mc={M,R:compute(M)}; } return mc; }
 function model(){
   const T={};
-  jobs.filter(j=>j.stage!=="done").forEach(j=>(j.assemblies||[]).forEach(a=>{ if(!a.id) return; const key="j:"+j.id+":"+a.id;
+  // Finished jobs (Done, or archived) keep their tasks on the days they were scheduled, shown as done, so the
+  // week still shows what everyone worked on. They never go back in the pool. (Kyle, 2026-11-04)
+  const placedKeys=new Set(); Object.values(plan.sched||{}).forEach(pd=>Object.values(pd||{}).forEach(l=>(l||[]).forEach(k=>placedKeys.add(k))));
+  const arch=(typeof archivedJobs!=="undefined"&&Array.isArray(archivedJobs))?archivedJobs.filter(a=>!jobs.some(j=>j.id===a.id)):[];
+  [...jobs,...arch].forEach(j=>{ const fin=j.stage==="done"||!!j.archived; (j.assemblies||[]).forEach(a=>{ if(!a.id) return; const key="j:"+j.id+":"+a.id;
+    if(fin&&!placedKeys.has(key)) return;
     const sx=SIDX[j.stage]??0, stg=STAGES[sx];
     const why=a.status==="bend"?"Waiting on bending":finalLocked(j,a)?"Waits for the other tasks":(stg&&stg.board!=="build"&&!["arrived","recv"].includes(j.stage))?`Parts not in yet (${stg.t})`:"";
-    T[key]={key,jid:j.id,aid:a.id,job:j.name,stageIdx:sx,why,name:a.name,ncr:a.ncr||null,h:plan.hours[key]??null,who:whoList(a),needs:(plan.needs[key]||[]).slice(),done:a.status==="done",color:jobColor(j.id)}; }));
+    T[key]={key,jid:j.id,aid:a.id,job:j.name,stageIdx:sx,why,name:a.name,ncr:a.ncr||null,h:plan.hours[key]??null,who:whoList(a),needs:(plan.needs[key]||[]).slice(),done:fin||a.status==="done",fin,color:jobColor(j.id)}; }); });
   Object.entries(plan.extra||{}).forEach(([id,x])=>{ const key="x:"+id;
     T[key]={key,xid:id,job:x.job||"Other",name:x.name,h:x.h??null,who:(x.who||[]).slice(),needs:(plan.needs[key]||[]).slice(),done:!!x.done,at:x.at??null,errand:!!x.errand,color:x.errand?ERR_C:"#8e96a3"}; });
   const S={}; CREW.forEach(p=>{ S[p]={}; const src=(plan.sched||{})[p]||{}; for(const d in src){ const l=(src[d]||[]).filter(k=>T[k]&&T[k].who.includes(p)); if(l.length) S[p][d]=l; } });
