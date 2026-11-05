@@ -303,16 +303,7 @@ function renderHome(){
         <div class="qs">${quests.map(t=>`<button class="q" type="button" style="--c:#ffd28a" data-q="${t.id}"><i></i><span>${esc(t.text)}</span><em>${t.job_id?esc((jobNum(jname(t.job_id))||"JOB")):"MINE"}</em></button>`).join("")||`<div class="tnote">No to-dos of your own. Board reminders are in Next up.</div>`}</div>
       </section>
     </div>
-    <section aria-label="Active jobs" class="ajs">
-      <h4><span>ACTIVE JOBS · ${act.length}</span><button type="button" id="shJobs">Boards</button></h4>
-      ${act.length?BOARDS.map(bd=>{ const L=act.filter(j=>stOf(j).board===bd.k); if(!L.length) return "";
-        return `<div class="ajg"><div class="ajh" style="--c:${bd.c}">${esc(bd.t.toUpperCase())} · ${L.length}</div>${L.map(j=>{ const st=stOf(j), a=j.assemblies||[], dn=a.filter(x=>x.status==="done").length, num=jobNum(j.name), nm=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"")||j.name:j.name;
-          const who=[...new Set(a.filter(x=>x.status!=="done").flatMap(x=>whoList(x)))];
-          const att=typeof needsAttention==="function"&&needsAttention(j);
-          return `<button class="aj" type="button" data-aj="${esc(j.id)}" style="--c:${st.c}">${num?`<span class="ajn">${esc(num)}</span>`:`<span class="ajn none">NO #</span>`}<span class="ajt">${esc(nm)}</span><span class="ajs2">${esc(st.t)}${a.length?` · ${dn}/${a.length} tasks`:""}${who.length?` · ${esc(who.join(", "))}`:""}</span>${att?`<i class="ajd" title="Needs attention"></i>`:""}</button>`; }).join("")}</div>`; }).join(""):`<div class="tnote">No active jobs.</div>`}
-    </section></div>`;
-  B.querySelectorAll("[data-aj]").forEach(b=>b.onclick=()=>openJob(b.dataset.aj));
-  { const sj=$("#shJobs"); if(sj) sj.onclick=()=>go(lastJobs()); }
+  </div>`;
   const trk=$("#nuTrk");
   if(trk){
     const dots=()=>{ const i=Math.round(trk.scrollLeft/Math.max(1,trk.clientWidth)); nuIdx=i; $("#nuDots").querySelectorAll("i").forEach((d,k)=>d.classList.toggle("on",k===i)); const of=$("#nuOf"); if(of) of.textContent=`${i+1} OF ${items.length}`; };
@@ -342,7 +333,7 @@ render=function(){
     if(lastView!==cur){ const B=$("#board"); if(B){ B.classList.remove("shanim"); void B.offsetWidth; B.classList.add("shanim"); } }
   }
   lastView=cur;
-  const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",SECT(cur)!=="jobs");
+  const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",!["jobs","home"].includes(SECT(cur)));  // All jobs stage track also on Home (Kyle, 2026-11-04)
   // nav state + badges
   const s=SECT(cur); nav.querySelectorAll("[data-n]").forEach(b=>b.classList.toggle("on",b.dataset.n===s));
   const d=new Date(); $("#shDate").textContent=d.toLocaleDateString("en-CA",{weekday:"short",month:"short",day:"numeric"}).toUpperCase();
