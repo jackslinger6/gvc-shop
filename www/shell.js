@@ -379,13 +379,15 @@ function moreMenu(){
 
 /* ---- quick-action wheel ---- */
 const ACTS=[["rec","RECORD","rec","#e5483b"],["count","COUNT","count","#f5b041"],["quick","QUICK JOB","bolt","#22c3e6"],["time","LOG TIME","clock","#3ad06b"],["todo","ADD TO-DO","check","#5aa7f3"],["chat","ASK CLAUDE","chat","#ff8a2a"]];
+// phone app only: Check texts on the wheel too (it also stays on the To do tab) (Kyle, 2026-11-04)
+const ACTL=()=>ACTS.concat(typeof Native!=="undefined"&&Native?[["sms","CHECK TEXTS","chat","#9b7bff"]]:[]);
 const plus=$("#shPlus"); let whl=null, hot=null;
 function wheelOpen(){
   if(whl) return; const r=plus.getBoundingClientRect(); const phone=innerWidth<900;
   const cx=phone?innerWidth/2:innerWidth/2+46, cy=phone?Math.min(innerHeight-250,r.top-150):innerHeight/2;
   whl=document.createElement("div"); whl.className="whl";
   const R=118; whl.innerHTML=`<div class="hint" style="top:${cy-200}px">Tap one - or hold the + and slide to it</div><div class="ring" style="left:${cx}px;top:${cy}px"></div>`+
-    ACTS.map(([k,t,i,c],n)=>{ const a=(-90+n*60)*Math.PI/180; return `<button class="it" type="button" data-w="${k}" style="left:${cx}px;top:${cy}px;--x:${Math.round(R*Math.cos(a))}px;--y:${Math.round(R*Math.sin(a))}px;--c:${c};--d:${n*30}ms"><span class="c">${svg(i,c,28)}</span>${t}</button>`; }).join("")+
+    ACTL().map(([k,t,i,c],n,L)=>{ const a=(-90+n*360/L.length)*Math.PI/180; return `<button class="it" type="button" data-w="${k}" style="left:${cx}px;top:${cy}px;--x:${Math.round(R*Math.cos(a))}px;--y:${Math.round(R*Math.sin(a))}px;--c:${c};--d:${n*30}ms"><span class="c">${svg(i,c,28)}</span>${t}</button>`; }).join("")+
     `<button class="ctr" type="button" aria-label="Close" style="left:${cx}px;top:${cy}px">${svg("plus","#111",26,2.6).replace("<path",'<path transform="rotate(45 12 12)"')}</button>`;
   document.body.appendChild(whl); plus.classList.add("open"); requestAnimationFrame(()=>whl.classList.add("on"));
   whl.onclick=e=>{ const b=e.target.closest("[data-w]"); if(b){ wheelClose(); act(b.dataset.w); } else wheelClose(); };
@@ -403,6 +405,7 @@ function act(k){
   if(k==="time") return go("time");
   if(k==="todo") return addTodoSheet();
   if(k==="quick") return quickJob();
+  if(k==="sms"){ go("todo"); return setTimeout(()=>{ const b=document.getElementById("smsNow"); if(b) b.click(); },200); }
   if(k==="count"){
     const t=(typeof liveAuto==="function"?liveAuto():[]).find(x=>x.count);
     if(t&&window.openCount) return window.openCount(t.job,t.count);
