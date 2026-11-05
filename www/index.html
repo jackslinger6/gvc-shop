@@ -806,9 +806,20 @@ function publishTodo(){
     let next=[];
     try{ if(window.shellNextUp) next=window.shellNextUp().map(t=>({text:t.text,tag:t.tag||"",c:cssCol(t.c),job:t.job||"",sub:t.sub||"",mine:!!t.mine,
       tab:t.view||(t.job?((stOf(jobs.find(x=>x.id===t.job)||{stage:"released"})||{}).board||"todo"):"todo")})); }catch(e){}
-    const key=JSON.stringify([items,next]);
+    // the week plan for the widget's Crew tab: today + the next 2 work days, per person, one row per job (with the
+    // carried-over pieces and done tasks greyed) - straight from the planner's own model so it matches the calendar
+    let crew=null;
+    try{ const G=window.gvcPlan; if(G&&G.loaded()){ const {M,R}=G.mc(); const days=[]; const x=new Date(); x.setHours(0,0,0,0);
+      for(let i=0;i<10&&days.length<3;i++,x.setDate(x.getDate()+1)){ const w=x.getDay(); if(w===0||w===6) continue; days.push(G.iso(x)); }
+      crew={days:days.map(d=>({d,label:G.dlabel(d),people:CREW.map(p=>{
+        const ids=(M.S[p]||{})[d]||[]; const by={}; let hrs=0;
+        ids.forEach(k=>{ const t=M.T[k], r=(R[p]||{})[k]; if(!t) return; const g=t.jid||("x:"+t.job); const o=by[g]=by[g]||{job:t.job,jid:t.jid||"",color:t.color||"#8e96a3",s:r?r.s:0,e:r?r.e:0,tasks:[],done:0,n:0};
+          if(r){ o.s=Math.min(o.s,r.s); o.e=Math.max(o.e,r.e); if(!t.done) hrs+=r.w; } o.n++; if(t.done) o.done++;
+          o.tasks.push((t.done?"✓ ":"")+(t.cont?"↳ ":"")+t.name+(t.who.length>1?" (with "+t.who.filter(w=>w!==p).join(", ")+")":"")); });
+        return {p,off:G.isOff(p,d),hrs:Math.round(hrs*4)/4,jobs:Object.values(by).map(o=>({job:o.job,jid:o.jid,color:o.color,time:o.n?G.clock(o.s)+"–"+G.clock(o.e):"",tasks:o.tasks,done:o.done===o.n}))}; })}))}; } }catch(e){ crew=null; }
+    const key=JSON.stringify([items,next,crew]);
     if(key===wsLast&&Date.now()-wsAt<20*60e3) return;
-    const r=await sb.from("gvc_widget_state").upsert({id:"todo",data:{items,next,review:suggs.filter(x=>x.status==="new").length},updated_at:new Date().toISOString()});
+    const r=await sb.from("gvc_widget_state").upsert({id:"todo",data:{items,next,crew,review:suggs.filter(x=>x.status==="new").length},updated_at:new Date().toISOString()});
     if(!r.error){ wsLast=key; wsAt=Date.now(); widgetRefresh(); }
   },2500);
 }

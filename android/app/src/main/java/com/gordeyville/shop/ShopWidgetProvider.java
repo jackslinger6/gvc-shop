@@ -18,9 +18,9 @@ import java.util.Locale;
 public class ShopWidgetProvider extends AppWidgetProvider {
     public static final String ACTION_TAB = "com.gordeyville.shop.WIDGET_TAB";
     public static final String ACTION_REFRESH = "com.gordeyville.shop.WIDGET_REFRESH";
-    static final int[] TAB_IDS = {R.id.tab_todo, R.id.tab_pipeline, R.id.tab_orders, R.id.tab_shop};
-    static final String[] TAB_LABELS = {"To do", "Pipeline", "Orders", "Shop"};
-    static final int[] TAB_ON = {R.drawable.widget_tab_on_todo, R.drawable.widget_tab_on_pipe, R.drawable.widget_tab_on_order, R.drawable.widget_tab_on_build};
+    static final int[] TAB_IDS = {R.id.tab_todo, R.id.tab_pipeline, R.id.tab_orders, R.id.tab_shop};   // tab_pipeline slot is the Crew tab now
+    static final String[] TAB_LABELS = {"To do", "Crew", "Orders", "Shop"};
+    static final int[] TAB_ON = {R.drawable.widget_tab_on_todo, R.drawable.widget_tab_on_crew, R.drawable.widget_tab_on_order, R.drawable.widget_tab_on_build};
 
     @Override
     public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
@@ -104,6 +104,7 @@ public class ShopWidgetProvider extends AppWidgetProvider {
             int n = 0;
             try { n = Integer.parseInt(c[i].trim()); } catch (Exception ignored) {}
             // the To do tab shows its item count; the boards show how many jobs need attention
+            if (i == 1) n = 0;   // Crew tab has no count
             String extra = n > 0 ? "  " + n : "";
             if (i == 0 && review > 0) extra += " ✉";
             v.setTextViewText(TAB_IDS[i], TAB_LABELS[i] + extra);

@@ -113,7 +113,7 @@
             android:layout_marginRight="5dp"
             android:gravity="center"
             android:background="@drawable/widget_tab_off"
-            android:text="Pipeline"
+            android:text="Crew"
             android:fontFamily="sans-serif-condensed"
             android:textStyle="bold"
             android:letterSpacing="0.08"

@@ -40,9 +40,9 @@ public final class Feed {
     public static final String EXTRA_TAB = "gvc_tab";
     public static final String EXTRA_JOB = "gvc_job";
 
-    public static final String[] TABS = {"todo", "pipeline", "orders", "shop"};
+    public static final String[] TABS = {"todo", "crew", "orders", "shop"};
     /** Which app view each widget tab opens. */
-    public static final String[] APP_TABS = {"todo", "pipeline", "ordering", "build"};
+    public static final String[] APP_TABS = {"todo", "crew", "ordering", "build"};
 
     static final String[][] PIPE = {{"released", "Released to me"}, {"drawings", "Check drawings"}, {"dxfs", "Make DXFs"}};
     static final String[][] ORDER = {{"prep", "Preparing order"}, {"quote", "Quote requested"}, {"prod", "In production"},
@@ -144,6 +144,9 @@ public final class Feed {
     static int stageIndex(String[][] list, String k) {
         for (int i = 0; i < list.length; i++) if (list[i][0].equals(k)) return i;
         return -1;
+    }
+    static int personColor(String p) {
+        switch (p) { case "Kyle": return 0xFF2F8FF0; case "Colton": return 0xFF3AD06B; case "Aaron": return 0xFFC9A46A; case "Cooper": return 0xFFE04FA0; default: return C_GRAY; }
     }
     static int stageColor(String k) { Integer c = STAGE_C.get(k); return c == null ? C_GRAY : c; }
 
@@ -514,12 +517,12 @@ public final class Feed {
         for (Row r : reminders) { if (!r.job.isEmpty()) liveJobs.add(r.job); if (r.title.startsWith("Assign ")) assignLive = true; }
 
         // ---- the app's own To do list (what its To do tab shows), if it's newer than the last board change (Nov 4) ----
-        JSONArray appItems = null, appNext = null;
+        JSONArray appItems = null, appNext = null; JSONObject appCrew = null;
         JSONObject appT = feed.optJSONObject("app_todo");
         if (appT != null) {
             long a = ts(appT.optString("at")), d = ts(feed.optString("data_at"));
             JSONObject dd = appT.optJSONObject("data");
-            if (dd != null && a > 0 && a + 3000 >= d) { appItems = dd.optJSONArray("items"); appNext = dd.optJSONArray("next"); }
+            if (dd != null && a > 0 && a + 3000 >= d) { appItems = dd.optJSONArray("items"); appNext = dd.optJSONArray("next"); appCrew = dd.optJSONObject("crew"); }
         }
 
         // ---- attention counts per tab ----
@@ -632,8 +635,38 @@ public final class Feed {
                     res.rows.add(r);
                 }
             }
+        } else if (tab.equals("crew") && appCrew != null) {
+            // the week plan as the app shows it: today + next 2 work days, per person, one row per job (Nov 4)
+            JSONArray days = appCrew.optJSONArray("days"); if (days == null) days = new JSONArray();
+            for (int di = 0; di < days.length(); di++) {
+                JSONObject day = days.optJSONObject(di); if (day == null) continue;
+                Row dh = header((di == 0 && day.optString("d").equals(todayIso()) ? "TODAY  ·  " : "") + day.optString("label").toUpperCase(Locale.CANADA), di == 0 ? 0xFFFF8A2A : C_TEXT);
+                res.rows.add(dh);
+                JSONArray people = day.optJSONArray("people"); if (people == null) continue;
+                for (int pi = 0; pi < people.length(); pi++) {
+                    JSONObject pp = people.optJSONObject(pi); if (pp == null) continue;
+                    String p = pp.optString("p"); int pc = personColor(p);
+                    JSONArray js = pp.optJSONArray("jobs"); int nj = js == null ? 0 : js.length();
+                    if (pp.optBoolean("off")) { Row r = header("   " + p + "  ·  day off", C_DIM); r.dim = true; r.bar = pc; res.rows.add(r); continue; }
+                    if (nj == 0) { Row r = header("   " + p + "  ·  nothing planned", C_DIM); r.dim = true; r.bar = pc; res.rows.add(r); continue; }
+                    double h = pp.optDouble("hrs", 0);
+                    res.rows.add(header("   " + p + "  ·  " + fh(h) + " / 8h", pc));
+                    for (int k = 0; k < nj; k++) {
+                        JSONObject o = js.optJSONObject(k); if (o == null) continue;
+                        boolean done = o.optBoolean("done");
+                        Row r = new Row(); r.tab = "crew"; r.job = o.optString("jid"); r.title = o.optString("job");
+                        r.dot = done ? 0xFF4A4F56 : hexColor(o.optString("color"), C_GRAY);
+                        r.badge = done ? "Done" : o.optString("time"); r.badgeColor = done ? C_GREEN : C_BLUE; r.pill = done ? R.drawable.pill_green : R.drawable.pill_blue;
+                        JSONArray ts = o.optJSONArray("tasks"); List<String> show = new ArrayList<>();
+                        if (ts != null) for (int t = 0; t < ts.length() && t < 5; t++) show.add(ts.optString(t));
+                        if (ts != null && ts.length() > 5) show.add("+ " + (ts.length() - 5) + " more");
+                        r.sub = String.join("\n", show);
+                        res.rows.add(r);
+                    }
+                }
+            }
         } else {
-            for (String[] s : BUILD) {
+            if (!tab.equals("crew")) for (String[] s : BUILD) {
                 if (s[0].equals("done")) continue;
                 List<JSONObject> list = inStage(jobs, s[0]);
                 if (list.isEmpty()) { res.rows.add(emptyHeader(s[1], stageColor(s[0]))); continue; }
@@ -661,7 +694,8 @@ public final class Feed {
                     res.rows.add(r);
                 }
             }
-            // ---- crew: today's plan per person (from the week planner) ----
+            // ---- crew: today's plan per person (from the week planner) - Crew tab, when the app hasn't sent its own ----
+            if (tab.equals("crew")) {
             String today = todayIso();
             int dow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK);
             boolean weekend = dow == Calendar.SATURDAY || dow == Calendar.SUNDAY;
@@ -741,6 +775,7 @@ public final class Feed {
                 r.dim = true; crew.add(r);
             }
             res.rows.addAll(crew);
+            }
         }
         return res;
     }
