@@ -102,6 +102,9 @@ body:has(.scrim.on) .shnav,body:has(.chatp.on) .shnav{display:none}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chips button{min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:500 15px Oswald,sans-serif;letter-spacing:.05em;cursor:pointer}
 .chips button.on{background:var(--orange);color:#111;border-color:var(--orange)}
+.talk{width:100%;min-height:54px;border-radius:14px;border:none;background:linear-gradient(180deg,#ff9a40,#e8711a);color:#111;font:600 16px Oswald,sans-serif;letter-spacing:.06em;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;margin:2px 0 14px;transition:transform .1s}
+.talk:active{transform:scale(.97)}
+.orl{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:0 0 12px}.orl:before,.orl:after{content:"";flex:1;height:1px;background:var(--line)}
 /* wheel */
 .whl{position:fixed;inset:0;z-index:90;background:rgba(5,6,8,0);transition:background .18s;touch-action:none}
 .whl.on{background:rgba(5,6,8,.8)}
@@ -166,6 +169,12 @@ top.querySelector("#shChat").onclick=()=>openChat();
 top.querySelector("#shBell").onclick=()=>go("todo");
 function note(m){ todoToast(m,null); const u=$("#toastUndo"); if(u) u.style.display="none"; }
 const upd=$("#updBtn"); if(upd) top.lastElementChild.prepend(upd);
+/* talk instead of typing: opens Ask Claude with a short instruction already in the box and starts the mic;
+   what Kyle says goes after it and is sent when he stops (Kyle, 2026-11-04) */
+function talk(prefix,close){ if(close) close(); openChat(); setTimeout(()=>{ const box=$("#chatIn"); if(box) box.value=prefix?prefix+" ":"";
+  if(typeof micStart==="function"&&!micOn) micStart(); },350); }
+window.shellTalk=talk;
+const TALKBTN=(id,label)=>`<button class="talk" type="button" id="${id}">${svg("rec","#111",20,2)}<span>${label}</span></button>`;
 function openChat(){ const f=$("#chatFab"); if(f&&f.onclick) f.onclick(); }
 // show the frame once signed in (the app section becomes visible)
 new MutationObserver(()=>{ const on=!$("#app").hidden; top.hidden=!on; nav.hidden=!on; }).observe($("#app"),{attributes:true,attributeFilter:["hidden"]});
@@ -302,7 +311,8 @@ function moreMenu(){
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
   const items=[["todo","To do","list"],["time","My time","clock",timeN],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
     ["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
-  sheet(`<h3>MENU</h3><div class="mgrid">${items.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
+  sheet(`<h3>MENU</h3>${TALKBTN("mTalk","TALK TO CLAUDE")}<div class="mgrid">${items.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
+    el.querySelector("#mTalk").onclick=()=>talk("",close);
     el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ const k=b.dataset.m; close();
       if(k==="newjob"){ go(lastJobs()); setTimeout(()=>$("#addJob").click(),60); }
       else if(k==="undo") $("#undoBtn").click();
@@ -350,8 +360,9 @@ function act(k){
   }
 }
 function addTodoSheet(){
-  sheet(`<h3>ADD A TO-DO</h3><label>What needs doing<input id="qtTx" placeholder="e.g. Call Randy about the hitch plates"></label><div class="row" style="justify-content:flex-end"><button class="btn primary" type="button" id="qtGo" style="min-height:44px;padding:0 20px">Add</button></div>`,(el,close)=>{
-    const i=el.querySelector("#qtTx"); setTimeout(()=>i.focus(),250);
+  sheet(`<h3>ADD A TO-DO</h3>${TALKBTN("qtTalk","SAY IT TO CLAUDE")}<div class="orl">or type it</div><label>What needs doing<input id="qtTx" placeholder="e.g. Call Randy about the hitch plates"></label><div class="row" style="justify-content:flex-end"><button class="btn primary" type="button" id="qtGo" style="min-height:44px;padding:0 20px">Add</button></div>`,(el,close)=>{
+    const i=el.querySelector("#qtTx");
+    el.querySelector("#qtTalk").onclick=()=>talk("[Add to-dos with add_todo for each thing I say, on the right job if I name one.]",close);
     const add=async()=>{ const v=i.value.trim(); if(!v) return; close(); await addTodos([{text:v,source:"manual"}]); note("Added: "+v); };
     el.querySelector("#qtGo").onclick=add; i.onkeydown=e=>{ if(e.key==="Enter") add(); };
   });
@@ -360,13 +371,15 @@ function addTodoSheet(){
 function quickJob(){
   const who=new Set(); let from="Randy";
   sheet(`<h3>QUICK JOB</h3>
+    ${TALKBTN("qjTalk","SAY IT TO CLAUDE")}<div class="tnote" style="margin:-8px 0 10px">e.g. "Randy gave Cooper a hitch rack repair for Hansen - cut out the old receiver, weld in the new one. No job number yet."</div>
+    <div class="orl">or type it</div>
     <label>What is it<input id="qjWhat" placeholder="e.g. Hitch rack repair for Hansen"></label>
     <label>Who's on it</label><div class="chips" id="qjWho" style="margin:-6px 0 14px">${CREW.map(c=>`<button type="button" data-c="${c}">${c}</button>`).join("")}</div>
     <label>Who gave it out</label><div class="chips" id="qjFrom" style="margin:-6px 0 14px">${["Randy","Customer","Me"].map(c=>`<button type="button" data-f="${c}" class="${c===from?"on":""}">${c}</button>`).join("")}</div>
     <label>Job # (leave empty if nobody knows yet)<input id="qjNum" placeholder="e.g. 2015G" autocapitalize="characters"></label>
     <div class="tnote" id="qjMsg" style="margin-bottom:10px"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn primary" type="button" id="qjGo" style="min-height:44px;padding:0 20px">Put it on the board</button></div>`,(el,close)=>{
-    setTimeout(()=>el.querySelector("#qjWhat").focus(),250);
+    el.querySelector("#qjTalk").onclick=()=>talk("[Quick job: create it with create_job on the Shop floor (stage fab) right away. Job number only if I say one - if I don't, create it without one and don't ask. Use my words for the name and tasks, put who's doing each task in who, and say who gave it out in the summary and log.]",close);
     el.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{ const c=b.dataset.c; who.has(c)?who.delete(c):who.add(c); b.classList.toggle("on",who.has(c)); });
     el.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ from=b.dataset.f; el.querySelectorAll("[data-f]").forEach(x=>x.classList.toggle("on",x===b)); });
     el.querySelector("#qjGo").onclick=async()=>{
