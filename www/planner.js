@@ -60,7 +60,7 @@ css.textContent=`
 .wkv .psplit .pwrap{margin-top:0}
 .wkv .ppanel{position:sticky;top:10px;border:1px solid var(--line);border-radius:10px;background:rgba(0,0,0,.3);padding:10px 12px;font-size:13px}
 .wkv .pph{font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:13px;color:var(--muted);margin-bottom:6px}
-.wkv .pjob{border-radius:6px;padding:5px 7px;margin-bottom:3px;line-height:1.25;font-size:12px;cursor:pointer;background:color-mix(in srgb,var(--c) 22%,transparent);border-left:4px solid var(--c);color:var(--text)}
+.wkv .pjob{border-radius:6px;padding:5px 7px;margin-bottom:3px;line-height:1.25;font-size:12px;cursor:grab;touch-action:none;background:color-mix(in srgb,var(--c) 22%,transparent);border-left:4px solid var(--c);color:var(--text)}
 .wkv .pjob .pjh{display:flex;justify-content:space-between;gap:6px;font-weight:600}
 .wkv .pjob .pjn{font-family:Oswald,sans-serif;font-weight:500;letter-spacing:.04em;color:#fff;background:var(--c);border-radius:4px;padding:0 4px;font-size:11px}
 .wkv .pjob .pjc{color:var(--muted)}
@@ -277,6 +277,19 @@ function doMove(k,fp,fd,tp,td,idx){
   const M=model(); const t=M.T[k]; if(!t) return;
   if(tp==null){ if(!fp) return; rmK(M,fp,fd,k); t.who=t.who.filter(w=>w!==fp); t.at=null; commit(M,`${t.name} back to the pool`); return; }
   if(isOff(tp,td)){ say(`${tp} is off ${dlabel(td)}.`); return; }
+  const note=moveIn(M,k,fp,fd,tp,td,idx);
+  commit(M,`${t.name} → ${tp}, ${dlabel(td)}${note}`);
+}
+/* Drag a whole job block (several tasks for one person-day) to another day/person, or back to the pool. (Kyle, 2026-11-04) */
+function doMoveMany(ks,fp,fd,tp,td,idx){
+  const M=model(); const ts=ks.map(k=>M.T[k]).filter(Boolean); if(!ts.length) return; const nm=ts[0].job;
+  if(tp==null){ if(!fp) return; ts.forEach(t=>{ rmK(M,fp,fd,t.key); t.who=t.who.filter(w=>w!==fp); t.at=null; }); commit(M,`${nm} back to the pool`); return; }
+  if(isOff(tp,td)){ say(`${tp} is off ${dlabel(td)}.`); return; }
+  let note="", before=idx;
+  ts.slice().reverse().forEach(t=>{ note=moveIn(M,t.key,fp,fd,tp,td,before)||note; before={before:t.key}; });
+  commit(M,`${nm} (${ts.length} tasks) → ${tp}, ${dlabel(td)}${note}`);
+}
+function moveIn(M,k,fp,fd,tp,td,idx){ const t=M.T[k];
   if(fp){ rmK(M,fp,fd,k); if(fp!==tp) t.who=t.who.filter(w=>w!==fp); }
   else if(!t.who.includes(tp)) t.who=[];
   if(fp!==tp&&t.who.includes(tp)) rmK(M,tp,dayOf(M,tp,k),k);
@@ -285,7 +298,7 @@ function doMove(k,fp,fd,tp,td,idx){
   const l=L(M,tp,td); const at=idx&&typeof idx==="object"?(l.indexOf(idx.before)<0?l.length:l.indexOf(idx.before)):Math.min(idx,l.length); l.splice(at,0,k);
   let note="";
   t.who.forEach(w=>{ if(w===tp) return; const dw=dayOf(M,w,k); if(dw!==td){ rmK(M,w,dw,k); if(isOff(w,td)){ t.who=t.who.filter(x=>x!==w); note=` (${w} is off that day, so they came off it)`; } else L(M,w,td).push(k); } });
-  commit(M,`${t.name} → ${tp}, ${dlabel(td)}${note}`);
+  return note;
 }
 function nextWorkDay(p,d){ let x=fromIso(d); for(let i=0;i<21;i++){ x.setDate(x.getDate()+1); const w=x.getDay(); const s=iso(x); if((w===0||w===6)&&!weekend) continue; if(!isOff(p,s)) return s; } return null; }
 function toggleOff(p,d){
@@ -344,7 +357,7 @@ function dayCell(M,R,p,d,ids,bad){
     const key=`${p}|${d}|${G.g}`, open=openG.has(key);
     const allDay=hrs>=7.5&&ids.length===G.keys.length;
     const nm=String(G.t.job).replace(/^\s*\S+\s*[-–:]\s*/,"")||G.t.job, num=window.jobNum?window.jobNum(G.t.job):"";
-    return `<div class="pjob ${anyBad?"bad":""} ${anySel?"sel":""} ${done===G.keys.length?"done":""}" style="--c:${G.t.color};${open?"":`min-height:${Math.max(30,hrs*9)}px`}" data-g="${esc(key)}" data-k="${esc(G.keys[0])}" data-p="${p}" data-d="${d}">
+    return `<div class="pjob ${anyBad?"bad":""} ${anySel?"sel":""} ${done===G.keys.length?"done":""}" style="--c:${G.t.color};${open?"":`min-height:${Math.max(30,hrs*9)}px`}" data-g="${esc(key)}" data-ks="${esc(G.keys.join(","))}" data-k="${esc(G.keys[0])}" data-p="${p}" data-d="${d}">
       <div class="pjh"><span>${num?`<b class="pjn">${esc(num)}</b> `:""}${esc(nm)}</span><span class="pjc">${open?"▾":"▸"}</span></div>
       <small>${allDay?"All day":`${clock(s0)}–${clock(e0)}`} · ${fh(hrs)} · ${done?`${done} of ${G.keys.length} done`:`${G.keys.length} tasks`}${anyBad?" · ⚠ clash":""}</small></div>`
       +(open?`<div class="pjsub">${G.keys.map(k=>{ const t=M.T[k], r=R[p][k]; const oth=t.who.filter(w=>w!==p);
@@ -427,13 +440,14 @@ function panel(M){
 /* ---------- drag (mouse + touch) ---------- */
 let drag=null;
 function target(x,y){ const el=document.elementFromPoint(x,y); if(!el) return null; const td=el.closest(".wkv td[data-p]"); if(td) return {td}; if(el.closest(".wkv .ppool")) return {pool:true}; return null; }
-function idxIn(td,y){ const bs=[...td.querySelectorAll(".pblk,.pjob")].filter(b=>!b.classList.contains("fx")&&!(b.dataset.k===drag.k&&b.dataset.p===drag.fp&&b.dataset.d===drag.fd));
+function idxIn(td,y){ const bs=[...td.querySelectorAll(".pblk,.pjob")].filter(b=>!b.classList.contains("fx")&&!b.classList.contains("psub")&&!(drag.el&&drag.el.contains(b))&&!(b.dataset.k===drag.k&&b.dataset.p===drag.fp&&b.dataset.d===drag.fd));
   let i=bs.findIndex(b=>{const r=b.getBoundingClientRect();return y<r.top+r.height/2;}); return {i:i<0?bs.length:i,bs}; }
 document.addEventListener("pointerdown",e=>{ if(cur!=="crew"||view!=="week") return;
-  const g=e.target.closest(".wkv .pjob"); if(g){ drag={grp:g.dataset.g,x0:e.clientX,y0:e.clientY,moved:false,el:g}; return; }
-  const b=e.target.closest(".wkv .pblk"); if(!b) return;
+  const b=e.target.closest(".wkv .pblk");
+  const g=!b&&e.target.closest(".wkv .pjob"); if(g){ drag={grp:g.dataset.g,ks:(g.dataset.ks||"").split(",").filter(Boolean),fp:g.dataset.p,fd:g.dataset.d,x0:e.clientX,y0:e.clientY,moved:false,el:g}; return; }
+  if(!b) return;
   drag={k:b.dataset.k,fp:b.dataset.p||null,fd:b.dataset.d||null,x0:e.clientX,y0:e.clientY,el:b,moved:false}; });
-document.addEventListener("pointermove",e=>{ if(!drag||drag.grp) return;
+document.addEventListener("pointermove",e=>{ if(!drag) return;
   if(!drag.moved&&Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<7) return;
   const W=document.querySelector(".wkv"); if(!W){ drag=null; return; }
   if(!drag.moved){ drag.moved=true; drag.g=drag.el.cloneNode(true); drag.g.classList.add("pghost"); W.appendChild(drag.g); drag.el.style.opacity=".3"; }
@@ -446,8 +460,14 @@ document.addEventListener("pointermove",e=>{ if(!drag||drag.grp) return;
   const {i,bs}=idxIn(tg.td,e.clientY); const ind=document.createElement("div"); ind.className="pind"; if(bs[i]) bs[i].before(ind); else tg.td.appendChild(ind);
 },{passive:false});
 function endDrag(e,cancel){ if(!drag) return; const d=drag; drag=null;
-  if(d.grp){ if(!cancel&&Math.hypot(e.clientX-d.x0,e.clientY-d.y0)<10){ if(openG.has(d.grp)) openG.delete(d.grp); else openG.add(d.grp); render(); } return; }
   if(d.g) d.g.remove();
+  if(d.grp){
+    if(!d.moved){ if(!cancel){ if(openG.has(d.grp)) openG.delete(d.grp); else openG.add(d.grp); render(); } return; }
+    const tg=cancel?null:target(e.clientX,e.clientY);
+    if(tg&&tg.pool) doMoveMany(d.ks,d.fp,d.fd,null);
+    else if(tg&&tg.td&&!(tg.td.dataset.p===d.fp&&tg.td.dataset.d===d.fd)){ drag={el:d.el}; const {i,bs}=idxIn(tg.td,e.clientY); drag=null; doMoveMany(d.ks,d.fp,d.fd,tg.td.dataset.p,tg.td.dataset.d,bs[i]?{before:bs[i].dataset.k}:9999); }
+    else render();
+    return; }
   if(!d.moved){ if(!cancel){ sel=sel===d.k?null:d.k; render(); } return; }
   const tg=cancel?null:target(e.clientX,e.clientY);
   if(tg&&tg.pool) doMove(d.k,d.fp,d.fd,null);
