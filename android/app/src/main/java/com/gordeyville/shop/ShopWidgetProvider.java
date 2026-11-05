@@ -88,9 +88,9 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         rec.putExtra(Feed.EXTRA_TAB, "todo").putExtra("gvc_act", "rec");
         v.setOnClickPendingIntent(R.id.rec, PendingIntent.getActivity(ctx, 700 + widgetId, rec, flags(false)));
         boolean recOn = RecorderService.isRecording();
-        v.setTextViewText(R.id.rec, recOn ? "■ Stop" : "● Rec");
+        v.setTextViewText(R.id.rec, recOn ? "■ STOP" : "● REC");
         v.setTextColor(R.id.rec, recOn ? 0xFFFFFFFF : 0xFFFF6B5E);
-        v.setInt(R.id.rec, "setBackgroundResource", recOn ? R.drawable.widget_tab_on_order : R.drawable.widget_tab_off);
+        v.setInt(R.id.rec, "setBackgroundResource", recOn ? R.drawable.widget_btn_rec_on : R.drawable.widget_btn_rec);
         Intent ref = new Intent(ctx, ShopWidgetProvider.class).setAction(ACTION_REFRESH);
         v.setOnClickPendingIntent(R.id.refresh, PendingIntent.getBroadcast(ctx, 400 + widgetId, ref, flags(false)));
 
@@ -113,7 +113,8 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         }
         long at = p.getLong(Feed.PREF_FETCHED, 0);
         String err = p.getString("last_error", "");
-        String upd = at > 0 ? "VAULT  ·  updated " + new SimpleDateFormat("h:mm a", Locale.CANADA).format(new Date(at)).toLowerCase(Locale.CANADA) : "VAULT";
+        String day = new SimpleDateFormat("EEE, MMM d", Locale.CANADA).format(new Date()).toUpperCase(Locale.CANADA).replace(".", "");
+        String upd = at > 0 ? day + "  ·  UPDATED " + new SimpleDateFormat("h:mm a", Locale.CANADA).format(new Date(at)).toUpperCase(Locale.CANADA).replace(".", "") : day;
         v.setTextViewText(R.id.updated, err.isEmpty() ? upd : err);
         return v;
     }

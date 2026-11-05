@@ -326,6 +326,7 @@ render=function(){
   if(cur==="home"){
     try{ if(typeof autoTodos==="function"&&autoTodos.reset) autoTodos.reset(); }catch(e){}
     try{ if(typeof drawTrack==="function") drawTrack(); }catch(e){}
+    try{ if(typeof publishTodo==="function") publishTodo(); }catch(e){}
     const sub=$("#subnav"); if(sub) sub.hidden=true;
     const bar=document.querySelector("#app .bar"); if(bar) bar.style.display="none";
     renderHome();

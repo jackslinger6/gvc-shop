@@ -1,69 +1,82 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Row card styled like the app's job cards: coloured left edge, dark gradient card, condensed bold title (Nov 4) -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/r_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:layout_marginBottom="6dp"
-    android:paddingLeft="10dp"
-    android:paddingRight="10dp"
-    android:paddingTop="8dp"
-    android:paddingBottom="8dp"
     android:background="@drawable/widget_row_bg">
+    <ImageView
+        android:id="@+id/r_bar"
+        android:contentDescription="@null"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:background="#FF8E96A3"/>
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-        <TextView
-            android:id="@+id/r_dot"
-            android:layout_width="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:paddingTop="9dp"
+        android:paddingBottom="9dp">
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="●"
-            android:textSize="11sp"
-            android:layout_marginRight="7dp"
-            android:textColor="#FF8E96A3"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/r_dot"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:text="●"
+                android:textSize="1sp"/>
+            <TextView
+                android:id="@+id/r_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="#FFF2EFEA"
+                android:textSize="14sp"/>
+            <TextView
+                android:id="@+id/r_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="8dp"
+                android:maxWidth="150dp"
+                android:maxLines="2"
+                android:gravity="center"
+                android:fontFamily="sans-serif-condensed"
+                android:textStyle="bold"
+                android:letterSpacing="0.06"
+                android:textAllCaps="true"
+                android:textSize="10.5sp"
+                android:textColor="#FF9AA0A8"/>
+        </LinearLayout>
         <TextView
-            android:id="@+id/r_title"
-            android:layout_width="0dp"
+            android:id="@+id/r_sub"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:maxLines="2"
+            android:layout_marginTop="3dp"
+            android:maxLines="4"
             android:ellipsize="end"
-            android:textColor="#FFE9E6E1"
-            android:textStyle="bold"
-            android:textSize="14sp"/>
-        <TextView
-            android:id="@+id/r_badge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="8dp"
-            android:maxWidth="150dp"
-            android:maxLines="2"
-            android:gravity="center"
-            android:textStyle="bold"
-            android:textSize="11sp"
-            android:textColor="#FF9AA0A8"/>
+            android:lineSpacingExtra="2dp"
+            android:textColor="#FF9AA0A8"
+            android:textSize="12sp"/>
+        <ProgressBar
+            android:id="@+id/r_prog"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:layout_marginTop="7dp"
+            android:max="100"
+            android:progressDrawable="@drawable/widget_progress"
+            android:visibility="gone"/>
     </LinearLayout>
-    <TextView
-        android:id="@+id/r_sub"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
-        android:layout_marginLeft="17dp"
-        android:maxLines="4"
-        android:ellipsize="end"
-        android:lineSpacingExtra="2dp"
-        android:textColor="#FF9AA0A8"
-        android:textSize="12sp"/>
-    <ProgressBar
-        android:id="@+id/r_prog"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="5dp"
-        android:layout_marginTop="7dp"
-        android:layout_marginLeft="17dp"
-        android:max="100"
-        android:progressDrawable="@drawable/widget_progress"
-        android:visibility="gone"/>
 </LinearLayout>

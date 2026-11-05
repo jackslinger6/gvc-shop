@@ -68,6 +68,7 @@ public class ShopWidgetService extends RemoteViewsService {
             RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_row);
             v.setTextViewText(R.id.r_title, r.title);
             v.setTextColor(R.id.r_dot, r.dot);
+            v.setInt(R.id.r_bar, "setBackgroundColor", r.dot == 0 ? 0xFF8E96A3 : r.dot);
             if (r.sub == null || r.sub.isEmpty()) v.setViewVisibility(R.id.r_sub, View.GONE);
             else { v.setViewVisibility(R.id.r_sub, View.VISIBLE); v.setTextViewText(R.id.r_sub, r.sub); }
             if (r.badge == null || r.badge.isEmpty()) v.setViewVisibility(R.id.r_badge, View.GONE);

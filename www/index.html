@@ -491,6 +491,7 @@ function drawTrack(){
 }
 window.drawTrack=drawTrack;
 function render(){
+  publishTodo();
   const crewAsm=crewItems();
   const tdCount=liveAuto().length+liveMine().length, sgNew=suggs.filter(x=>x.status==="new").length;
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
@@ -751,6 +752,26 @@ const Widget = (window.capacitorExports && window.Capacitor && window.Capacitor.
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: !Widget, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
 let channel=null;
 function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
+/* The home-screen widget shows the app's own To do list (it used to work it out separately and drifted).
+   Every device with the app open publishes what its To do tab shows to gvc_widget_state 'todo' when it changes;
+   the widget uses it while it's newer than the last board change. (Kyle, 2026-11-04) */
+let wsLast="", wsT=null, wsAt=0;
+function cssCol(c){ const m=String(c||"").match(/var\((--[a-z0-9-]+)\)/i); const v=m?getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim():String(c||""); return /^#[0-9a-f]{3,8}$/i.test(v)?v:"#ffd28a"; }
+function publishTodo(){
+  clearTimeout(wsT); wsT=setTimeout(async()=>{
+    if(!db||!jobs.length) return;
+    let items=[];
+    try{
+      const jn=id=>{ const j=jobs.find(x=>x.id===id)||archivedJobs.find(x=>x.id===id); return j?j.name:""; };
+      items=[...liveAuto().map(t=>({kind:"auto",text:t.text,c:cssCol(t.c),job:t.job||"",tab:t.view||(t.job?((stOf(jobs.find(x=>x.id===t.job)||{stage:"released"})||{}).board||"todo"):"todo"),count:t.count||""})),
+             ...liveMine().map(t=>({kind:"mine",text:t.text,c:"#ffd28a",job:t.job_id||"",jobName:t.job_id?jn(t.job_id):"",from:t.from_name||"",tab:"todo"}))];
+    }catch(e){ return; }
+    const key=JSON.stringify(items);
+    if(key===wsLast&&Date.now()-wsAt<20*60e3) return;
+    const r=await sb.from("gvc_widget_state").upsert({id:"todo",data:{items,review:suggs.filter(x=>x.status==="new").length},updated_at:new Date().toISOString()});
+    if(!r.error){ wsLast=key; wsAt=Date.now(); widgetRefresh(); }
+  },2500);
+}
 /* Each job is one JSON row. jobVer remembers the updated_at we last loaded for each job; a save only goes through
    if the row still has that updated_at, so two devices (or you + Ask Claude) can't silently overwrite each other. */
 const jobVer={};

@@ -10,8 +10,8 @@
     <ImageView
         android:id="@+id/h_bar"
         android:contentDescription="@null"
-        android:layout_width="4dp"
-        android:layout_height="14dp"
+        android:layout_width="3dp"
+        android:layout_height="13dp"
         android:layout_marginRight="8dp"
         android:background="#FF8E96A3"/>
     <TextView
@@ -20,8 +20,9 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:textAllCaps="true"
-        android:letterSpacing="0.08"
+        android:letterSpacing="0.16"
+        android:fontFamily="sans-serif-condensed"
         android:textStyle="bold"
-        android:textSize="12sp"
+        android:textSize="11.5sp"
         android:textColor="#FFD7D1C8"/>
 </LinearLayout>

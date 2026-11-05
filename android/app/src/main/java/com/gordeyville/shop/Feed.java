@@ -357,6 +357,16 @@ public final class Feed {
         return R.drawable.pill_gray;
     }
 
+    /** "2026-11-05T04:51:55.12+00:00" (UTC) -> ms, 0 if unreadable */
+    static long ts(String iso) {
+        if (iso == null || iso.length() < 19) return 0;
+        try { java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US); f.setTimeZone(java.util.TimeZone.getTimeZone("UTC")); return f.parse(iso.substring(0, 19).replace(' ', 'T')).getTime(); }
+        catch (Exception e) { return 0; }
+    }
+    static int hexColor(String h, int dflt) {
+        try { if (h != null && h.startsWith("#")) { String x = h.substring(1); if (x.length() == 3) x = "" + x.charAt(0) + x.charAt(0) + x.charAt(1) + x.charAt(1) + x.charAt(2) + x.charAt(2); return 0xFF000000 | Integer.parseInt(x.substring(0, 6), 16); } } catch (Exception ignored) {}
+        return dflt;
+    }
     static Row header(String t, int bar) { Row r = new Row(); r.header = true; r.title = t; r.bar = bar; return r; }
     static Row emptyHeader(String t, int bar) { Row r = header(t + "  ·  none", bar); r.dim = true; return r; }
 
@@ -488,8 +498,17 @@ public final class Feed {
         Set<String> liveJobs = new HashSet<>(); boolean assignLive = false;
         for (Row r : reminders) { if (!r.job.isEmpty()) liveJobs.add(r.job); if (r.title.startsWith("Assign ")) assignLive = true; }
 
+        // ---- the app's own To do list (what its To do tab shows), if it's newer than the last board change (Nov 4) ----
+        JSONArray appItems = null;
+        JSONObject appT = feed.optJSONObject("app_todo");
+        if (appT != null) {
+            long a = ts(appT.optString("at")), d = ts(feed.optString("data_at"));
+            JSONObject dd = appT.optJSONObject("data");
+            if (dd != null && a > 0 && a + 3000 >= d) appItems = dd.optJSONArray("items");
+        }
+
         // ---- attention counts per tab ----
-        res.counts[0] = reminders.size() + todos.length();
+        res.counts[0] = appItems != null ? appItems.length() : reminders.size() + todos.length();
         for (int i = 0; i < jobs.length(); i++) {
             JSONObject j = jobs.optJSONObject(i);
             if (j == null || j.optBoolean("sample")) continue;
@@ -501,7 +520,25 @@ public final class Feed {
         }
         if (assignLive) res.counts[3] += unassigned;
 
-        if (tab.equals("todo")) {
+        if (tab.equals("todo") && appItems != null) {
+            if (res.review > 0) { Row r = todo(res.review + " suggestion" + (res.review > 1 ? "s" : "") + " from texts & recordings to review", C_AMBER, null, "todo"); r.badge = "Review"; r.badgeColor = C_AMBER; r.pill = pillFor(C_AMBER); res.rows.add(r); }
+            List<Row> mine = new ArrayList<>(), board = new ArrayList<>();
+            for (int i = 0; i < appItems.length(); i++) {
+                JSONObject t = appItems.optJSONObject(i); if (t == null) continue;
+                String tb = t.optString("tab", "todo"); if (tb.isEmpty()) tb = "todo";
+                Row r = todo(t.optString("text"), hexColor(t.optString("c"), C_AMBER), t.optString("job", ""), tb);
+                if (t.optString("kind").equals("mine")) {
+                    List<String> meta = new ArrayList<>();
+                    if (!t.optString("from").isEmpty()) meta.add(t.optString("from"));
+                    if (!t.optString("jobName").isEmpty()) meta.add(t.optString("jobName"));
+                    r.sub = String.join("  ·  ", meta); mine.add(r);
+                } else { String jn = jobName.get(r.job); if (jn != null && !r.title.contains(jn)) r.sub = jn; board.add(r); }
+            }
+            res.rows.add(mine.isEmpty() ? emptyHeader("My to-dos", C_AMBER) : header("My to-dos  " + mine.size(), C_AMBER));
+            res.rows.addAll(mine);
+            res.rows.add(board.isEmpty() ? emptyHeader("From the board", C_GRAY) : header("From the board  " + board.size(), 0xFFFF8A2A));
+            res.rows.addAll(board);
+        } else if (tab.equals("todo")) {
             if (res.review > 0) { Row r = todo(res.review + " suggestion" + (res.review > 1 ? "s" : "") + " from texts & recordings to review", C_AMBER, null, "todo"); r.badge = "Review"; r.badgeColor = C_AMBER; r.pill = pillFor(C_AMBER); res.rows.add(r); }
             res.rows.add(todos.length() > 0 ? header("To do  " + todos.length(), C_AMBER) : emptyHeader("To do", C_AMBER));
             for (int i = 0; i < todos.length(); i++) {
