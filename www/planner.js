@@ -150,7 +150,29 @@ async function doSave(){
 // model()+compute() get asked for many times per render (to-dos, planner, My time, chat context). Work it out once
 // and reuse it until something changes (any render, plan load/save, or commit clears it).
 let mc=null;
-function MC(){ if(!mc){ const M=model(); mc={M,R:compute(M)}; } return mc; }
+function MC(){ if(!mc){ const M=spill(model()); mc={M,R:compute(M)}; } return mc; }
+/* What you SEE is spilled: a person's day holds 8 h; the part of a task that doesn't fit carries over to the start of
+   their next work day ("k#1", "k#2"... view-only pieces, base = real task). Overtime = drag things off or shorten.
+   Saved plan never contains the pieces - edits always start from model(). Shared (2+ people) and fixed-time tasks
+   don't split. (Kyle, 2026-11-04) */
+const DAYH=8;
+function spill(M){
+  CREW.forEach(p=>{ const S=M.S[p]; const days=Object.keys(S).sort(); let n=0;
+    for(let i=0;i<days.length;i++){ const d=days[i], l=S[d]; let used=0;
+      for(let j=0;j<l.length;j++){ const k=l[j], t=M.T[k]; if(!t) continue;
+        if(t.at!=null||t.done){ used+=t.done?0:H(t); continue; }
+        if(t.who.length>1){ used+=H(t)/t.who.length; continue; }
+        const h=H(t); if(used+h<=DAYH+1e-6){ used+=h; continue; }
+        const nd=nextWorkDay(p,d); if(!nd) { used+=h; continue; }
+        const fit=Math.max(0,DAYH-used), rest=h-fit, base=t.base||k, od=t.od||d, vk=base+"#"+(++n);
+        M.T[vk]={...t,key:vk,base,od,h:rest,needs:[],cont:true,full:t.full??h};
+        if(fit<0.05){ l.splice(j,1); j--; if(!t.cont) M.T[k]={...t,moved:true}; }
+        else { M.T[k]={...t,h:fit,full:t.full??h,split:true}; used=DAYH; }
+        (S[nd]=S[nd]||[]).unshift(vk);
+        if(!days.includes(nd)){ days.push(nd); days.sort(); } } } });
+  return M;
+}
+const baseK=k=>String(k||"").split("#")[0];
 function model(){
   const T={};
   // Finished jobs (Done, or archived) keep their tasks on the days they were scheduled, shown as done, so the
@@ -274,22 +296,22 @@ function syncAssign(){
 }
 /* ---------- actions ---------- */
 function doMove(k,fp,fd,tp,td,idx){
-  const M=model(); const t=M.T[k]; if(!t) return;
-  if(tp==null){ if(!fp) return; rmK(M,fp,fd,k); t.who=t.who.filter(w=>w!==fp); t.at=null; commit(M,`${t.name} back to the pool`); return; }
+  k=baseK(k); if(idx&&typeof idx==="object") idx={before:baseK(idx.before)}; const M=model(); const t=M.T[k]; if(!t) return;
+  if(tp==null){ if(!fp) return; rmK(M,fp,dayOf(M,fp,k),k); t.who=t.who.filter(w=>w!==fp); t.at=null; commit(M,`${t.name} back to the pool`); return; }
   if(isOff(tp,td)){ say(`${tp} is off ${dlabel(td)}.`); return; }
   const note=moveIn(M,k,fp,fd,tp,td,idx);
   commit(M,`${t.name} → ${tp}, ${dlabel(td)}${note}`);
 }
 /* Drag a whole job block (several tasks for one person-day) to another day/person, or back to the pool. (Kyle, 2026-11-04) */
-function doMoveMany(ks,fp,fd,tp,td,idx){
-  const M=model(); const ts=ks.map(k=>M.T[k]).filter(Boolean); if(!ts.length) return; const nm=ts[0].job;
-  if(tp==null){ if(!fp) return; ts.forEach(t=>{ rmK(M,fp,fd,t.key); t.who=t.who.filter(w=>w!==fp); t.at=null; }); commit(M,`${nm} back to the pool`); return; }
+function doMoveMany(ks,fp,fd,tp,td,idx){ if(idx&&typeof idx==="object") idx={before:baseK(idx.before)};
+  const M=model(); ks=[...new Set(ks.map(baseK))]; const ts=ks.map(k=>M.T[k]).filter(Boolean); if(!ts.length) return; const nm=ts[0].job;
+  if(tp==null){ if(!fp) return; ts.forEach(t=>{ rmK(M,fp,dayOf(M,fp,t.key),t.key); t.who=t.who.filter(w=>w!==fp); t.at=null; }); commit(M,`${nm} back to the pool`); return; }
   if(isOff(tp,td)){ say(`${tp} is off ${dlabel(td)}.`); return; }
   let note="", before=idx;
   ts.slice().reverse().forEach(t=>{ note=moveIn(M,t.key,fp,fd,tp,td,before)||note; before={before:t.key}; });
   commit(M,`${nm} (${ts.length} tasks) → ${tp}, ${dlabel(td)}${note}`);
 }
-function moveIn(M,k,fp,fd,tp,td,idx){ const t=M.T[k];
+function moveIn(M,k,fp,fd,tp,td,idx){ const t=M.T[k]; if(fp) fd=dayOf(M,fp,k);
   if(fp){ rmK(M,fp,fd,k); if(fp!==tp) t.who=t.who.filter(w=>w!==fp); }
   else if(!t.who.includes(tp)) t.who=[];
   if(fp!==tp&&t.who.includes(tp)) rmK(M,tp,dayOf(M,tp,k),k);
@@ -333,10 +355,10 @@ function blk(M,t,p,d,r,bad){
   const after=t.needs.map(n=>M.T[n]&&M.T[n].name).filter(Boolean);
   const today=iso(new Date()); const past=r&&(d<today||(d===today&&r.e<=nowH()+1e-6));
   const pauses=r&&t.at==null&&(r.e-r.s)>r.w+1e-6;
-  if(!p&&t.why) return `<div class="pblk nr ${sel===t.key?"sel":""}" style="--c:${t.color}" data-k="${esc(t.key)}">${esc(t.name)} · ${fh(H(t))}${t.h==null?"?":""}<small>${esc(t.why)}${t.who.length?" · "+t.who.join(", "):""}</small></div>`;
-  if(r&&p&&others.length&&r.w<0.05) return `<div class="pblk ${sel===t.key?"sel":""}" style="--c:${t.color};opacity:.5" data-k="${esc(t.key)}" data-p="${p}" data-d="${d}">🔗 ${esc(t.name)} <small>${others.join(", ")} finish${others.length>1?"":"es"} it before ${p} gets there</small></div>`;
-  return `<div class="pblk ${sel===t.key?"sel":""} ${bad?"bad":""} ${t.done?"done":""} ${t.at!=null?"fx":""}" style="--c:${t.color};${p?`min-height:${Math.max(24,share*9)}px`:""}${past&&!t.done?";opacity:.65":""}" data-k="${esc(t.key)}" ${p?`data-p="${p}" data-d="${d}"`:""}>
-   ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${esc(t.name)} · ${fh(share)}${t.h==null?"?":""}
+  if(!p&&t.why) return `<div class="pblk nr ${sel===(t.base||t.key)?"sel":""}" style="--c:${t.color}" data-k="${esc(t.key)}">${esc(t.name)} · ${fh(H(t))}${t.h==null?"?":""}<small>${esc(t.why)}${t.who.length?" · "+t.who.join(", "):""}</small></div>`;
+  if(r&&p&&others.length&&r.w<0.05) return `<div class="pblk ${sel===(t.base||t.key)?"sel":""}" style="--c:${t.color};opacity:.5" data-k="${esc(t.key)}" data-p="${p}" data-d="${d}">🔗 ${esc(t.name)} <small>${others.join(", ")} finish${others.length>1?"":"es"} it before ${p} gets there</small></div>`;
+  return `<div class="pblk ${sel===(t.base||t.key)?"sel":""} ${bad?"bad":""} ${t.done?"done":""} ${t.at!=null?"fx":""}" style="--c:${t.color};${p?`min-height:${Math.max(24,share*9)}px`:""}${past&&!t.done?";opacity:.65":""}" data-k="${esc(t.key)}" ${p?`data-p="${p}" data-d="${d}"`:""}>
+   ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${t.cont?"↳ ":""}${esc(t.name)} · ${fh(share)}${t.h==null&&!t.cont?"?":""}${t.split?` <span style="opacity:.7">of ${fh(t.full)} →</span>`:t.cont?` <span style="opacity:.7">(${fh(t.full)} total, cont'd)</span>`:""}
    <small>${t.ncr?`<b style="color:#ff9b91">NCR-${String(t.ncr).padStart(3,"0")}</b> · `:""}${r?`${clock(r.s)}–${clock(r.e)}${pauses?" (paused)":""} · `:""}${p?esc(t.job):""}${solo?(p?" · ":"")+solo:""}${others.length?(p?" · with ":"")+others.join(", "):""}${after.length?" · after "+esc(after.join(", ")):""}</small></div>`;
 }
 /* A person's day shows one block per JOB (height = hours), not every task. Tap it to see and tick off the tasks.
@@ -353,7 +375,7 @@ function dayCell(M,R,p,d,ids,bad){
     if(G.keys.length===1&&!openG.has(`${p}|${d}|${G.g}`)) return blk(M,M.T[G.keys[0]],p,d,R[p][G.keys[0]],bad.has(G.keys[0]));
     const rs=G.keys.map(k=>R[p][k]).filter(Boolean);
     const hrs=rs.reduce((a,r)=>a+r.w,0), s0=Math.min(...rs.map(r=>r.s)), e0=Math.max(...rs.map(r=>r.e));
-    const done=G.keys.filter(k=>M.T[k].done).length, anyBad=G.keys.some(k=>bad.has(k)), anySel=G.keys.includes(sel);
+    const done=G.keys.filter(k=>M.T[k].done).length, anyBad=G.keys.some(k=>bad.has(k)), anySel=G.keys.some(k=>baseK(k)===sel);
     const key=`${p}|${d}|${G.g}`, open=openG.has(key);
     const allDay=hrs>=7.5&&ids.length===G.keys.length;
     const nm=String(G.t.job).replace(/^\s*\S+\s*[-–:]\s*/,"")||G.t.job, num=window.jobNum?window.jobNum(G.t.job):"";
@@ -361,7 +383,7 @@ function dayCell(M,R,p,d,ids,bad){
       <div class="pjh"><span>${num?`<b class="pjn">${esc(num)}</b> `:""}${esc(nm)}</span><span class="pjc">${open?"▾":"▸"}</span></div>
       <small>${allDay?"All day":`${clock(s0)}–${clock(e0)}`} · ${fh(hrs)} · ${done?`${done} of ${G.keys.length} done`:`${G.keys.length} tasks`}${anyBad?" · ⚠ clash":""}</small></div>`
       +(open?`<div class="pjsub">${G.keys.map(k=>{ const t=M.T[k], r=R[p][k]; const oth=t.who.filter(w=>w!==p);
-        return `<div class="pjrow"><button class="pck ${t.done?"on":""}" type="button" data-pck="${esc(k)}" title="${t.done?"Not done":"Done"}">✓</button><div class="pblk psub ${sel===k?"sel":""} ${bad.has(k)?"bad":""} ${t.done?"done":""}" style="--c:${t.color}" data-k="${esc(k)}" data-p="${p}" data-d="${d}">${oth.length?"🔗 ":""}${t.needs.length?"🔒 ":""}${esc(t.name)} · ${fh(r?r.w:H(t))}${t.h==null?"?":""}${oth.length?`<small>with ${esc(oth.join(", "))}</small>`:""}</div></div>`; }).join("")}</div>`:"");
+        return `<div class="pjrow"><button class="pck ${t.done?"on":""}" type="button" data-pck="${esc(k)}" title="${t.done?"Not done":"Done"}">✓</button><div class="pblk psub ${sel===baseK(k)?"sel":""} ${bad.has(k)?"bad":""} ${t.done?"done":""}" style="--c:${t.color}" data-k="${esc(k)}" data-p="${p}" data-d="${d}">${oth.length?"🔗 ":""}${t.needs.length?"🔒 ":""}${esc(t.name)} · ${fh(r?r.w:H(t))}${t.h==null?"?":""}${oth.length?`<small>with ${esc(oth.join(", "))}</small>`:""}</div></div>`; }).join("")}</div>`:"");
   }).join("");
 }
 function renderWeek(){
@@ -369,8 +391,8 @@ function renderWeek(){
   if(!planLoaded){ B.innerHTML=`<div class="lbl" style="padding:20px">Loading the plan…</div>`; return; }
   const {M,R}=MC(), C=conflicts(M,R), D=weekDays(), today=iso(new Date());
   lastM=M; const bad=new Set(C.map(c=>c.id));
-  const placed=new Set(); CREW.forEach(p=>{ for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(k)); });
-  const pool=Object.values(M.T).filter(t=>!t.done&&!placed.has(t.key));
+  const placed=new Set(); CREW.forEach(p=>{ for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(baseK(k))); });
+  const pool=Object.values(M.T).filter(t=>!t.done&&!t.cont&&!placed.has(t.key));
   const groups={}; pool.forEach(t=>{ const g=groups[t.jid||("x:"+t.job)]=groups[t.jid||("x:"+t.job)]||{job:t.job,color:t.color,stageIdx:t.jid?t.stageIdx:-1,list:[]}; g.list.push(t); });
   const gl=Object.values(groups).sort((a,b)=>{ const ar=a.list.some(t=>!t.why), br=b.list.some(t=>!t.why); return (br-ar)||(b.stageIdx-a.stageIdx)||a.job.localeCompare(b.job); });
   gl.forEach(g=>g.list.sort((a,b)=>(!!a.why-!!b.why)));
@@ -410,14 +432,14 @@ function renderWeek(){
   $("#pIg").onclick=()=>sendNow($("#pIp").value,$("#pIw").value.trim()||"Errand",+$("#pIh").value);
   B.querySelectorAll("[data-fx]").forEach(b=>b.onclick=()=>{ const [i,j]=b.dataset.fx.split(":").map(Number); const o=lastFix[i].opts[j]; const M2=model(); o.fn(M2); commit(M2,o.label); say(o.label+"."); });
   B.querySelectorAll("[data-off]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const [p,d]=b.dataset.off.split("|"); toggleOff(p,d); });
-  B.querySelectorAll("[data-pck]").forEach(b=>{ b.onpointerdown=e=>e.stopPropagation(); b.onclick=e=>{ e.stopPropagation(); const k=b.dataset.pck; const M2=model(); const t2=M2.T[k]; if(!t2) return; t2.done=!t2.done; commit(M2,`${t2.name}: ${t2.done?"done":"not done"}`); }; });
+  B.querySelectorAll("[data-pck]").forEach(b=>{ b.onpointerdown=e=>e.stopPropagation(); b.onclick=e=>{ e.stopPropagation(); const k=baseK(b.dataset.pck); const M2=model(); const t2=M2.T[k]; if(!t2) return; t2.done=!t2.done; commit(M2,`${t2.name}: ${t2.done?"done":"not done"}`); }; });
 }
 function panel(M){
   const el=$("#pPanel"); const t=M.T[sel];
   if(!t){ el.innerHTML=`<div class="pph">Assignment</div><span class="lbl">Tap a task - in Not scheduled, or inside a job block on someone's day - to set who's on it, how long it takes and what it waits for. Tap a job block to open its task list; tick tasks off there.<br><br>🔗 shared (crew-hours split so everyone finishes together) · 🔒 waits on another task · dashed = fixed-time errand · "?" = no estimate yet (counted as 2h).</span>`; return; }
   const others=Object.values(M.T).filter(x=>x.key!==t.key&&!x.done).sort((a,b)=>a.job.localeCompare(b.job));
   el.innerHTML=`<div class="pph">Assignment</div><div><span style="color:${t.color}">${esc(t.job)}</span> · <b style="font-weight:600">${esc(t.name)}</b>${t.jid?` <button class="btn sm ghost" id="pOpen">Open job</button>`:""}</div>
-   <div class="row"><span class="lbl">${t.who.length>1?"Crew-hours":"Hours"}</span><button class="btn sm" data-ph="-0.5">−</button><b>${t.h==null?"?":t.h}</b><button class="btn sm" data-ph="0.5">+</button>${[1,2,4,8].map(x=>`<button class="btn sm ${t.h===x?"primary":""}" data-phs="${x}">${x}h</button>`).join("")}</div>
+   <div class="row"><span class="lbl">${t.who.length>1?"Crew-hours":"Hours"}</span><button class="btn sm" data-ph="-0.5">−</button><b>${t.h==null?"?":(t.full??t.h)}</b><button class="btn sm" data-ph="0.5">+</button>${[1,2,4,8].map(x=>`<button class="btn sm ${(t.full??t.h)===x?"primary":""}" data-phs="${x}">${x}h</button>`).join("")}</div>
    <div class="row"><span class="lbl">On it</span>${CREW.map(c=>`<button class="wc ${t.who.includes(c)?"on":""}" data-pw="${c}">${c}</button>`).join("")}</div>
    <div class="row"><span class="lbl">Has to wait for</span><select id="pNd"><option value="">Nothing</option>${others.map(o=>`<option value="${esc(o.key)}" ${t.needs.includes(o.key)?"selected":""}>${esc(o.job)} · ${esc(o.name)}</option>`).join("")}</select></div>
    <div class="row"><button class="btn sm" id="pDone">${t.done?"Not done":"✓ Done"}</button>${t.who.length?`<button class="btn sm" id="pPool">Back to pool</button>`:""}${t.xid?`<button class="btn sm danger" id="pDel">Delete</button>`:""}<span style="flex:1"></span><button class="btn sm ghost" id="pX">Close</button></div>`;
@@ -468,7 +490,7 @@ function endDrag(e,cancel){ if(!drag) return; const d=drag; drag=null;
     else if(tg&&tg.td&&!(tg.td.dataset.p===d.fp&&tg.td.dataset.d===d.fd)){ drag={el:d.el}; const {i,bs}=idxIn(tg.td,e.clientY); drag=null; doMoveMany(d.ks,d.fp,d.fd,tg.td.dataset.p,tg.td.dataset.d,bs[i]?{before:bs[i].dataset.k}:9999); }
     else render();
     return; }
-  if(!d.moved){ if(!cancel){ sel=sel===d.k?null:d.k; render(); } return; }
+  if(!d.moved){ if(!cancel){ const bk=baseK(d.k); sel=sel===bk?null:bk; render(); } return; }
   const tg=cancel?null:target(e.clientX,e.clientY);
   if(tg&&tg.pool) doMove(d.k,d.fp,d.fd,null);
   else if(tg&&tg.td){ const dd={k:d.k,fp:d.fp,fd:d.fd}; drag=dd; const {i,bs}=idxIn(tg.td,e.clientY); drag=null; doMove(d.k,d.fp,d.fd,tg.td.dataset.p,tg.td.dataset.d,bs[i]?{before:bs[i].dataset.k}:9999); }
@@ -501,8 +523,8 @@ window.planLines=function(){ if(!planLoaded) return [];
       const ids=M.S[p][d]||[]; if(!ids.length) return;
       out.push(`[crew schedule] ${dlabel(d)} · ${p}: `+ids.map(k=>{const r=R[p][k],t=M.T[k];return `${clock(r.s)}-${clock(r.e)} ${t.name} (${t.job}${t.who.length>1?", with "+t.who.filter(w=>w!==p).join("+"):""}${t.done?", done":""})`;}).join("; ")); }));
     conflicts(M,R).forEach(c=>out.push(`[crew schedule clash] ${M.T[c.id].name} needs ${M.T[c.pid].name} done first but it isn't`));
-    const placed=new Set(); CREW.forEach(p=>{for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(k));});
-    const un=Object.values(M.T).filter(t=>!t.done&&!placed.has(t.key)); if(un.length) out.push(`[crew schedule] not scheduled yet: `+un.map(t=>`${t.name} (${t.job}, ${fh(H(t))})`).join("; "));
+    const placed=new Set(); CREW.forEach(p=>{for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(baseK(k)));});
+    const un=Object.values(M.T).filter(t=>!t.done&&!t.cont&&!placed.has(t.key)); if(un.length) out.push(`[crew schedule] not scheduled yet: `+un.map(t=>`${t.name} (${t.job}, ${fh(H(t))})`).join("; "));
     return out; }catch(e){ return []; } };
 /* "Colton · done Mon end of day" for a job card: people on its open tasks and when the last scheduled one finishes. */
 window.jobEta=function(jid){
