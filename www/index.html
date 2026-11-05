@@ -798,9 +798,13 @@ function publishTodo(){
       items=[...liveAuto().map(t=>({kind:"auto",text:t.text,c:cssCol(t.c),job:t.job||"",tab:t.view||(t.job?((stOf(jobs.find(x=>x.id===t.job)||{stage:"released"})||{}).board||"todo"):"todo"),count:t.count||""})),
              ...liveMine().map(t=>({kind:"mine",text:t.text,c:"#ffd28a",job:t.job_id||"",jobName:t.job_id?jn(t.job_id):"",from:t.from_name||"",tab:"todo"}))];
     }catch(e){ return; }
-    const key=JSON.stringify(items);
+    // Home's "Next up" (same order and tags) for the widget's To do tab
+    let next=[];
+    try{ if(window.shellNextUp) next=window.shellNextUp().map(t=>({text:t.text,tag:t.tag||"",c:cssCol(t.c),job:t.job||"",sub:t.sub||"",mine:!!t.mine,
+      tab:t.view||(t.job?((stOf(jobs.find(x=>x.id===t.job)||{stage:"released"})||{}).board||"todo"):"todo")})); }catch(e){}
+    const key=JSON.stringify([items,next]);
     if(key===wsLast&&Date.now()-wsAt<20*60e3) return;
-    const r=await sb.from("gvc_widget_state").upsert({id:"todo",data:{items,review:suggs.filter(x=>x.status==="new").length},updated_at:new Date().toISOString()});
+    const r=await sb.from("gvc_widget_state").upsert({id:"todo",data:{items,next,review:suggs.filter(x=>x.status==="new").length},updated_at:new Date().toISOString()});
     if(!r.error){ wsLast=key; wsAt=Date.now(); widgetRefresh(); }
   },2500);
 }

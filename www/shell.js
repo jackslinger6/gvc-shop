@@ -260,6 +260,7 @@ function nextUp(){
     act:{t:"DONE",fn:()=>{ setTodo(t.id,true); todoToast("Done: "+t.text,()=>setTodo(t.id,false)); }},later:{id:t.id,text:t.text}}));
   return out.sort((a,b)=>RANK(a)-RANK(b));
 }
+window.shellNextUp=()=>nextUp();
 function mailNum(j,to){
   const who=[...new Set((j.assemblies||[]).flatMap(a=>String(a.who||"").split(",").map(s=>s.trim()).filter(Boolean)))].join(", ");
   const body=`Hi${to===ROBIN?" Robin":" Randy"},\n\n${who||"The crew"} ${who&&who.includes(",")?"are":"is"} working on "${j.name}"${j.from?" (from "+j.from+")":""} and it doesn't have a job number yet. Can you send me the number for it?\n\nThanks,\nKyle`;

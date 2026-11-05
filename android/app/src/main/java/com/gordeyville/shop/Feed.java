@@ -72,6 +72,21 @@ public final class Feed {
         public int dot = C_GRAY, badgeColor = C_MUTED, bar = 0, progress = -1;
         /** drawable for the badge pill, 0 = plain text */
         public int pill = 0;
+        /** big "Next up" card at the top of To do */
+        public boolean hero; public String tag = "", count = ""; public int tagColor = 0;
+    }
+    /** tag (from the app's Next up) -> pill text colour + pill drawable */
+    static int[] tagStyle(String tag) {
+        switch (tag == null ? "" : tag) {
+            case "PICK UP": return new int[]{C_CYAN, R.drawable.pill_cyan};
+            case "COUNT": case "NO JOB #": case "TO DO": return new int[]{C_AMBER, R.drawable.pill_amber};
+            case "QUOTE": case "CREW": return new int[]{C_ORANGE, R.drawable.pill_orange};
+            case "FOLLOW UP": case "ORDER": return new int[]{C_RED, R.drawable.pill_red};
+            case "TIME": return new int[]{C_GREEN, R.drawable.pill_green};
+            case "BEND": return new int[]{C_PINK, R.drawable.pill_pink};
+            case "PIPELINE": return new int[]{C_PURPLE, R.drawable.pill_purple};
+            default: return new int[]{C_MUTED, R.drawable.pill_gray};
+        }
     }
 
     public static final class Result {
@@ -499,16 +514,16 @@ public final class Feed {
         for (Row r : reminders) { if (!r.job.isEmpty()) liveJobs.add(r.job); if (r.title.startsWith("Assign ")) assignLive = true; }
 
         // ---- the app's own To do list (what its To do tab shows), if it's newer than the last board change (Nov 4) ----
-        JSONArray appItems = null;
+        JSONArray appItems = null, appNext = null;
         JSONObject appT = feed.optJSONObject("app_todo");
         if (appT != null) {
             long a = ts(appT.optString("at")), d = ts(feed.optString("data_at"));
             JSONObject dd = appT.optJSONObject("data");
-            if (dd != null && a > 0 && a + 3000 >= d) appItems = dd.optJSONArray("items");
+            if (dd != null && a > 0 && a + 3000 >= d) { appItems = dd.optJSONArray("items"); appNext = dd.optJSONArray("next"); }
         }
 
         // ---- attention counts per tab ----
-        res.counts[0] = appItems != null ? appItems.length() : reminders.size() + todos.length();
+        res.counts[0] = appNext != null ? appNext.length() : appItems != null ? appItems.length() : reminders.size() + todos.length();
         for (int i = 0; i < jobs.length(); i++) {
             JSONObject j = jobs.optJSONObject(i);
             if (j == null || j.optBoolean("sample")) continue;
@@ -520,7 +535,23 @@ public final class Feed {
         }
         if (assignLive) res.counts[3] += unassigned;
 
-        if (tab.equals("todo") && appItems != null) {
+        if (tab.equals("todo") && appNext != null) {
+            // exactly the app's Home "Next up": first one as a big card, the rest as tagged rows
+            if (res.review > 0) { Row r = todo(res.review + " suggestion" + (res.review > 1 ? "s" : "") + " from texts & recordings to review", C_AMBER, null, "todo"); r.badge = "Review"; r.badgeColor = C_AMBER; r.pill = pillFor(C_AMBER); res.rows.add(r); }
+            int n = appNext.length();
+            if (n == 0) { Row e = header("All caught up  ·  nothing needs you", C_GREEN); res.rows.add(e); }
+            for (int i = 0; i < n; i++) {
+                JSONObject t = appNext.optJSONObject(i); if (t == null) continue;
+                String tb = t.optString("tab", "todo"); if (tb.isEmpty()) tb = "todo";
+                int col = hexColor(t.optString("c"), C_AMBER);
+                Row r = todo(t.optString("text"), col, t.optString("job", ""), tb);
+                r.sub = t.optString("sub");
+                r.tag = t.optString("tag");
+                if (i == 0) { r.hero = true; r.tagColor = col; r.count = "NEXT UP  ·  " + n; }
+                else { if (i == 1) res.rows.add(header("Then  " + (n - 1), 0xFFFF8A2A)); int[] ts = tagStyle(r.tag); r.badge = r.tag; r.badgeColor = ts[0]; r.pill = ts[1]; }
+                res.rows.add(r);
+            }
+        } else if (tab.equals("todo") && appItems != null) {
             if (res.review > 0) { Row r = todo(res.review + " suggestion" + (res.review > 1 ? "s" : "") + " from texts & recordings to review", C_AMBER, null, "todo"); r.badge = "Review"; r.badgeColor = C_AMBER; r.pill = pillFor(C_AMBER); res.rows.add(r); }
             List<Row> mine = new ArrayList<>(), board = new ArrayList<>();
             for (int i = 0; i < appItems.length(); i++) {

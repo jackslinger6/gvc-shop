@@ -65,6 +65,20 @@ public class ShopWidgetService extends RemoteViewsService {
                 h.setInt(R.id.h_bar, "setBackgroundColor", r.bar == 0 ? 0xFF8E96A3 : (r.dim ? (r.bar & 0x66FFFFFF) : r.bar));
                 return h;
             }
+            if (r.hero) {
+                RemoteViews x = new RemoteViews(ctx.getPackageName(), R.layout.widget_hero);
+                x.setTextViewText(R.id.x_tag, r.tag.isEmpty() ? "NEXT" : r.tag);
+                x.setInt(R.id.x_tag, "setBackgroundColor", r.tagColor == 0 ? 0xFFFF8A2A : r.tagColor);
+                x.setTextViewText(R.id.x_count, r.count);
+                x.setTextViewText(R.id.x_title, r.title);
+                if (r.sub == null || r.sub.length() == 0) x.setViewVisibility(R.id.x_sub, View.GONE);
+                else { x.setViewVisibility(R.id.x_sub, View.VISIBLE); x.setTextViewText(R.id.x_sub, r.sub); }
+                String go = r.tag.equals("PICK UP") || r.tag.equals("COUNT") ? "OPEN - COUNT IT" : r.job.isEmpty() ? "OPEN THE APP" : "OPEN JOB";
+                x.setTextViewText(R.id.x_go, go);
+                Intent f = new Intent(); f.putExtra(Feed.EXTRA_TAB, r.tab); f.putExtra(Feed.EXTRA_JOB, r.job);
+                x.setOnClickFillInIntent(R.id.x_root, f);
+                return x;
+            }
             RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_row);
             v.setTextViewText(R.id.r_title, r.title);
             v.setTextColor(R.id.r_dot, r.dot);
@@ -87,7 +101,7 @@ public class ShopWidgetService extends RemoteViewsService {
         }
 
         @Override public RemoteViews getLoadingView() { return null; }
-        @Override public int getViewTypeCount() { return 2; }
+        @Override public int getViewTypeCount() { return 3; }
         @Override public long getItemId(int pos) { return pos; }
         @Override public boolean hasStableIds() { return false; }
     }
