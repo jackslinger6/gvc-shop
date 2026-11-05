@@ -52,7 +52,7 @@ css.textContent=`
 .wkv .pblk small{display:block;color:var(--muted);font-size:10.5px}
 .wkv .pblk.sel{outline:1.5px solid #fff}
 .wkv .pblk.bad{box-shadow:inset 0 0 0 1.5px #e5483b}
-.wkv .pblk.done{opacity:.4}
+.wkv .pblk.done{opacity:.55;filter:grayscale(1);background:#3a3f47!important;color:#c9ced6;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.35)}
 .wkv .pblk.fx{border-left-style:dashed}
 .wkv .pind{height:3px;background:var(--orange);border-radius:2px;margin:1px 0 3px}
 .wkv .pghost{position:absolute;pointer-events:none;opacity:.9;z-index:20;width:150px}
@@ -65,7 +65,7 @@ css.textContent=`
 .wkv .pjob .pjn{font-family:Oswald,sans-serif;font-weight:500;letter-spacing:.04em;color:#fff;background:var(--c);border-radius:4px;padding:0 4px;font-size:11px}
 .wkv .pjob .pjc{color:var(--muted)}
 .wkv .pjob small{display:block;color:var(--muted);font-size:10.5px;margin-top:2px}
-.wkv .pjob.sel{outline:1.5px solid #fff}.wkv .pjob.bad{box-shadow:inset 0 0 0 1.5px #e5483b}.wkv .pjob.done{opacity:.45}
+.wkv .pjob.sel{outline:1.5px solid #fff}.wkv .pjob.bad{box-shadow:inset 0 0 0 1.5px #e5483b}.wkv .pjob.done{opacity:.6;filter:grayscale(1)}
 .wkv .pjsub{margin:-1px 0 5px 6px;padding-left:5px;border-left:1px dashed var(--line)}
 .wkv .pjrow{display:flex;gap:4px;align-items:flex-start}
 .wkv .pjrow .pblk{flex:1;min-width:0}

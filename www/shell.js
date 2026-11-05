@@ -174,10 +174,44 @@ const upd=$("#updBtn"); if(upd) top.lastElementChild.prepend(upd);
 function talk(prefix,close){ if(close) close(); openChat(); setTimeout(()=>{ const box=$("#chatIn"); if(box) box.value=prefix?prefix+" ":"";
   if(typeof micStart==="function"&&!micOn) micStart(); },350); }
 window.shellTalk=talk;
+/* "Talk about this": a mic that knows what's on screen. What Kyle is looking at (open job, count sheet, tab) goes to
+   Claude with the message, so "move this job to done" just works. Snapshot is taken when the mic is pressed
+   because the chat panel can cover the card. (Kyle, 2026-11-04) */
+const VIEWN={home:"Home",todo:"To do",pipeline:"Jobs - pipeline",ordering:"Jobs - ordering",build:"Jobs - shop floor",archive:"Finished jobs",crew:"Crew & week plan",time:"My time",inv:"Inventory",ncr:"NCRs",revs:"Revisions"};
+function lookNow(){
+  const sc=$("#scrim"), D=$("#dlg"), open=sc&&sc.classList.contains("on");
+  if(open&&D){
+    const c=D.querySelector(".cnt h3");
+    if(c){ const sub=[...D.querySelectorAll(".cnt .csub")].map(x=>x.textContent.trim()).join(" · ");
+      return `Count sheet open: ${c.textContent.trim()}${sub?" ("+sub+")":""}`; }
+    let j=null; try{ j=typeof job==="function"?job():null; }catch(e){}
+    if(j){ const st=(STAGES.find(s=>s.k===j.stage)||{}).t||j.stage;
+      const sups=(j.suppliers||[]).filter(x=>x.status!=="dropped").map(x=>`${x.name} [supplier id ${x.id}]: ${x.status}${x.quoteNo?" #"+x.quoteNo:""}`).join("; ");
+      const tasks=(j.assemblies||[]).map(a=>`${a.name}: ${a.status}${a.who?" ("+a.who+")":""}`).join("; ");
+      return `Job card open: "${j.name}" [job id ${j.id}] - stage ${st}${j.archived?" (archived)":""}${sups?". Suppliers: "+sups:""}${tasks?". Tasks: "+tasks:""}`; }
+    const h=D.querySelector("h2,h3"); if(h) return `Popup open: ${h.textContent.trim()}`;
+  }
+  return `Tab: ${VIEWN[cur]||cur}`;
+}
+let lookSnap=null, lookAt=0;
+window.shellLook=()=>{ const live=lookNow(); if(lookSnap&&Date.now()-lookAt<15*60e3&&/^Tab:/.test(live)) return lookSnap; return live; };
+function talkHere(){ lookSnap=lookNow(); lookAt=Date.now(); talk(""); setTimeout(()=>{ const n=$("#lookNote"); if(n) n.textContent="Claude sees: "+lookSnap.replace(/\s*\[[^\]]*\]/g,"").slice(0,140); },400); }
+window.shellTalkHere=talkHere;
+{ const st=document.createElement("style"); st.textContent=`.hereMic{position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;width:56px;height:56px;border-radius:50%;border:none;background:linear-gradient(180deg,#ff9a40,#e8711a);box-shadow:0 6px 18px rgba(0,0,0,.45),0 0 0 3px rgba(255,138,42,.25);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s}
+.hereMic:active{transform:scale(.92)}.hereMic small{position:absolute;bottom:-17px;font:600 9.5px Oswald,sans-serif;letter-spacing:.06em;color:#ffb36b;white-space:nowrap}
+@media(min-width:900px){.hereMic{bottom:24px;right:24px}}
+body:has(.scrim.on) .hereMic{z-index:1001;bottom:24px}
+body:has(.chatp.on) .hereMic,body:has(.shov) .hereMic{display:none}
+#lookNote{font-size:11.5px;color:#ffb36b;padding:4px 12px 0}`; document.head.appendChild(st); }
+const hereMic=document.createElement("button"); hereMic.type="button"; hereMic.className="hereMic"; hereMic.hidden=true;
+hereMic.title="Talk to Claude about what's on screen"; hereMic.innerHTML=svg("rec","#111",24,2)+"<small>TALK</small>";
+hereMic.onclick=talkHere; document.body.appendChild(hereMic);
+{ const ci=$("#chatP .ci"); if(ci&&!$("#lookNote")){ const n=document.createElement("div"); n.id="lookNote"; ci.before(n); } }
+{ const x=$("#chatX"); if(x) x.addEventListener("click",()=>{ lookSnap=null; const n=$("#lookNote"); if(n) n.textContent=""; }); }
 const TALKBTN=(id,label)=>`<button class="talk" type="button" id="${id}">${svg("rec","#111",20,2)}<span>${label}</span></button>`;
 function openChat(){ const f=$("#chatFab"); if(f&&f.onclick) f.onclick(); }
 // show the frame once signed in (the app section becomes visible)
-new MutationObserver(()=>{ const on=!$("#app").hidden; top.hidden=!on; nav.hidden=!on; }).observe($("#app"),{attributes:true,attributeFilter:["hidden"]});
+new MutationObserver(()=>{ const on=!$("#app").hidden; top.hidden=!on; nav.hidden=!on; hereMic.hidden=!on; }).observe($("#app"),{attributes:true,attributeFilter:["hidden"]});
 
 /* ---- home is the start screen ---- */
 if(!location.hash||location.hash==="#"||location.hash==="#home") cur="home";
