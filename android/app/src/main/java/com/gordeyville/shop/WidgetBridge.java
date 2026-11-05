@@ -29,6 +29,8 @@ public class WidgetBridge extends Plugin {
         JSObject o = new JSObject();
         o.put("tab", i.getStringExtra(Feed.EXTRA_TAB));
         o.put("job", i.getStringExtra(Feed.EXTRA_JOB));
+        if (i.hasExtra("gvc_act")) o.put("act", i.getStringExtra("gvc_act"));
+        i.removeExtra("gvc_act");
         i.removeExtra(Feed.EXTRA_TAB);
         i.removeExtra(Feed.EXTRA_JOB);
         notifyListeners("launch", o, true);

@@ -61,6 +61,7 @@ public class RecorderService extends Service {
                 r.start();
                 rec = r;
                 startedAt = System.currentTimeMillis();
+                try { ShopWidgetProvider.refreshAll(this, false); } catch (Exception ignored) {}
             } catch (Exception e) {
                 rec = null;
                 stopSelf();
@@ -78,6 +79,7 @@ public class RecorderService extends Service {
         lastDurationMs = System.currentTimeMillis() - startedAt;
         startedAt = 0;
         ctx.stopService(new Intent(ctx, RecorderService.class));
+        try { ShopWidgetProvider.refreshAll(ctx, false); } catch (Exception ignored) {}
         return path;
     }
 

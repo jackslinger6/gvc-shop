@@ -82,6 +82,15 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         openApp.putExtra(Feed.EXTRA_TAB, Feed.APP_TABS[ti]);
         v.setOnClickPendingIntent(R.id.open, PendingIntent.getActivity(ctx, 200 + widgetId, openApp, flags(false)));
         v.setOnClickPendingIntent(R.id.title_box, PendingIntent.getActivity(ctx, 300 + widgetId, openApp, flags(false)));
+        // record button: opens the app, which starts or stops the recording (Android only lets the mic start from the app)
+        Intent rec = new Intent(ctx, MainActivity.class);
+        rec.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        rec.putExtra(Feed.EXTRA_TAB, "todo").putExtra("gvc_act", "rec");
+        v.setOnClickPendingIntent(R.id.rec, PendingIntent.getActivity(ctx, 700 + widgetId, rec, flags(false)));
+        boolean recOn = RecorderService.isRecording();
+        v.setTextViewText(R.id.rec, recOn ? "■ Stop" : "● Rec");
+        v.setTextColor(R.id.rec, recOn ? 0xFFFFFFFF : 0xFFFF6B5E);
+        v.setInt(R.id.rec, "setBackgroundResource", recOn ? R.drawable.widget_tab_on_order : R.drawable.widget_tab_off);
         Intent ref = new Intent(ctx, ShopWidgetProvider.class).setAction(ACTION_REFRESH);
         v.setOnClickPendingIntent(R.id.refresh, PendingIntent.getBroadcast(ctx, 400 + widgetId, ref, flags(false)));
 

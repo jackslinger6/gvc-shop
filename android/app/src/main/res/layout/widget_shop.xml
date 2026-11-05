@@ -37,6 +37,19 @@
                 android:textSize="10sp"/>
         </LinearLayout>
         <TextView
+            android:id="@+id/rec"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginRight="4dp"
+            android:gravity="center"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:background="@drawable/widget_tab_off"
+            android:text="● Rec"
+            android:textColor="#FFFF6B5E"
+            android:textStyle="bold"
+            android:textSize="13sp"/>
+        <TextView
             android:id="@+id/refresh"
             android:layout_width="40dp"
             android:layout_height="36dp"

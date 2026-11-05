@@ -1253,6 +1253,7 @@ async function toggleRec(){
     if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
     setAiMsg(data.added?`Recording done - ${data.added} suggestion${data.added>1?"s":""} below.`:"Recording transcribed - nothing job-related found.");
     await loadSide();
+    if(data.recap&&window.showRecap) window.showRecap(data);
   }catch(e){ recState.on=false; clearInterval(recState.timer); setAiMsg("Recording: "+(e.message||e)); render(); }
 }
 
@@ -1272,6 +1273,7 @@ async function uploadAudio(f){
     if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} throw new Error(m); }
     setAiMsg(data.added?`Call done - ${data.added} suggestion${data.added>1?"s":""} below.`:"Call transcribed - nothing job-related found.");
     await loadSide();
+    if(data.recap&&window.showRecap) window.showRecap(data);
   }catch(e){ setAiMsg("Call recording: "+(e.message||e)); }
 }
 
@@ -1371,7 +1373,16 @@ $("#lSetPass").onclick=async()=>{
   recovering=false; $("#lNew").hidden=true; history.replaceState(null,"",location.pathname); await startApp();
 };
 $("#signOut").onclick=async()=>{ try{ Widget && await Widget.signOut(); }catch(e){} await sb.auth.signOut(); jobs=[]; archivedJobs=[]; for(const k in jobVer) delete jobVer[k]; db=null; showLogin("Signed out."); };
-if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
+/* widget Record button: start, or stop + upload, whatever the phone is doing right now (Kyle, 2026-11-04) */
+async function widgetRec(){
+  for(let i=0;i<40&&!db;i++) await new Promise(r=>setTimeout(r,250));
+  try{ const st=await Native.recStatus();
+    if(st.on&&!recState.on){ recState.on=true; recState.t0=st.startedAt||Date.now(); }
+    if(!st.on&&recState.on){ clearInterval(recState.timer); recState.on=false; } }catch(e){}
+  if(typeof cur!=="undefined"){ cur="todo"; render(); }
+  toggleRec();
+}
+if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.act==="rec"&&Native){ widgetRec(); return; } if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden && db){ loadJobs(); loadSide(); checkTexts(false); } });
 render();
 (async()=>{
@@ -1398,5 +1409,6 @@ render();
 <script src="update.js"></script>
 <script src="nav.js"></script>
 <script src="shell.js"></script>
+<script src="recaps.js"></script>
 </body>
 </html>

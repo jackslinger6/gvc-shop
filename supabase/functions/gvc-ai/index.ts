@@ -112,7 +112,7 @@ Only propose a change when the message clearly supports it. Never invent quote n
 Always answer by calling the propose_updates tool exactly once, covering every message ref.
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}
-If a message shows one of Kyle's open to-dos is already handled, put its id in done_todos.
+If a message shows one of Kyle's open to-dos is already handled, put its id in done_todos.\nRecordings: the plan often changes during the conversation. Only use where it ENDED UP (a recap of the final decisions is given first) - never make to-dos or changes for something that was changed or dropped later in the talk.
 Updates are applied to the board right away (Kyle can undo), except new jobs, which he approves - so only propose what the message really supports.
 Current jobs: ${JSON.stringify(jobs)}
 Kyle's open to-dos: ${JSON.stringify((open || []).filter((t: any) => !String(t.id).startsWith("auto")))}`;
@@ -237,6 +237,10 @@ const CHAT_TOOLS = [
 ];
 const APP_FEATURES = `What the app already does: To do tab (auto reminders from job stages, suppliers, idle crew, flat parts, schedule clashes, unlogged time, undecided NCRs; Kyle's own to-dos; review list of suggestions from texts/emails/recordings that Kyle accepts). Boards: Pipeline (released, check drawings, make DXFs), Orders (preparing, quote, production, pick up, arrived, received - with suppliers per job), Shop floor (bending, fab, paint, assembly, done). Job card: stage, folder, note, tasks with who/status and progress %, suppliers, NCRs, notes log. Crew tab: Week plan (drag-and-drop weekly schedule per person, 8h days, hour estimates, shared tasks split by crew-hours, days off, "send someone now" errands, task dependencies with clash alerts) and Lanes view. My time tab: Kyle's daily hours prefilled from the plan, confirm days, send to his separate time invoice app with a button. NCRs: log on a job (type, fix, rework steps with hours, material $), NCR log with cost. Inventory tab: mirror of Robin's spreadsheet (synced daily), part pictures, flat vs bent stock, bend list. Phone: record conversations (Whisper transcribes, suggestions come out), reads texts from picked contacts. Hourly email check (weekdays) turns Kyle's work emails into suggestions. This chat (with mic on PC). Kyle's undo button. PC web version and Android app.`;
 
+async function recapCtx(sb: any) {
+  try { const { data } = await sb.from("gvc_recaps").select("at,title,recap").order("at", { ascending: false }).limit(4);
+    return (data || []).map((r: any) => `--- ${String(r.at || "").slice(0, 16).replace("T", " ")} UTC · ${r.title}\n${r.recap}`).join("\n"); } catch (_) { return ""; }
+}
 async function timeCtx(sb: any) {
   try {
     const [{ data: pl }, { data: tj }] = await Promise.all([sb.from("gvc_plan").select("data").eq("id", "main").maybeSingle(), sb.from("jobs").select("id,name,description,closed")]);
@@ -307,6 +311,28 @@ function weekLine() {
   return out.join(", ");
 }
 
+async function recapOf(text: string, rows: any[]) {
+  const sys = `You recap a recorded shop conversation for Kyle (welder / shop lead at Gordeyville Customs). Usually Kyle and Randy (who releases jobs) talk through several jobs and the plan changes during the talk - something gets decided, then changed, then changed again. Kyle needs to know where it ENDED UP.
+Write plain text, short lines, shop language, no fluff. Sections, only the ones that have something:
+WHAT I'M DOING - Kyle's own actions, final version only, with job and any day/time said.
+CREW - who does what, final version.
+DECIDED - other final decisions (per job).
+CHANGED DURING THE TALK - "first X, then Y" for each thing that flip-flopped, so Kyle can see it moved. Final answer last.
+NOT SETTLED - things left open or that need a follow-up / a question back to someone.
+If speakers aren't labelled, work out who is who from context (Kyle is the one being told / asking about the shop). Never invent jobs, dates or numbers. Jobs on the board: ${rows.map((r: any) => r.data?.name).filter(Boolean).join("; ")}.
+First line: TITLE: <5-8 word title, e.g. "Randy - 1086WT and hitch rack plan">`;
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: MODEL, max_tokens: 2000, system: sys, messages: [{ role: "user", content: "Transcript:\n" + String(text || "").slice(0, 60000) }] }),
+  });
+  if (!r.ok) throw new Error("recap " + r.status);
+  const out = await r.json();
+  const t = (out.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n").trim();
+  const m = t.match(/^TITLE:\s*(.+)$/m);
+  return { title: m ? m[1].trim().slice(0, 120) : "Conversation", recap: t.replace(/^TITLE:.*\n?/m, "").trim() };
+}
+
 async function chat(sb: any, msgs: any[], ctx: any = {}) {
   const [{ data: rows }, { data: todos }, { data: notes }] = await Promise.all([
     sb.from("gvc_jobs").select("id,data"),
@@ -332,6 +358,7 @@ Jobs: ${JSON.stringify(jobs)}
 Kyle's open to-dos (with ids, for complete_todo): ${JSON.stringify(todos || [])}
 What Kyle's To do tab shows right now (board reminders are generated from job stages/suppliers/crew; to-dos are his own): ${JSON.stringify(ctx.todo_tab || [])}
 Suggestions waiting for his review: ${JSON.stringify(ctx.waiting_review || [])}
+Recaps of Kyle's latest recorded conversations (final decisions; "what did Randy and I decide" = these):\n${await recapCtx(sb) || "(none yet)"}
 Kyle's logged hours, last 2 weeks (My time tab):
 ${await timeCtx(sb) || "(nothing logged)"}
 Where Kyle is in the app right now: ${ctx.looking_at || "unknown"}. When he says "this job", "this order", "it", "this one", he means what's open there - use that job id / supplier id and don't ask which job.
@@ -592,8 +619,14 @@ Deno.serve(async (req) => {
       const { data: rows } = await sb.from("gvc_jobs").select("id,data");
       const hint = "Gordeyville Customs shop talk. Names: Randy, Jesse, Robin, Colton, Aaron, Cooper, Kyle, Russel Metals, Grandview. Jobs: " + (rows || []).map((r: any) => r.data?.name).join(", ");
       const text = await transcribe(sb, body.path, hint);
-      const res = await suggest(sb, [{ ref: "rec:" + body.path, source: "recording", from: "Recording", at: body.at || new Date().toISOString(), text }]);
-      return json({ ...res, transcript: text });
+      // Conversations (often with Randy) change direction several times - write a recap of where it ENDED UP first,
+      // then let the board updates follow the recap, not whatever was said first. (Kyle, 2026-11-04)
+      let recap = "", title = "Conversation";
+      try { const rc = await recapOf(text, rows || []); recap = rc.recap; title = rc.title || title; } catch (_) { /* board updates still happen */ }
+      const { data: rrow } = await sb.from("gvc_recaps").insert({ at: body.at || new Date().toISOString(), path: body.path, title, recap, transcript: text }).select("id").single();
+      const res = await suggest(sb, [{ ref: "rec:" + body.path, source: "recording", from: "Recording", at: body.at || new Date().toISOString(),
+        text: recap ? "RECAP OF WHERE THE CONVERSATION ENDED UP (this wins over anything said earlier in the transcript):\n" + recap + "\n\nFULL TRANSCRIPT:\n" + text : text }]);
+      return json({ ...res, transcript: text, recap, title, recap_id: rrow?.id });
     }
     return json({ error: "unknown action" }, 400);
   } catch (e) {

@@ -481,7 +481,7 @@ public final class Feed {
             if (!j.optString("name").matches("(?is)^\\s*(\\d{4}[A-Za-z0-9_]{0,4}|INV)\\b.*")) { noNum.add(j.optString("name")); if (firstNoNum == null) firstNoNum = j.optString("id"); }
             if (j.optString("stage").equals("done")) { doneJobs.add(j.optString("name")); if (firstDone == null) firstDone = j.optString("id"); } }
         if (!noNum.isEmpty()) reminders.add(todo("Add job numbers: " + String.join(", ", noNum), 0xFFF5B041, firstNoNum, "build"));
-        if (!doneJobs.isEmpty()) reminders.add(todo("Archive finished job" + (doneJobs.size() > 1 ? "s" : "") + ": " + String.join(", ", doneJobs), 0xFF3AD06B, firstDone, "build"));
+        // finished jobs archive themselves the next day now - no reminder (Nov 4)
         Iterator<Row> it = reminders.iterator();
         while (it.hasNext()) if (hidden.contains(hideKey(it.next().title))) it.remove();
         // jobs only "need you" while one of their reminders is still live (not cleared or snoozed)

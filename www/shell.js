@@ -292,6 +292,7 @@ function renderHome(){
         <div class="dots" id="nuDots">${items.slice(0,12).map((_,i)=>`<i class="${i===nuIdx?"on":""}"></i>`).join("")}<span id="nuOf">${nuIdx+1} OF ${items.length}</span></div>`
         :`<div class="empty">${svg("check","#3ad06b",28,2)}<div style="margin-top:6px;font:600 18px Oswald,sans-serif">All caught up</div><div style="font-size:13px;margin-top:4px">Nothing needs you right now.</div></div>`}</div>
       ${doneToday?`<button class="adone" type="button" id="shAuto">${svg("check","#3ad06b",14,2.2)} ${doneToday} update${doneToday>1?"s":""} put on the board for you today - tap to see or undo</button>`:""}
+      ${window.recapLine?window.recapLine():""}
     </section>
     <div style="display:flex;flex-direction:column;gap:16px">
       <section aria-label="Crew today">
@@ -356,12 +357,13 @@ function sheet(html,onReady){
 function moreMenu(){
   const n=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
-  const items=[["todo","To do","list"],["time","My time","clock",timeN],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
+  const items=[["todo","To do","list"],["time","My time","clock",timeN],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["talks","Talks","rec"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
     ["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
   sheet(`<h3>MENU</h3>${TALKBTN("mTalk","TALK TO CLAUDE")}<div class="mgrid">${items.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
     el.querySelector("#mTalk").onclick=()=>talk("",close);
     el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ const k=b.dataset.m; close();
-      if(k==="newjob"){ go(lastJobs()); setTimeout(()=>$("#addJob").click(),60); }
+      if(k==="talks"){ window.openRecaps&&window.openRecaps(); }
+      else if(k==="newjob"){ go(lastJobs()); setTimeout(()=>$("#addJob").click(),60); }
       else if(k==="undo") $("#undoBtn").click();
       else if(k==="signout") $("#signOut").click();
       else go(k); });
