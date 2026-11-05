@@ -1,0 +1,18 @@
+-- Nov 4 2026 - applied to project bfbhosvkzdxjcmvofotk with the Supabase MCP (migrations
+-- gvc_history_snapshots, gvc_auto_apply_suggestions, gvc_mail_files). Kept here for the record;
+-- the live definitions are the source of truth (pg_get_functiondef).
+--
+-- gvc_history: previous copy of gvc_plan / gvc_jobs rows on every change (45 days). Restore a wiped plan:
+--   select saved_at, data from gvc_history where tbl='gvc_plan' order by saved_at desc;
+--   update gvc_plan set data = (select data from gvc_history where id = <id>), updated_at = now() where id = 'main';
+--
+-- gvc_apply_suggestion(uuid): applies a suggestion to the board straight away (stage forward only, card,
+--   tasks, log, supplier, new to-dos, done_todos ticks off open to-dos); status 'auto', keeps prev_job for undo.
+--   New-job suggestions are left as 'new' for Kyle.
+-- gvc_undo_suggestion(uuid): puts the job back (only if it hasn't changed since), removes the new to-dos,
+--   re-opens ticked ones, status back to 'new'.
+--
+-- gvc_job_files + trigger gvc_suggestions_files: a suggestion whose changes has "files": {"parts": bool}
+--   calls edge function gvc-mail-files (pg_net, header x-gvc-key from gvc_secret) which saves the email's
+--   attachments to storage gvc-parts/jobs/<job_no>/mail/... and, for orders, upserts gvc_job_parts
+--   (= the count list). Status in gvc_suggestions.files_status.

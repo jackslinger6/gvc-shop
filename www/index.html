@@ -969,6 +969,8 @@ function sgBullets(s){
   if((c.tasks||[]).length) row("Tasks","tasks",c.tasks.filter(t=>t&&t.name).map(t=>esc(t.name)+((t.who||[]).length?" ("+esc(t.who.join(", "))+")":"")).join("; "));
   if(c.log) row("Log","log",esc(c.log));
   (c.todos||[]).forEach(t=>row("To do","todo",esc(t.text)));
+  (c.done_todos||[]).forEach(id=>{ const t=todos.find(x=>x.id===id); if(t) row("Tick off","done",esc(t.text)); });
+  if(c.files) row("Files","files",c.files.parts?"Save the attachments + put the order's DXFs in the count list":"Save the attachments on the job");
   if(!b.length) row("Note","log","Nothing to change - accepting just clears it.");
   return b;
 }
@@ -1043,6 +1045,11 @@ function renderTodo(){
       <div class="sm">${esc(x.summary)}</div>${sgTags(x).length?`<div class="tags">${sgTags(x).join("")}</div>`:""}<div class="acts">${sgBullets(x).join("")}</div>
       ${x.source_text?`<details><summary>Original</summary><pre>${esc(x.source_text)}</pre></details>`:""}
       <div class="row"><button class="btn primary sm" type="button" data-acc="${x.id}">Accept</button><button class="btn sm" type="button" data-dis="${x.id}">Dismiss</button></div></div>`).join("")||`<div class="tnote">Nothing waiting. ${Native?"Texts from your picked contacts are checked when you open the app.":"Paste a message or use the phone app to record and read texts."}</div>`}
+    ${autoDone.length?`<details class="autobox" style="margin-top:10px" ${LS.get("gvc_auto_open",false)?"open":""}><summary class="tnote" style="cursor:pointer">Done automatically - last 3 days (${autoDone.length})</summary>${autoDone.map(x=>{ const did=((x.undo||{}).did||[]); return `<div class="sg auto"><div class="hd">${SRC[x.source]||"•"} ${esc(x.from_name||x.source)} · ${fmt(x.source_at||x.created_at)}</div>
+      <div class="sm">${esc(x.summary)}</div>${sgTags(x).length?`<div class="tags">${sgTags(x).join("")}</div>`:""}
+      <div class="tnote" style="margin:4px 0">${did.length?"✓ "+esc(did.join(" · ")):"✓ Logged on the job"}${x.files_status?` · 📎 ${esc(x.files_status.replace(/^done: /,""))}`:""}</div>
+      ${x.source_text?`<details><summary>Original</summary><pre>${esc(x.source_text)}</pre></details>`:""}
+      <div class="row"><button class="btn sm" type="button" data-undo="${x.id}">Undo</button>${x.job_id?`<button class="btn sm ghost" type="button" data-job="${esc(x.job_id)}">Open job</button>`:""}</div></div>`; }).join("")}</details>`:""}
   </section>`;
   const addT=async()=>{const v=$("#tdNew").value.trim(); if(!v) return; await addTodos([{text:v,source:"manual"}]); };
   $("#tdAdd").onclick=addT; $("#tdNew").onkeydown=e=>{if(e.key==="Enter") addT();};
@@ -1061,17 +1068,20 @@ function renderTodo(){
   B.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>{cur=el.dataset.view;render();});
   B.querySelectorAll("[data-acc]").forEach(el=>el.onclick=()=>acceptSugg(el.dataset.acc));
   B.querySelectorAll("[data-dis]").forEach(el=>el.onclick=()=>setSugg(el.dataset.dis,"dismissed"));
+  const ab=B.querySelector(".autobox"); if(ab) ab.ontoggle=()=>LS.set("gvc_auto_open",ab.open);
+  B.querySelectorAll("[data-undo]").forEach(el=>el.onclick=async()=>{ el.disabled=true; const r=await sb.rpc("gvc_undo_suggestion",{sid:el.dataset.undo});
+    setAiMsg(r.error?"Couldn't undo: "+r.error.message:(r.data==="undone"?"Undone - it's back in the list to review.":r.data)); await loadJobs(); await loadSide(); });
   $("#pasteBtn").onclick=()=>{$("#pasteBox").hidden=!$("#pasteBox").hidden; if(!$("#pasteBox").hidden) $("#pasteTx").focus();};
   $("#pasteGo").onclick=async()=>{const t=$("#pasteTx").value.trim(); if(!t) return; await askAI([{ref:"paste:"+Date.now(),source:"manual",from:"Pasted",at:new Date().toISOString(),text:t}]);};
   $("#audUp").onclick=()=>$("#audFile").click(); $("#audFile").onchange=e=>{ const f=e.target.files[0]; e.target.value=""; if(f) uploadAudio(f); };
   if(Native){ $("#recBtn").onclick=toggleRec; $("#smsNow").onclick=()=>checkTexts(true); $("#smsPick").onclick=pickContacts; }
 }
-let aiMsg="";
+let aiMsg="", autoDone=[];
 function setAiMsg(m){ aiMsg=m; const el=$("#aiMsg"); if(el) el.textContent=m; }
 async function loadSide(){
   if(!db) return;
-  const [t,s]=await Promise.all([sb.from("gvc_todos").select("*").order("created_at"), sb.from("gvc_suggestions").select("id,created_at,source,from_name,source_at,source_text,job_id,summary,changes,status").eq("status","new")]);
-  if(!t.error) todos=t.data||[]; if(!s.error) suggs=s.data||[];
+  const [t,s]=await Promise.all([sb.from("gvc_todos").select("*").order("created_at"), sb.from("gvc_suggestions").select("id,created_at,source,from_name,source_at,source_text,job_id,summary,changes,status,applied_at,undo,files_status").or("status.eq.new,and(status.eq.auto,applied_at.gt."+new Date(Date.now()-3*864e5).toISOString()+")")]);
+  if(!t.error) todos=t.data||[]; if(!s.error){ suggs=(s.data||[]).filter(x=>x.status==="new"); autoDone=(s.data||[]).filter(x=>x.status==="auto").sort((a,b)=>a.applied_at<b.applied_at?1:-1); }
   render(); loadParts(); widgetRefresh();
 }
 async function addTodos(rows){
@@ -1123,7 +1133,7 @@ async function askAI(items){
   setAiMsg("Asking Claude…");
   const { data, error } = await sb.functions.invoke("gvc-ai",{body:{action:"suggest",items}});
   if(error||data?.error){ let m=data?.error||error.message; try{ const b=await error.context.json(); m=b.error||m; }catch(e){} setAiMsg("Claude: "+m); return false; }
-  setAiMsg(data.added?`${data.added} new suggestion${data.added>1?"s":""} below.`:"Nothing job-related in that.");
+  setAiMsg(data.added?`${data.added} update${data.added>1?"s":""} - put on the board (see Done automatically below; new jobs wait for you).`:"Nothing job-related in that.");
   const pt=$("#pasteTx"); if(pt) pt.value="";
   await loadSide(); return true;
 }
@@ -1148,6 +1158,7 @@ async function acceptSugg(id){
       await saveJob(jid,j); pushUndo(jid,prev,"Applied: "+(s.summary||"suggestion"));
     }
     if((c.todos||[]).length) await sb.from("gvc_todos").insert(c.todos.map(t=>({text:t.text,job_id:(t.job_id&&jobs.some(x=>x.id===t.job_id))?t.job_id:jid,source:s.source,from_name:s.from_name})));
+    if((c.done_todos||[]).length) await sb.from("gvc_todos").update({done_at:now}).in("id",c.done_todos).is("done_at",null);
     await setSugg(id,"accepted"); await loadSide();
   }catch(e){ setAiMsg("Couldn't apply: "+(e.message||e)); }
 }
@@ -1345,6 +1356,7 @@ render();
 <script src="ideas.js"></script>
 <script src="jobs-extra.js"></script>
 <script src="jobparts.js"></script>
+<script src="jobfiles.js"></script>
 <script src="revisions.js"></script>
 <script src="consumables.js"></script>
 <script src="counts.js"></script>

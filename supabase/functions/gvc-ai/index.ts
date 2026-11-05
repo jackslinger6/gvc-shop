@@ -65,6 +65,11 @@ const TOOL = {
               },
               required: ["name"],
             },
+            done_todos: {
+              type: ["array", "null"],
+              description: "ids of Kyle's OPEN to-dos (from the list given) that this message shows are already handled - e.g. he says he did it, or the thing it waited on happened. Only when clearly done.",
+              items: { type: "string" },
+            },
           },
           required: ["ref", "relevant", "summary"],
         },
@@ -96,6 +101,7 @@ async function suggest(sb: any, items: any[]) {
   const { data: rows, error } = await sb.from("gvc_jobs").select("id,data");
   if (error) throw new Error("jobs: " + error.message);
   const jobs = compactJobs(rows || []);
+  const { data: open } = await sb.from("gvc_todos").select("id,text,job_id").is("done_at", null).neq("source", "snooze");
 
   const system = `You help Kyle, a welder and shop lead at Gordeyville Customs (custom truck decks, BBQ trailers), keep his job board current.
 Messages come from his texts and recorded shop conversations. Randy releases jobs, Jesse Dirksen is the engineer, Jesse Eherer is at Russel Metals (laser cutting supplier), William Hofer is at Grandview Fabrication, Robin handles stock, Colton/Aaron/Cooper are crew.
@@ -104,7 +110,10 @@ Only propose a change when the message clearly supports it. Never invent quote n
 Always answer by calling the propose_updates tool exactly once, covering every message ref.
 Stages: ${JSON.stringify(STAGES)}
 Supplier statuses: ${SUP_STATUS.join(", ")}
-Current jobs: ${JSON.stringify(jobs)}`;
+If a message shows one of Kyle's open to-dos is already handled, put its id in done_todos.
+Updates are applied to the board right away (Kyle can undo), except new jobs, which he approves - so only propose what the message really supports.
+Current jobs: ${JSON.stringify(jobs)}
+Kyle's open to-dos: ${JSON.stringify((open || []).filter((t: any) => !String(t.id).startsWith("auto")))}`;
   const user = "New messages:\n" + JSON.stringify(fresh.map((i) => ({ ref: i.ref, source: i.source, from: i.from, at: i.at, text: String(i.text || "").slice(0, 20000) })));
 
   const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -130,8 +139,10 @@ Current jobs: ${JSON.stringify(jobs)}`;
   // messages Claude didn't mention: mark as processed so they aren't sent again
   for (const i of fresh) if (!done.has(i.ref)) insert.push({ source: i.source, source_ref: i.ref, from_name: i.from || null, source_at: i.at || null, source_text: String(i.text || "").slice(0, 50000), job_id: null, summary: "", changes: {}, status: "none" });
   if (insert.length) {
-    const { error: e2 } = await sb.from("gvc_suggestions").upsert(insert, { onConflict: "source_ref", ignoreDuplicates: true });
+    const { data: saved, error: e2 } = await sb.from("gvc_suggestions").upsert(insert, { onConflict: "source_ref", ignoreDuplicates: true }).select("id,status");
     if (e2) throw new Error("save: " + e2.message);
+    // apply straight to the board (Kyle sees them under "Done automatically" with Undo); new jobs stay for review
+    for (const r of saved || []) if (r.status === "new") await sb.rpc("gvc_apply_suggestion", { sid: r.id });
   }
   return { added: insert.filter((i) => i.status === "new").length, processed: insert.length };
 }
