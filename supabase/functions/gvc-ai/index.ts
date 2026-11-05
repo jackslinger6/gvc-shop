@@ -191,6 +191,9 @@ const textToHtml = (t: string) => String(t || "").replace(/&/g, "&amp;").replace
 // ---------- chat ----------
 const ITEM = (TOOL.input_schema.properties.suggestions as any).items;
 const CHAT_TOOLS = [
+  { name: "set_time", description: "Log or change Kyle's own hours for one day on the My time tab (what goes on his time invoice). mode 'replace' = these lines are the whole day; 'add' = add to what's there. Each line: job (GVC job number/name like 1086WT, or 'shop' for shop time/cleanup/meetings), hours, note. confirm=true marks the day confirmed (ready to Send) - only when Kyle says it's right/final. It never sends to the time invoice app; Kyle presses Send.",
+    input_schema: { type: "object", properties: { date: { type: "string", description: "YYYY-MM-DD" }, mode: { type: "string", enum: ["replace", "add"] }, confirm: { type: "boolean" },
+      lines: { type: "array", items: { type: "object", properties: { job: { type: "string" }, hours: { type: "number" }, note: { type: "string" } }, required: ["job", "hours"] } } }, required: ["date", "mode", "lines"] } },
   { name: "add_todo", description: "Add a to-do to Kyle's list right away.", input_schema: { type: "object", properties: { text: { type: "string" }, job_id: { type: ["string", "null"] } }, required: ["text"] } },
   { name: "complete_todo", description: "Mark one of Kyle's own to-dos done, by its id (only to-dos from the 'open to-dos' list - board reminders have no id, use clear_reminder for those).", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "clear_reminder", description: "Hide a [board reminder] from Kyle's To do tab (the auto ones like 'Give work to Aaron', 'Look over new job: ...', 'Log your time ...'). Pass the reminder text exactly as it appears in the To do tab list, without the [board reminder] prefix. It comes back on its own if the situation changes.", input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
@@ -230,6 +233,47 @@ const CHAT_TOOLS = [
 ];
 const APP_FEATURES = `What the app already does: To do tab (auto reminders from job stages, suppliers, idle crew, flat parts, schedule clashes, unlogged time, undecided NCRs; Kyle's own to-dos; review list of suggestions from texts/emails/recordings that Kyle accepts). Boards: Pipeline (released, check drawings, make DXFs), Orders (preparing, quote, production, pick up, arrived, received - with suppliers per job), Shop floor (bending, fab, paint, assembly, done). Job card: stage, folder, note, tasks with who/status and progress %, suppliers, NCRs, notes log. Crew tab: Week plan (drag-and-drop weekly schedule per person, 8h days, hour estimates, shared tasks split by crew-hours, days off, "send someone now" errands, task dependencies with clash alerts) and Lanes view. My time tab: Kyle's daily hours prefilled from the plan, confirm days, send to his separate time invoice app with a button. NCRs: log on a job (type, fix, rework steps with hours, material $), NCR log with cost. Inventory tab: mirror of Robin's spreadsheet (synced daily), part pictures, flat vs bent stock, bend list. Phone: record conversations (Whisper transcribes, suggestions come out), reads texts from picked contacts. Hourly email check (weekdays) turns Kyle's work emails into suggestions. This chat (with mic on PC). Kyle's undo button. PC web version and Android app.`;
 
+async function timeCtx(sb: any) {
+  try {
+    const [{ data: pl }, { data: tj }] = await Promise.all([sb.from("gvc_plan").select("data").eq("id", "main").maybeSingle(), sb.from("jobs").select("id,name,description,closed")]);
+    const t = (pl?.data?.time) || {}; const names: any = {}; (tj || []).forEach((j: any) => names[j.id] = j.name + (j.description ? " " + j.description : ""));
+    const since = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
+    return Object.keys(t).filter((d) => d >= since).sort().map((d) => `${d}${t[d].ok ? " (confirmed)" : ""}${t[d].sent ? " (sent" + (t[d].changed ? ", changed since" : "") + ")" : ""}: ` + (t[d].lines || []).map((l: any) => `${l.h}h ${names[l.ti] || "no invoice job"}${l.note ? " - " + l.note : ""}`).join("; ")).join("\n");
+  } catch (_) { return ""; }
+}
+async function setTime(sb: any, inp: any) {
+  const d = String(inp.date || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new Error("date must be YYYY-MM-DD");
+  const [{ data: tj }, { data: gj }] = await Promise.all([sb.from("jobs").select("id,name,description,closed"), sb.from("gvc_jobs").select("id,data")]);
+  const open = (tj || []).filter((j: any) => !j.closed);
+  const mo = new Date(d + "T12:00:00").toLocaleString("en-CA", { month: "long" }).toLowerCase();
+  const norm = (x: string) => String(x || "").replace(/\s/g, "").toLowerCase();
+  const miss: string[] = [];
+  const lines = (inp.lines || []).map((l: any) => {
+    const q = String(l.job || "").trim(); let ti = "", g: any = null;
+    if (/^(shop|cleanup|shop time|meeting|office)/i.test(q)) { const hit = open.find((x: any) => { const t = (x.name + " " + (x.description || "")).toLowerCase(); return t.includes("shop") && (t.includes(mo) || t.includes(mo.slice(0, 3))); }); ti = hit?.id || ""; }
+    else {
+      const m = q.match(/(\d{4})\s*([a-z]{0,2})/i);
+      if (m) { const n = m[1], suf = (m[2] || "").toLowerCase(); const c = open.filter((x: any) => norm(x.name).startsWith(n)); ti = (c.find((x: any) => norm(x.name) === n + suf) || c[0])?.id || "";
+        g = (gj || []).find((r: any) => norm(r.data?.name).startsWith(n + suf.toLowerCase())) || (gj || []).find((r: any) => norm(r.data?.name).startsWith(n)); }
+      else { const w = q.toLowerCase(); const hit = open.find((x: any) => (x.name + " " + (x.description || "")).toLowerCase().includes(w)); ti = hit?.id || "";
+        g = (gj || []).find((r: any) => String(r.data?.name || "").toLowerCase().includes(w)); }
+    }
+    if (!ti) miss.push(q);
+    return { id: Math.random().toString(36).slice(2, 9), ti, gj: g?.id || null, h: Math.round(Number(l.hours) * 4) / 4, note: l.note || (g ? "" : q) };
+  });
+  for (let tries = 0; tries < 4; tries++) {
+    const { data: pl } = await sb.from("gvc_plan").select("data,updated_at").eq("id", "main").maybeSingle();
+    if (!pl) throw new Error("no plan");
+    const pd = pl.data || {}; pd.time = pd.time || {}; const prev = pd.time[d];
+    const base = inp.mode === "add" && prev ? (prev.lines || []) : [];
+    pd.time[d] = { lines: [...base, ...lines], ok: !!inp.confirm, sent: prev?.sent || null, sentIds: prev?.sentIds || [], changed: !!prev?.sent };
+    const { data: up } = await sb.from("gvc_plan").update({ data: pd, updated_at: new Date().toISOString() }).eq("id", "main").eq("updated_at", pl.updated_at).select("updated_at");
+    if (up && up.length) { const tot = pd.time[d].lines.reduce((a: number, x: any) => a + (Number(x.h) || 0), 0);
+      return { tot, miss, sent: !!prev?.sent }; }
+  }
+  throw new Error("the plan kept changing - try again");
+}
+
 async function chat(sb: any, msgs: any[], ctx: any = {}) {
   const [{ data: rows }, { data: todos }, { data: notes }] = await Promise.all([
     sb.from("gvc_jobs").select("id,data"),
@@ -243,7 +287,7 @@ async function chat(sb: any, msgs: any[], ctx: any = {}) {
 People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
 You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, clear_reminder, create_job, add_tasks, add_ncr, update_ncr and add_revision act right away; propose_update changes an existing job right away (stage moves in any direction, supplier status, log, summary) - only say it's done when the tool result says ok; Kyle can undo it in To do > Done automatically.
-HARD RULES ABOUT DOING THINGS: nothing happens unless you call a tool and its result says ok. Never say "done", "doing it now" or "I'll take care of it" unless the tool result for that exact thing came back ok. If a tool result starts with "error", tell Kyle it failed and why. Things you have NO tool for - say so plainly in one line and tell him where to do it himself: logging or changing his hours (My time tab), scheduling or moving tasks onto days or people (Jobs > Crew & week plan), sending email (you only write drafts - Kyle presses Send in Outlook), accepting suggestions in his review list. Don't pretend. When Kyle lists several things in one message, go through every one: call the tools you can, and for each thing you can't do, say that in the reply.
+HARD RULES ABOUT DOING THINGS: nothing happens unless you call a tool and its result says ok. Never say "done", "doing it now" or "I'll take care of it" unless the tool result for that exact thing came back ok. If a tool result starts with "error", tell Kyle it failed and why. Kyle's hours: use set_time (it changes the My time tab; he still presses Send to the time invoice app - say that). Things you have NO tool for - say so plainly in one line and tell him where to do it himself: scheduling or moving tasks onto days or people (Jobs > Crew & week plan), sending email (you only write drafts - Kyle presses Send in Outlook), accepting suggestions in his review list. Don't pretend. When Kyle lists several things in one message, go through every one: call the tools you can, and for each thing you can't do, say that in the reply.
 Every job name starts with its job number, like "2011G - Kirby Controls Enclosure" (G, PT, BQ, DT suffixes). When Kyle asks for a new job and hasn't given the number, ask for it once; if he doesn't know it yet, create it without one (the app flags it).
 When Kyle asks for a new job, use create_job (not propose_update) and put all the work steps he mentioned in it as tasks, in one go - don't make him ask twice. Tasks automatically show up in the Not scheduled pool on the Crew tab's week planner, grouped by job, so he can drag them onto people's days. Who on a task is just a suggestion until he schedules it.
 EMAIL (Outlook kyle.gvc, drafts only): use find_emails / read_email to look things up, draft_email to write. You can never send - say "it's in your Outlook drafts, check it and press Send". Rules from Kyle: always CC Randy at gordeyvillecustoms@hotmail.com on emails to suppliers (never randy.gvc@hotmail.com - old address). State materials exactly as Kyle gives them (e.g. 16 GA (0.0598") 304 2B stainless). Suppliers: Russel Metals - Jesse Eherer jeherer@russelmetals.com (laser cutting only); LSM - Dennis Shmyr counter@golsm.com (shears and bends); Grandview Fabrication - William Hofer; Alloy Industries - big bends. Jessie Dirksen (engineer) - jessie.gvc@hotmail.com. Randy - gordeyvillecustoms@hotmail.com. Write as Kyle: short, plain, no fluff, sign off "Kyle". For replies, find the email first and pass reply_to_id. Don't promise attachments - you can't attach files yet.
@@ -255,6 +299,8 @@ Jobs: ${JSON.stringify(jobs)}
 Kyle's open to-dos (with ids, for complete_todo): ${JSON.stringify(todos || [])}
 What Kyle's To do tab shows right now (board reminders are generated from job stages/suppliers/crew; to-dos are his own): ${JSON.stringify(ctx.todo_tab || [])}
 Suggestions waiting for his review: ${JSON.stringify(ctx.waiting_review || [])}
+Kyle's logged hours, last 2 weeks (My time tab):
+${await timeCtx(sb) || "(nothing logged)"}
 Where Kyle is in the app right now: ${ctx.looking_at || "unknown"}. When he says "this job", "this order", "it", "this one", he means what's open there - use that job id / supplier id and don't ask which job.
 Parts sitting flat in inventory that could be bent: ${JSON.stringify(ctx.flat_to_bend || [])}
 
@@ -329,6 +375,10 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           if (error) throw error;
           res = "created job id " + id;
           actions.push(`Created job ${u.input.name}${tasks.length ? ` with ${tasks.length} task${tasks.length > 1 ? "s" : ""} (in Not scheduled on the Crew tab)` : ""}`);
+        } else if (u.name === "set_time") {
+          const r = await setTime(sb, u.input);
+          res = `ok - ${u.input.date} now ${r.tot}h${r.miss.length ? `; no time-invoice job matched for: ${r.miss.join(", ")} (Kyle picks it on My time)` : ""}`;
+          actions.push(`My time ${u.input.date}: ${r.tot}h${u.input.confirm ? " (confirmed)" : ""}${r.sent ? " - already sent, press Send again to update" : ""} - press Send on My time when ready`);
         } else if (u.name === "propose_update") {
           const { summary, job_id, ...changes } = u.input;
           const { data: ins, error } = await sb.from("gvc_suggestions").insert({ source: "chat", source_ref: "chat:" + Date.now() + "#" + (++n), from_name: "Ask Claude", source_at: new Date().toISOString(), source_text: String(messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-1)[0]?.content || ""), job_id: job_id || null, summary, changes, status: "new" }).select("id").single();
