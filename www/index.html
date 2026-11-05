@@ -543,7 +543,10 @@ function dlgStale(){
 }
 
 function crewItems(){
-  const out=[]; jobs.filter(j=>FAB_STAGES.includes(j.stage)).forEach(j=>(j.assemblies||[]).forEach((a,i)=>out.push({j,a,i}))); return out;
+  /* Shop-floor jobs show all their tasks; a job still in the office/orders stages shows the tasks someone is already
+     put on (e.g. "Build headache rack" on 1086WT while it's at Quote Requested) so Lanes matches the week plan. (Kyle, 2026-11-04) */
+  const out=[]; jobs.forEach(j=>{ const fab=FAB_STAGES.includes(j.stage); if(!fab&&(j.stage==="done"||j.archived)) return;
+    (j.assemblies||[]).forEach((a,i)=>{ if(fab||(whoList(a).length&&a.status!=="done")) out.push({j,a,i}); }); }); return out;
 }
 function asmSel(j,i,a,kind){
   if(kind==="who") return whoChips(j,i,a);
