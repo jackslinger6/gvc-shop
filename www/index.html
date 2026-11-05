@@ -109,6 +109,7 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .cell{height:16px;border-radius:3px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
 .cell.past{opacity:.38;border-color:transparent}
 .cell.now{border-color:#fff;box-shadow:0 0 8px var(--cc)}
+.jn .jc{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:8px;vertical-align:-1px;background:transparent;border:1px solid #33373e}.jn .jc[style]{border:none}
 .jn{background:none;border:0;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jn:hover{color:#ffb070}
 .where{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -510,7 +511,10 @@ function drawTrack(){
   $("#track").style.setProperty("--n",STAGES.length);
   $("#track").innerHTML=`<div class="hdr"></div><div class="cells lbl" style="--n:${STAGES.length}">${STAGES.map(s=>`<div title="${s.bt}: ${s.t}">${s.t.replace(" - To Count","").replace("Ready to Pick Up","Pick up").replace("Preparing Order","Preparing").replace("Quote Requested","Quote").replace("In Production","In prod.").replace("Released to Me","Released").replace("Check Drawings","Drawings").replace("Assembly / Install","Assembly")}</div>`).join("")}</div><div class="hdr"></div>`+
    sorted.map(j=>{const i=SIDX[j.stage]??0;const s=STAGES[i];
-    return `<button class="jn" type="button" data-id="${esc(j.id)}" title="${esc(j.name)}">${esc(j.name)}${j.sample?' <span style="color:var(--dim)">(sample)</span>':""}</button>
+    // same colour as the job's blocks on the week plan, for jobs people are working on (shop floor, or someone on a task) (Kyle, Nov 4)
+    const worked=j.stage!=="done"&&!j.archived&&(stOf(j).board==="build"||(j.assemblies||[]).some(a=>a.status!=="done"&&String(a.who||"").trim()));
+    const jc=worked&&window.jobColor?window.jobColor(j.id):"";
+    return `<button class="jn" type="button" data-id="${esc(j.id)}" title="${esc(j.name)}">${jc?`<i class="jc" style="background:${jc};box-shadow:0 0 8px ${jc}"></i>`:`<i class="jc"></i>`}${esc(j.name)}${j.sample?' <span style="color:var(--dim)">(sample)</span>':""}</button>
      <div class="cells" style="--n:${STAGES.length}">${STAGES.map((x,xi)=>`<div class="cell ${xi<i?"past":xi===i?"now":""}" title="${x.bt}: ${x.t}" style="${xi<=i?`background:${x.bc};--cc:${x.bc}`:""}"></div>`).join("")}</div>
      <div class="where">${j.stage==="done"&&finAt(j)?`Done ${new Date(finAt(j)).toLocaleDateString("en-CA",{month:"short",day:"numeric"})}${j.archived?" · archived":""}`:`${s.bt} · ${s.t}`}</div>`;}).join("");
   $("#track").querySelectorAll(".jn").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
