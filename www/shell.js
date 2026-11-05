@@ -434,3 +434,70 @@ function quickJob(){
   });
 }
 })();
+
+/* ---- Claude comms window (Kyle, 2026-11-04): not a website help-bubble in the corner. Opens in the middle of the
+   screen over a dimmed backdrop, with a live "Claude" orb that shows listening / thinking, a big mic, and
+   Claude's lines as game-style dialogue. Same chat underneath (sendChat/drawChat unchanged). ---- */
+(function(){
+const P=document.getElementById("chatP"); if(!P) return;
+const st=document.createElement("style"); st.textContent=`
+.cbk{position:fixed;inset:0;z-index:1100;background:radial-gradient(ellipse at 50% 40%,rgba(40,22,8,.55),rgba(3,4,6,.88));backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);opacity:0;pointer-events:none;transition:opacity .25s}
+body:has(.chatp.on) .cbk{opacity:1;pointer-events:auto}
+.chatp{left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-48%) scale(.96);width:min(680px,calc(100vw - 20px))!important;height:min(760px,calc(100dvh - 40px))!important;z-index:1101!important;
+  border-radius:20px!important;border:1px solid rgba(255,138,42,.35)!important;background:linear-gradient(180deg,#17191d 0%,#101114 100%)!important;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6),0 30px 90px rgba(0,0,0,.8),0 0 60px rgba(255,120,30,.12)!important;opacity:0;transition:transform .28s cubic-bezier(.2,1.2,.4,1),opacity .2s}
+.chatp.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.chatp::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:20px;background:repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 2px,transparent 2px 4px)}
+.chatp .ch{padding:16px 18px 12px!important;border-bottom:1px solid rgba(255,138,42,.18)!important;gap:14px!important;text-transform:none!important}
+.corb{position:relative;width:46px;height:46px;flex:none}
+.corb i{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 38% 32%,#ffd2a0,#ff8a2a 45%,#b4470c 80%);box-shadow:0 0 18px rgba(255,138,42,.55),inset 0 -4px 10px rgba(0,0,0,.35)}
+.corb b{position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(255,138,42,.45);animation:corb 3.2s ease-in-out infinite}
+.corb u{position:absolute;inset:-12px;border-radius:50%;border:1px solid rgba(255,138,42,.18);animation:corb 3.2s ease-in-out infinite .6s}
+@keyframes corb{0%,100%{transform:scale(.92);opacity:.5}50%{transform:scale(1.05);opacity:1}}
+.chatp.listen .corb i{background:radial-gradient(circle at 38% 32%,#ffb0a8,#e5483b 45%,#8e1d14 80%);box-shadow:0 0 26px rgba(229,72,59,.75)}
+.chatp.listen .corb b,.chatp.listen .corb u{border-color:rgba(229,72,59,.6);animation-duration:.9s}
+.chatp.think .corb b{border-style:dashed;animation:cspin 1.2s linear infinite;opacity:1}
+@keyframes cspin{to{transform:rotate(360deg)}}
+.cid{display:flex;flex-direction:column;line-height:1.1}
+.cid strong{font:600 22px Oswald,sans-serif;letter-spacing:.14em;color:#fff}
+.cid small{font:600 11px Oswald,sans-serif;letter-spacing:.16em;color:#ffb36b;text-transform:uppercase;margin-top:3px}
+.chatp.listen .cid small{color:#ff8b80}
+.chatp .ch button{border:1px solid #33373e!important;border-radius:10px!important;padding:6px 10px!important;color:#c9ced6!important;background:rgba(255,255,255,.03)!important}
+.chatp .ch #chatX{width:38px;height:38px;padding:0!important;font-size:18px!important}
+.chatp .cm{padding:18px 20px!important;gap:14px!important;scroll-behavior:smooth}
+.chatp .b{max-width:92%!important;font-size:15.5px!important;line-height:1.5!important;border-radius:0!important;padding:0!important;background:none!important;border:0!important}
+.chatp .b.a{color:#ece8e2;padding-left:14px!important;border-left:3px solid #ff8a2a!important}
+.chatp .b.a::before{content:"CLAUDE";display:block;font:600 10.5px Oswald,sans-serif;letter-spacing:.18em;color:#ff9a40;margin-bottom:3px}
+.chatp .b.u{color:#b9bec6;text-align:right;padding-right:14px!important;border-right:3px solid #4a5059!important}
+.chatp .b.u::before{content:"YOU";display:block;font:600 10.5px Oswald,sans-serif;letter-spacing:.18em;color:#7c838d;margin-bottom:3px}
+.chatp .cm>.b:last-child,.chatp .cm>.act:last-child{animation:cin .35s ease-out}
+@keyframes cin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.chatp .act{font:600 12.5px Inter,sans-serif!important;border-radius:10px!important;padding:7px 11px!important;background:rgba(58,208,107,.1)!important}
+.chatp .hint{font-size:14px!important;color:#9aa0a8!important;text-align:center;padding:40px 20px!important;line-height:1.6}
+.chatp .ci{align-items:center;gap:10px!important;padding:12px 16px 16px!important;border-top:1px solid rgba(255,138,42,.18)!important}
+.chatp .ci textarea{background:#0c0d10!important;border:1px solid #33373e!important;border-radius:14px!important;padding:12px 14px!important;font-size:15px!important;height:50px!important}
+.chatp #chatMic{width:62px;height:62px;flex:none;border-radius:50%!important;border:none!important;font-size:24px!important;background:linear-gradient(180deg,#ff9a40,#e8711a)!important;color:#111!important;box-shadow:0 6px 18px rgba(255,120,30,.35)}
+.chatp #chatMic.on{background:linear-gradient(180deg,#ff6b5e,#c0392b)!important;color:#fff!important;box-shadow:0 0 0 6px rgba(229,72,59,.25),0 0 0 14px rgba(229,72,59,.1)}
+.chatp #chatGo{height:50px;border-radius:14px!important;padding:0 16px!important;font:600 14px Oswald,sans-serif!important;letter-spacing:.1em}
+#lookNote{padding:0 20px 2px!important}
+#lookNote:empty{display:none}
+@media (max-width:600px){ .chatp{width:calc(100vw - 14px)!important;height:calc(100dvh - 28px)!important} .chatp .b{font-size:15px!important}
+  .chatp .ch{gap:10px!important;padding:12px 12px 10px!important} .corb{width:38px;height:38px} .cid strong{font-size:19px}
+  .chatp .ch #msBtn,.chatp .ch #chatClear{font-size:0!important;width:38px;height:38px;padding:0!important}
+  .chatp .ch #msBtn::before{content:"✉";font-size:17px} .chatp .ch #chatClear::before{content:"⟲";font-size:18px}
+  .chatp .ci{padding:10px 10px 12px!important} .chatp #chatGo{padding:0 12px!important} }
+`; document.head.appendChild(st);
+const bk=document.createElement("div"); bk.className="cbk"; document.body.appendChild(bk);
+bk.onclick=()=>{ const x=document.getElementById("chatX"); if(x) x.click(); };
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&P.classList.contains("on")){ const x=document.getElementById("chatX"); if(x) x.click(); } });
+const ch=P.querySelector(".ch");
+if(ch&&ch.firstChild&&ch.firstChild.nodeType===3){ ch.firstChild.remove(); }
+if(ch) ch.insertAdjacentHTML("afterbegin",`<div class="corb"><u></u><b></b><i></i></div><div class="cid"><strong>CLAUDE</strong><small id="cStat">Online</small></div>`);
+const mic=document.getElementById("chatMic"), M=document.getElementById("chatM"), S=()=>document.getElementById("cStat");
+function state(){ const lis=mic&&mic.classList.contains("on"); const thk=!!(M&&M.lastElementChild&&/Thinking…/.test(M.lastElementChild.textContent||""));
+  P.classList.toggle("listen",lis); P.classList.toggle("think",thk&&!lis);
+  const s=S(); if(s) s.textContent=lis?"Listening - tap ■ when you're done":thk?"Working on it…":(innerWidth<600?"Online":"Online · knows your board"); }
+if(mic) new MutationObserver(state).observe(mic,{attributes:true,attributeFilter:["class"]});
+if(M) new MutationObserver(state).observe(M,{childList:true});
+state();
+})();
