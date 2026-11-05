@@ -16,3 +16,7 @@
 --   calls edge function gvc-mail-files (pg_net, header x-gvc-key from gvc_secret) which saves the email's
 --   attachments to storage gvc-parts/jobs/<job_no>/mail/... and, for orders, upserts gvc_job_parts
 --   (= the count list). Status in gvc_suggestions.files_status.
+--
+-- gvc_count_items_trg (migration gvc_count_items_from_email, Nov 4): a suggestion with
+--   changes.count_items = [{name, qty, mat}] and a supplier, once applied/accepted, creates the gvc_counts
+--   row for that job + supplier line (only if none exists) - orders written out in the email body.
