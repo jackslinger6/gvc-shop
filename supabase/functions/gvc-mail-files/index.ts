@@ -127,7 +127,9 @@ async function run(db: any, opt: { sid?: string; message_id?: string; job_id?: s
   const wantParts = opt.parts ?? !!f.parts;
   let job: any = null;
   if (jobId) { const { data } = await db.from("gvc_jobs").select("id,data").eq("id", jobId).maybeSingle(); job = data; }
-  const jobNo = job ? (String(job.data?.name || "").match(/^\s*([A-Z0-9]+)\b/i)?.[1] || job.id) : "_unfiled";
+  // same job-number rule as the app (www/jobs-extra.js NUM_RE); a job without a number files under its id
+  const num = String(job?.data?.name || "").match(/^\s*(\d{4}[A-Za-z0-9_]{0,4}|INV)\b/i)?.[1]?.toUpperCase() || "";
+  const jobNo = job ? (num || "job-" + job.id) : "_unfiled";
 
   const found = await graph(db, `/me/messages?$filter=${encodeURIComponent(`internetMessageId eq '${mid.replace(/'/g, "''")}'`)}&$select=id,subject,from,toRecipients,sentDateTime,receivedDateTime,hasAttachments`);
   const msg = found?.value?.[0];
@@ -168,8 +170,9 @@ async function run(db: any, opt: { sid?: string; message_id?: string; job_id?: s
   }
 
   // parts list from the order's DXFs
-  let nParts = 0;
-  if (wantParts && job && dxfs.length) {
+  let nParts = 0, partsNote = "";
+  if (wantParts && job && !num) partsNote = " (job has no number yet - give it one and use Get files again to fill the count list)";
+  if (wantParts && job && num && dxfs.length) {
     const { data: have } = await db.from("gvc_job_parts").select("part_no,thumb_path,name").eq("job_no", jobNo);
     const old = new Map((have || []).map((r: any) => [r.part_no, r]));
     const rows: any[] = [];
@@ -196,7 +199,7 @@ async function run(db: any, opt: { sid?: string; message_id?: string; job_id?: s
     nParts = up.length;
   }
 
-  const note = `${files.length} file${files.length === 1 ? "" : "s"} saved` + (nParts ? `, ${nParts} parts in the count list` : "");
+  const note = `${files.length} file${files.length === 1 ? "" : "s"} saved` + (nParts ? `, ${nParts} parts in the count list` : "") + partsNote;
   if (job && files.length) {
     const { data: fresh } = await db.from("gvc_jobs").select("data").eq("id", job.id).maybeSingle();
     const d = fresh?.data || job.data;

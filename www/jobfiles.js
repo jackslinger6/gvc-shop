@@ -31,10 +31,15 @@ async function openFiles(j){
     const zips=[...new Set(inz.map(x=>x.in_zip))];
     return `<div class="mail"><div class="hd">${esc(f.subject||"(no subject)")}</div><div class="mt">${esc(f.mail_from||"")} · ${f.mail_at?new Date(f.mail_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}${f.supplier?" · "+esc(f.supplier):""} · ${list.length} file${list.length>1?"s":""}</div>
       ${top.map(fileRow).join("")}
+      ${list.some(x=>x.kind==="dxf")&&f.source_ref?`<div class="row" style="margin:4px 0"><button class="btn sm ghost" type="button" data-fp="${esc(f.source_ref)}">Put these DXFs in the count list</button></div>`:""}
       ${zips.map(z=>{ const l=inz.filter(x=>x.in_zip===z); return `<details><summary>Inside ${esc(z)} (${l.length})</summary>${l.map(fileRow).join("")}</details>`; }).join("")}</div>`;
   }).join("");
   D.innerHTML=`<div class="jf">${head}<div class="tnote">Attachments from order, quote and drawing emails are saved here automatically by the email check. Order DXFs also go into Parts &amp; drawings (the count list).</div>${mails||`<div class="tnote" style="margin-top:10px">No files saved for this job yet.</div>`}</div>`;
   $("#jfBack").onclick=()=>openJob(j.id);
+  D.querySelectorAll("[data-fp]").forEach(el=>el.onclick=async()=>{ el.disabled=true; el.textContent="Reading the email…";
+    const mid=el.dataset.fp.replace(/^mail:/,"").replace(/>#[^>]*$/,">");
+    const r=await sb.functions.invoke("gvc-mail-files",{body:{message_id:mid,job_id:j.id,parts:true}});
+    const d=r.data||{}; el.textContent=r.error||d.error?"Failed: "+(d.error||r.error.message):`Done - ${d.parts||0} parts in the count list`; });
   D.querySelectorAll("[data-fo]").forEach(el=>el.onclick=async()=>{ el.disabled=true;
     const s=await sb.storage.from("gvc-parts").createSignedUrl(el.dataset.fo,60*30,el.dataset.fd?{download:el.dataset.fd}:undefined); el.disabled=false;
     if(s.data&&s.data.signedUrl) window.open(s.data.signedUrl,"_blank"); });
