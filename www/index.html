@@ -499,10 +499,10 @@ function render(){
         ${B.k==="ordering"&&(j.suppliers||[]).length?`<div class="sups">${j.suppliers.map(x=>supLine(x,j.stage)).join("")}</div>`:""}
         ${B.k==="build"&&(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status!=="received").length?`<div class="sups">${j.suppliers.filter(x=>ACTIVE(x)&&x.status!=="received").map(x=>supLine(x,j.stage)).join("")}</div>`:""}
         ${B.k==="build"?etaStrip(j):""}
-        ${flags(j).join("")}${s.k==="arrived"?(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status==="arrived").map(x=>`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`).join("")||((j.suppliers||[]).filter(ACTIVE)[0]?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc((j.suppliers||[]).filter(ACTIVE)[0].id)}">☑ Count it</span>`:""):""}</button>`).join("")}${extra.map(j=>{const os=offOrders(j).filter(x=>SUP_COL[x.status]===s.k);return `<button class="card offo" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
+        ${flags(j).join("")}${s.k==="arrived"||s.k==="pickup"?(j.suppliers||[]).filter(x=>ACTIVE(x)&&(x.status==="arrived"||x.status==="ready")).map(x=>`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`).join("")||((j.suppliers||[]).filter(ACTIVE)[0]?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc((j.suppliers||[]).filter(ACTIVE)[0].id)}">☑ Count it</span>`:""):""}</button>`).join("")}${extra.map(j=>{const os=offOrders(j).filter(x=>SUP_COL[x.status]===s.k);return `<button class="card offo" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
         ${cardTitle(j)}<div class="offtag">${esc(stOf(j).bt)} · ${esc(stOf(j).t)} - extra order</div>
         <div class="sups">${os.map(x=>supLine(x,"quote")).join("")}</div>
-        ${os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(x.sent)>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span>`:x.status==="arrived"?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:"").join("")}</button>`;}).join("")}</div></section>`;
+        ${os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(x.sent)>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span><span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:x.status==="arrived"?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:"").join("")}</button>`;}).join("")}</div></section>`;
   }).join("");
   $("#board").querySelectorAll(".card").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
   $("#board").querySelectorAll("[data-cntc]").forEach(el=>{ const go=e=>{ e.stopPropagation(); e.preventDefault(); const [jid,sid]=el.dataset.cntc.split("|"); if(window.openCount) window.openCount(jid,sid); };
@@ -752,8 +752,15 @@ function paintPickupAdvance(data){
   data.stage="assembly";
   data.log=[...(data.log||[]),{at:new Date().toISOString(),text:`Moved to Shop floor: Assembly / Install (done: ${t.name})`}];
 }
+/* every task ticked off on a shop-floor job -> the job moves to Done (Kyle, 2026-11-04) */
+function allDoneAdvance(data){
+  if(!data||!FAB_STAGES.includes(data.stage)) return;
+  const a=data.assemblies||[]; if(!a.length||!a.every(x=>x.status==="done")) return;
+  data.stage="done"; data.log=[...(data.log||[]),{at:new Date().toISOString(),text:"All tasks done - moved to Shop floor: Done"}];
+}
 async function saveJob(id,data){
-  paintPickupAdvance(data);
+  paintPickupAdvance(data); allDoneAdvance(data);
+  if(data.stage==="done"){ if(!data.doneAt) data.doneAt=new Date().toISOString(); } else if(data.doneAt) delete data.doneAt;
   const ver=jobVer[id];
   if(ver){
     const r=await sb.from("gvc_jobs").update({ data }).eq("id",id).eq("updated_at",ver).select("updated_at");
@@ -780,7 +787,21 @@ async function loadJobs(){
   if(error){ $("#status").textContent="Couldn't load the board: "+error.message; return; }
   (data||[]).forEach(r=>{ jobVer[r.id]=r.updated_at; });
   const all=(data||[]).map(r=>({id:r.id,...r.data})).map(j=>({...j,stage:SIDX[j.stage]!=null?j.stage:"prep"})); jobs=all.filter(j=>!j.archived); archivedJobs=all.filter(j=>j.archived);
-  render(); widgetRefresh();
+  render(); widgetRefresh(); autoArchive();
+}
+/* Done jobs move to Finished jobs (the archive) the day after they were finished - same rule as Received orders.
+   INV never archives. (Kyle, 2026-11-04) */
+let archBusy=false;
+async function autoArchive(){
+  if(archBusy) return; archBusy=true;
+  try{
+    const sod=new Date(); sod.setHours(0,0,0,0);
+    const when=j=>j.doneAt||([...(j.log||[])].reverse().find(l=>/\bDone\b/.test(l.text||""))||{}).at||null;
+    const due=jobs.filter(j=>j.stage==="done"&&j.id!=="inventory"&&!/^INV\b/i.test(j.name||"")&&!j.sample&&when(j)&&new Date(when(j))<sod);
+    for(const j0 of due){ const j=structuredClone(j0); const id=j.id; delete j.id; const now=new Date().toISOString();
+      j.archived=true; j.archivedAt=now; j.log=[...(j.log||[]),{at:now,text:"Archived automatically (finished the day before) - see Finished jobs"}];
+      try{ await saveJob(id,j); }catch(e){} }
+  } finally { archBusy=false; }
 }
 function showLogin(msg,bad){ $("#login").hidden=false; $("#app").hidden=true; $("#chatFab").hidden=true; $("#chatP").classList.remove("on"); if(msg){ $("#lMsg").textContent=msg; $("#lMsg").className="msg"+(bad?" bad":""); } }
 async function startApp(){
