@@ -475,6 +475,21 @@ function cardTitle(j){
   const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
   return `<div class="nm">${num?`<span class="jnum">${esc(num)}</span>`:""}<span class="jname">${esc(rest)}</span></div>`;
 }
+/* All jobs table (also drawn on Home) */
+function drawTrack(){
+  // finished jobs stay on the All jobs table for 2 weeks after they're done, archived or not (Kyle, 2026-11-04)
+  const finAt=j=>j.doneAt||j.archivedAt||([...(j.log||[])].reverse().find(l=>/\bDone\b|Archived/.test(l.text||""))||{}).at||null;
+  const recentFin=archivedJobs.filter(j=>!jobs.some(x=>x.id===j.id)&&finAt(j)&&Date.now()-new Date(finAt(j)).getTime()<14*864e5);
+  const sorted=[...jobs,...recentFin].sort((a,b)=>(SIDX[a.stage]??0)-(SIDX[b.stage]??0)||(a.stage==="done"&&b.stage==="done"?String(finAt(b)||"").localeCompare(String(finAt(a)||"")):(a.order||0)-(b.order||0)));
+  $("#track").style.setProperty("--n",STAGES.length);
+  $("#track").innerHTML=`<div class="hdr"></div><div class="cells lbl" style="--n:${STAGES.length}">${STAGES.map(s=>`<div title="${s.bt}: ${s.t}">${s.t.replace(" - To Count","").replace("Ready to Pick Up","Pick up").replace("Preparing Order","Preparing").replace("Quote Requested","Quote").replace("In Production","In prod.").replace("Released to Me","Released").replace("Check Drawings","Drawings").replace("Assembly / Install","Assembly")}</div>`).join("")}</div><div class="hdr"></div>`+
+   sorted.map(j=>{const i=SIDX[j.stage]??0;const s=STAGES[i];
+    return `<button class="jn" type="button" data-id="${esc(j.id)}" title="${esc(j.name)}">${esc(j.name)}${j.sample?' <span style="color:var(--dim)">(sample)</span>':""}</button>
+     <div class="cells" style="--n:${STAGES.length}">${STAGES.map((x,xi)=>`<div class="cell ${xi<i?"past":xi===i?"now":""}" title="${x.bt}: ${x.t}" style="${xi<=i?`background:${x.bc};--cc:${x.bc}`:""}"></div>`).join("")}</div>
+     <div class="where">${j.stage==="done"&&finAt(j)?`Done ${new Date(finAt(j)).toLocaleDateString("en-CA",{month:"short",day:"numeric"})}${j.archived?" · archived":""}`:`${s.bt} · ${s.t}`}</div>`;}).join("");
+  $("#track").querySelectorAll(".jn").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
+}
+window.drawTrack=drawTrack;
 function render(){
   const crewAsm=crewItems();
   const tdCount=liveAuto().length+liveMine().length, sgNew=suggs.filter(x=>x.status==="new").length;
@@ -508,14 +523,7 @@ function render(){
   $("#board").querySelectorAll("[data-cntc]").forEach(el=>{ const go=e=>{ e.stopPropagation(); e.preventDefault(); const [jid,sid]=el.dataset.cntc.split("|"); if(window.openCount) window.openCount(jid,sid); };
     el.onclick=go; el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" ") go(e); }; });
   }
-  const sorted=jobs.slice().sort((a,b)=>(SIDX[a.stage]??0)-(SIDX[b.stage]??0)||(a.order||0)-(b.order||0));
-  $("#track").style.setProperty("--n",STAGES.length);
-  $("#track").innerHTML=`<div class="hdr"></div><div class="cells lbl" style="--n:${STAGES.length}">${STAGES.map(s=>`<div title="${s.bt}: ${s.t}">${s.t.replace(" - To Count","").replace("Ready to Pick Up","Pick up").replace("Preparing Order","Preparing").replace("Quote Requested","Quote").replace("In Production","In prod.").replace("Released to Me","Released").replace("Check Drawings","Drawings").replace("Assembly / Install","Assembly")}</div>`).join("")}</div><div class="hdr"></div>`+
-   sorted.map(j=>{const i=SIDX[j.stage]??0;const s=STAGES[i];
-    return `<button class="jn" type="button" data-id="${esc(j.id)}" title="${esc(j.name)}">${esc(j.name)}${j.sample?' <span style="color:var(--dim)">(sample)</span>':""}</button>
-     <div class="cells" style="--n:${STAGES.length}">${STAGES.map((x,xi)=>`<div class="cell ${xi<i?"past":xi===i?"now":""}" title="${x.bt}: ${x.t}" style="${xi<=i?`background:${x.bc};--cc:${x.bc}`:""}"></div>`).join("")}</div>
-     <div class="where">${s.bt} · ${s.t}</div>`;}).join("");
-  $("#track").querySelectorAll(".jn").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
+  drawTrack();
   const at=jobs.filter(needsAttention).length;
   $("#status").textContent=jobs.length?`${jobs.length} jobs · ${at} need attention`:"No jobs yet. Add one with + New job.";
   { const n=$("#allJobsN"); if(n) n.textContent=jobs.length?`${jobs.length}${at?` · ${at} need attention`:""}`:""; }
