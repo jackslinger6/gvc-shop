@@ -758,8 +758,15 @@ function allDoneAdvance(data){
   const a=data.assemblies||[]; if(!a.length||!a.every(x=>x.status==="done")) return;
   data.stage="done"; data.log=[...(data.log||[]),{at:new Date().toISOString(),text:"All tasks done - moved to Shop floor: Done"}];
 }
+/* a job on the shop floor always has at least one task so it can be assigned (Kyle, 2026-11-04) */
+function starterTask(data){
+  if(!data||!FAB_STAGES.includes(data.stage)||(data.assemblies||[]).length) return false;
+  data.assemblies=[{id:uid(),name:data.stage==="bending"?"Bend parts":"Fit and weld",meta:"",status:"ready",who:"",final:false}];
+  data.log=[...(data.log||[]),{at:new Date().toISOString(),text:`Added a starter task "${data.assemblies[0].name}" so it can be assigned`}];
+  return true;
+}
 async function saveJob(id,data){
-  paintPickupAdvance(data); allDoneAdvance(data);
+  starterTask(data); paintPickupAdvance(data); allDoneAdvance(data);
   if(data.stage==="done"){ if(!data.doneAt) data.doneAt=new Date().toISOString(); } else if(data.doneAt) delete data.doneAt;
   const ver=jobVer[id];
   if(ver){
@@ -798,6 +805,8 @@ async function autoArchive(){
     const sod=new Date(); sod.setHours(0,0,0,0);
     const when=j=>j.doneAt||([...(j.log||[])].reverse().find(l=>/\bDone\b/.test(l.text||""))||{}).at||null;
     const due=jobs.filter(j=>j.stage==="done"&&j.id!=="inventory"&&!/^INV\b/i.test(j.name||"")&&!j.sample&&when(j)&&new Date(when(j))<sod);
+    for(const j0 of jobs.filter(j=>FAB_STAGES.includes(j.stage)&&!(j.assemblies||[]).length&&!j.sample)){ const j=structuredClone(j0); const id=j.id; delete j.id;
+      try{ await saveJob(id,j); }catch(e){} }
     for(const j0 of due){ const j=structuredClone(j0); const id=j.id; delete j.id; const now=new Date().toISOString();
       j.archived=true; j.archivedAt=now; j.log=[...(j.log||[]),{at:now,text:"Archived automatically (finished the day before) - see Finished jobs"}];
       try{ await saveJob(id,j); }catch(e){} }
@@ -1383,5 +1392,6 @@ render();
 <script src="counts.js"></script>
 <script src="update.js"></script>
 <script src="nav.js"></script>
+<script src="shell.js"></script>
 </body>
 </html>

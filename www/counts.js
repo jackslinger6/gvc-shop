@@ -100,7 +100,7 @@ function head(){
   const multi=st.sets.length>1;
   return `<div class="hd"><div><h3 style="margin:0">Count - ${multi?"combined order":esc(j.name)}</h3>${multi?`<div class="csub">One order for ${st.sets.map(S=>esc(jobOf(S.jobId).name)).join(" + ")}</div>`:""}
     <div class="csub">${esc(sup.name||"")}${sup.quoteNo?" · #"+esc(sup.quoteNo):""}${sup.scope?" · "+esc(sup.scope):""} · ${(ST[sup.status]||ST.sent).t}</div></div>
-    <button class="btn ghost" type="button" id="cBack">Back to job</button></div>
+    <span style="display:flex;gap:6px"><button class="btn" type="button" id="cPrint" title="Print a paper checklist (or save it as a PDF)">🖨 Print</button><button class="btn ghost" type="button" id="cBack">Back to job</button></span></div>
     <div class="bar"><div style="width:${t.pcs?Math.round(t.got/t.pcs*100):0}%"></div></div>
     <div class="csub"><b style="color:var(--text)">${t.got} of ${t.pcs} pcs</b> · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}</div>`;
 }
@@ -114,6 +114,37 @@ function itemRow(it,ix){
     <div class="mt">${[it.part_no&&it.name&&it.name!==it.part_no?esc(it.name):"",esc(it.mat||"")].filter(Boolean).join(" · ")}</div>
     ${boxes}
     <div style="margin-top:6px"><button class="lnk" type="button" data-skip="${ix}">Not on this order</button></div></div></div>`;
+}
+/* paper checklist for someone without the app - one row per part, a box per piece (Kyle, 2026-11-04) */
+function printSheet(){
+  const j=jobOf(st.jobId), sup=(j.suppliers||[]).find(x=>x.id===st.supId)||{};
+  const items=live().slice().sort((a,b)=>String(a.mat||"").localeCompare(String(b.mat||""))||String(a.part_no||a.name).localeCompare(String(b.part_no||b.name),undefined,{numeric:true}));
+  const pcs=items.reduce((a,i)=>a+(i.qty||0),0);
+  const byMat={}; items.forEach(i=>(byMat[i.mat||"Other"]=byMat[i.mat||"Other"]||[]).push(i));
+  const row=i=>{ const q=i.qty||0, im=url(i.thumb||i.img);
+    const boxes=q<=30?Array.from({length:q},()=>'<span class="b"></span>').join(""):`<span class="ln"></span> of ${q}`;
+    return `<tr><td class="th">${im?`<img src="${esc(im)}" alt="">`:""}</td><td><b>${esc(i.part_no||i.name)}</b>${i.part_no&&i.name&&i.name!==i.part_no?`<div class="s">${esc(i.name)}</div>`:""}</td><td class="q">${q}</td><td>${boxes}</td><td class="nt"></td></tr>`; };
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>Count sheet - ${esc(j.name)}</title><style>
+    body{font:12px/1.35 Arial,sans-serif;color:#000;margin:18px}
+    h1{font-size:18px;margin:0}.top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}
+    .meta{font-size:12px}table{width:100%;border-collapse:collapse;margin-bottom:10px}
+    th{text-align:left;font-size:11px;border-bottom:1px solid #000;padding:4px}td{border-bottom:1px solid #ccc;padding:4px;vertical-align:middle}
+    tr{page-break-inside:avoid}.th{width:64px}.th img{width:60px;height:40px;object-fit:contain}
+    .q{width:36px;text-align:center;font-weight:bold;font-size:14px}.nt{width:120px}.s{color:#555;font-size:11px}
+    .b{display:inline-block;width:16px;height:16px;border:1.5px solid #000;margin:1px 3px 1px 0;vertical-align:middle}
+    .ln{display:inline-block;width:50px;border-bottom:1.5px solid #000}
+    h2{font-size:13px;background:#eee;padding:4px 6px;margin:12px 0 0}
+    .sign{display:flex;gap:30px;margin-top:16px;font-size:13px}.sign span{flex:1;border-top:1px solid #000;padding-top:4px}
+    @media print{ body{margin:8mm} }
+  </style></head><body>
+  <div class="top"><div><h1>Count sheet - ${esc(j.name)}</h1><div class="meta">${esc(sup.name||"")}${sup.quoteNo?" · #"+esc(sup.quoteNo):""} · ${items.length} parts · ${pcs} pcs</div></div><div class="meta">Printed ${new Date().toLocaleDateString("en-CA",{month:"short",day:"numeric",year:"numeric"})}<br>Tick one box per piece. Write anything short or damaged in Notes.</div></div>
+  ${Object.entries(byMat).map(([m,l])=>`<h2>${esc(m)} · ${l.reduce((a,i)=>a+(i.qty||0),0)} pcs</h2><table><tr><th></th><th>Part</th><th>Qty</th><th>Pieces</th><th>Notes</th></tr>${l.map(row).join("")}</table>`).join("")}
+  <div class="sign"><span>Counted by</span><span>Date</span><span>All here?  YES  /  NO</span></div>
+  <script>window.onload=()=>setTimeout(()=>print(),400)<\/script></body></html>`;
+  const w=window.open("","_blank");
+  if(w){ w.document.open(); w.document.write(html); w.document.close(); return; }
+  const f=document.createElement("iframe"); f.style.cssText="position:fixed;width:0;height:0;border:0"; document.body.appendChild(f);
+  f.contentDocument.open(); f.contentDocument.write(html.replace(/<script>[\s\S]*?<\/script>/,"")); f.contentDocument.close(); setTimeout(()=>{ try{ f.contentWindow.print(); }catch(e){ alert("Printing isn't available here - open the app on the PC to print the count sheet."); } setTimeout(()=>f.remove(),60000); },600);
 }
 function draw(){
   const D=$("#dlg"); const words=st.q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -159,6 +190,7 @@ function addItem(base){
 function wire(){
   const D=$("#dlg");
   $("#cBack").onclick=async()=>{ await flush(); openJob(st.jobId); };
+  $("#cPrint").onclick=printSheet;
   const q=$("#cQ"); if(q) q.oninput=()=>{ st.q=q.value; const pos=q.selectionStart; draw(); const n=$("#cQ"); n.focus(); n.setSelectionRange(pos,pos); };
   D.querySelectorAll("[data-cf]").forEach(b=>b.onclick=()=>{ st.f=b.dataset.cf; draw(); });
   D.querySelectorAll("[data-cq]").forEach(b=>b.onclick=()=>{ st.q=st.q===b.dataset.cq?"":b.dataset.cq; draw(); });

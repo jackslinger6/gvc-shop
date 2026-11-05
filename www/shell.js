@@ -1,0 +1,382 @@
+/* ---------- Game-style shell (Nov 4 2026, first pass) ----------
+   Design: claude.ai/artifact/WnAQ86H8RWNK1gciZiD7cg
+   - Home: "Next up" cards you swipe through (everything that needs you, most urgent first, one big button each),
+     crew progress for today, top to-dos, what the email check did.
+   - Navigation: bottom bar on phones, rail on the left on a PC: Home · Jobs · [+] · Crew · More.
+     More pops up: To do, My time, Inventory, NCRs, Revisions, Finished jobs, App ideas, New job, Undo, Sign out.
+   - The orange + opens the quick-action wheel (tap, or hold and slide to one and let go):
+     Record · Count · Quick job · Log time · Add to-do · Ask Claude.
+   - Quick job: work someone is already on (e.g. Randy gave Cooper something) - goes on the shop floor with a task
+     assigned to them; no job number = a "Get a job number" card with Email Robin / Email Randy.
+   Everything else (boards, job cards, planner, time, inventory) is the existing app, shown inside the new frame. */
+(()=>{
+const ROBIN="Robin.GVC@hotmail.com", RANDY="gordeyvillecustoms@hotmail.com";
+const css=document.createElement("style");
+css.textContent=`
+body>header{display:none}
+.shtop .bd[hidden],.shnav .bd[hidden]{display:none !important}
+#ideasBtn{display:none !important}
+body:has(.scrim.on) .shnav,body:has(.chatp.on) .shnav{display:none}
+.nu .ntt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#app>div:has(>#signOut){display:none}
+#chatFab{display:none !important}
+#tabs{display:none !important}
+.subnav .sn[data-sv="crew"],.subnav .sn[data-sv="ncr"],.subnav .sn[data-sv="revs"],.subnav .sep{display:none !important}
+.shtop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(12px + env(safe-area-inset-top)) 16px 4px;max-width:1500px;margin:0 auto}
+.shtop .nm{font-family:"Russo One",sans-serif;font-size:21px;letter-spacing:.05em;color:#f4f1ec;line-height:1}
+.shtop .dt{font-family:Oswald,sans-serif;font-size:12px;letter-spacing:.14em;color:var(--muted);margin-top:4px}
+.shtop .ib{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;color:var(--text)}
+.shtop .ib .bd{position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;border-radius:10px;background:var(--orange);color:#111;font:600 12px Oswald,sans-serif;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.shnav{position:fixed;z-index:60;background:#15171a;border-color:var(--line);display:grid}
+.shnav .ni{font:500 12px Oswald,sans-serif;letter-spacing:.08em;color:#9aa1aa;background:none;border:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;position:relative;min-height:56px;transition:color .15s,transform .12s}
+.shnav .ni:active{transform:scale(.92)}
+.shnav .ni.on{color:var(--orange)}
+.shnav .ni .bd{position:absolute;top:2px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font:600 11px Inter,sans-serif;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.shnav .plus{width:64px;height:64px;border-radius:32px;border:4px solid var(--bg);background:linear-gradient(180deg,#ff9a40,#e8711a);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 18px rgba(255,120,40,.35);transition:transform .15s;touch-action:none;margin:auto}
+.shnav .plus:active{transform:scale(.93)}
+.shnav .plus.open{transform:rotate(45deg)}
+@media (max-width:899px){
+  .shnav{left:0;right:0;bottom:0;height:calc(78px + env(safe-area-inset-bottom));padding:0 4px env(safe-area-inset-bottom);grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;border-top:1px solid var(--line)}
+  .shnav .plus{margin-top:-30px}
+  body{padding-bottom:96px}
+}
+@media (min-width:900px){
+  .shnav{top:0;bottom:0;left:0;width:92px;padding:16px 6px;grid-template-rows:auto repeat(4,72px) 1fr;align-content:start;gap:6px;border-right:1px solid var(--line)}
+  .shnav .plus{order:-1;margin:4px auto 14px}
+  body{padding-left:92px}
+}
+@keyframes shIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.shanim{animation:shIn .24s cubic-bezier(.2,.8,.2,1)}
+.btn{transition:transform .1s,border-color .15s}
+.btn:active{transform:scale(.97)}
+/* home */
+.hm{display:grid;gap:16px;margin-top:10px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){ .hm{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start} }
+.hm h4{margin:0 0 8px;font:500 12px Oswald,sans-serif;letter-spacing:.16em;color:var(--muted);display:flex;justify-content:space-between;align-items:baseline}
+.hm h4 button{font:500 13px Inter,sans-serif;letter-spacing:0;color:#ffb36b;background:none;border:none;cursor:pointer;padding:4px}
+.nu{position:relative}
+.nu .trk{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:2px}
+.nu .trk::-webkit-scrollbar{display:none}
+.nu .cd{flex:0 0 100%;scroll-snap-align:center;border-radius:18px;padding:16px;background:linear-gradient(160deg,rgba(255,138,42,.10),rgba(0,0,0,.25));border:1px solid color-mix(in srgb,var(--c) 45%,#2a2e35);display:flex;flex-direction:column;gap:10px;min-height:178px;box-sizing:border-box}
+.nu .ntg{align-self:flex-start;font:600 11px Oswald,sans-serif;letter-spacing:.1em;padding:3px 8px;border-radius:6px;background:var(--c);color:#111}
+.nu .ntt{font:600 22px/1.15 Oswald,sans-serif;color:#f4f5f6}
+.nu .nsub{font-size:13px;color:#b9bec5}
+.nu .nac{display:flex;gap:8px;margin-top:auto}
+.nu .nac .go{flex:1;height:48px;border-radius:12px;border:none;background:var(--c);color:#111;font:600 16px Oswald,sans-serif;letter-spacing:.06em;cursor:pointer;transition:transform .1s}
+.nu .nac .go:active{transform:scale(.97)}
+.nu .nac .lt{min-width:92px;height:48px;border-radius:12px;border:1px solid #3a3e45;background:transparent;color:#d6d9dd;font:500 15px Oswald,sans-serif;letter-spacing:.06em;cursor:pointer}
+.nu .dots{display:flex;gap:6px;justify-content:center;align-items:center;margin-top:10px}
+.nu .dots i{width:7px;height:7px;border-radius:4px;background:#3a3e45;transition:width .2s,background .2s}
+.nu .dots i.on{width:20px;background:var(--orange)}
+.nu .dots span{font:500 12px Oswald,sans-serif;letter-spacing:.1em;color:var(--muted);margin-left:8px}
+.nu .arr{position:absolute;top:70px;width:36px;height:36px;border-radius:18px;border:1px solid #3a3e45;background:#15171a;color:#e9ebee;cursor:pointer;display:none}
+@media (hover:hover){ .nu .arr{display:block} }
+.nu .arr.l{left:-12px}.nu .arr.r{right:-12px}
+.nu .empty{border-radius:18px;padding:22px;border:1px solid #2a2e35;background:rgba(0,0,0,.25);text-align:center;color:#b9bec5}
+.cw{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.cw .p{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
+.cw .p.idle{border-color:#5a2a2a}
+.cw .av{width:36px;height:36px;border-radius:18px;font:600 15px Oswald,sans-serif;display:flex;align-items:center;justify-content:center;color:#111}
+.cw .n{font-size:12px;color:#d6d9dd}.cw .s{font-size:11px;color:var(--muted)}.cw .p.idle .s{color:#ff9b9b}
+.cw .bar{width:80%;height:5px;border-radius:3px;background:#2a2e35;overflow:hidden}.cw .bar i{display:block;height:100%;background:var(--green)}
+.qs{display:flex;flex-direction:column;gap:8px}
+.qs .q{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--text);font:inherit;font-size:14px}
+.qs .q i{width:4px;align-self:stretch;border-radius:2px;background:var(--c)}
+.qs .q span{flex:1}
+.qs .q em{font:500 11px Oswald,sans-serif;font-style:normal;letter-spacing:.08em;color:var(--muted)}
+.adone{font-size:12.5px;color:#8e959e;display:flex;gap:6px;align-items:center;background:none;border:none;cursor:pointer;padding:6px 0;text-align:left}
+/* popups */
+.shov{position:fixed;inset:0;z-index:80;background:rgba(5,6,8,.0);transition:background .2s;display:flex;align-items:flex-end;justify-content:center}
+.shov.on{background:rgba(5,6,8,.72)}
+.shsheet{width:min(560px,100%);background:#17191d;border:1px solid var(--line);border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .26s cubic-bezier(.2,.8,.2,1);max-height:86vh;overflow:auto}
+.shov.on .shsheet{transform:none}
+@media (min-width:900px){ .shov{align-items:center} .shsheet{border-radius:20px;transform:translateY(20px) scale(.96);opacity:0;transition:transform .22s,opacity .22s} .shov.on .shsheet{transform:none;opacity:1} }
+.shsheet h3{margin:0 0 12px;font:600 18px Oswald,sans-serif;letter-spacing:.06em}
+.mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mgrid button{min-height:86px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:500 13px Oswald,sans-serif;letter-spacing:.06em;cursor:pointer;position:relative;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s,border-color .15s}
+.shov.on .mgrid button{opacity:1;transform:none}
+.mgrid button:hover{border-color:#5a5f68}
+.mgrid button .bd{position:absolute;top:6px;right:8px;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font:600 11px Inter,sans-serif;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.shsheet label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);margin-bottom:12px}
+.shsheet input,.shsheet select{font:inherit;font-size:16px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chips button{min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:500 15px Oswald,sans-serif;letter-spacing:.05em;cursor:pointer}
+.chips button.on{background:var(--orange);color:#111;border-color:var(--orange)}
+/* wheel */
+.whl{position:fixed;inset:0;z-index:90;background:rgba(5,6,8,0);transition:background .18s;touch-action:none}
+.whl.on{background:rgba(5,6,8,.8)}
+.whl .ring{position:absolute;width:300px;height:300px;margin:-150px 0 0 -150px;border-radius:150px;border:1px solid #2a2e35;background:radial-gradient(circle,#15171a 0 45%,rgba(21,23,26,.9) 46%);transform:scale(.6);opacity:0;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .18s}
+.whl.on .ring{transform:none;opacity:1}
+.whl .it{position:absolute;width:78px;margin:-39px 0 0 -39px;display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:none;color:#e9ebee;font:500 12.5px Oswald,sans-serif;letter-spacing:.08em;cursor:pointer;transform:translate(0,0) scale(.3);opacity:0;transition:transform .26s cubic-bezier(.2,.9,.3,1.3),opacity .18s;transition-delay:var(--d)}
+.whl.on .it{transform:translate(var(--x),var(--y)) scale(1);opacity:1}
+.whl .it .c{width:66px;height:66px;border-radius:33px;background:#1f2328;border:2px solid var(--c);display:flex;align-items:center;justify-content:center;transition:transform .12s,background .12s}
+.whl .it.hot .c,.whl .it:hover .c{transform:scale(1.12);background:color-mix(in srgb,var(--c) 30%,#1f2328)}
+.whl .ctr{position:absolute;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:30px;border:none;background:linear-gradient(180deg,#ff9a40,#e8711a);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.whl .hint{position:absolute;left:0;right:0;text-align:center;font-size:13px;color:#9aa1aa;opacity:0;transition:opacity .3s .15s}
+.whl.on .hint{opacity:1}
+#app>section.list.shhide{display:none}
+`;
+document.head.appendChild(css);
+
+const ic={
+  home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  jobs:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',
+  crew:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  chat:'<path d="M21 12a8 8 0 0 1-11.6 7.2L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+  rec:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  count:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l2 2 4-4M8 16h8"/>',
+  bolt:'<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
+  check:'<path d="M5 12l5 5L20 7"/>',
+  list:'<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>',
+  box:'<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+  warn:'<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17h.01"/>',
+  rev:'<path d="M4 4v6h6M20 20v-6h-6"/><path d="M5 15a7 7 0 0 0 12 3M19 9A7 7 0 0 0 7 6"/>',
+  trophy:'<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/>',
+  bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  out:'<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11"/>',
+  newj:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8M8 12h8"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+};
+const svg=(k,c="currentColor",s=24,w=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic[k]}</svg>`;
+const SECT=v=>v==="home"?"home":["pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
+const go=v=>{ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0,behavior:"smooth"}); };
+window.shellGo=go;
+const lastJobs=()=>{ try{ const v=localStorage.getItem("gvc_last_jobs"); return ["pipeline","ordering","build"].includes(v)?v:"ordering"; }catch(e){ return "ordering"; } };
+const jobNum=n=>window.jobNum?window.jobNum(n):"";
+const jname=id=>{ const j=jobs.find(x=>x.id===id); return j?j.name:""; };
+
+/* ---- top bar + nav ---- */
+const top=document.createElement("div"); top.className="shtop"; top.hidden=true;
+top.innerHTML=`<div><div class="nm">GVC VAULT</div><div class="dt" id="shDate"></div></div>
+  <div style="display:flex;gap:8px"><button class="ib" type="button" id="shBell" aria-label="To do">${svg("list","#e9ebee",20)}<span class="bd" id="shBellN" hidden></span></button><button class="ib" type="button" id="shChat" aria-label="Ask Claude">${svg("chat","#ffb36b",20)}</button></div>`;
+const wrap=document.querySelector(".wrap"); wrap.parentNode.insertBefore(top,wrap);
+const nav=document.createElement("nav"); nav.className="shnav"; nav.setAttribute("aria-label","Main"); nav.hidden=true;
+nav.innerHTML=`<button class="ni" type="button" data-n="home">${svg("home")}HOME</button>
+  <button class="ni" type="button" data-n="jobs">${svg("jobs")}JOBS<span class="bd" id="shJobsN" hidden></span></button>
+  <div style="display:flex;align-items:center;justify-content:center"><button class="plus" type="button" id="shPlus" aria-label="Quick actions">${svg("plus","#111",28,2.6)}</button></div>
+  <button class="ni" type="button" data-n="crew">${svg("crew")}CREW<span class="bd" id="shCrewN" hidden></span></button>
+  <button class="ni" type="button" data-n="more">${svg("more")}MORE<span class="bd" id="shMoreN" hidden></span></button>`;
+document.body.appendChild(nav);
+nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); go(n==="jobs"?lastJobs():n); });
+top.querySelector("#shChat").onclick=()=>openChat();
+top.querySelector("#shBell").onclick=()=>go("todo");
+function note(m){ todoToast(m,null); const u=$("#toastUndo"); if(u) u.style.display="none"; }
+const upd=$("#updBtn"); if(upd) top.lastElementChild.prepend(upd);
+function openChat(){ const f=$("#chatFab"); if(f&&f.onclick) f.onclick(); }
+// show the frame once signed in (the app section becomes visible)
+new MutationObserver(()=>{ const on=!$("#app").hidden; top.hidden=!on; nav.hidden=!on; }).observe($("#app"),{attributes:true,attributeFilter:["hidden"]});
+
+/* ---- home is the start screen ---- */
+if(!location.hash||location.hash==="#"||location.hash==="#home") cur="home";
+
+/* ---- Next up: everything that needs Kyle, most urgent first ---- */
+const KIND=[
+  [/^Count|count & check/i,"COUNT","#f5b041"],[/^Pick up/i,"PICK UP","#22c3e6"],[/quote/i,"QUOTE","#ff8a2a"],
+  [/^Follow up/i,"FOLLOW UP","#e5483b"],[/^Send the order/i,"ORDER","#e5483b"],[/^Assign|^Give work/i,"CREW","#ff8a2a"],
+  [/^Log your time/i,"TIME","#3ad06b"],[/^Bend|flat/i,"BEND","#e04fa0"],[/^Look over|^Check drawings|^Make DXFs/i,"PIPELINE","#a374ff"]];
+const RANK=t=>{ const x=t.text||""; return t.count||/^Count/i.test(x)?0:/^Pick up/i.test(x)?1:t.nonum?2:/quote/i.test(x)?3:/^Follow up/i.test(x)?4:/^Send the order/i.test(x)?5:/^Assign|^Give work/i.test(x)?6:t.mine?7:/^Log your time/i.test(x)?8:9; };
+function nextUp(){
+  const out=[];
+  const auto=(typeof liveAuto==="function"?liveAuto():[]).filter(t=>!/^Add job numbers/.test(t.text));
+  auto.forEach(t=>{ const k=KIND.find(([re])=>re.test(t.text))||[null,"BOARD","#9aa1aa"];
+    let act=null;
+    if(t.count&&window.openCount) act={t:"COUNT IT",fn:()=>window.openCount(t.job,t.count)};
+    else if(/^Pick up/i.test(t.text)&&t.job){ const j=jobs.find(x=>x.id===t.job); const s=j&&(j.suppliers||[]).find(x=>ACTIVE(x)&&(x.status==="ready"||x.status==="arrived")); act=s&&window.openCount?{t:"PICKED UP - COUNT IT",fn:()=>window.openCount(j.id,s.id)}:{t:"OPEN JOB",fn:()=>openJob(t.job)}; }
+    else if(/^Log your time/i.test(t.text)) act={t:"LOG TIME",fn:()=>go("time")};
+    else if(t.view) act={t:"OPEN "+String(t.view).toUpperCase(),fn:()=>go(t.view)};
+    else if(t.job) act={t:"OPEN JOB",fn:()=>openJob(t.job)};
+    const jn0=t.job?jname(t.job):""; const title=jn0?t.text.replace(" - "+jn0,"").replace(jn0,"").replace(/\s*-\s*$/,""):t.text;
+    out.push({...t,text:title||t.text,tag:k[1],c:t.c&&!/^var/.test(t.c)?t.c:k[2],act,sub:t.job?jname(t.job):"From the board",later:{text:t.text,job:t.job}}); });
+  // jobs with no job number - one card each, with who's on it and who gave it
+  jobs.filter(j=>!jobNum(j.name)&&!j.sample&&j.id!=="inventory").forEach(j=>{
+    const who=[...new Set((j.assemblies||[]).flatMap(a=>String(a.who||"").split(",").map(s=>s.trim()).filter(Boolean)))].join(", ");
+    out.push({text:`Get a job number: ${j.name}`,tag:"NO JOB #",c:"#f5b041",nonum:true,job:j.id,sub:[who?who+" is on it":"",j.from?"from "+j.from:""].filter(Boolean).join(" · ")||"Ask Robin or Randy",
+      act:{t:"EMAIL ROBIN",fn:()=>mailNum(j,ROBIN)},act2:{t:"RANDY",fn:()=>mailNum(j,RANDY)}}); });
+  (typeof liveMine==="function"?liveMine():[]).forEach(t=>out.push({text:t.text,tag:"TO DO",c:"#ffd28a",mine:true,id:t.id,job:t.job_id,sub:[t.from_name,t.job_id?jname(t.job_id):""].filter(Boolean).join(" · ")||"Your to-do",
+    act:{t:"DONE",fn:()=>{ setTodo(t.id,true); todoToast("Done: "+t.text,()=>setTodo(t.id,false)); }},later:{id:t.id,text:t.text}}));
+  return out.sort((a,b)=>RANK(a)-RANK(b));
+}
+function mailNum(j,to){
+  const who=[...new Set((j.assemblies||[]).flatMap(a=>String(a.who||"").split(",").map(s=>s.trim()).filter(Boolean)))].join(", ");
+  const body=`Hi${to===ROBIN?" Robin":" Randy"},\n\n${who||"The crew"} ${who&&who.includes(",")?"are":"is"} working on "${j.name}"${j.from?" (from "+j.from+")":""} and it doesn't have a job number yet. Can you send me the number for it?\n\nThanks,\nKyle`;
+  location.href=`mailto:${to}${to===ROBIN?"?cc="+RANDY+"&":"?"}subject=${encodeURIComponent("Job number needed: "+j.name)}&body=${encodeURIComponent(body)}`;
+  j0log(j.id,`Asked ${to===ROBIN?"Robin":"Randy"} for a job number (email)`);
+}
+async function j0log(id,text){ const j0=jobs.find(x=>x.id===id); if(!j0) return; const j=structuredClone(j0); delete j.id; j.log=[...(j.log||[]),{at:new Date().toISOString(),text}]; try{ await saveJob(id,j); }catch(e){} }
+
+let nuIdx=0;
+function renderHome(){
+  const B=$("#board"); B.className="home"; B.style.gridTemplateColumns="";
+  const items=nextUp(); if(nuIdx>=items.length) nuIdx=0;
+  const today=new Date(); const P=window.gvcPlan; let crew=[];
+  try{ const {M}=P.mc(); const d=P.iso(today);
+    crew=CREW.map(p=>{ const ks=(M.S[p]||{})[d]||[]; const done=ks.filter(k=>M.T[k]&&M.T[k].done).length; return {p,n:ks.length,done}; }); }
+  catch(e){ crew=CREW.map(p=>({p,n:0,done:0})); }
+  const all=crew.reduce((a,c)=>a+c.n,0), dn=crew.reduce((a,c)=>a+c.done,0);
+  const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0"};
+  const doneToday=(typeof autoDone!=="undefined"?autoDone:[]).filter(x=>x.applied_at&&new Date(x.applied_at).toDateString()===today.toDateString()).length;
+  const quests=(typeof liveMine==="function"?liveMine():[]).slice(0,4);
+  B.innerHTML=`<div class="hm shanim">
+    <section aria-label="Next up">
+      <h4><span>NEXT UP${items.length?" · "+items.length:""}</span>${items.length>1?`<span style="letter-spacing:.08em">SWIPE FOR MORE</span>`:""}</h4>
+      <div class="nu">${items.length?`<div class="trk" id="nuTrk">${items.map((t,i)=>`<article class="cd" style="--c:${t.c}">
+          <span class="ntg">${esc(t.tag)}</span><div class="ntt">${esc(t.text.replace(/^Get a job number: /,""))}</div><div class="nsub">${t.nonum?"No job number yet · ":""}${esc(t.sub||"")}</div>
+          <div class="nac">${t.act?`<button class="go" type="button" data-nu="${i}">${esc(t.act.t)}</button>`:""}${t.act2?`<button class="lt" type="button" data-nu2="${i}">${esc(t.act2.t)}</button>`:""}${t.later?`<button class="lt" type="button" data-nl="${i}">LATER</button>`:""}</div></article>`).join("")}</div>
+        <button class="arr l" type="button" aria-label="Previous" id="nuL">‹</button><button class="arr r" type="button" aria-label="Next" id="nuR">›</button>
+        <div class="dots" id="nuDots">${items.slice(0,12).map((_,i)=>`<i class="${i===nuIdx?"on":""}"></i>`).join("")}<span id="nuOf">${nuIdx+1} OF ${items.length}</span></div>`
+        :`<div class="empty">${svg("check","#3ad06b",28,2)}<div style="margin-top:6px;font:600 18px Oswald,sans-serif">All caught up</div><div style="font-size:13px;margin-top:4px">Nothing needs you right now.</div></div>`}</div>
+      ${doneToday?`<button class="adone" type="button" id="shAuto">${svg("check","#3ad06b",14,2.2)} ${doneToday} update${doneToday>1?"s":""} put on the board for you today - tap to see or undo</button>`:""}
+    </section>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <section aria-label="Crew today">
+        <h4><span>CREW TODAY</span><span style="color:var(--text)">${all?`${dn} / ${all} TASKS`:""}</span></h4>
+        <div class="cw">${crew.map(c=>`<button class="p ${c.n?"":"idle"}" type="button" data-cw="${c.p}"><span class="av" style="background:${COL[c.p]||"#9aa1aa"}">${c.p[0]}</span><span class="n">${c.p}</span><div class="bar"><i style="width:${c.n?Math.round(c.done/c.n*100):0}%"></i></div><span class="s">${c.n?`${c.done} / ${c.n}`:"nothing planned"}</span></button>`).join("")}</div>
+      </section>
+      <section aria-label="To do">
+        <h4><span>TO DO · ${(typeof liveMine==="function"?liveMine().length:0)+(typeof liveAuto==="function"?liveAuto().length:0)}</span><button type="button" id="shAll">See all</button></h4>
+        <div class="qs">${quests.map(t=>`<button class="q" type="button" style="--c:#ffd28a" data-q="${t.id}"><i></i><span>${esc(t.text)}</span><em>${t.job_id?esc((jobNum(jname(t.job_id))||"JOB")):"MINE"}</em></button>`).join("")||`<div class="tnote">No to-dos of your own. Board reminders are in Next up.</div>`}</div>
+      </section>
+    </div></div>`;
+  const trk=$("#nuTrk");
+  if(trk){
+    const dots=()=>{ const i=Math.round(trk.scrollLeft/Math.max(1,trk.clientWidth)); nuIdx=i; $("#nuDots").querySelectorAll("i").forEach((d,k)=>d.classList.toggle("on",k===i)); const of=$("#nuOf"); if(of) of.textContent=`${i+1} OF ${items.length}`; };
+    trk.scrollLeft=nuIdx*trk.clientWidth; trk.onscroll=()=>{ clearTimeout(trk._t); trk._t=setTimeout(dots,60); };
+    $("#nuL").onclick=()=>trk.scrollBy({left:-trk.clientWidth,behavior:"smooth"}); $("#nuR").onclick=()=>trk.scrollBy({left:trk.clientWidth,behavior:"smooth"});
+    B.querySelectorAll("[data-nu]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.nu]; t&&t.act&&t.act.fn(); });
+    B.querySelectorAll("[data-nu2]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.nu2]; t&&t.act2&&t.act2.fn(); });
+    B.querySelectorAll("[data-nl]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const t=items[+b.dataset.nl]; if(t&&t.later&&typeof laterMenu==="function") laterMenu(b,t.later); });
+  }
+  const sa=$("#shAuto"); if(sa) sa.onclick=()=>{ try{localStorage.setItem("gvc_auto_open","true")}catch(e){} go("todo"); };
+  $("#shAll").onclick=()=>go("todo");
+  B.querySelectorAll("[data-cw]").forEach(b=>b.onclick=()=>go("crew"));
+  B.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>go("todo"));
+}
+
+/* ---- render: home is ours, everything else is the existing app inside the frame ---- */
+const _render=render; let lastView=null;
+render=function(){
+  if(cur==="home"){
+    try{ if(typeof autoTodos==="function"&&autoTodos.reset) autoTodos.reset(); }catch(e){}
+    const sub=$("#subnav"); if(sub) sub.hidden=true;
+    const bar=document.querySelector("#app .bar"); if(bar) bar.style.display="none";
+    renderHome();
+  } else {
+    const bar=document.querySelector("#app .bar"); if(bar) bar.style.display=SECT(cur)==="jobs"?"":"none";
+    _render();
+    if(lastView!==cur){ const B=$("#board"); if(B){ B.classList.remove("shanim"); void B.offsetWidth; B.classList.add("shanim"); } }
+  }
+  lastView=cur;
+  const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",SECT(cur)!=="jobs");
+  // nav state + badges
+  const s=SECT(cur); nav.querySelectorAll("[data-n]").forEach(b=>b.classList.toggle("on",b.dataset.n===s));
+  const d=new Date(); $("#shDate").textContent=d.toLocaleDateString("en-CA",{weekday:"short",month:"short",day:"numeric"}).toUpperCase();
+  const tdN=(typeof liveMine==="function"?liveMine().length:0)+(typeof liveAuto==="function"?liveAuto().length:0);
+  const bn=$("#shBellN"); bn.hidden=!tdN; bn.textContent=tdN;
+  const jn=jobs.filter(j=>typeof needsAttention==="function"&&needsAttention(j)).length; const je=$("#shJobsN"); je.hidden=!jn; je.textContent=jn;
+  let un=0; try{ un=crewItems().filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length; }catch(e){}
+  const ce=$("#shCrewN"); ce.hidden=!un; ce.textContent=un;
+};
+
+/* ---- More menu ---- */
+function sheet(html,onReady){
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true">${html}</div>`;
+  document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
+  const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  if(onReady) onReady(ov.querySelector(".shsheet"),close);
+  return close;
+}
+function moreMenu(){
+  const n=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
+  let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
+  const items=[["todo","To do","list"],["time","My time","clock",timeN],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
+    ["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
+  sheet(`<h3>MENU</h3><div class="mgrid">${items.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
+    el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ const k=b.dataset.m; close();
+      if(k==="newjob"){ go(lastJobs()); setTimeout(()=>$("#addJob").click(),60); }
+      else if(k==="undo") $("#undoBtn").click();
+      else if(k==="signout") $("#signOut").click();
+      else go(k); });
+  });
+}
+
+/* ---- quick-action wheel ---- */
+const ACTS=[["rec","RECORD","rec","#e5483b"],["count","COUNT","count","#f5b041"],["quick","QUICK JOB","bolt","#22c3e6"],["time","LOG TIME","clock","#3ad06b"],["todo","ADD TO-DO","check","#5aa7f3"],["chat","ASK CLAUDE","chat","#ff8a2a"]];
+const plus=$("#shPlus"); let whl=null, hot=null;
+function wheelOpen(){
+  if(whl) return; const r=plus.getBoundingClientRect(); const phone=innerWidth<900;
+  const cx=phone?innerWidth/2:innerWidth/2+46, cy=phone?Math.min(innerHeight-250,r.top-150):innerHeight/2;
+  whl=document.createElement("div"); whl.className="whl";
+  const R=118; whl.innerHTML=`<div class="hint" style="top:${cy-200}px">Tap one - or hold the + and slide to it</div><div class="ring" style="left:${cx}px;top:${cy}px"></div>`+
+    ACTS.map(([k,t,i,c],n)=>{ const a=(-90+n*60)*Math.PI/180; return `<button class="it" type="button" data-w="${k}" style="left:${cx}px;top:${cy}px;--x:${Math.round(R*Math.cos(a))}px;--y:${Math.round(R*Math.sin(a))}px;--c:${c};--d:${n*30}ms"><span class="c">${svg(i,c,28)}</span>${t}</button>`; }).join("")+
+    `<button class="ctr" type="button" aria-label="Close" style="left:${cx}px;top:${cy}px">${svg("plus","#111",26,2.6).replace("<path",'<path transform="rotate(45 12 12)"')}</button>`;
+  document.body.appendChild(whl); plus.classList.add("open"); requestAnimationFrame(()=>whl.classList.add("on"));
+  whl.onclick=e=>{ const b=e.target.closest("[data-w]"); if(b){ wheelClose(); act(b.dataset.w); } else wheelClose(); };
+}
+function wheelClose(){ if(!whl) return; const w=whl; whl=null; hot=null; w.classList.remove("on"); plus.classList.remove("open"); setTimeout(()=>w.remove(),220); }
+let downAt=0, slid=false;
+plus.addEventListener("pointerdown",e=>{ downAt=Date.now(); slid=false; if(whl){ wheelClose(); downAt=0; return; } wheelOpen(); try{plus.setPointerCapture(e.pointerId)}catch(_){} });
+plus.addEventListener("pointermove",e=>{ if(!whl||!downAt) return; const el=document.elementFromPoint(e.clientX,e.clientY); const b=el&&el.closest&&el.closest("[data-w]");
+  if(b!==hot){ if(hot) hot.classList.remove("hot"); hot=b; if(b){ b.classList.add("hot"); slid=true; try{navigator.vibrate&&navigator.vibrate(8)}catch(_){} } } });
+plus.addEventListener("pointerup",()=>{ if(!downAt) return; downAt=0; if(hot&&slid){ const k=hot.dataset.w; wheelClose(); act(k); } });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") wheelClose(); });
+
+function act(k){
+  if(k==="chat") return openChat();
+  if(k==="time") return go("time");
+  if(k==="todo") return addTodoSheet();
+  if(k==="quick") return quickJob();
+  if(k==="count"){
+    const t=(typeof liveAuto==="function"?liveAuto():[]).find(x=>x.count);
+    if(t&&window.openCount) return window.openCount(t.job,t.count);
+    const j=jobs.find(x=>(x.suppliers||[]).some(s=>ACTIVE(s)&&(s.status==="ready"||s.status==="arrived")));
+    if(j&&window.openCount){ const s=j.suppliers.find(s=>ACTIVE(s)&&(s.status==="ready"||s.status==="arrived")); return window.openCount(j.id,s.id); }
+    return note("Nothing waiting to be counted");
+  }
+  if(k==="rec"){
+    if(typeof Native!=="undefined"&&Native&&typeof toggleRec==="function") return toggleRec();
+    const f=document.createElement("input"); f.type="file"; f.accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm"; f.onchange=()=>{ const x=f.files[0]; if(x&&typeof uploadAudio==="function"){ go("todo"); uploadAudio(x); } }; f.click();
+  }
+}
+function addTodoSheet(){
+  sheet(`<h3>ADD A TO-DO</h3><label>What needs doing<input id="qtTx" placeholder="e.g. Call Randy about the hitch plates"></label><div class="row" style="justify-content:flex-end"><button class="btn primary" type="button" id="qtGo" style="min-height:44px;padding:0 20px">Add</button></div>`,(el,close)=>{
+    const i=el.querySelector("#qtTx"); setTimeout(()=>i.focus(),250);
+    const add=async()=>{ const v=i.value.trim(); if(!v) return; close(); await addTodos([{text:v,source:"manual"}]); note("Added: "+v); };
+    el.querySelector("#qtGo").onclick=add; i.onkeydown=e=>{ if(e.key==="Enter") add(); };
+  });
+}
+/* Quick job: someone's already on it (e.g. Randy handed Cooper something). Shop floor, task assigned, number optional. */
+function quickJob(){
+  const who=new Set(); let from="Randy";
+  sheet(`<h3>QUICK JOB</h3>
+    <label>What is it<input id="qjWhat" placeholder="e.g. Hitch rack repair for Hansen"></label>
+    <label>Who's on it</label><div class="chips" id="qjWho" style="margin:-6px 0 14px">${CREW.map(c=>`<button type="button" data-c="${c}">${c}</button>`).join("")}</div>
+    <label>Who gave it out</label><div class="chips" id="qjFrom" style="margin:-6px 0 14px">${["Randy","Customer","Me"].map(c=>`<button type="button" data-f="${c}" class="${c===from?"on":""}">${c}</button>`).join("")}</div>
+    <label>Job # (leave empty if nobody knows yet)<input id="qjNum" placeholder="e.g. 2015G" autocapitalize="characters"></label>
+    <div class="tnote" id="qjMsg" style="margin-bottom:10px"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn primary" type="button" id="qjGo" style="min-height:44px;padding:0 20px">Put it on the board</button></div>`,(el,close)=>{
+    setTimeout(()=>el.querySelector("#qjWhat").focus(),250);
+    el.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{ const c=b.dataset.c; who.has(c)?who.delete(c):who.add(c); b.classList.toggle("on",who.has(c)); });
+    el.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ from=b.dataset.f; el.querySelectorAll("[data-f]").forEach(x=>x.classList.toggle("on",x===b)); });
+    el.querySelector("#qjGo").onclick=async()=>{
+      const what=el.querySelector("#qjWhat").value.trim(); const num=el.querySelector("#qjNum").value.trim().toUpperCase();
+      if(!what){ el.querySelector("#qjMsg").textContent="Say what it is."; return; }
+      const id=uid(), now=new Date().toISOString(); const fromTx=from==="Me"?"":from;
+      const data={name:num?`${num} - ${what}`:what,folder:"",summary:[who.size?[...who].join(", ")+" on it":"",fromTx?"from "+fromTx:"",num?"":"no job # yet"].filter(Boolean).join(" · "),
+        stage:"fab",from:fromTx,suppliers:[],order:Date.now(),
+        assemblies:[{id:uid(),name:what,meta:"",status:"ready",who:[...who].join(", "),final:false}],
+        log:[{at:now,text:`Quick job${fromTx?" - given out by "+fromTx:""}${who.size?", "+[...who].join(", ")+" on it":""}${num?"":" - no job number yet"}`}]};
+      try{ await saveJob(id,data); if(!jobs.some(x=>x.id===id)) jobs.push({id,...data}); close(); pushUndo(id,null,"Added quick job "+data.name);
+        if(!num) sheet(`<h3>NO JOB NUMBER YET</h3><div class="tnote" style="margin-bottom:14px">"${esc(what)}" is on the shop floor${who.size?" with "+esc([...who].join(", ")):""}. It stays in Next up until it has a number.</div>
+          <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="qnR" style="min-height:44px">${svg("mail","#1b0f05",16)} Email Robin</button><button class="btn" type="button" id="qnY" style="min-height:44px">Email Randy</button><button class="btn ghost" type="button" id="qnL" style="min-height:44px">Later</button></div>`,(e2,c2)=>{
+            const j={id,...data}; e2.querySelector("#qnR").onclick=()=>{ c2(); mailNum(j,ROBIN); }; e2.querySelector("#qnY").onclick=()=>{ c2(); mailNum(j,RANDY); }; e2.querySelector("#qnL").onclick=c2; });
+        else note("On the board: "+data.name);
+      }catch(e){ el.querySelector("#qjMsg").textContent="Couldn't save: "+(e.message||e); }
+    };
+  });
+}
+})();

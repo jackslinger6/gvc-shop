@@ -30,6 +30,7 @@ function go(v){ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render
 // autoTodos() is asked for several times per render (tab counts, the To do list, My time); answer once per render.
 const _auto=autoTodos; let autoCache=null;
 autoTodos=function(){ if(!autoCache) autoCache=_auto(); return autoCache; };
+autoTodos.reset=()=>{ autoCache=null; };
 const _render=render;
 render=function(){
   autoCache=null;
