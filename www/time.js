@@ -112,7 +112,7 @@ function renderTime(){
     if(r.ok&&(!r.sent||r.changed)) ready.push(d);
     h+=`<div class="tday" data-day="${d}" style="--c:${c}"><div class="thd"><b>${G.dlabel(d)}${d===today?" (today)":""}</b>
       <span class="tot" style="color:${Math.abs(tot-DAY)<1e-6?"#7fe3a0":r.ok?"#ffd28a":"#ff9b91"}">${r.ok&&!r.lines.length?"Didn't work":G.fh(tot)+" / "+DAY+"h"}</span>
-      ${tot>DAY+1e-6?`<span class="twarn" style="color:#ffd28a;border-color:#8a6a2a;background:rgba(245,176,65,.12)">${G.fh(tot-DAY)} overtime</span>`:""}
+      ${tot>DAY+1e-6?`<span class="twarn" style="color:#ffd28a;border-color:#8a6a2a;background:rgba(245,176,65,.12)">${G.fh(tot-DAY)} over ${DAY}h (straight time)</span>`:""}
       ${off?`<span class="lbl">Day off in the plan</span>`:""}
       ${r.ok?`<span class="tok">Confirmed</span>`:""}${r.sent?`<span class="tsent">Sent${r.changed?" - changed since":""}</span>`:""}
       ${extH?`<span class="twarn">Invoice app already has ${G.fh(extH)} for this day</span>`:""}</div>
