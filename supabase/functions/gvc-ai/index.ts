@@ -50,7 +50,7 @@ const TOOL = {
             tasks: {
               type: ["array", "null"],
               description: "Work steps for the job if the message spells them out (e.g. 'strip the deck, then pull the wiring'). Short shop-language names; who = crew doing it if named.",
-              items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] },
+              items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } }, day: { type: "string", description: "YYYY-MM-DD to put it on that person's calendar day (only if Kyle said a day)" }, hours: { type: "number", description: "estimate if Kyle said one" } }, required: ["name"] },
             },
             supplier: {
               type: ["object", "null"],
@@ -197,11 +197,13 @@ const CHAT_TOOLS = [
   { name: "add_todo", description: "Add a to-do to Kyle's list right away.", input_schema: { type: "object", properties: { text: { type: "string" }, job_id: { type: ["string", "null"] } }, required: ["text"] } },
   { name: "complete_todo", description: "Mark one of Kyle's own to-dos done, by its id (only to-dos from the 'open to-dos' list - board reminders have no id, use clear_reminder for those).", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "clear_reminder", description: "Hide a [board reminder] from Kyle's To do tab (the auto ones like 'Give work to Aaron', 'Look over new job: ...', 'Log your time ...'). Pass the reminder text exactly as it appears in the To do tab list, without the [board reminder] prefix. It comes back on its own if the situation changes.", input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
+  { name: "schedule_task", description: "Put an existing task on a person's calendar day in the week plan (or move it, or back to Not scheduled with date 'pool'). Use when Kyle says e.g. 'put the headache rack on Colton Friday'. who replaces who is on the task (omit to keep). hours sets the estimate.",
+    input_schema: { type: "object", properties: { job_id: { type: "string" }, task: { type: "string", description: "task id or its name" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } }, date: { type: "string", description: "YYYY-MM-DD, or 'pool'" }, hours: { type: "number" } }, required: ["job_id", "task", "date"] } },
   { name: "add_tasks", description: "Add tasks (work steps) to a job right away so Kyle can assign and check them off. Use short task names in shop language. who = crew names doing it (Kyle, Colton, Aaron, Cooper) or empty.",
-    input_schema: { type: "object", properties: { job_id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } }, last_waits_for_rest: { type: "boolean" } }, required: ["job_id", "tasks"] } },
+    input_schema: { type: "object", properties: { job_id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } }, day: { type: "string", description: "YYYY-MM-DD to put it on that person's calendar day (only if Kyle said a day)" }, hours: { type: "number", description: "estimate if Kyle said one" } }, required: ["name"] } }, last_waits_for_rest: { type: "boolean" } }, required: ["job_id", "tasks"] } },
   { name: "create_job", description: "Create a new job on the board right away, with its tasks, when Kyle asks for one. The tasks land in the Not scheduled pool of the week planner so Kyle can drag them onto people's days. Include every work step Kyle mentioned.",
     input_schema: { type: "object", properties: { number: { type: "string", description: "Job number like 2015G, 1099PT, 1048BQ - always ask Kyle if he didn't say it" }, name: { type: "string", description: "Job name WITHOUT the number" }, stage: { type: "string", enum: Object.keys(STAGES) }, summary: { type: "string", description: "One line for the job card" }, log: { type: "string", description: "Short note about where this came from" },
-      tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } } }, required: ["name"] } } }, required: ["name", "stage"] } },
+      tasks: { type: "array", items: { type: "object", properties: { name: { type: "string" }, who: { type: "array", items: { type: "string", enum: ["Kyle", "Colton", "Aaron", "Cooper"] } }, day: { type: "string", description: "YYYY-MM-DD to put it on that person's calendar day (only if Kyle said a day)" }, hours: { type: "number", description: "estimate if Kyle said one" } }, required: ["name"] } } }, required: ["name", "stage"] } },
   { name: "propose_update", description: "Change an existing job: move its stage (any direction, e.g. to done), job summary, log entry, supplier status/quote/lead, add tasks, to-dos. It is applied right away (Kyle can Undo it in To do > Done automatically). Use for any board change Kyle asks for. Needs job_id.",
     input_schema: { type: "object", properties: Object.fromEntries(Object.entries(ITEM.properties).filter(([k]) => k !== "ref" && k !== "relevant")), required: ["summary"] } },
   { name: "set_consumable", description: "Add or update a shop consumable (weld wire, contact tips, nozzles/diffusers, gas, grinding/cutting discs, rod, safety gear...) in the Consumables list. Matches an existing item by name (case-insensitive) and only changes the fields you pass. Use it as Kyle walks through what's in the shop or gives a count.",
@@ -274,6 +276,35 @@ async function setTime(sb: any, inp: any) {
   throw new Error("the plan kept changing - try again");
 }
 
+/* put job tasks on calendar days in gvc_plan (version-checked). Job must be saved first - the app drops plan keys
+   for tasks it doesn't know. items: {key "j:<job>:<task>", who[], date YYYY-MM-DD | "pool", hours?} */
+async function placePlan(sb: any, items: any[]) {
+  if (!items.length) return;
+  for (let tries = 0; tries < 5; tries++) {
+    const { data: pl } = await sb.from("gvc_plan").select("data,updated_at").eq("id", "main").maybeSingle();
+    if (!pl) throw new Error("no plan");
+    const pd = pl.data || {}; pd.sched = pd.sched || {}; pd.hours = pd.hours || {};
+    for (const it of items) {
+      for (const p of Object.keys(pd.sched)) for (const d of Object.keys(pd.sched[p] || {})) {
+        pd.sched[p][d] = (pd.sched[p][d] || []).filter((k: string) => k !== it.key); if (!pd.sched[p][d].length) delete pd.sched[p][d]; }
+      if (it.hours != null && Number(it.hours) > 0) pd.hours[it.key] = Number(it.hours);
+      if (it.date && it.date !== "pool") for (const p of it.who || []) { pd.sched[p] = pd.sched[p] || {}; (pd.sched[p][it.date] = pd.sched[p][it.date] || []).push(it.key); }
+    }
+    const { data: up } = await sb.from("gvc_plan").update({ data: pd, updated_at: new Date().toISOString() }).eq("id", "main").eq("updated_at", pl.updated_at).select("updated_at");
+    if (up && up.length) return;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  throw new Error("the week plan kept changing - try again");
+}
+const isoDay = (x: any) => /^\d{4}-\d{2}-\d{2}$/.test(String(x || ""));
+function weekLine() {
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Edmonton" }));
+  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const out: string[] = [];
+  for (let i = 0; i < 14; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); out.push(d.toLocaleDateString("en-CA", { weekday: "short" }) + " " + d.toISOString().slice(0, 10)); }
+  return out.join(", ");
+}
+
 async function chat(sb: any, msgs: any[], ctx: any = {}) {
   const [{ data: rows }, { data: todos }, { data: notes }] = await Promise.all([
     sb.from("gvc_jobs").select("id,data"),
@@ -287,7 +318,7 @@ async function chat(sb: any, msgs: any[], ctx: any = {}) {
 People: Randy releases jobs; Jesse Dirksen is the engineer (SolidWorks); Jesse Eherer is at Russel Metals (laser cutting); William Hofer is at Grandview Fabrication; Robin handles stock; Colton, Aaron, Cooper are crew Kyle assigns work to.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
 You can answer questions about the board, help plan the day, and use tools: add_todo, complete_todo, clear_reminder, create_job, add_tasks, add_ncr, update_ncr and add_revision act right away; propose_update changes an existing job right away (stage moves in any direction, supplier status, log, summary) - only say it's done when the tool result says ok; Kyle can undo it in To do > Done automatically.
-HARD RULES ABOUT DOING THINGS: nothing happens unless you call a tool and its result says ok. Never say "done", "doing it now" or "I'll take care of it" unless the tool result for that exact thing came back ok. If a tool result starts with "error", tell Kyle it failed and why. Kyle's hours: use set_time (it changes the My time tab; he still presses Send to the time invoice app - say that). Things you have NO tool for - say so plainly in one line and tell him where to do it himself: scheduling or moving tasks onto days or people (Jobs > Crew & week plan), sending email (you only write drafts - Kyle presses Send in Outlook), accepting suggestions in his review list. Don't pretend. When Kyle lists several things in one message, go through every one: call the tools you can, and for each thing you can't do, say that in the reply.
+HARD RULES ABOUT DOING THINGS: nothing happens unless you call a tool and its result says ok. Never say "done", "doing it now" or "I'll take care of it" unless the tool result for that exact thing came back ok. If a tool result starts with "error", tell Kyle it failed and why. Calendar days: these two weeks are ${weekLine()}. When Kyle names a day (\"Friday\", \"tomorrow\"), use that date: schedule_task for existing tasks, or day on each task in add_tasks/create_job. Without a day, tasks go to the person's next open day by themselves. Kyle's hours: use set_time (it changes the My time tab; he still presses Send to the time invoice app - say that). Things you have NO tool for - say so plainly in one line and tell him where to do it himself: sending email (you only write drafts - Kyle presses Send in Outlook), accepting suggestions in his review list. Don't pretend. When Kyle lists several things in one message, go through every one: call the tools you can, and for each thing you can't do, say that in the reply.
 Every job name starts with its job number, like "2011G - Kirby Controls Enclosure" (G, PT, BQ, DT suffixes). When Kyle asks for a new job and hasn't given the number, ask for it once; if he doesn't know it yet, create it without one (the app flags it).
 When Kyle asks for a new job, use create_job (not propose_update) and put all the work steps he mentioned in it as tasks, in one go - don't make him ask twice. Tasks automatically show up in the Not scheduled pool on the Crew tab's week planner, grouped by job, so he can drag them onto people's days. Who on a task is just a suggestion until he schedules it.
 EMAIL (Outlook kyle.gvc, drafts only): use find_emails / read_email to look things up, draft_email to write. You can never send - say "it's in your Outlook drafts, check it and press Send". Rules from Kyle: always CC Randy at gordeyvillecustoms@hotmail.com on emails to suppliers (never randy.gvc@hotmail.com - old address). State materials exactly as Kyle gives them (e.g. 16 GA (0.0598") 304 2B stainless). Suppliers: Russel Metals - Jesse Eherer jeherer@russelmetals.com (laser cutting only); LSM - Dennis Shmyr counter@golsm.com (shears and bends); Grandview Fabrication - William Hofer; Alloy Industries - big bends. Jessie Dirksen (engineer) - jessie.gvc@hotmail.com. Randy - gordeyvillecustoms@hotmail.com. Write as Kyle: short, plain, no fluff, sign off "Kyle". For replies, find the email first and pass reply_to_id. Don't promise attachments - you can't attach files yet.
@@ -362,7 +393,10 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           d.log = [...(d.log || []), { at: new Date().toISOString(), text: `Added ${add.length} tasks (Ask Claude)` }];
           const { error: e2 } = await sb.from("gvc_jobs").update({ data: d }).eq("id", row.id);
           if (e2) throw e2;
-          actions.push(`Added ${add.length} task${add.length > 1 ? "s" : ""} to ${d.name} (in Not scheduled on the Crew tab)`);
+          const pl = add.map((a: any, ix: number) => ({ key: `j:${row.id}:${a.id}`, who: list[ix].who || [], date: list[ix].day, hours: list[ix].hours })).filter((x: any) => (isoDay(x.date) && x.who.length) || x.hours != null);
+          await placePlan(sb, pl.map((x: any) => isoDay(x.date) && x.who.length ? x : { ...x, date: undefined, who: [] }));
+          const onDays = pl.filter((x: any) => isoDay(x.date) && x.who.length).length;
+          actions.push(`Added ${add.length} task${add.length > 1 ? "s" : ""} to ${d.name}${onDays ? ` (${onDays} put on the calendar)` : " (in Not scheduled on the Crew tab)"}`);
         } else if (u.name === "create_job") {
           const id = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
           const now = new Date().toISOString();
@@ -374,7 +408,29 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           const { error } = await sb.from("gvc_jobs").insert({ id, data });
           if (error) throw error;
           res = "created job id " + id;
+          { const src = (u.input.tasks || []).filter((t: any) => t && t.name);
+            const pl = tasks.map((a: any, ix: number) => ({ key: `j:${id}:${a.id}`, who: src[ix].who || [], date: src[ix].day, hours: src[ix].hours })).filter((x: any) => (isoDay(x.date) && x.who.length) || x.hours != null);
+            await placePlan(sb, pl.map((x: any) => isoDay(x.date) && x.who.length ? x : { ...x, date: undefined, who: [] })); }
           actions.push(`Created job ${u.input.name}${tasks.length ? ` with ${tasks.length} task${tasks.length > 1 ? "s" : ""} (in Not scheduled on the Crew tab)` : ""}`);
+        } else if (u.name === "schedule_task") {
+          const { data: row, error: e1 } = await sb.from("gvc_jobs").select("id,data").eq("id", u.input.job_id).single();
+          if (e1 || !row) throw new Error("job not found");
+          const d = row.data || {}; const q = String(u.input.task || "").trim().toLowerCase();
+          const as = d.assemblies || [];
+          const a = as.find((x: any) => x.id === u.input.task) || as.find((x: any) => String(x.name).toLowerCase() === q) || as.find((x: any) => String(x.name).toLowerCase().includes(q) || q.includes(String(x.name).toLowerCase()));
+          if (!a) throw new Error(`no task like "${u.input.task}" on ${d.name} - tasks are: ${as.map((x: any) => x.name).join(", ")}`);
+          const date = String(u.input.date || "");
+          if (date !== "pool" && !isoDay(date)) throw new Error("date must be YYYY-MM-DD or pool");
+          const who = Array.isArray(u.input.who) && u.input.who.length ? u.input.who : String(a.who || "").split(",").map((x: string) => x.trim()).filter(Boolean);
+          if (date !== "pool" && !who.length) throw new Error("nobody is on that task - say who");
+          if (Array.isArray(u.input.who) && u.input.who.length && who.join(", ") !== a.who) {
+            a.who = who.join(", "); d.log = [...(d.log || []), { at: new Date().toISOString(), text: `${a.name}: ${a.who} (Ask Claude)` }];
+            const { error: e2 } = await sb.from("gvc_jobs").update({ data: d }).eq("id", row.id); if (e2) throw e2;
+          }
+          await placePlan(sb, [{ key: `j:${row.id}:${a.id}`, who, date, hours: u.input.hours }]);
+          const dl = date === "pool" ? "Not scheduled" : new Date(date + "T12:00:00").toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" });
+          res = `ok - ${a.name} -> ${who.join(" + ")}, ${dl}`;
+          actions.push(`${a.name} (${d.name}) → ${date === "pool" ? "Not scheduled" : who.join(" + ") + ", " + dl}`);
         } else if (u.name === "set_time") {
           const r = await setTime(sb, u.input);
           res = `ok - ${u.input.date} now ${r.tot}h${r.miss.length ? `; no time-invoice job matched for: ${r.miss.join(", ")} (Kyle picks it on My time)` : ""}`;
