@@ -181,7 +181,7 @@ const KIND=[
 const RANK=t=>{ const x=t.text||""; return t.count||/^Count/i.test(x)?0:/^Pick up/i.test(x)?1:t.nonum?2:/quote/i.test(x)?3:/^Follow up/i.test(x)?4:/^Send the order/i.test(x)?5:/^Assign|^Give work/i.test(x)?6:t.mine?7:/^Log your time/i.test(x)?8:9; };
 function nextUp(){
   const out=[];
-  const auto=(typeof liveAuto==="function"?liveAuto():[]).filter(t=>!/^Add job numbers/.test(t.text));
+  const auto=(typeof liveAuto==="function"?liveAuto():[]).filter(t=>!/^Add job numbers|^Archive finished/.test(t.text));
   auto.forEach(t=>{ const k=KIND.find(([re])=>re.test(t.text))||[null,"BOARD","#9aa1aa"];
     let act=null;
     if(t.count&&window.openCount) act={t:"COUNT IT",fn:()=>window.openCount(t.job,t.count)};
@@ -189,8 +189,14 @@ function nextUp(){
     else if(/^Log your time/i.test(t.text)) act={t:"LOG TIME",fn:()=>go("time")};
     else if(t.view) act={t:"OPEN "+String(t.view).toUpperCase(),fn:()=>go(t.view)};
     else if(t.job) act={t:"OPEN JOB",fn:()=>openJob(t.job)};
-    const jn0=t.job?jname(t.job):""; const title=jn0?t.text.replace(" - "+jn0,"").replace(jn0,"").replace(/\s*-\s*$/,""):t.text;
+    const jn0=t.job?jname(t.job):""; const title=jn0&&t.text.endsWith(" - "+jn0)?t.text.slice(0,-(jn0.length+3)):t.text;
     out.push({...t,text:title||t.text,tag:k[1],c:t.c&&!/^var/.test(t.c)?t.c:k[2],act,sub:t.job?jname(t.job):"From the board",later:{text:t.text,job:t.job}}); });
+  // orders ready for pickup that no reminder covers yet (e.g. on INV or a received job)
+  jobs.forEach(j=>(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status==="ready").forEach(x=>{
+    const txt=`Pick up ${first(x.name)}${x.quoteNo?" #"+x.quoteNo:""}`;
+    if(out.some(o=>o.job===j.id&&/^Pick up/i.test(o.text))) return;
+    out.push({text:txt,tag:"PICK UP",c:"#22c3e6",job:j.id,sub:j.name+(x.scope?" · "+x.scope.slice(0,80):""),
+      act:window.openCount?{t:"PICKED UP - COUNT IT",fn:()=>window.openCount(j.id,x.id)}:{t:"OPEN JOB",fn:()=>openJob(j.id)},later:{text:txt,job:j.id}}); }));
   // jobs with no job number - one card each, with who's on it and who gave it
   jobs.filter(j=>!jobNum(j.name)&&!j.sample&&j.id!=="inventory").forEach(j=>{
     const who=[...new Set((j.assemblies||[]).flatMap(a=>String(a.who||"").split(",").map(s=>s.trim()).filter(Boolean)))].join(", ");
