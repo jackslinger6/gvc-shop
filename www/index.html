@@ -125,6 +125,32 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 .supbox{border:1px solid var(--line);border-left:4px solid var(--c,#555);border-radius:10px;padding:10px;margin-top:8px;background:#141518}
 .supbox .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .supbox .meta{font-size:12px;color:var(--muted);margin-top:2px}
+/* phone: each task is a card - name, who chips, then the 5 statuses as labelled buttons (Nov 4) */
+@media (max-width:600px){
+  .atw{border:none;overflow:visible}
+  table.at,table.at tbody,table.at tr,table.at td{display:block;min-width:0!important}
+  table.at thead{display:none}
+  table.at tr{position:relative;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.25);padding:10px 10px 8px;margin-bottom:8px}
+  table.at td{border:none!important;padding:0!important;text-align:left}
+  table.at td:first-child{padding-right:30px!important;font-size:15px}
+  table.at td:nth-child(2){margin:8px 0}
+  table.at td:nth-child(2)>*{display:flex;flex-wrap:wrap;gap:6px}
+  table.at td:has(.sb){display:inline-block;width:calc(20% - 4px);margin-right:4px}
+  table.at td:has(.sb):nth-last-child(2){margin-right:0}
+  table.at .sb{min-width:0;height:44px;font-size:11.5px;font-weight:600}
+  table.at .sb::after{content:attr(data-lab)} table.at .sb.now{color:#111} table.at .sb.past{color:#e9e6e1}
+  table.at td:last-child{position:absolute;top:6px;right:4px}
+}
+.jfold{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.22);padding:0 12px}
+.jfold>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:10px;padding:12px 0;font:600 14px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#cfc9c0}
+.jfold>summary::-webkit-details-marker{display:none}
+.jfold>summary::before{content:"▸";color:#ff9a40;transition:transform .15s}.jfold[open]>summary::before{transform:rotate(90deg)}
+.jfold>summary em{font:400 12.5px Inter,sans-serif;letter-spacing:0;text-transform:none;color:var(--muted);font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.jfold[open]{padding-bottom:12px}
+#dlg #jpBtn,#dlg #jfBtn{flex:1;min-height:58px;border-radius:14px;font:600 17px Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase;border:none;color:#111;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+#dlg #jpBtn{background:linear-gradient(180deg,#ff9a40,#e8711a)}
+#dlg #jfBtn{background:linear-gradient(180deg,#5fd8f0,#22a9c9)}
+#dlg #jpBtn:active,#dlg #jfBtn:active{transform:scale(.98)}
 .log{margin-top:6px;display:flex;flex-direction:column;gap:5px}
 .log div{font-size:12.5px;color:#cfd3d8;padding:6px 8px;background:#101113;border-radius:6px;border:1px solid #26292e}
 .log small{color:var(--dim);margin-right:6px}
@@ -622,6 +648,9 @@ function closeDlg(){
 $("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeDlg();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDlg();});
 
+/* Job card layout (Kyle, Nov 4): title + stage with Back/Next, big Parts & drawings / Files buttons, tasks, NCRs,
+   suppliers; notes and the edit fields fold away (Claude can change those when asked). Fold state survives redraws. */
+const dlgFold={notes:false,edit:false};
 function drawDlg(){
   const j=job(); if(!j){closeDlg();return;}
   const i=SIDX[j.stage]??0, s=STAGES[i];
@@ -632,19 +661,13 @@ function drawDlg(){
    <div class="stagebar"><span style="color:var(--muted)">Stage:</span><span class="now">${s.bt} · ${s.t}</span><span style="flex:1"></span>
      <button class="btn sm" type="button" id="back" ${i===0?"disabled":""}>← Back</button>
      <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""}>Next: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div>
-   <div class="row" style="margin-top:10px">
-     <label>Job name<input id="fName" value="${esc(j.name)}"></label>
-     <label>Folder (optional)<input id="fFolder" value="${esc(j.folder||"")}" placeholder="Job folder name, if you keep one"></label>
-     <label>Stage<select id="fStage">${stageOpts}</select></label>
-   </div>
-   <label style="margin-top:8px">Card note<input id="fSum" value="${esc(j.summary||"")}" placeholder="One line shown on the card"></label>
    ${true?`<div class="sec"><span>Tasks${(j.assemblies||[]).length?` · ${asmDone(j)} of ${j.assemblies.length} done (${Math.round(asmDone(j)/j.assemblies.length*100)}%)`:""}</span><button class="btn sm" type="button" id="addAsm">+ Add tasks</button></div>
    ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div>`:""}
    ${(j.assemblies||[]).length?`<div class="atw"><table class="at"><thead><tr><th>Task</th><th>Who</th>${Object.entries(AST).map(([k,v])=>`<th class="sc" style="--c:${v.c}">${v.t}</th>`).join("")}<th></th></tr></thead><tbody>
    ${j.assemblies.map((a,k)=>{const keys=Object.keys(AST);const si=keys.indexOf(a.status);const locked=finalLocked(j,a);
      return `<tr><td><div class="an2">${esc(a.name)}</div>${(a.meta||a.final)?`<div class="am2">${esc(a.meta||"")}${a.final?(a.meta?" · ":"")+"Final assembly":""}</div>`:""}</td>
      <td>${asmSel(j,k,a,"who")}</td>
-     ${locked?`<td colspan="${keys.length}"><div class="waits">Waits until every other task is done</div></td>`:keys.map((key,ki)=>`<td><button type="button" class="sb ${ki<si?"past":ki===si?"now":""}" style="--c:${AST[key].c}" data-sj="${esc(j.id)}" data-si="${k}" data-ss="${key}" aria-label="${esc(a.name)}: ${AST[key].t}" aria-pressed="${ki===si}">${ki===si?"●":""}</button></td>`).join("")}
+     ${locked?`<td colspan="${keys.length}"><div class="waits">Waits until every other task is done</div></td>`:keys.map((key,ki)=>`<td><button type="button" class="sb ${ki<si?"past":ki===si?"now":""}" style="--c:${AST[key].c}" data-sj="${esc(j.id)}" data-si="${k}" data-ss="${key}" data-lab="${({bend:"Bend",ready:"Ready",prog:"Doing",qc:"Check",done:"Done"})[key]}" aria-label="${esc(a.name)}: ${AST[key].t}" aria-pressed="${ki===si}">${ki===si?"●":""}</button></td>`).join("")}
      <td><button type="button" class="rmb" data-rmasm="${k}" aria-label="Remove ${esc(a.name)}">×</button></td></tr>`;}).join("")}
    </tbody></table></div>`:`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.</div>`}
    <div id="newAsm"></div>`:""}
@@ -660,11 +683,20 @@ function drawDlg(){
        <label>Lead time<input data-f="lead" data-i="${k}" value="${esc(x.lead||"")}"></label></div>
      <label style="margin-top:8px">Latest<textarea data-f="note" data-i="${k}">${esc(x.note||"")}</textarea></label></div>`;}).join("")||`<div class="empty" style="text-align:left">No suppliers on this job.</div>`}
    <div id="newSup"></div>
-   <div class="sec"><span>Notes</span></div>
-   <div class="log">${(j.log||[]).slice().reverse().map(l=>`<div><small>${fmt(l.at)}</small>${esc(l.text)}</div>`).join("")||`<div style="color:var(--dim)">No notes yet.</div>`}</div>
+   <details class="jfold" data-fold="notes" ${dlgFold.notes?"open":""}><summary><span>Notes · ${(j.log||[]).length}</span>${(j.log||[]).length?`<em>${esc(String((j.log||[])[(j.log||[]).length-1].text).slice(0,70))}</em>`:""}</summary>
    <div class="row" style="margin-top:8px"><label style="flex:4">Add a note<input id="fNote" placeholder="Cooper picked it up"></label><button class="btn" type="button" id="addNote">Add</button></div>
+   <div class="log" style="margin-top:8px">${(j.log||[]).slice().reverse().map(l=>`<div><small>${fmt(l.at)}</small>${esc(l.text)}</div>`).join("")||`<div style="color:var(--dim)">No notes yet.</div>`}</div></details>
+   <details class="jfold" data-fold="edit" ${dlgFold.edit?"open":""}><summary><span>Edit job details</span><em>number, name, stage, folder, card note</em></summary>
+   <div class="row" style="margin-top:10px">
+     <label>Job name<input id="fName" value="${esc(j.name)}"></label>
+     <label>Folder (optional)<input id="fFolder" value="${esc(j.folder||"")}" placeholder="Job folder name, if you keep one"></label>
+     <label>Stage<select id="fStage">${stageOpts}</select></label>
+   </div>
+   <label style="margin-top:8px">Card note<input id="fSum" value="${esc(j.summary||"")}" placeholder="One line shown on the card"></label>
+   </details>
    <div class="err" id="err"></div>
    <div class="foot"><button class="btn danger" type="button" id="delJob">Delete job</button><button class="btn primary" type="button" id="save">Save</button></div>`;
+  $("#dlg").querySelectorAll("details.jfold").forEach(d=>d.ontoggle=()=>{ dlgFold[d.dataset.fold]=d.open; });
   $("#xBtn").onclick=closeDlg; $("#save").onclick=save; $("#addNote").onclick=addNote; $("#addSup").onclick=supForm; $("#delJob").onclick=delJob;
   $("#fNote").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addNote();}});
   $("#back").onclick=()=>move(-1); $("#next").onclick=()=>move(1);
