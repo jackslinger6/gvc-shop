@@ -90,7 +90,17 @@ function edit(d,fn,quiet){
 function weekDates(){ const s=P().monday(wkT),o=[]; const start=plan().timeStart||""; for(let i=0;i<7;i++){ const x=new Date(s); x.setDate(s.getDate()+i); const w=x.getDay(); const di=iso(x);
   if(start&&di<start&&!T()[di]) continue; // before time tracking started in this app - those days live in the time invoice app
   if((w===0||w===6)&&!showWe&&!T()[di]&&!suggest(di).length) continue; o.push(di); } return o; }
-const jobOpts=sel=>`<option value="">Pick a job…</option>`+tiJobs.map(j=>`<option value="${esc(j.id)}" ${j.id===sel?"selected":""}>${esc(j.name)}${j.description?" · "+esc(j.description):""}</option>`).join("");
+/* Only jobs that are active in the app (on the go, or finished but not archived yet) + this month's and that day's
+   shop job + whatever the line already has. "Show all jobs…" at the bottom brings the rest back. (Kyle, 2026-11-04) */
+let tiAll=false;
+function activeTI(d){
+  const set=new Set(); jobs.filter(j=>!j.archived&&j.id!=="inventory").forEach(j=>{ const t=guessTI(j); if(t) set.add(t); });
+  const a=shopJob(todayIso()); if(a) set.add(a); if(d){ const b=shopJob(d); if(b) set.add(b); }
+  return set;
+}
+const jobOpts=(sel,d)=>{ const keep=activeTI(d); if(sel) keep.add(sel); const L=tiAll?tiJobs:tiJobs.filter(j=>keep.has(j.id));
+  return `<option value="">Pick a job…</option>`+L.map(j=>`<option value="${esc(j.id)}" ${j.id===sel?"selected":""}>${esc(j.name)}${j.description?" · "+esc(j.description):""}</option>`).join("")
+    +(tiAll||L.length===tiJobs.length?"":`<option value="__all">Show all jobs…</option>`); };
 const QUICK=[["Meeting","shop"],["Drawings / office","shop"],["Shop cleanup","shop"],["Parts run","shop"],["Helping the crew","shop"]];
 
 function renderTime(){
@@ -118,7 +128,7 @@ function renderTime(){
       ${extH?`<span class="twarn">Invoice app already has ${G.fh(extH)} for this day</span>`:""}</div>
       ${r.draft&&r.lines.length?`<div class="draft">Suggested from your week plan. Change anything, then confirm.</div>`:""}
       ${!r.lines.length&&!off&&!extH?`<div class="draft">${future?"Nothing planned yet.":"Nothing logged yet."}</div>`:""}
-      ${r.lines.map((l,i)=>`<div class="tl"><select data-tj="${d}|${i}" aria-label="Job">${jobOpts(l.ti)}</select>
+      ${r.lines.map((l,i)=>`<div class="tl"><select data-tj="${d}|${i}" aria-label="Job">${jobOpts(l.ti,d)}</select>
         <textarea data-tn="${d}|${i}" rows="1" placeholder="What you did" aria-label="What you did">${esc(l.note)}</textarea>
         <input data-th="${d}|${i}" type="number" step="0.25" min="0" value="${l.h}" aria-label="Hours">
         <button data-tx="${d}|${i}" title="Remove line" aria-label="Remove line">✕</button></div>`).join("")}
@@ -136,7 +146,7 @@ function renderTime(){
   B.querySelectorAll("[data-tw]").forEach(b=>b.onclick=()=>{ const v=+b.dataset.tw; wkT=v===0?0:wkT+v; sendBox=null; render(); });
   $("#tWe").onclick=()=>{ showWe=!showWe; render(); };
   const sp=x=>{ const [d,i]=x.split("|"); return [d,+i]; };
-  B.querySelectorAll("[data-tj]").forEach(el=>el.onchange=()=>{ const [d,i]=sp(el.dataset.tj); edit(d,r=>{ const l=r.lines[i]; l.ti=el.value; if(l.gj&&el.value){ const p=plan(); p.tiMap=p.tiMap||{}; p.tiMap[l.gj]=el.value; } }); });
+  B.querySelectorAll("[data-tj]").forEach(el=>el.onchange=()=>{ if(el.value==="__all"){ tiAll=true; render(); setTimeout(()=>{ const n=document.querySelector(`[data-tj="${el.dataset.tj}"]`); if(n){ n.focus(); try{n.showPicker&&n.showPicker();}catch(e){} } },50); return; } const [d,i]=sp(el.dataset.tj); edit(d,r=>{ const l=r.lines[i]; l.ti=el.value; if(l.gj&&el.value){ const p=plan(); p.tiMap=p.tiMap||{}; p.tiMap[l.gj]=el.value; } }); });
   B.querySelectorAll("[data-tn]").forEach(el=>{ el.oninput=()=>{ const [d,i]=sp(el.dataset.tn); edit(d,r=>{ r.lines[i].note=el.value; },true); }; });
   B.querySelectorAll("[data-th]").forEach(el=>el.oninput=()=>{ const [d,i]=sp(el.dataset.th); edit(d,r=>{ r.lines[i].h=Math.max(0,r4(Number(el.value)||0)); },true); patchTot(d); });
   B.querySelectorAll("[data-tx]").forEach(el=>el.onclick=()=>{ const [d,i]=sp(el.dataset.tx); edit(d,r=>{ r.lines.splice(i,1); }); });

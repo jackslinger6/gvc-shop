@@ -53,6 +53,16 @@ body:has(.scrim.on) .shnav,body:has(.chatp.on) .shnav{display:none}
 .hm{display:grid;gap:16px;margin-top:10px;grid-template-columns:minmax(0,1fr)}
 @media (min-width:1000px){ .hm{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start} }
 .hm h4{margin:0 0 8px;font:500 12px Oswald,sans-serif;letter-spacing:.16em;color:var(--muted);display:flex;justify-content:space-between;align-items:baseline}
+.ajs{grid-column:1/-1}
+.ajg{margin-bottom:10px}.ajh{font:600 11px Oswald,sans-serif;letter-spacing:.16em;color:var(--c);margin:6px 2px 6px}
+.aj{display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:center;width:100%;text-align:left;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 14%,#17191d),#15171a 60%);border:1px solid #2a2e34;border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin-bottom:6px;color:var(--text);cursor:pointer;font:inherit;transition:transform .1s}
+.aj:active{transform:scale(.985)}
+.ajn{grid-row:1/3;font:600 13px Oswald,sans-serif;letter-spacing:.06em;background:rgba(0,0,0,.35);border:1px solid #3a3e45;border-radius:8px;padding:6px 8px;min-width:58px;text-align:center}
+.ajn.none{color:#ff9b91;border-color:#7a2e28}
+.ajt{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ajs2{grid-column:2;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ajd{grid-column:3;grid-row:1/3;width:10px;height:10px;border-radius:50%;background:#e5483b;box-shadow:0 0 8px #e5483b}
+@media (min-width:1000px){ .ajs .ajg{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));column-gap:8px} .ajs .ajh{grid-column:1/-1} }
 .hm h4 button{font:500 13px Inter,sans-serif;letter-spacing:0;color:#ffb36b;background:none;border:none;cursor:pointer;padding:4px}
 .nu{position:relative}
 .nu .trk{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:2px}
@@ -270,6 +280,8 @@ function renderHome(){
   const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0"};
   const doneToday=(typeof autoDone!=="undefined"?autoDone:[]).filter(x=>x.applied_at&&new Date(x.applied_at).toDateString()===today.toDateString()).length;
   const quests=(typeof liveMine==="function"?liveMine():[]).slice(0,4);
+  // every job still on the go (not Done, not archived, not the standing INV job), in board/stage order (Kyle, 2026-11-04)
+  const act=jobs.filter(j=>j.stage!=="done"&&!j.archived&&j.id!=="inventory"&&!/^INV\b/i.test(j.name||"")).sort((x,y)=>(SIDX[y.stage]??0)-(SIDX[x.stage]??0)||String(x.name).localeCompare(String(y.name),undefined,{numeric:true}));
   B.innerHTML=`<div class="hm shanim">
     <section aria-label="Next up">
       <h4><span>NEXT UP${items.length?" · "+items.length:""}</span>${items.length>1?`<span style="letter-spacing:.08em">SWIPE FOR MORE</span>`:""}</h4>
@@ -290,7 +302,17 @@ function renderHome(){
         <h4><span>TO DO · ${(typeof liveMine==="function"?liveMine().length:0)+(typeof liveAuto==="function"?liveAuto().length:0)}</span><button type="button" id="shAll">See all</button></h4>
         <div class="qs">${quests.map(t=>`<button class="q" type="button" style="--c:#ffd28a" data-q="${t.id}"><i></i><span>${esc(t.text)}</span><em>${t.job_id?esc((jobNum(jname(t.job_id))||"JOB")):"MINE"}</em></button>`).join("")||`<div class="tnote">No to-dos of your own. Board reminders are in Next up.</div>`}</div>
       </section>
-    </div></div>`;
+    </div>
+    <section aria-label="Active jobs" class="ajs">
+      <h4><span>ACTIVE JOBS · ${act.length}</span><button type="button" id="shJobs">Boards</button></h4>
+      ${act.length?BOARDS.map(bd=>{ const L=act.filter(j=>stOf(j).board===bd.k); if(!L.length) return "";
+        return `<div class="ajg"><div class="ajh" style="--c:${bd.c}">${esc(bd.t.toUpperCase())} · ${L.length}</div>${L.map(j=>{ const st=stOf(j), a=j.assemblies||[], dn=a.filter(x=>x.status==="done").length, num=jobNum(j.name), nm=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"")||j.name:j.name;
+          const who=[...new Set(a.filter(x=>x.status!=="done").flatMap(x=>whoList(x)))];
+          const att=typeof needsAttention==="function"&&needsAttention(j);
+          return `<button class="aj" type="button" data-aj="${esc(j.id)}" style="--c:${st.c}">${num?`<span class="ajn">${esc(num)}</span>`:`<span class="ajn none">NO #</span>`}<span class="ajt">${esc(nm)}</span><span class="ajs2">${esc(st.t)}${a.length?` · ${dn}/${a.length} tasks`:""}${who.length?` · ${esc(who.join(", "))}`:""}</span>${att?`<i class="ajd" title="Needs attention"></i>`:""}</button>`; }).join("")}</div>`; }).join(""):`<div class="tnote">No active jobs.</div>`}
+    </section></div>`;
+  B.querySelectorAll("[data-aj]").forEach(b=>b.onclick=()=>openJob(b.dataset.aj));
+  { const sj=$("#shJobs"); if(sj) sj.onclick=()=>go(lastJobs()); }
   const trk=$("#nuTrk");
   if(trk){
     const dots=()=>{ const i=Math.round(trk.scrollLeft/Math.max(1,trk.clientWidth)); nuIdx=i; $("#nuDots").querySelectorAll("i").forEach((d,k)=>d.classList.toggle("on",k===i)); const of=$("#nuOf"); if(of) of.textContent=`${i+1} OF ${items.length}`; };
