@@ -195,6 +195,7 @@ function nextUp(){
   jobs.forEach(j=>(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status==="ready").forEach(x=>{
     const txt=`Pick up ${first(x.name)}${x.quoteNo?" #"+x.quoteNo:""}`;
     if(out.some(o=>o.job===j.id&&/^Pick up/i.test(o.text))) return;
+    if(typeof snoozedAuto==="function"&&snoozedAuto(txt)) return;
     out.push({text:txt,tag:"PICK UP",c:"#22c3e6",job:j.id,sub:j.name+(x.scope?" · "+x.scope.slice(0,80):""),
       act:window.openCount?{t:"PICKED UP - COUNT IT",fn:()=>window.openCount(j.id,x.id)}:{t:"OPEN JOB",fn:()=>openJob(j.id)},later:{text:txt,job:j.id}}); }));
   // jobs with no job number - one card each, with who's on it and who gave it
