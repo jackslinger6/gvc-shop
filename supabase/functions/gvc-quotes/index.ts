@@ -126,8 +126,8 @@ Line items up across vendors: same part or same material/size on one row even if
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 8000, system: sys, tools: [tool], tool_choice: { type: "tool", name: "report" },
-      messages: [{ role: "user", content: [...blocks, { type: "text", text: "Compare these quotes." }] }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 8000, system: sys, tools: [tool],
+      messages: [{ role: "user", content: [...blocks, { type: "text", text: "Compare these quotes. Answer only by calling the report tool." }] }] }),
   });
   const out = await r.json();
   if (!r.ok) throw new Error("Claude: " + (out?.error?.message || r.status));
