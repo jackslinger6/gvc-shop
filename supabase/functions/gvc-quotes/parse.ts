@@ -46,11 +46,11 @@ function russel(text) {
     let s = L[i], m;
     // money on its own line (wrapped line total)
     if (cur && cur._wantTotal && /^[\d,]+\.\d\d$/.test(s)) { cur.line_total = num(s); cur._wantTotal = false; continue; }
-    if (isAck && (m = s.match(/^(\d+(?:\.\d+)?)(EA|FT|LB|PC) (.+?) (\d*\.\d{4}) ([\d,]+\.\d{2})(\d{5})$/))) {
-      cur = { item: m[3].replace(/^IN /, ""), q1: [Number(m[1]), m[2]], unit_price: Number(m[4]), line_total: num(m[5]), code: m[6], notes: [] }; lines.push(cur); continue;
+    if (isAck && (m = s.match(/^(\d+(?:\.\d+)?)(EA|FT|LB|PC) (.+?) ([\d,]*\.\d{4}) ([\d,]+\.\d{2})(\d{5})$/))) {
+      cur = { item: m[3].replace(/^IN /, ""), q1: [Number(m[1]), m[2]], unit_price: num(m[4]), line_total: num(m[5]), code: m[6], notes: [] }; lines.push(cur); continue;
     }
-    if (!isAck && (m = s.match(/^(\d{5}) (\d+(?:\.\d+)?) (.+?) (\d*\.\d{4})(?: ([\d,]+\.\d{2}))?$/))) {
-      cur = { item: m[3], q1: [Number(m[2]), null], unit_price: Number(m[4]), line_total: m[5] ? num(m[5]) : null, _wantTotal: !m[5], code: m[1], notes: [], _q: true }; lines.push(cur); continue;
+    if (!isAck && (m = s.match(/^(\d{5}) (\d+(?:\.\d+)?) (.+?) ([\d,]*\.\d{4})(?: ([\d,]+\.\d{2}))?$/))) {
+      cur = { item: m[3], q1: [Number(m[2]), null], unit_price: num(m[4]), line_total: m[5] ? num(m[5]) : null, _wantTotal: !m[5], code: m[1], notes: [], _q: true }; lines.push(cur); continue;
     }
     if (!cur) continue;
     if (STOP.test(s)) { cur = null; continue; }
@@ -91,7 +91,7 @@ const MONTHS = "january february march april may june july august september octo
 function grandview(text) {
   const doc_no = (text.match(/\b(FAB-\d+)\b/) || [])[1] || null;
   const dm = text.match(/QUOTED EXPIRATION\n(\w+) (\d+), (\d{4})/);
-  const doc_date = dm ? `${dm[3]}-${String(MONTHS.indexOf(dm[1].toLowerCase()) + 1).padStart(2, "0")}-${dm[2].padStart(2, "0")}` : null;
+  const doc_date = dm ? `${dm[3]}-${String(MONTHS.findIndex((x) => x.startsWith(dm[1].toLowerCase().slice(0, 3))) + 1).padStart(2, "0")}-${dm[2].padStart(2, "0")}` : null;
   const title = (text.match(/GordeyVille Customs\n([^\n]+)\n/) || [])[1] || "";
   const t = text.replace(/--- page \d+ ---\n?/g, "");
   const lines = []; const re = /\n(\d+)\n([^\n]+)\n([^\n]*?)(\nAdd Ops:(?:\n• [^\n]+)+\n|\s+)(\d+(?:\.\d+)?) \$([\d,]+\.\d+) \$([\d,]+\.\d+)(?=\n)/g; let m;
@@ -112,7 +112,7 @@ function grandview(text) {
 function starfab(text) {
   const doc_no = (text.match(/Quote number: (\S+)/) || [])[1] || null;
   const dm = text.match(/(\d\d)-(\d\d)-(\d{4})/); const doc_date = dm ? `${dm[3]}-${dm[1]}-${dm[2]}` : null;
-  const lines = []; const re = /\n([^\n]+?) - ([^\n]*)\n[^\n]*\.dxf\n(\d+) \$([\d.,]+) \$([\d.,]+) (\w+) ([\d.]+) in\./g; let m;
+  const lines = []; const re = /\n([^\n]+?) - ([^\n]*)\n[^\n]*\.dxf\n(\d+) \$([\d.,]+) \$([\d.,]+) (.+?) ([\d.]+) in\./g; let m;
   while ((m = re.exec(text))) {
     const part = m[1].trim(); const thk = Number(m[7]);
     lines.push({ item: `${part} - ${m[2]}`, part_no: part, parts: [part], kind: "laser part", metal: /^AL/i.test(m[6]) ? "alum" : /^SS/i.test(m[6]) ? "ss" : "steel", material: m[6],

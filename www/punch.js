@@ -119,6 +119,8 @@ async function punchOut(){
 }
 async function doneTask(jid,aid){
   if(preview()){ toast(PV); return; }
+  if(isCrew()){ const j0=jobs.find(x=>x.id===jid); const a0=j0&&(j0.assemblies||[]).find(x=>x.id===aid);
+    if(a0&&!whoList(a0).includes(me())){ toast(`That's ${whoList(a0).join(", ")||"someone else"}'s task - tell Kyle with Talk if it's done.`); return; } }
   { const j0=jobs.find(x=>x.id===jid); const a0=j0&&(j0.assemblies||[]).find(x=>x.id===aid); if(!confirm(`Is "${a0?a0.name:"this task"}" finished?\n\nThis marks it Done for everyone. (To just switch to something else, punch in on the other task instead.)`)) return; }
   if(open&&open.job_id===jid&&open.task_id===aid) await punchOut();
   const j=jobs.find(x=>x.id===jid); const a=j&&(j.assemblies||[]).find(x=>x.id===aid);
@@ -331,10 +333,11 @@ window.crewPreview=on=>{
   else { if(!(window.ME&&ME.preview)) return; window.ME=realMe; open=realOpen; pvBar.style.display="none"; }
   document.body.classList.toggle("crew",!!(window.ME&&ME.role==="crew"));
   paint(); shellGo("home");
-  if(!on) load();
+  if(!on){ load(); window.teamReload&&window.teamReload(); }
 };
 pvBar.querySelector("button").onclick=()=>window.crewPreview(false);
 window.crewAct=k=>{
+  if(preview()&&["count","ncr","rev","chat","quick","todo","time","rec","sms"].includes(k)){ toast("Preview - nothing is saved. Exit the preview to do that."); return true; }
   if(k==="punch"){ pickTask(); return true; }
   if(k==="mywork"){ addMyWork(); return true; }
   if(k==="supplies"){ needSupplies(); return true; }

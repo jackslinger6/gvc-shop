@@ -489,6 +489,7 @@ Where ${ME} is in the app right now: ${ctx.looking_at || "unknown"} - "this job"
           const a = as.find((x: any) => x.id === u.input.task) || as.find((x: any) => String(x.name).toLowerCase() === q) || as.find((x: any) => String(x.name).toLowerCase().includes(q) || (q && q.includes(String(x.name).toLowerCase())));
           if (!a) throw new Error(`no task like "${u.input.task}" on ${d.name} - tasks are: ${as.map((x: any) => x.name).join(", ")}`);
           if (u.name === "task_status") {
+            if (crew && !String(a.who || "").split(",").map((x: string) => x.trim()).includes(ME)) throw new Error(`${a.name} is ${a.who || "not assigned to you"}'s task - only Kyle can change it. Suggest ${ME} tells Kyle.`);
             a.status = u.input.status; d.log = [...(d.log || []), { at: new Date().toISOString(), text: `${a.name}: ${u.input.status} (${ME}, Ask Claude)` }];
             const { error } = await sb.from("gvc_jobs").update({ data: d }).eq("id", row.id); if (error) throw error;
             if (u.input.status === "done") await sb.from("gvc_punches").update({ end_at: new Date().toISOString() }).eq("who", ME).eq("task_id", a.id).is("end_at", null);

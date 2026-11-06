@@ -96,6 +96,7 @@ function decorate(){
   });
 }
 window.teamDecorate=decorate;
+window.teamReload=()=>{ loadMsgs(); loadTeam(); };
 
 /* ---- a person's card: status + messages ---- */
 let openThread=null;
@@ -186,7 +187,7 @@ function start(){
   }catch(e){}
   try{
     sb.channel("gvc_messages").on("postgres_changes",{event:"*",schema:"public",table:"gvc_messages"},p=>{
-      const m=p.new; if(!m||!m.id) return; const n=me();
+      const m=p.new; if(!m||!m.id) return; const n=REAL||me();   // the real login, even while Kyle previews Colton's view
       if(m.to_name!==n&&m.from_name!==n) return;
       const i=MSGS.findIndex(x=>x.id===m.id); if(i>=0) MSGS[i]=m; else { MSGS.push(m);
         if(m.to_name===n&&m.from_name!==n&&p.eventType==="INSERT"){ if(openThread&&openThread.n===m.from_name) markRead(m.from_name); else banner(m); } }
@@ -277,8 +278,14 @@ function editor(ed,p,S){
     const sa=new Date(`${d}T${s}`); let ea=e?new Date(`${d}T${e}`):null;
     if(ea&&ea<=sa) ea.setDate(ea.getDate()+1); // went past midnight
     if(ea&&ea-sa>16*36e5){ say("That's over 16 hours - check the times."); return; }
-    if(!p&&!ea){ say("Put in the end time too."); return; }
+    if(!ea&&(!p||p.end_at)){ say("Put in the end time too."); return; }   // only a punch that's still running may stay open
+    if(sa>new Date(Date.now()+5*60e3)){ say("Start time is in the future."); return; }
     if(ea&&ea>new Date(Date.now()+5*60e3)){ say("End time is in the future."); return; }
+    // no double-counting: the new times can't overlap his other punches
+    { const d0=new Date(sa); d0.setHours(0,0,0,0); const d1=new Date(d0); d1.setDate(d1.getDate()+2); d0.setDate(d0.getDate()-1);
+      const q=await sb.from("gvc_punches").select("id,start_at,end_at,job_name,task_name").eq("who",me()).gte("start_at",d0.toISOString()).lt("start_at",d1.toISOString());
+      const e2=ea?+ea:Date.now(); const hit=(q.data||[]).find(x=>(!p||x.id!==p.id)&&+new Date(x.start_at)<e2&&(x.end_at?+new Date(x.end_at):Date.now())>+sa);
+      if(hit){ say(`That overlaps ${hit.task_name||hit.job_name} (${tm(hit.start_at)} – ${hit.end_at?tm(hit.end_at):"now"}). Fix that one first.`); return; } }
     let r;
     if(p) r=await sb.from("gvc_punches").update({start_at:sa.toISOString(),end_at:ea?ea.toISOString():null,edited_at:new Date().toISOString()}).eq("id",p.id);
     else { const j=act.find(x=>x.id===f("job").value); const task=f("task").value.trim()||"Shop work";

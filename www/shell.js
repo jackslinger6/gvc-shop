@@ -395,7 +395,7 @@ function wheelOpen(){
   const R=118; whl.innerHTML=`<div class="hint" style="top:${cy-200}px">Tap one - or hold the + and slide to it</div><div class="ring" style="left:${cx}px;top:${cy}px"></div>`+
     ACTL().map(([k,t,i,c],n,L)=>{ const a=(-90+n*360/L.length)*Math.PI/180; return `<button class="it" type="button" data-w="${k}" style="left:${cx}px;top:${cy}px;--x:${Math.round(R*Math.cos(a))}px;--y:${Math.round(R*Math.sin(a))}px;--c:${c};--d:${n*30}ms"><span class="c">${svg(i,c,28)}</span>${t}</button>`; }).join("")+
     `<button class="ctr" type="button" aria-label="Close" style="left:${cx}px;top:${cy}px">${svg("plus","#111",26,2.6).replace("<path",'<path transform="rotate(45 12 12)"')}</button>`;
-  document.body.appendChild(whl); plus.classList.add("open"); requestAnimationFrame(()=>whl.classList.add("on"));
+  document.body.appendChild(whl); plus.classList.add("open"); { const w=whl; requestAnimationFrame(()=>w.classList.add("on")); }
   whl.onclick=e=>{ const b=e.target.closest("[data-w]"); if(b){ wheelClose(); act(b.dataset.w); } else wheelClose(); };
 }
 function wheelClose(){ if(!whl) return; const w=whl; whl=null; hot=null; w.classList.remove("on"); plus.classList.remove("open"); setTimeout(()=>w.remove(),220); }

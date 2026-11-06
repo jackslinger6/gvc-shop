@@ -1393,6 +1393,7 @@ $("#msBtn").onclick=async()=>{
   setTimeout(()=>{ alert((m[1]==="ok"?"✅ ":"⚠️ ")+decodeURIComponent(m[2])); if(typeof msRefresh==="function") msRefresh(); },1200); })();
 async function sendChat(){
   const t=$("#chatIn").value.trim(); if(!t||chatBusy) return;
+  if(window.ME&&ME.preview){ chatMsgs.push({role:"assistant",content:"This is Colton's view (preview) - Claude isn't asked from here, so nothing changes. Exit the preview to talk to Claude."}); $("#chatIn").value=""; drawChat(); return; }
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
   try{
     const hist=chatMsgs.filter(m=>m.role!=="act").slice(-20);

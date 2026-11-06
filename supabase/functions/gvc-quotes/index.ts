@@ -267,7 +267,8 @@ async function extract(db: any, id: string, jobId: string | null) {
   // free first: read the PDF's text and use the known layouts (Russel, Grandview, Starfab) - Claude only for the rest
   if (isPdf) { try { const t = await pdfText(db, id, d); const px: any = parseDoc(d.name, t);
       if (px && px.skip) return { id, saved: 0, skipped: px.skip };
-      if (px && px.lines && px.lines.length) return await saveParsed(db, id, d, px, jobId, JP); } catch (_e) { /* fall through to Claude */ } }
+      if (px && px.lines && px.lines.length) { const sum = px.lines.reduce((a: number, l: any) => a + (Number(l.line_total) || 0), 0); const sub = docSubtotal(t);
+        if (sub == null || Math.abs(sum - sub) < 0.05) return await saveParsed(db, id, d, px, jobId, JP); } } catch (_e) { /* fall through to Claude */ } }   // lines don't add up -> let Claude read it
   const tool = { name: "lines", description: "Every priced line on the document", input_schema: { type: "object", properties: {
     vendor: { type: "string", description: "supplier company (e.g. Russel Metals, Grandview Fabrication, Starfab)" }, doc_type: { type: "string", enum: ["quote", "order ack", "invoice", "other"] },
     doc_no: { type: "string" }, doc_date: { type: "string", description: "YYYY-MM-DD" }, job_ref: { type: "string", description: "our job/PO reference on the doc, e.g. 1086WT" },
@@ -367,15 +368,15 @@ async function saveParsed(db: any, id: string, d: any, px: any, jobId: string | 
 async function parseAll(db: any, body: any) {
   let q = db.from("gvc_doc_text").select("source,name,vendor,subject,at,text").order("at", { ascending: false });   // newest first - a revised quote with the same number wins if (body.docs?.length) q = q.in("source", body.docs);
   const { data: docs } = await q; const { data: have } = await db.from("gvc_prices").select("vendor,doc_no,doc_type,source");
-  const seen = new Set((have || []).map((r: any) => `${r.vendor}|${r.doc_no}|${r.doc_type}`)); const out: any[] = [];
+  const seen = new Set((have || []).map((r: any) => `${r.vendor}|${r.doc_no}|${r.doc_type}`)); const done = new Set<string>(); const out: any[] = [];
   for (const t of docs || []) {
     const px: any = parseDoc(t.name, t.text);
     if (!px) { out.push({ name: t.name, skip: "layout not known" }); continue; } if (px.skip) { out.push({ name: t.name, skip: px.skip }); continue; }
     const sum = Math.round(px.lines.reduce((a: number, l: any) => a + (Number(l.line_total) || 0), 0) * 100) / 100; const sub = docSubtotal(t.text);
     const key = `${px.vendor}|${px.doc_no}|${px.doc_type}`;
     const rep: any = { name: t.name, vendor: px.vendor, doc_no: px.doc_no, type: px.doc_type, date: px.doc_date, ref: px.job_ref, lines: px.lines.length, sum, doc_total: sub, ok: sub == null || Math.abs(sum - sub) < 0.05 };
-    if (seen.has(key) && !body.force) { rep.skip = "already in"; out.push(rep); continue; }
-    seen.add(key);
+    if (done.has(key) || (seen.has(key) && !body.force)) { rep.skip = done.has(key) ? "older copy" : "already in"; out.push(rep); continue; }
+    seen.add(key); done.add(key);
     if (!body.dry) { try { const r = await saveParsed(db, t.source, { name: t.name, at: t.at }, px, null, null); rep.job = r.job; rep.parts = r.parts; } catch (e) { rep.err = String((e as Error).message).slice(0, 120); } }
     else rep.job = await matchJob(db, px);
     out.push(rep);

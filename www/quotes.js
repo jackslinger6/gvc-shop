@@ -53,6 +53,7 @@ window.compareQuotes=async jobId=>{
   state={jobId,data:null,q:"",multi:false};
   show(`<h3>COMPARE QUOTES</h3><div class="wait">Loading the prices on file…</div>`);
   try{ state.data=await call({action:"parts_table",job_id:jobId}); }catch(e){ return err(e); }
+  state.data=Object.assign({parts:[],prices:[],docs:[]},state.data||{});
   if(!state.data.prices.length&&!state.data.docs.length) return readNew();
   table();
 };
@@ -117,7 +118,7 @@ function table(){
     const lo=vals.length>1?Math.min(...vals):null, hi=vals.length>1?Math.max(...vals):null;
     const head=p.material!==last?`<tr class="mh"><td colspan="${3+vs.length}">${esc(p.material||"?")}</td></tr>`:""; last=p.material;
     return head+`<tr><td>${esc(p.part_no)}</td><td class="n">${p.qty??""}</td>${ps.map(r=>!r?`<td class="n nq">-</td>`:`<td class="n ${lo!=null&&Number(r.line_total)===lo?"low":""}" title="${esc(r.note||"")}">${r.how==="split"?"~":""}${$$(r.line_total)}${(Number(r.qty)||1)>1?`<small>${r.how==="split"?"~":""}${$$(r.unit_price)} ea</small>`:""}</td>`).join("")}
-      <td class="n">${lo!=null?`${$$(hi-lo)}<small>${Math.round((hi-lo)/lo*100)}%</small>`:""}</td></tr>`; }).join("");
+      <td class="n">${lo!=null?`${$$(hi-lo)}<small>${Math.round((hi-lo)/(lo||1)*100)}%</small>`:""}</td></tr>`; }).join("");
   show(`<h3>COMPARE QUOTES · BY PART</h3><div class="cqsub">${esc(D.job_no||"")} · ${N} parts on the job · ${vs.length} vendor${vs.length===1?"":"s"} · ~ = shared from a sheet price by part size</div>
     ${state.failed&&state.failed.length?`<div class="err" style="margin-bottom:10px">Couldn't read: ${state.failed.map(esc).join("; ")}</div>`:""}
     ${!N?`<div class="tnote" style="margin-bottom:10px">This job has no parts list yet, so prices can't be matched to parts. Hardware and stock prices are in More → Prices.</div>`:""}
