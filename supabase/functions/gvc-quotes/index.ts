@@ -342,6 +342,13 @@ Deno.serve(async (req) => {
     if (!ok) return json({ error: "Not on the shop list" }, 403);
     const body = await req.json().catch(() => ({}));
     const db = admin();
+    // the document itself (no Claude) - for reading prices by hand / in the browser
+    if (body.action === "raw") { const d = await docBlock(db, String(body.doc || "")); return json({ name: d.name, from: d.from, subject: d.subject, at: d.at, b64: d.data }); }
+    if (body.action === "remap") { const ids: string[] = body.docs || []; const out: any[] = [];
+      for (const id of ids) { await db.from("gvc_quote_parts").delete().eq("source", id); const { data: rws } = await db.from("gvc_prices").select("*").eq("source", id);
+        if (!rws?.length) { out.push({ id, parts: 0 }); continue; } const jid = body.job_id || rws[0].job_id; const JP = await jobParts(db, jid); const o = rws[0];
+        out.push({ id, parts: await mapParts(db, jid, JP.jobNo, JP.parts, rws, { vendor: o.vendor, source: id, doc_no: o.doc_no, doc_date: o.doc_date, doc_type: o.doc_type, doc_name: o.doc_name }) }); }
+      return json({ out }); }
     if (body.action === "parts_table") return json(await partsTable(db, body.job_id));
     if (body.action === "scan") return json(await scan(db, Math.min(365, Number(body.days) || 90)));
     if (body.action === "extract") return json(await extract(db, String(body.doc || ""), body.job_id || null));
