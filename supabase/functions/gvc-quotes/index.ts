@@ -343,6 +343,14 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const db = admin();
     // the document itself (no Claude) - for reading prices by hand / in the browser
+    // text of each document into gvc_doc_text (no Claude) - so prices can be read in without API credit
+    if (body.action === "totext") { const { extractText, getDocumentProxy } = await import("npm:unpdf@0.12.1"); const out: any[] = [];
+      for (const it of (body.docs || []).slice(0, 8)) { try { const d = await docBlock(db, it.id);
+          const bin = Uint8Array.from(atob(d.data), (c) => c.charCodeAt(0)); const pdf = await getDocumentProxy(bin);
+          const { text } = await extractText(pdf, { mergePages: false }); const t = (text as string[]).map((x, i) => x + "\n--- page " + (i + 1) + " ---").join("\n").replace(/[ \t]+/g, " ");
+          await db.from("gvc_doc_text").upsert({ source: it.id, name: d.name, vendor: d.from || it.from || "", subject: d.subject || it.subject || "", at: d.at || it.at || null, type: it.type || null, text: t });
+          out.push({ name: d.name, chars: t.length }); } catch (e) { out.push({ name: it.name, err: String((e as Error).message || e).slice(0, 120) }); } }
+      return json({ out }); }
     if (body.action === "raw") { const d = await docBlock(db, String(body.doc || "")); return json({ name: d.name, from: d.from, subject: d.subject, at: d.at, b64: d.data }); }
     if (body.action === "remap") { const ids: string[] = body.docs || []; const out: any[] = [];
       for (const id of ids) { await db.from("gvc_quote_parts").delete().eq("source", id); const { data: rws } = await db.from("gvc_prices").select("*").eq("source", id);
