@@ -5,7 +5,7 @@
 // Signed-in shop member only (same check as the rest of the app).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-gvc-key", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const MODEL = Deno.env.get("GVC_MODEL") || "claude-sonnet-5-5";
@@ -199,17 +199,79 @@ async function docBlock(db: any, id: string) {
   if (!blob) throw new Error("file gone");
   return { data: b64(new Uint8Array(await blob.arrayBuffer())), name: path.split("/").pop() || path, mt: "", from: "", fromAddr: "", subject: "", at: "" };
 }
+/* ---------- per-part prices (Kyle, Nov 5): every quote broken down to OUR part numbers ----------
+   Lines that name our parts -> that price (a line for several parts is shared by flat area).
+   Sheet / nest lines (Russel) -> the sheet cost is shared over our parts of that metal + thickness by flat area. */
+const fam = (m: string) => /alum|\bal\b|5052|6061|3003/i.test(m || "") ? "alum" : /stain|\bss\b|304|316/i.test(m || "") ? "ss" : "steel";
+const normP = (x: string) => String(x || "").toUpperCase().replace(/\s+/g, "").replace(/_+$/, "");
+async function jobParts(db: any, jobId: string | null) {
+  if (!jobId) return { jobNo: "", parts: [] as any[] };
+  const { data: j } = await db.from("gvc_jobs").select("data").eq("id", jobId).maybeSingle();
+  const jobNo = (String(j?.data?.name || "").match(NUM_RE) || [])[1] || "";
+  if (!jobNo) return { jobNo: "", parts: [] };
+  const { data: parts } = await db.from("gvc_job_parts").select("part_no,material,thickness,qty,flat_w,flat_h").eq("job_no", jobNo);
+  return { jobNo, parts: parts || [] };
+}
+const area = (p: any) => Math.max(0.0001, (Number(p.flat_w) || 0) * (Number(p.flat_h) || 0)) * (Number(p.qty) || 1);
+async function mapParts(db: any, jobId: string | null, jobNo: string, parts: any[], rows: any[], meta: any) {
+  if (!jobNo || !parts.length || !rows.length) return 0;
+  const byNo = new Map(parts.map((p) => [normP(p.part_no), p]));
+  const out = new Map<string, any>(); const direct = new Set<string>();
+  const add = (p: any, total: number, how: string, note: string) => {
+    const k = normP(p.part_no); const o = out.get(k) || { part_no: p.part_no, material: p.material, qty: Number(p.qty) || 1, line_total: 0, how, note };
+    o.line_total += total; if (how === "quoted") { o.how = "quoted"; o.note = note; } out.set(k, o); };
+  // 1) lines that name our parts
+  for (const r of rows) {
+    const ps = [...new Set([...(r.parts || []), r.part_no].filter(Boolean).map(normP))].map((k) => byNo.get(k)).filter(Boolean);
+    if (!ps.length || !(Number(r.line_total) > 0)) continue;
+    const A = ps.reduce((s: number, p: any) => s + area(p), 0);
+    ps.forEach((p: any) => { add(p, Number(r.line_total) * (ps.length > 1 ? area(p) / A : 1), "quoted", ps.length > 1 ? `one price for ${ps.length} parts, shared by size` : ""); direct.add(normP(p.part_no)); });
+  }
+  // 2) sheet / plate lines (nests): share by flat area over the job's parts of that metal + thickness not already priced
+  const groups = new Map<string, { total: number; lines: string[] }>();
+  for (const r of rows) {
+    if ((r.parts || []).length || r.part_no || !(Number(r.line_total) > 0) || !(Number(r.thickness_in) > 0)) continue;
+    if (!["plate", "sheet", "laser part", "other"].includes(r.kind || "other")) continue;
+    const key = (r.metal || fam(r.material || r.item)) + "|" + Number(r.thickness_in).toFixed(3);
+    const g = groups.get(key) || { total: 0, lines: [] }; g.total += Number(r.line_total); g.lines.push(r.item); groups.set(key, g);
+  }
+  for (const [key, g] of groups) {
+    const [m, t] = key.split("|"); const th = Number(t);
+    const ps = parts.filter((p) => !direct.has(normP(p.part_no)) && fam(p.material) === m && Math.abs(Number(p.thickness) - th) <= Math.max(0.012, th * 0.06));
+    if (!ps.length) continue;
+    const A = ps.reduce((s: number, p: any) => s + area(p), 0);
+    ps.forEach((p: any) => add(p, g.total * area(p) / A, "split", `share of ${g.lines.length > 1 ? g.lines.length + " sheet lines" : "the sheet"} ($${g.total.toFixed(2)}) by part size`));
+  }
+  const recs = [...out.values()].map((o) => ({ job_id: jobId, job_no: jobNo, vendor: meta.vendor, source: meta.source, doc_no: meta.doc_no, doc_date: meta.doc_date, doc_type: meta.doc_type, doc_name: meta.doc_name,
+    part_no: o.part_no, material: o.material, qty: o.qty, line_total: Math.round(o.line_total * 100) / 100, unit_price: Math.round(o.line_total / (o.qty || 1) * 100) / 100, how: o.how, note: o.note || null }));
+  await db.from("gvc_quote_parts").delete().eq("source", meta.source);
+  for (let i = 0; i < recs.length; i += 200) await db.from("gvc_quote_parts").insert(recs.slice(i, i + 200));
+  return recs.length;
+}
+
 async function extract(db: any, id: string, jobId: string | null) {
   const { count } = await db.from("gvc_prices").select("id", { count: "exact", head: true }).eq("source", id);
-  if ((count || 0) > 0) return { id, saved: 0, already: count };
+  const JP = await jobParts(db, jobId);
+  if ((count || 0) > 0) {
+    const { count: qp } = await db.from("gvc_quote_parts").select("id", { count: "exact", head: true }).eq("source", id);
+    if (!JP.parts.length || (qp || 0) > 0) return { id, saved: 0, already: count };
+    const { data: old } = await db.from("gvc_prices").select("*").eq("source", id);
+    if ((old || []).some((r: any) => r.thickness_in != null || (r.parts || []).length)) {   // read with part info already - just map
+      const o = old![0]; const n = await mapParts(db, jobId, JP.jobNo, JP.parts, old!, { vendor: o.vendor, source: id, doc_no: o.doc_no, doc_date: o.doc_date, doc_type: o.doc_type, doc_name: o.doc_name });
+      return { id, saved: 0, parts: n }; }
+    await db.from("gvc_prices").delete().eq("source", id);   // read before parts were tracked - read again with the job's part list
+  }
   const d = await docBlock(db, id);
   const isPdf = /\.pdf$/i.test(d.name) || /pdf/i.test(d.mt);
   const tool = { name: "lines", description: "Every priced line on the document", input_schema: { type: "object", properties: {
     vendor: { type: "string", description: "supplier company (e.g. Russel Metals, Grandview Fabrication, Starfab)" }, doc_type: { type: "string", enum: ["quote", "order ack", "invoice", "other"] },
     doc_no: { type: "string" }, doc_date: { type: "string", description: "YYYY-MM-DD" }, job_ref: { type: "string", description: "our job/PO reference on the doc, e.g. 1086WT" },
     lines: { type: "array", items: { type: "object", properties: {
-      item: { type: "string", description: "description as written" }, part_no: { type: "string", description: "our part number if the line names one (e.g. CENTERLOC.13-FW35, FAB-0128 part names)" },
-      kind: { type: "string", enum: ["tube", "angle", "channel", "flat bar", "plate", "sheet", "round", "pipe", "beam", "laser part", "service", "other"] },
+      item: { type: "string", description: "description as written" }, part_no: { type: "string", description: "our part number if the line names one (e.g. CENTERLOC.13-FW35)" },
+      parts: { type: "array", items: { type: "string" }, description: "OUR part numbers this line prices, exactly as in the job's part list (empty for a sheet/nest/stock line)" },
+      thickness_in: { type: "number", description: "plate/sheet thickness in decimal inches (3/8 = 0.375, 11GA = 0.1196, 10GA = 0.1345, .120 = 0.12)" },
+      metal: { type: "string", enum: ["steel", "ss", "alum", "other"] },
+      kind: { type: "string", enum: ["tube", "angle", "channel", "flat bar", "plate", "sheet", "round", "pipe", "beam", "laser part", "hardware", "service", "other"] },
       material: { type: "string", description: "grade/alloy e.g. A500 MS, 44W, 304 SS, 5052 AL" },
       size: { type: "string", description: "normalized size: HSS 2x2x1/8, HSS 5x3x1/4, L 2x2x1/4, C 4x5.4, FB 2-1/2x3/8, PL 3/16, SHT 14GA, RD 1, PIPE 2 SCH40, W 6x15. Fractions like 1/8, not decimals, where the doc uses gauge/fraction; wall thickness last." },
       length_ft: { type: "number" }, qty: { type: "number" }, unit: { type: "string", description: "ea, ft, lb, cwt, sheet, lot" },
@@ -217,7 +279,8 @@ async function extract(db: any, id: string, jobId: string | null) {
   const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST",
     headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({ model: MODEL, max_tokens: 12000, tools: [tool],
-      system: "You read supplier documents for Gordeyville Customs (a fab shop) and pull out every line that has a price - material, cut parts, cutting/freight charges. Use the document's own numbers only. Answer only by calling the lines tool.",
+      system: "You read supplier documents for Gordeyville Customs (a fab shop) and pull out every line that has a price - material, cut parts, hardware (bolts, nuts, hinges, latches - Fastenal etc.), cutting/freight charges. Use the document's own numbers only. line_total is the line's extended price. Answer only by calling the lines tool." +
+        (JP.parts.length ? `\nThis document is for job ${JP.jobNo}. Our part list (part number - material - qty): ${JP.parts.map((p: any) => `${p.part_no} - ${p.material} - ${p.qty}`).join("; ")}.\nFor every line that prices one or more of OUR parts, put those part numbers in parts (match names even when the vendor writes them slightly differently). Lines that price a whole sheet or a nest of parts get parts empty plus thickness_in and metal.` : ""),
       messages: [{ role: "user", content: [{ type: "text", text: `Document "${d.name}"${d.from ? ` from ${d.from} <${d.fromAddr}>` : ""}${d.subject ? `, email subject "${d.subject}"` : ""}${d.at ? `, received ${d.at.slice(0, 10)}` : ""}.` },
         isPdf ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: d.data } } : { type: "image", source: { type: "base64", media_type: /png/i.test(d.name) ? "image/png" : "image/jpeg", data: d.data } }] }] }) });
   const out = await r.json(); if (!r.ok) throw new Error("Claude: " + (out?.error?.message || r.status));
@@ -232,11 +295,14 @@ async function extract(db: any, id: string, jobId: string | null) {
     else if (Number(l.length_ft) && lt && Number(l.qty) && ["tube", "angle", "channel", "flat bar", "round", "pipe", "beam"].includes(l.kind)) pf = lt / (Number(l.qty) * Number(l.length_ft));
     return { vendor: x.vendor || d.from || "?", doc_type: x.doc_type || docType(d.name), doc_no: x.doc_no || null, doc_date: date, doc_name: d.name, source: id, job_id: job,
       item: String(l.item).slice(0, 300), part_no: l.part_no || null, kind: l.kind || null, material: l.material || null, size: l.size || null, length_ft: Number(l.length_ft) || null,
-      qty: Number(l.qty) || null, unit: l.unit || null, unit_price: Number(l.unit_price) || null, line_total: lt, per_ft: pf ? Math.round(pf * 10000) / 10000 : null, note: l.note || null };
+      qty: Number(l.qty) || null, unit: l.unit || null, unit_price: Number(l.unit_price) || null, line_total: lt, per_ft: pf ? Math.round(pf * 10000) / 10000 : null, note: l.note || null,
+      thickness_in: Number(l.thickness_in) || null, metal: l.metal || null, parts: Array.isArray(l.parts) && l.parts.length ? l.parts.map(String) : null };
   });
   if (rows.length) { const { error } = await db.from("gvc_prices").insert(rows);
     if (error) { for (const rw of rows) await db.from("gvc_prices").insert(rw); } }   // a duplicate line skips itself
-  return { id, saved: rows.length, vendor: x.vendor, doc_no: x.doc_no, date };
+  const np = await mapParts(db, job, JP.jobNo || (await jobParts(db, job)).jobNo, JP.parts.length ? JP.parts : (await jobParts(db, job)).parts, rows,
+    { vendor: x.vendor || d.from || "?", source: id, doc_no: x.doc_no || null, doc_date: date, doc_type: x.doc_type || docType(d.name), doc_name: d.name });
+  return { id, saved: rows.length, parts: np, vendor: x.vendor, doc_no: x.doc_no, date };
 }
 // vendor documents with prices in the last N days that aren't in price history yet
 async function scan(db: any, days: number) {
@@ -257,14 +323,26 @@ async function scan(db: any, days: number) {
   return { docs: out };
 }
 
+/* the job's parts x every vendor's price for them (no Claude - instant) */
+async function partsTable(db: any, jobId: string) {
+  const JP = await jobParts(db, jobId);
+  const { data: qp } = await db.from("gvc_quote_parts").select("*").eq("job_id", jobId).order("doc_date");
+  const { data: docs } = await db.from("gvc_prices").select("source,vendor,doc_no,doc_date,doc_type,doc_name,line_total").eq("job_id", jobId);
+  const totals: any = {}; (docs || []).forEach((r: any) => { const t = totals[r.source] = totals[r.source] || { source: r.source, vendor: r.vendor, doc_no: r.doc_no, doc_date: r.doc_date, doc_type: r.doc_type, doc_name: r.doc_name, total: 0, lines: 0 }; t.total += Number(r.line_total) || 0; t.lines++; });
+  return { job_no: JP.jobNo, parts: JP.parts, prices: qp || [], docs: Object.values(totals) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
-    const u = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("Authorization") || "" } } });
-    const { data: ok } = await u.rpc("gvc_is_member");
+    let ok = false; const key = req.headers.get("x-gvc-key");
+    if (key) { const { data } = await admin().from("gvc_secret").select("v").eq("k", "files_key").maybeSingle(); ok = !!data && data.v === key; }
+    else { const u = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("Authorization") || "" } } });
+      const { data } = await u.rpc("gvc_is_member"); ok = !!data; }
     if (!ok) return json({ error: "Not on the shop list" }, 403);
     const body = await req.json().catch(() => ({}));
     const db = admin();
+    if (body.action === "parts_table") return json(await partsTable(db, body.job_id));
     if (body.action === "scan") return json(await scan(db, Math.min(365, Number(body.days) || 90)));
     if (body.action === "extract") return json(await extract(db, String(body.doc || ""), body.job_id || null));
     const { data: job } = await db.from("gvc_jobs").select("id,data").eq("id", body.job_id || "").maybeSingle();

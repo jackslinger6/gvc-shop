@@ -232,7 +232,9 @@ window.addMyWork=addMyWork;
 async function needSupplies(){
   let cons=[]; try{ const r=await sb.from("gvc_consumables").select("id,name,category,unit,qty,min_qty").order("category").order("name"); cons=r.data||[]; }catch(e){}
   const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>NEED SUPPLIES</h3>
-    <label>What do we need<input id="nsWhat" placeholder="e.g. 0.035 wire, 4.5&quot; flap discs, argon"></label>
+    <button class="btn primary" type="button" id="nsTalk" style="width:100%;min-height:52px;font:600 15px Oswald,sans-serif;letter-spacing:.1em;margin-bottom:10px">🎤 SAY IT TO CLAUDE</button>
+    <div class="tnote" style="margin:-4px 0 10px">e.g. ".035 wire is running low, last spool on the Miller"</div>
+    <label>or type it - what do we need<input id="nsWhat" placeholder="e.g. 0.035 wire, 4.5&quot; flap discs, argon"></label>
     ${cons.length?`<div class="tnote" style="margin:4px 0 6px">or tap one</div><div class="chips" id="nsChips" style="margin-bottom:10px">${cons.map(c=>`<button type="button" data-ns="${esc(c.id)}">${esc(c.name)}</button>`).join("")}</div>`:""}
     <label style="display:flex;gap:14px;align-items:center;margin:6px 0">${["Running low","Out"].map((t,i)=>`<span style="display:flex;gap:6px;align-items:center"><input type="radio" name="nsHow" value="${t}" ${i===0?"checked":""} style="width:18px;height:18px"> ${t}</span>`).join("")}</label>
     <label>Note (optional)<input id="nsNote" placeholder="e.g. last spool on the Miller"></label>
@@ -241,6 +243,7 @@ async function needSupplies(){
   document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
   const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
   ov.onclick=e=>{ if(e.target===ov) close(); }; ov.querySelector("#nsX").onclick=close;
+  ov.querySelector("#nsTalk").onclick=()=>{ if(window.shellTalk) window.shellTalk("[Need supplies - put it on Kyle's To do with add_todo, say low or out, and if it's on the consumables list mark it:]",close); };
   let pick=null;
   ov.querySelectorAll("[data-ns]").forEach(b=>b.onclick=()=>{ pick=cons.find(c=>c.id===b.dataset.ns); ov.querySelector("#nsWhat").value=pick.name; ov.querySelectorAll("[data-ns]").forEach(x=>x.classList.toggle("on",x===b)); });
   ov.querySelector("#nsGo").onclick=async()=>{
@@ -256,6 +259,25 @@ async function needSupplies(){
   };
 }
 window.needSupplies=needSupplies;
+/* crew: tap a job on the week plan -> its tasks with Punch in / Done (the plan itself can't be changed) */
+document.addEventListener("click",e=>{
+  if(!isCrew()||cur!=="crew") return;
+  const b=e.target.closest(".wkv .pblk,.wkv .pjob"); if(!b) return;
+  e.stopPropagation(); e.preventDefault();
+  const keys=[...new Set([...(b.dataset.ks||"").split(","),b.dataset.k||""].filter(Boolean).map(k=>String(k).split("#")[0]))];
+  const list=keys.map(k=>{ const m=k.match(/^j:([^:]+):(.+)$/); if(!m) return null; const j=jobs.find(x=>x.id===m[1]); const a=j&&(j.assemblies||[]).find(x=>x.id===m[2]); return a?{j,a}:null; }).filter(Boolean);
+  if(!list.length) return;
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>${esc(list[0].j.name)}</h3><section class="mday">
+    ${list.map(x=>rowHtml({t:{name:x.a.name,job:x.a.who||"",done:x.a.status==="done"},jid:x.j.id,aid:x.a.id,time:"",color:window.jobColor?window.jobColor(x.j.id):"#8e96a3"})).join("")}</section>
+    <div class="row" style="justify-content:space-between;gap:8px;margin-top:8px"><button class="btn" type="button" data-oj2="1">Open the job</button><button class="btn" type="button" data-x="1">Close</button></div></div>`;
+  document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
+  const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
+  ov.onclick=ev=>{ if(ev.target===ov) close(); };
+  ov.querySelector("[data-x]").onclick=close; ov.querySelector("[data-oj2]").onclick=()=>{ close(); openJob(list[0].j.id); };
+  ov.querySelectorAll("[data-pin]").forEach(x=>x.onclick=()=>{ close(); const [j,a]=x.dataset.pin.split("|"); punchIn(j,a); });
+  ov.querySelectorAll("[data-pout]").forEach(x=>x.onclick=()=>{ close(); punchOut(); });
+  ov.querySelectorAll("[data-pdn]").forEach(x=>x.onclick=()=>{ close(); const [j,a]=x.dataset.pdn.split("|"); doneTask(j,a); });
+},true);
 function pickJob(title,fn){
   const act=jobs.filter(j=>j.stage!=="done"&&!j.archived);
   const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>${title}</h3>${act.map(j=>`<button class="add" type="button" data-pj="${esc(j.id)}" style="text-align:left;border-style:solid">${esc(j.name)}</button>`).join("")}</div>`;

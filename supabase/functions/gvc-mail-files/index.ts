@@ -207,6 +207,18 @@ async function run(db: any, opt: { sid?: string; message_id?: string; job_id?: s
     await db.from("gvc_jobs").update({ data: d, updated_at: new Date().toISOString() }).eq("id", job.id);
   }
   if (s) await db.from("gvc_suggestions").update({ files_status: "done: " + note, files_at: new Date().toISOString() }).eq("id", s.id);
+  // a vendor's quote / order ack / invoice: read its prices into per-part prices + price history right away (Kyle, Nov 5)
+  const from = String(msg.from?.emailAddress?.address || "").toLowerCase() + " " + (msg.from?.emailAddress?.name || "");
+  if (!wantParts && !/kyle\.gvc|kdhinter|gordeyville|hinteregger|derksen|dirksen|\brandy\b|\bjoe\b|\brobin\b/i.test(from)) {
+    const priced = files.filter((x) => !x.in_zip && /\.pdf$/i.test(x.name) && /quot|estimate|proposal|pric|bid|invoice|ack|order|FAB-\d|^\d{6,}\.pdf$/i.test(x.name + " " + (msg.subject || "")));
+    if (priced.length) {
+      const { data: k } = await db.from("gvc_secret").select("v").eq("k", "files_key").maybeSingle();
+      const go = (async () => { for (const x of priced) { try {
+        await fetch(Deno.env.get("SUPABASE_URL") + "/functions/v1/gvc-quotes", { method: "POST", headers: { "content-type": "application/json", "x-gvc-key": k?.v || "" }, body: JSON.stringify({ action: "extract", doc: "file:" + x.path, job_id: jobId }) });
+      } catch (_) { /* the Compare screen can read it later */ } } })();
+      try { (globalThis as any).EdgeRuntime?.waitUntil?.(go); } catch (_) { /* */ }
+    }
+  }
   return { ok: true, files: files.length, parts: nParts, folder };
 }
 
