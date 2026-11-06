@@ -8,6 +8,14 @@
    (no Pipeline / Orders boards). No To do, Next up, My time, quotes/suppliers, stage moves, delete/archive, App ideas.
    Wheel: Punch in, Add my work, Count, Problem/NCR, Revision, Talk. Work he adds lands on Kyle's To do. */
 (()=>{
+// unpaid breaks - coffee 10:00-10:15, lunch 12:00-12:30, coffee 3:00-3:15 (day 8-5). Punched time over these doesn't count (Kyle, 2026-11-05)
+window.GVC_BREAKS=[[10,0,10,15],[12,0,12,30],[15,0,15,15]];
+window.paidMs=(a,b)=>{ a=+new Date(a); b=b==null?Date.now():+new Date(b); if(!(b>a)) return 0; let ms=b-a;
+  const d=new Date(a); d.setHours(0,0,0,0);
+  for(;+d<b;d.setDate(d.getDate()+1)) for(const [h1,m1,h2,m2] of window.GVC_BREAKS){
+    const s=new Date(d); s.setHours(h1,m1,0,0); const e=new Date(d); e.setHours(h2,m2,0,0);
+    ms-=Math.max(0,Math.min(b,+e)-Math.max(a,+s)); }
+  return ms; };
 const st=document.createElement("style");
 st.textContent=`
 .pbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;margin:0 auto 10px;max-width:1500px;padding:8px 12px;border-radius:12px;
@@ -70,10 +78,10 @@ function paint(){
   clearInterval(tick);
   if(!open||$("#app").hidden){ bar.hidden=true; return; }
   bar.hidden=false;
-  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||"On the clock")}</b><small>${esc(open.job_name||"")}</small></div><span class="clk" id="pClk">${hm(Date.now()-new Date(open.start_at))}</span><button type="button" id="pOut">PUNCH OUT</button>`;
+  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||"On the clock")}</b><small>${esc(open.job_name||"")}</small></div><span class="clk" id="pClk">${hm(paidMs(open.start_at))}</span><button type="button" id="pOut">PUNCH OUT</button>`;
   bar.querySelector("#pOut").onclick=()=>punchOut();
   bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)) openJob(open.job_id); };
-  tick=setInterval(()=>{ const c=$("#pClk"); if(c&&open) c.textContent=hm(Date.now()-new Date(open.start_at)); },1000);
+  tick=setInterval(()=>{ const c=$("#pClk"); if(c&&open) c.textContent=hm(paidMs(open.start_at)); },1000);
 }
 async function load(){
   if(typeof db==="undefined"||!db) return;
@@ -106,7 +114,7 @@ async function punchOut(){
   const was=open; const r=await sb.rpc("gvc_punch_out",{p_who:me()});
   if(r.error){ toast("Couldn't punch out: "+r.error.message); return; }
   if(was) delete jobPunches[was.job_id];
-  open=null; paint(); if(was) toast(`Punched out - ${hrs(Date.now()-new Date(was.start_at))} on ${was.task_name}`);
+  open=null; paint(); if(was) toast(`Punched out - ${hrs(paidMs(was.start_at))} on ${was.task_name}`);
   render();
 }
 async function doneTask(jid,aid){
@@ -189,7 +197,7 @@ drawDlg=function(){
   punchesFor(j.id).then(P=>{
     if(!D.contains(box)) return;
     const now=Date.now(); const by={};
-    P.forEach(p=>{ const k=p.task_id||"-"; const o=by[k]=by[k]||{name:p.task_name,ms:0,who:{}}; const ms=(p.end_at?new Date(p.end_at):now)-new Date(p.start_at); o.ms+=ms; o.who[p.who]=(o.who[p.who]||0)+ms; });
+    P.forEach(p=>{ const k=p.task_id||"-"; const o=by[k]=by[k]||{name:p.task_name,ms:0,who:{}}; const ms=paidMs(p.start_at,p.end_at||now); o.ms+=ms; o.who[p.who]=(o.who[p.who]||0)+ms; });
     const plan=(window.gvcPlan&&gvcPlan.get&&gvcPlan.get())||{}; const H=plan.hours||{};
     const ks=Object.keys(by);
     if(!ks.length){ box.innerHTML=`<div class="sec"><span>Time on this job</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ PUNCH IN on a task to start the clock.</div>`; return; }
@@ -342,7 +350,7 @@ render=function(){
   if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home";
   _render();
   { const cb=document.getElementById("crewBar"); if(cb) cb.style.display=cur==="crew"?"":"none"; }
-  if(!bar.hidden&&open){ const c=$("#pClk"); if(c) c.textContent=hm(Date.now()-new Date(open.start_at)); }
+  if(!bar.hidden&&open){ const c=$("#pClk"); if(c) c.textContent=hm(paidMs(open.start_at)); }
 };
 // pick up the clock once signed in, and when another device punches
 let started=false;

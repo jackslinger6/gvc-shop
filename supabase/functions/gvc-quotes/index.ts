@@ -5,6 +5,7 @@
 // Signed-in shop member only (same check as the rest of the app).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { parseDoc, docSubtotal } from "./parse.ts";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-gvc-key", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -263,6 +264,10 @@ async function extract(db: any, id: string, jobId: string | null) {
   }
   const d = await docBlock(db, id);
   const isPdf = /\.pdf$/i.test(d.name) || /pdf/i.test(d.mt);
+  // free first: read the PDF's text and use the known layouts (Russel, Grandview, Starfab) - Claude only for the rest
+  if (isPdf) { try { const t = await pdfText(db, id, d); const px: any = parseDoc(d.name, t);
+      if (px && px.skip) return { id, saved: 0, skipped: px.skip };
+      if (px && px.lines && px.lines.length) return await saveParsed(db, id, d, px, jobId, JP); } catch (_e) { /* fall through to Claude */ } }
   const tool = { name: "lines", description: "Every priced line on the document", input_schema: { type: "object", properties: {
     vendor: { type: "string", description: "supplier company (e.g. Russel Metals, Grandview Fabrication, Starfab)" }, doc_type: { type: "string", enum: ["quote", "order ack", "invoice", "other"] },
     doc_no: { type: "string" }, doc_date: { type: "string", description: "YYYY-MM-DD" }, job_ref: { type: "string", description: "our job/PO reference on the doc, e.g. 1086WT" },
@@ -324,6 +329,57 @@ async function scan(db: any, days: number) {
 }
 
 /* the job's parts x every vendor's price for them (no Claude - instant) */
+async function pdfText(db: any, id: string, d: any) {
+  const { data: have } = await db.from("gvc_doc_text").select("text").eq("source", id).maybeSingle();
+  if (have?.text) return have.text as string;
+  const { extractText, getDocumentProxy } = await import("npm:unpdf@0.12.1");
+  const bin = Uint8Array.from(atob(d.data), (c) => c.charCodeAt(0)); const pdf = await getDocumentProxy(bin);
+  const { text } = await extractText(pdf, { mergePages: false }); const t = (text as string[]).map((x, i) => x + "\n--- page " + (i + 1) + " ---").join("\n").replace(/[ \t]+/g, " ");
+  await db.from("gvc_doc_text").upsert({ source: id, name: d.name, vendor: d.from || "", subject: d.subject || "", at: d.at || null, type: null, text: t });
+  return t;
+}
+// which job a document belongs to: its quote/ack number on a job's supplier list, else the PO / job reference
+async function matchJob(db: any, px: any) {
+  const { data: js } = await db.from("gvc_jobs").select("id,data"); const J = js || [];
+  if (px.doc_no) { const h = J.find((j: any) => (j.data?.suppliers || []).some((s: any) => String(s.quoteNo || "").replace(/\s/g, "").toUpperCase() === String(px.doc_no).toUpperCase())); if (h) return h.id; }
+  const ref = String(px.job_ref || px.title || ""); const n = ref.match(/\d{4}/); if (!n) return null;
+  const hits = J.filter((j: any) => String(j.data?.name || "").trim().startsWith(n[0]));
+  if (hits.length <= 1) return hits[0]?.id || null;
+  const full = ref.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const pre = (j: any) => (String(j.data.name).match(NUM_RE)?.[1] || "~").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  return (hits.find((j: any) => full.startsWith(pre(j))) || hits.find((j: any) => !j.data?.archived && j.data?.stage !== "done") || hits[0]).id;
+}
+async function saveParsed(db: any, id: string, d: any, px: any, jobId: string | null, JP0: any) {
+  const job = jobId || await matchJob(db, px);
+  const date = px.doc_date || (d.at ? String(d.at).slice(0, 10) : null);
+  const rows = px.lines.map((l: any) => ({ vendor: px.vendor, doc_type: px.doc_type, doc_no: px.doc_no, doc_date: date, doc_name: d.name, source: id, job_id: job,
+    item: l.item, part_no: l.part_no || null, kind: l.kind || null, material: l.material || null, size: l.size || null, length_ft: l.length_ft || null, qty: l.qty || null, unit: l.unit || null,
+    unit_price: l.unit_price ?? null, line_total: l.line_total ?? null, per_ft: l.per_ft ?? null, note: l.note || null, thickness_in: l.thickness_in ?? null, metal: l.metal || null, parts: l.parts && l.parts.length ? l.parts : null }));
+  await db.from("gvc_prices").delete().eq("source", id);
+  const { error } = await db.from("gvc_prices").insert(rows); if (error) throw new Error(error.message);
+  const JP = jobId && JP0?.parts?.length ? JP0 : await jobParts(db, job);
+  const np = await mapParts(db, job, JP.jobNo, JP.parts, rows, { vendor: px.vendor, source: id, doc_no: px.doc_no, doc_date: date, doc_type: px.doc_type, doc_name: d.name });
+  return { id, saved: rows.length, parts: np, vendor: px.vendor, doc_no: px.doc_no, date, job, free: true };
+}
+// read every stored document text with the free reader (no Claude): action "parse"
+async function parseAll(db: any, body: any) {
+  let q = db.from("gvc_doc_text").select("source,name,vendor,subject,at,text").order("at"); if (body.docs?.length) q = q.in("source", body.docs);
+  const { data: docs } = await q; const { data: have } = await db.from("gvc_prices").select("vendor,doc_no,doc_type,source");
+  const seen = new Set((have || []).map((r: any) => `${r.vendor}|${r.doc_no}|${r.doc_type}`)); const out: any[] = [];
+  for (const t of docs || []) {
+    const px: any = parseDoc(t.name, t.text);
+    if (!px) { out.push({ name: t.name, skip: "layout not known" }); continue; } if (px.skip) { out.push({ name: t.name, skip: px.skip }); continue; }
+    const sum = Math.round(px.lines.reduce((a: number, l: any) => a + (Number(l.line_total) || 0), 0) * 100) / 100; const sub = docSubtotal(t.text);
+    const key = `${px.vendor}|${px.doc_no}|${px.doc_type}`;
+    const rep: any = { name: t.name, vendor: px.vendor, doc_no: px.doc_no, type: px.doc_type, date: px.doc_date, ref: px.job_ref, lines: px.lines.length, sum, doc_total: sub, ok: sub == null || Math.abs(sum - sub) < 0.05 };
+    if (seen.has(key) && !body.force) { rep.skip = "already in"; out.push(rep); continue; }
+    seen.add(key);
+    if (!body.dry) { try { const r = await saveParsed(db, t.source, { name: t.name, at: t.at }, px, null, null); rep.job = r.job; rep.parts = r.parts; } catch (e) { rep.err = String((e as Error).message).slice(0, 120); } }
+    else rep.job = await matchJob(db, px);
+    out.push(rep);
+  }
+  return { out };
+}
 async function partsTable(db: any, jobId: string) {
   const JP = await jobParts(db, jobId);
   const { data: qp } = await db.from("gvc_quote_parts").select("*").eq("job_id", jobId).order("doc_date");
@@ -351,6 +407,7 @@ Deno.serve(async (req) => {
           await db.from("gvc_doc_text").upsert({ source: it.id, name: d.name, vendor: d.from || it.from || "", subject: d.subject || it.subject || "", at: d.at || it.at || null, type: it.type || null, text: t });
           out.push({ name: d.name, chars: t.length }); } catch (e) { out.push({ name: it.name, err: String((e as Error).message || e).slice(0, 120) }); } }
       return json({ out }); }
+    if (body.action === "parse") return json(await parseAll(db, body));
     if (body.action === "raw") { const d = await docBlock(db, String(body.doc || "")); return json({ name: d.name, from: d.from, subject: d.subject, at: d.at, b64: d.data }); }
     if (body.action === "remap") { const ids: string[] = body.docs || []; const out: any[] = [];
       for (const id of ids) { await db.from("gvc_quote_parts").delete().eq("source", id); const { data: rws } = await db.from("gvc_prices").select("*").eq("source", id);

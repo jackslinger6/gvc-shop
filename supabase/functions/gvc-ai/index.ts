@@ -241,12 +241,21 @@ const CHAT_TOOLS = [
 ];
 const APP_FEATURES = `What the app already does: To do tab (auto reminders from job stages, suppliers, idle crew, flat parts, schedule clashes, unlogged time, undecided NCRs; Kyle's own to-dos; review list of suggestions from texts/emails/recordings that Kyle accepts). Boards: Pipeline (released, check drawings, make DXFs), Orders (preparing, quote, production, pick up, arrived, received - with suppliers per job), Shop floor (bending, fab, paint, assembly, done). Job card: stage, folder, note, tasks with who/status and progress %, suppliers, NCRs, notes log. Crew tab: Week plan (drag-and-drop weekly schedule per person, 8h days, hour estimates, shared tasks split by crew-hours, days off, "send someone now" errands, task dependencies with clash alerts) and Lanes view. My time tab: Kyle's daily hours prefilled from the plan, confirm days, send to his separate time invoice app with a button. NCRs: log on a job (type, fix, rework steps with hours, material $), NCR log with cost. Inventory tab: mirror of Robin's spreadsheet (synced daily), part pictures, flat vs bent stock, bend list. Phone: record conversations (Whisper transcribes, suggestions come out), reads texts from picked contacts. Hourly email check (weekdays) turns Kyle's work emails into suggestions. This chat (with mic on PC). Kyle's undo button. PC web version and Android app.`;
 
+// paid time between two instants: unpaid breaks 10:00-10:15, 12:00-12:30, 15:00-15:15 shop time are taken out (Kyle, 2026-11-05)
+const BREAKS = [[10, 0, 10, 15], [12, 0, 12, 30], [15, 0, 15, 15]];
+function shopOffsetMs(t: number) { const d = new Date(t); const loc = new Date(d.toLocaleString("en-US", { timeZone: "America/Edmonton" })); const utc = new Date(d.toLocaleString("en-US", { timeZone: "UTC" })); return loc.getTime() - utc.getTime(); }
+function paidMs(a: number, b: number) {
+  if (!(b > a)) return 0; let ms = b - a; const off = shopOffsetMs(a);
+  const day0 = Math.floor((a + off) / 864e5) * 864e5 - off;   // shop midnight, as a UTC instant
+  for (let d = day0; d < b; d += 864e5) for (const [h1, m1, h2, m2] of BREAKS) { const s = d + (h1 * 60 + m1) * 6e4, e = d + (h2 * 60 + m2) * 6e4; ms -= Math.max(0, Math.min(b, e) - Math.max(a, s)); }
+  return ms;
+}
 async function punchCtx(sb: any, who?: string) {
   try {
     let q = sb.from("gvc_punches").select("who,job_name,task_name,start_at,end_at").gte("start_at", new Date(Date.now() - 60 * 864e5).toISOString()).order("start_at");
     if (who) q = q.eq("who", who);
     const { data } = await q; const by: any = {}; const now = Date.now(); const open: string[] = [];
-    (data || []).forEach((p: any) => { const k = `${p.job_name} / ${p.task_name}`; const ms = (p.end_at ? new Date(p.end_at).getTime() : now) - new Date(p.start_at).getTime();
+    (data || []).forEach((p: any) => { const k = `${p.job_name} / ${p.task_name}`; const ms = paidMs(new Date(p.start_at).getTime(), p.end_at ? new Date(p.end_at).getTime() : now);
       const o = by[k] = by[k] || { h: 0, who: {} as any }; o.h += ms / 36e5; o.who[p.who] = (o.who[p.who] || 0) + ms / 36e5;
       if (!p.end_at) open.push(`${p.who} on the clock since ${new Date(p.start_at).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit", timeZone: "America/Edmonton" })}: ${k}`); });
     const lines = Object.entries(by).map(([k, o]: any) => `${k}: ${o.h.toFixed(1)}h (${Object.entries(o.who).map(([w, h]: any) => w + " " + h.toFixed(1)).join(", ")})`);
@@ -494,7 +503,7 @@ Where ${ME} is in the app right now: ${ctx.looking_at || "unknown"} - "this job"
         } else if (u.name === "punch") {
           const { data: op } = await sb.from("gvc_punches").select("task_name,start_at").eq("who", ME).is("end_at", null).maybeSingle();
           const { error } = await sb.rpc("gvc_punch_out", { p_who: ME }); if (error) throw error;
-          const h = op ? ((Date.now() - new Date(op.start_at).getTime()) / 36e5).toFixed(1) : "0";
+          const h = op ? (paidMs(new Date(op.start_at).getTime(), Date.now()) / 36e5).toFixed(1) : "0";
           res = op ? `ok - punched out of ${op.task_name} after ${h}h` : "ok - wasn't punched in"; actions.push(op ? `⏱ Punched out: ${op.task_name} (${h}h)` : "Wasn't punched in");
         } else if (u.name === "schedule_task") {
           const { data: row, error: e1 } = await sb.from("gvc_jobs").select("id,data").eq("id", u.input.job_id).single();

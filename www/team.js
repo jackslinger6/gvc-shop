@@ -211,7 +211,7 @@ window.crewHome=B=>{
   sec.querySelector("#myTimeC").onclick=()=>window.openMyTime();
   weekPunches(0).then(L=>{ const w=document.getElementById("myTimeW"), d=document.getElementById("myTimeD"); if(!w) return;
     const now=Date.now(), t0=new Date(); t0.setHours(0,0,0,0);
-    const ms=p=>(p.end_at?new Date(p.end_at):now)-new Date(p.start_at);
+    const ms=p=>paidMs(p.start_at,p.end_at||now);
     w.textContent=H(L.reduce((a,p)=>a+ms(p),0)); d.textContent=H(L.filter(p=>new Date(p.start_at)>=t0).reduce((a,p)=>a+ms(p),0)); });
   decorate();
 };
@@ -232,7 +232,7 @@ window.openMyTime=()=>{ mtOff=0; const S=sheetOpen(`<h3>MY TIME · ${E(me()).toU
 async function drawMT(S){
   const B=S.el.querySelector("#mtBody"); if(!B) return;
   const L=await weekPunches(mtOff); const a=wkStart(mtOff), z=new Date(a); z.setDate(z.getDate()+6);
-  const now=Date.now(), ms=p=>(p.end_at?new Date(p.end_at):now)-new Date(p.start_at);
+  const now=Date.now(), ms=p=>paidMs(p.start_at,p.end_at||now);
   const days={}; L.forEach(p=>{ (days[dIn(p.start_at)]=days[dIn(p.start_at)]||[]).push(p); });
   const tot=L.reduce((s,p)=>s+ms(p),0), nd=Object.keys(days).length;
   const lbl=mtOff===0?"THIS WEEK":mtOff===-1?"LAST WEEK":`${a.toLocaleDateString([], {month:"short",day:"numeric"})} – ${z.toLocaleDateString([], {month:"short",day:"numeric"})}`.toUpperCase();
@@ -244,7 +244,7 @@ async function drawMT(S){
       ||`<div class="tnote" style="text-align:center;padding:16px 0">No time punched ${mtOff===0?"this week yet":"that week"}.</div>`}
     <div class="tmbtns"><button class="btn" type="button" id="mtAdd">+ Add time I forgot</button><button class="btn" type="button" id="mtCopy">Copy week</button></div>
     <div class="mted" id="mtNew" hidden></div>
-    <div class="tnote" style="margin-top:10px">Tap an entry to fix the times. This is your own record - it isn't on Kyle's time sheet. "Copy week" copies it so you can text it to Robin.</div>`;
+    <div class="tnote" style="margin-top:10px">Breaks don't count (10:00-10:15, 12:00-12:30, 3:00-3:15). Tap an entry to fix the times. This is your own record - it isn't on Kyle's time sheet. "Copy week" copies it so you can text it to Robin.</div>`;
   B.querySelector("#mtP").onclick=()=>{ mtOff--; drawMT(S); };
   B.querySelector("#mtN").onclick=()=>{ if(mtOff<0){ mtOff++; drawMT(S); } };
   B.querySelectorAll("[data-pid]").forEach(b=>b.onclick=()=>{ const p=L.find(x=>String(x.id)===b.dataset.pid); const ed=B.querySelector(`[data-ed="${b.dataset.pid}"]`); if(!ed.hidden){ ed.hidden=true; return; } editor(ed,p,S); });
