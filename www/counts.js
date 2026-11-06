@@ -5,6 +5,9 @@
    other items can be added by hand or picked from the Truck parts inventory (INV orders, hardware).
    Each piece gets its own box: 4 ordered = 4 boxes, tick them as you find them.
    Opened from the To do "Count & check" reminder (Count button), the Arrived cards on the Orders board, and a supplier on the job card.
+   Partial deliveries (Nov 6): items can be marked later:true ("comes in a later delivery") - per item, or per material with the
+   "Only part of the order came?" chips. Later items are left out of this count; finishing with later items saves the delivery,
+   keeps the order open (status back to In production) and logs what came and what's still coming.
    Combined orders: supplier lines on different jobs with the same supplier and quote # (e.g. 2006PT + INV on Russel 60541360)
    are one physical order - they open as one sheet, split into a section per job, and are marked received together. */
 (()=>{
@@ -58,7 +61,8 @@ async function sign(paths){
 }
 const url=p=>p&&(urls[p]||(typeof imgUrls!=="undefined"&&imgUrls[p]))||"";
 const got=it=>Math.min(it.got||0,it.qty||0);
-const live=()=>st.items.filter(i=>!i.skip);
+const live=()=>st.items.filter(i=>!i.skip&&!i.later);
+const later=()=>st.items.filter(i=>!i.skip&&i.later);
 const totals=()=>{ const L=live(); return {pcs:L.reduce((a,i)=>a+(i.qty||0),0), got:L.reduce((a,i)=>a+got(i),0), lines:L.length, full:L.filter(i=>got(i)>=(i.qty||0)).length}; };
 
 async function seed(j){
@@ -102,7 +106,7 @@ function head(){
     <div class="csub">${esc(sup.name||"")}${sup.quoteNo?" · #"+esc(sup.quoteNo):""}${sup.scope?" · "+esc(sup.scope):""} · ${(ST[sup.status]||ST.sent).t}</div></div>
     <span style="display:flex;gap:6px"><button class="btn" type="button" id="cPrint" title="Print a paper checklist (or save it as a PDF)">🖨 Print</button><button class="btn ghost" type="button" id="cBack">Back to job</button></span></div>
     <div class="bar"><div style="width:${t.pcs?Math.round(t.got/t.pcs*100):0}%"></div></div>
-    <div class="csub"><b style="color:var(--text)">${t.got} of ${t.pcs} pcs</b> · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}</div>`;
+    <div class="csub"><b style="color:var(--text)">${t.got} of ${t.pcs} pcs</b> · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`;
 }
 function itemRow(it,ix){
   const g=got(it), q=it.qty||0, cls=g>=q&&q>0?"full":g>0?"part":"";
@@ -113,7 +117,7 @@ function itemRow(it,ix){
     <div><div class="nm"><span>${esc(it.part_no||it.name)}</span><span class="q">${g} / ${q}</span></div>
     <div class="mt">${[it.part_no&&it.name&&it.name!==it.part_no?esc(it.name):"",esc(it.mat||"")].filter(Boolean).join(" · ")}</div>
     ${boxes}
-    <div style="margin-top:6px"><button class="lnk" type="button" data-skip="${ix}">Not on this order</button></div></div></div>`;
+    <div style="margin-top:6px;display:flex;gap:14px"><button class="lnk" type="button" data-later="${ix}">Comes later</button><button class="lnk" type="button" data-skip="${ix}">Not on this order</button></div></div></div>`;
 }
 /* paper checklist for someone without the app - one row per part, a box per piece (Kyle, 2026-11-04) */
 function printSheet(){
@@ -148,17 +152,25 @@ function printSheet(){
 }
 function draw(){
   const D=$("#dlg"); const words=st.q.toLowerCase().split(/\s+/).filter(Boolean);
-  const vis=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&words.every(w=>[it.part_no,it.name,it.mat].join(" ").toLowerCase().includes(w))
+  const vis=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&!it.later&&words.every(w=>[it.part_no,it.name,it.mat].join(" ").toLowerCase().includes(w))
     &&(st.f==="all"||(st.f==="missing"?got(it)<(it.qty||0):got(it)>=(it.qty||0))));
   const skipped=st.items.map((it,ix)=>({it,ix})).filter(({it})=>it.skip);
   const mats=[...new Set(live().map(i=>i.mat).filter(Boolean))];
+  const allMats=[...new Set(st.items.filter(i=>!i.skip).map(i=>i.mat||"Other"))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const lat=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&it.later);
   D.innerHTML=`<div class="cnt">${head()}
     ${st.items.length?`<div class="tools"><input type="search" id="cQ" placeholder="Find a part (number, name, material)" value="${esc(st.q)}">
       ${[["all","All"],["missing","Missing"],["done","Counted"]].map(([k,t])=>`<button class="chip ${st.f===k?"on":""}" type="button" data-cf="${k}" style="${st.f===k?"border-color:#3ad06b;color:#3ad06b":""}">${t}</button>`).join("")}</div>
       ${mats.length>1?`<div class="tools">${mats.map(m=>`<button class="chip" type="button" data-cq="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}`:""}
     ${st.seeded&&st.items.length?`<div class="tnote">Started from the job's parts list (${st.items.length} parts). If this order is only part of the job, tap "Not on this order" on the rest.</div>`:""}
     ${!st.items.length?`<div class="tnote">No parts list for this order yet. Add what was ordered below - pick from the inventory list or type it in.</div>`:""}
+    ${allMats.length>1?`<details class="addbox" style="margin-top:8px" ${lat.length?"open":""}><summary style="cursor:pointer;font-size:13px;font-weight:600">Only part of the order came?</summary>
+      <div class="tnote" style="margin-top:4px">Tap the materials that came in this delivery. The rest stays on the order as "still to come" and isn't counted short.</div>
+      <div class="tools">${allMats.map(m=>{ const on=st.items.some(i=>!i.skip&&!i.later&&(i.mat||"Other")===m); const n=st.items.filter(i=>!i.skip&&(i.mat||"Other")===m).reduce((a,i)=>a+(i.qty||0),0);
+        return `<button class="chip ${on?"on":""}" type="button" data-pm="${esc(m)}" style="${on?"border-color:#3ad06b;color:#3ad06b":"opacity:.6"}">${on?"✓ ":""}${esc(m)} · ${n}</button>`; }).join("")}
+        <button class="lnk" type="button" id="cPmAll">All came</button></div></details>`:""}
     <div id="cList">${listHtml(vis)}</div>
+    ${lat.length?`<details style="margin-top:10px"><summary class="tnote" style="cursor:pointer;color:#f5b041">Still to come - later delivery (${lat.length} parts, ${lat.reduce((a,{it})=>a+(it.qty||0),0)} pcs)</summary>${lat.map(({it,ix})=>`<div class="tnote" style="display:flex;justify-content:space-between;gap:8px;margin:4px 0"><span>${esc(it.part_no||it.name)} · ${esc(it.mat||"")} · ${it.qty} pcs</span><button class="lnk" type="button" data-unlater="${ix}">It's here</button></div>`).join("")}</details>`:""}
     ${skipped.length?`<details style="margin-top:10px"><summary class="tnote" style="cursor:pointer">Not on this order (${skipped.length})</summary>${skipped.map(({it,ix})=>`<div class="tnote" style="display:flex;justify-content:space-between;gap:8px;margin:4px 0"><span>${esc(it.part_no||it.name)} · ${it.qty} pcs</span><button class="lnk" type="button" data-unskip="${ix}">Put back</button></div>`).join("")}</details>`:""}
     <div class="addbox"><b style="font-size:13px">Add an item to this order</b>
       <div class="addrow" style="margin-top:6px"><input id="cAddQ" placeholder="Search inventory or type a name" value="${esc(st.addQ)}" style="flex:1;min-width:160px"><input id="cAddN" type="number" min="1" value="1" style="width:70px" aria-label="Quantity">${st.sets.length>1?`<select id="cAddG" aria-label="Which job">${st.sets.map((S,g)=>`<option value="${g}" ${st.addG===g?"selected":""}>${esc(jobOf(S.jobId).name)}</option>`).join("")}</select>`:""}<button class="btn" type="button" id="cAdd">Add</button></div>
@@ -168,7 +180,7 @@ function draw(){
 }
 function listHtml(vis){
   if(st.sets.length<2) return vis.map(({it,ix})=>itemRow(it,ix)).join("")||(st.items.length?`<div class="tnote">Nothing here with that filter.</div>`:"");
-  return st.sets.map((S,g)=>{ const jj=jobOf(S.jobId); const mine=st.items.filter(i=>i.g===g&&!i.skip);
+  return st.sets.map((S,g)=>{ const jj=jobOf(S.jobId); const mine=st.items.filter(i=>i.g===g&&!i.skip&&!i.later);
     const pcs=mine.reduce((a,i)=>a+(i.qty||0),0), gt=mine.reduce((a,i)=>a+got(i),0);
     const col=window.jobColor?window.jobColor(S.jobId):"#888"; const rows=vis.filter(v=>v.it.g===g);
     return `<div class="grp" style="--c:${col}">${esc(jj.name)}<span>${gt} of ${pcs} pcs</span></div>`+(rows.map(({it,ix})=>itemRow(it,ix)).join("")||`<div class="tnote">${mine.length?"Nothing here with that filter.":"Nothing listed for this job yet - add what was on the order below."}</div>`);
@@ -199,6 +211,11 @@ function wire(){
   D.querySelectorAll("[data-dn]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.dn]; it.got=Math.max(0,got(it)-1); changed(it.g); refresh(+b.dataset.dn); });
   D.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.all]; it.got=it.qty; changed(it.g); refresh(+b.dataset.all); });
   D.querySelectorAll("[data-skip]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.skip]; it.skip=true; changed(it.g); draw(); });
+  D.querySelectorAll("[data-later]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.later]; it.later=true; changed(it.g); draw(); });
+  D.querySelectorAll("[data-unlater]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.unlater]; it.later=false; changed(it.g); draw(); });
+  D.querySelectorAll("[data-pm]").forEach(b=>b.onclick=()=>{ const m=b.dataset.pm; const its=st.items.filter(i=>!i.skip&&(i.mat||"Other")===m);
+    const on=its.some(i=>!i.later); its.forEach(i=>{ i.later=on; changed(i.g); }); draw(); });
+  const pa=$("#cPmAll"); if(pa) pa.onclick=()=>{ st.items.forEach(i=>{ if(i.later){ i.later=false; changed(i.g); } }); draw(); };
   D.querySelectorAll("[data-unskip]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.unskip]; it.skip=false; changed(it.g); draw(); });
   const aq=$("#cAddQ"); aq.oninput=()=>{ st.addQ=aq.value; drawPick(); };
   aq.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#cAdd").click(); } };
@@ -244,6 +261,34 @@ async function finish(){
   const missTx=miss.slice(0,12).map(i=>`${nm(i)} (${got(i)} of ${i.qty})`).join(", ")+(miss.length>12?` and ${miss.length-12} more`:"");
   const sup0=(jobOf(st.jobId).suppliers||[]).find(x=>x.id===st.supId);
   const D=$("#dlg"); D.querySelectorAll(".cfin").forEach(e=>e.remove()); const box=document.createElement("div"); box.className="addbox cfin"; box.style.borderColor=miss.length?"#f5b041":"#3ad06b";
+  const L=later();
+  if(L.length){
+    // partial delivery: save what came, keep the order open for the rest
+    const lp=L.reduce((a,i)=>a+(i.qty||0),0); const lm=[...new Set(L.map(i=>i.mat||"Other"))].join(", ");
+    const cm=[...new Set(live().map(i=>i.mat||"Other"))].join(", ");
+    box.innerHTML=`<b>This delivery: ${t.got} of ${t.pcs} pcs here${miss.length?` - ${miss.length} part${miss.length>1?"s":""} short`:" - all here"}.</b>
+      ${miss.length?`<div class="tnote">${esc(missTx)}</div>`:""}
+      <div class="tnote">Still to come: ${L.length} part${L.length>1?"s":""}, ${lp} pcs (${esc(lm)}). The order stays open for those.</div>
+      <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn" type="button" id="cKeep">Keep counting later</button><button class="btn primary" type="button" id="cPart">Save this delivery - rest still coming</button></div>`;
+    D.querySelector(".foot").before(box); box.scrollIntoView({behavior:"smooth",block:"center"});
+    $("#cKeep").onclick=()=>closeDlg();
+    $("#cPart").onclick=async()=>{
+      const now=new Date().toISOString(); let ok=true;
+      for(let g=0;g<st.sets.length;g++){
+        const S=st.sets[g]; const j=structuredClone(jobOf(S.jobId)); const sup=(j.suppliers||[]).find(x=>x.id===S.supId);
+        const mine=st.items.filter(i=>i.g===g&&!i.skip&&!i.later), lat=st.items.filter(i=>i.g===g&&!i.skip&&i.later);
+        const pcs=mine.reduce((a,i)=>a+(i.qty||0),0), gt=mine.reduce((a,i)=>a+got(i),0), lpc=lat.reduce((a,i)=>a+(i.qty||0),0);
+        const myMiss=mine.filter(i=>got(i)<(i.qty||0)).map(i=>`${i.part_no||i.name} (${got(i)} of ${i.qty})`).join(", ");
+        const d=new Date(now).toLocaleDateString("en-CA",{month:"short",day:"numeric"});
+        const txt=`${d}: partial delivery counted - ${gt} of ${pcs} pcs (${cm})${myMiss?", short: "+myMiss:""}. Still to come: ${lat.length} part${lat.length>1?"s":""} / ${lpc} pcs (${lm}).`;
+        if(sup){ sup.status="production"; sup.updated=now; sup.lead=`Rest still to come: ${lm}`.slice(0,200); sup.note=((sup.note?sup.note+" | ":"")+txt).slice(0,1500); }
+        j.log=[...(j.log||[]),{at:now,text:`Counted ${sup?sup.name:"order"}${sup&&sup.quoteNo?" #"+sup.quoteNo:""} - ${txt}`}];
+        if(!await put(j,`Partial delivery counted - ${j.name}`)) ok=false;
+      }
+      if(ok){ closeDlg(); if(typeof todoToast==="function") todoToast(`Delivery counted: ${t.got} of ${t.pcs} pcs - ${lp} pcs still to come`,null); }
+    };
+    return;
+  }
   box.innerHTML=miss.length?`<b>${t.got} of ${t.pcs} pcs here - ${miss.length} part${miss.length>1?"s":""} short.</b><div class="tnote">${esc(missTx)}</div>
       <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn" type="button" id="cKeep">Keep counting later</button><button class="btn primary" type="button" id="cRecvShort">Mark received - note what's missing</button></div>`
     :`<b>All ${t.pcs} pcs here.</b><div class="row" style="margin-top:8px;gap:8px"><button class="btn primary" type="button" id="cRecv">Mark ${esc(sup0?sup0.name:"order")} received${st.sets.length>1?` (all ${st.sets.length} jobs)`:""}</button></div>`;
