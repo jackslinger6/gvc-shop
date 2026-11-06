@@ -675,7 +675,7 @@ function drawDlg(){
      <td><button type="button" class="rmb" data-rmasm="${k}" aria-label="Remove ${esc(a.name)}">×</button></td></tr>`;}).join("")}
    </tbody></table></div>`:`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.</div>`}
    <div id="newAsm"></div>`:""}
-   <div class="sec"><span>Suppliers</span><button class="btn sm" type="button" id="addSup">+ Add supplier</button></div>
+   <div class="sec"><span>Suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
    ${(j.suppliers||[]).map((x,k)=>{const st=ST[x.status]||ST.sent;return `<div class="supbox" style="--c:${st.c}">
      <div class="top"><div><b>${esc(x.name)}</b>${x.contact?` <span style="color:var(--muted)">· ${esc(x.contact)}</span>`:""}
        <div class="meta">${x.scope?esc(x.scope)+" · ":""}${x.sent?"Sent "+fmt(x.sent):"Not sent yet"}${x.updated?" · last update "+fmt(x.updated):""}</div></div>
@@ -1490,5 +1490,6 @@ render();
 <script src="nav.js"></script>
 <script src="shell.js"></script>
 <script src="recaps.js"></script>
+<script src="quotes.js"></script>
 </body>
 </html>
