@@ -363,7 +363,7 @@ async function saveParsed(db: any, id: string, d: any, px: any, jobId: string | 
 }
 // read every stored document text with the free reader (no Claude): action "parse"
 async function parseAll(db: any, body: any) {
-  let q = db.from("gvc_doc_text").select("source,name,vendor,subject,at,text").order("at"); if (body.docs?.length) q = q.in("source", body.docs);
+  let q = db.from("gvc_doc_text").select("source,name,vendor,subject,at,text").order("at", { ascending: false });   // newest first - a revised quote with the same number wins if (body.docs?.length) q = q.in("source", body.docs);
   const { data: docs } = await q; const { data: have } = await db.from("gvc_prices").select("vendor,doc_no,doc_type,source");
   const seen = new Set((have || []).map((r: any) => `${r.vendor}|${r.doc_no}|${r.doc_type}`)); const out: any[] = [];
   for (const t of docs || []) {

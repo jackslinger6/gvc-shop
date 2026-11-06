@@ -46,10 +46,10 @@ function russel(text) {
     let s = L[i], m;
     // money on its own line (wrapped line total)
     if (cur && cur._wantTotal && /^[\d,]+\.\d\d$/.test(s)) { cur.line_total = num(s); cur._wantTotal = false; continue; }
-    if (isAck && (m = s.match(/^(\d+(?:\.\d+)?)(EA|FT|LB|PC) (.+?) (\d+\.\d{4}) ([\d,]+\.\d{2})(\d{5})$/))) {
+    if (isAck && (m = s.match(/^(\d+(?:\.\d+)?)(EA|FT|LB|PC) (.+?) (\d*\.\d{4}) ([\d,]+\.\d{2})(\d{5})$/))) {
       cur = { item: m[3].replace(/^IN /, ""), q1: [Number(m[1]), m[2]], unit_price: Number(m[4]), line_total: num(m[5]), code: m[6], notes: [] }; lines.push(cur); continue;
     }
-    if (!isAck && (m = s.match(/^(\d{5}) (\d+(?:\.\d+)?) (.+?) (\d+\.\d{4})(?: ([\d,]+\.\d{2}))?$/))) {
+    if (!isAck && (m = s.match(/^(\d{5}) (\d+(?:\.\d+)?) (.+?) (\d*\.\d{4})(?: ([\d,]+\.\d{2}))?$/))) {
       cur = { item: m[3], q1: [Number(m[2]), null], unit_price: Number(m[4]), line_total: m[5] ? num(m[5]) : null, _wantTotal: !m[5], code: m[1], notes: [], _q: true }; lines.push(cur); continue;
     }
     if (!cur) continue;
@@ -94,16 +94,17 @@ function grandview(text) {
   const doc_date = dm ? `${dm[3]}-${String(MONTHS.indexOf(dm[1].toLowerCase()) + 1).padStart(2, "0")}-${dm[2].padStart(2, "0")}` : null;
   const title = (text.match(/GordeyVille Customs\n([^\n]+)\n/) || [])[1] || "";
   const t = text.replace(/--- page \d+ ---\n?/g, "");
-  const lines = []; const re = /\n(\d+)\n([^\n]+)\n([^\n]*?)\s+(\d+(?:\.\d+)?) \$([\d,]+\.\d+) \$([\d,]+\.\d+)(?=\n)/g; let m;
+  const lines = []; const re = /\n(\d+)\n([^\n]+)\n([^\n]*?)(\nAdd Ops:(?:\n• [^\n]+)+\n|\s+)(\d+(?:\.\d+)?) \$([\d,]+\.\d+) \$([\d,]+\.\d+)(?=\n)/g; let m;
   while ((m = re.exec(t))) {
     const part = m[2].trim(), spec = m[3];
     const thk = (spec.match(/· ([\d.]+)" ·/) || [])[1]; const size = spec.match(/Size: ([\d.]+)" × ([\d.]+)"/);
     const grade = (spec.match(/^([^·]+?) ·/) || [])[1] || null; const ga = (spec.match(/· (?:Mild Steel|Stainless|Aluminum|Aluminium)? ?([^·]+?) ·/) || [])[1] || "";
+    const ops = (m[4].match(/• ([^\n]+)/g) || []).map((x) => x.slice(2).trim()); m.splice(4, 1);
     const qty = Number(m[4]);
     lines.push({ item: `${part} - ${spec}`.slice(0, 300), part_no: PART.test(part) ? part : null, parts: PART.test(part) ? [part] : [], kind: thk ? "laser part" : "other",
       metal: metalOf(spec + (/Stainless/i.test(spec) ? " SS" : /Alumin/i.test(spec) ? " ALUM" : "")), material: grade ? grade.trim() : null,
       size: thk ? `PL ${ga.trim() || thk}` : null, thickness_in: thk ? Number(thk) : null, length_ft: null, qty, unit: "ea",
-      unit_price: num(m[5]), line_total: num(m[6]), per_ft: null, note: size ? `flat ${size[1]} x ${size[2]}` : null });
+      unit_price: num(m[5]), line_total: num(m[6]), per_ft: null, note: [size ? `flat ${size[1]} x ${size[2]}` : null, ops.length ? "+ " + ops.join(", ").toLowerCase() : null].filter(Boolean).join(" · ") || null });
   }
   return { vendor: "Grandview Fabrication", doc_type: "quote", doc_no, doc_date, job_ref: (title.match(/\b(\d{4}[_\w]*)/) || [])[1] || null, title, lines };
 }
