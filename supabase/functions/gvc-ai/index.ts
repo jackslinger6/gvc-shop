@@ -193,6 +193,10 @@ const textToHtml = (t: string) => String(t || "").replace(/&/g, "&amp;").replace
 // ---------- chat ----------
 const ITEM = (TOOL.input_schema.properties.suggestions as any).items;
 const CHAT_TOOLS = [
+  { name: "task_status", description: "Set a task's status on a job: bend (waiting on bending), ready, prog (in progress), qc (inspection), done. Use when someone says they started or finished something.",
+    input_schema: { type: "object", properties: { job_id: { type: "string" }, task: { type: "string", description: "task id or name" }, status: { type: "string", enum: ["bend", "ready", "prog", "qc", "done"] } }, required: ["job_id", "task", "status"] } },
+  { name: "punch", description: "The job time clock for the person you're talking to: punch IN on a task (closes whatever they were on), or OUT. Use when they say they're starting/switching to/done with a task, or ask to punch in/out.",
+    input_schema: { type: "object", properties: { action: { type: "string", enum: ["in", "out"] }, job_id: { type: "string" }, task: { type: "string", description: "task id or name (for in)" } }, required: ["action"] } },
   { name: "set_time", description: "Log or change Kyle's own hours for one day on the My time tab (what goes on his time invoice). mode 'replace' = these lines are the whole day; 'add' = add to what's there. Each line: job (GVC job number/name like 1086WT, or 'shop' for shop time/cleanup/meetings), hours, note. confirm=true marks the day confirmed (ready to Send) - only when Kyle says it's right/final. It never sends to the time invoice app; Kyle presses Send.",
     input_schema: { type: "object", properties: { date: { type: "string", description: "YYYY-MM-DD" }, mode: { type: "string", enum: ["replace", "add"] }, confirm: { type: "boolean" },
       lines: { type: "array", items: { type: "object", properties: { job: { type: "string" }, hours: { type: "number" }, note: { type: "string" } }, required: ["job", "hours"] } } }, required: ["date", "mode", "lines"] } },
@@ -237,6 +241,18 @@ const CHAT_TOOLS = [
 ];
 const APP_FEATURES = `What the app already does: To do tab (auto reminders from job stages, suppliers, idle crew, flat parts, schedule clashes, unlogged time, undecided NCRs; Kyle's own to-dos; review list of suggestions from texts/emails/recordings that Kyle accepts). Boards: Pipeline (released, check drawings, make DXFs), Orders (preparing, quote, production, pick up, arrived, received - with suppliers per job), Shop floor (bending, fab, paint, assembly, done). Job card: stage, folder, note, tasks with who/status and progress %, suppliers, NCRs, notes log. Crew tab: Week plan (drag-and-drop weekly schedule per person, 8h days, hour estimates, shared tasks split by crew-hours, days off, "send someone now" errands, task dependencies with clash alerts) and Lanes view. My time tab: Kyle's daily hours prefilled from the plan, confirm days, send to his separate time invoice app with a button. NCRs: log on a job (type, fix, rework steps with hours, material $), NCR log with cost. Inventory tab: mirror of Robin's spreadsheet (synced daily), part pictures, flat vs bent stock, bend list. Phone: record conversations (Whisper transcribes, suggestions come out), reads texts from picked contacts. Hourly email check (weekdays) turns Kyle's work emails into suggestions. This chat (with mic on PC). Kyle's undo button. PC web version and Android app.`;
 
+async function punchCtx(sb: any, who?: string) {
+  try {
+    let q = sb.from("gvc_punches").select("who,job_name,task_name,start_at,end_at").gte("start_at", new Date(Date.now() - 60 * 864e5).toISOString()).order("start_at");
+    if (who) q = q.eq("who", who);
+    const { data } = await q; const by: any = {}; const now = Date.now(); const open: string[] = [];
+    (data || []).forEach((p: any) => { const k = `${p.job_name} / ${p.task_name}`; const ms = (p.end_at ? new Date(p.end_at).getTime() : now) - new Date(p.start_at).getTime();
+      const o = by[k] = by[k] || { h: 0, who: {} as any }; o.h += ms / 36e5; o.who[p.who] = (o.who[p.who] || 0) + ms / 36e5;
+      if (!p.end_at) open.push(`${p.who} on the clock since ${new Date(p.start_at).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit", timeZone: "America/Edmonton" })}: ${k}`); });
+    const lines = Object.entries(by).map(([k, o]: any) => `${k}: ${o.h.toFixed(1)}h (${Object.entries(o.who).map(([w, h]: any) => w + " " + h.toFixed(1)).join(", ")})`);
+    return (open.length ? "NOW: " + open.join("; ") + "\n" : "") + lines.join("\n");
+  } catch (_) { return ""; }
+}
 async function recapCtx(sb: any) {
   try { const { data } = await sb.from("gvc_recaps").select("at,title,recap").order("at", { ascending: false }).limit(4);
     return (data || []).map((r: any) => `--- ${String(r.at || "").slice(0, 16).replace("T", " ")} UTC · ${r.title}\n${r.recap}`).join("\n"); } catch (_) { return ""; }
@@ -333,7 +349,8 @@ First line: TITLE: <5-8 word title, e.g. "Randy - 1086WT and hitch rack plan">`;
   return { title: m ? m[1].trim().slice(0, 120) : "Conversation", recap: t.replace(/^TITLE:.*\n?/m, "").trim() };
 }
 
-async function chat(sb: any, msgs: any[], ctx: any = {}) {
+async function chat(sb: any, msgs: any[], ctx: any = {}, me: any = { name: "Kyle", role: "admin" }) {
+  const crew = me?.role === "crew"; const ME = me?.name || "Kyle";
   const [{ data: rows }, { data: todos }, { data: notes }] = await Promise.all([
     sb.from("gvc_jobs").select("id,data"),
     sb.from("gvc_todos").select("id,text,job_id,from_name,created_at").is("done_at", null).neq("source", "auto"),
@@ -359,6 +376,7 @@ Kyle's open to-dos (with ids, for complete_todo): ${JSON.stringify(todos || [])}
 What Kyle's To do tab shows right now (board reminders are generated from job stages/suppliers/crew; to-dos are his own): ${JSON.stringify(ctx.todo_tab || [])}
 Suggestions waiting for his review: ${JSON.stringify(ctx.waiting_review || [])}
 Recaps of Kyle's latest recorded conversations (final decisions; "what did Randy and I decide" = these):\n${await recapCtx(sb) || "(none yet)"}
+Job time clock (punch in/out per task), last 60 days - actual hours per task, use it to say how long things really took and to estimate repeat work:\n${await punchCtx(sb) || "(no punches yet)"}
 Kyle's logged hours, last 2 weeks (My time tab):
 ${await timeCtx(sb) || "(nothing logged)"}
 Where Kyle is in the app right now: ${ctx.looking_at || "unknown"}. When he says "this job", "this order", "it", "this one", he means what's open there - use that job id / supplier id and don't ask which job.
@@ -379,11 +397,23 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
     if (failed.length && !/couldn't|failed|error/i.test(reply)) reply += "\n\nCouldn't do: " + failed.join("; ");
     return { reply, actions };
   };
+  // crew (e.g. Colton): shop-floor side only - his own tasks, time clock, notes, NCRs, revisions, new work he's doing (Nov 5)
+  const CREW_OK = ["task_status", "punch", "add_tasks", "create_job", "propose_update", "add_ncr", "add_revision"];
+  const tools = crew ? CHAT_TOOLS.filter((t: any) => CREW_OK.includes(t.name)) : CHAT_TOOLS;
+  const sysUse = !crew ? system : `You are the assistant inside the GVC Shop app at Gordeyville Customs (custom truck decks, BBQ trailers, service bodies) in Grande Prairie. You're talking to ${ME}, a shop crew member. Kyle is the shop lead who plans the work; Randy releases jobs. Talk like a helpful coworker: short, plain.
+Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
+What you can do for ${ME}: punch in/out on tasks (punch), set task status (task_status - started = prog, finished = done), add a task he's doing to a job (add_tasks, who = ${ME}), start a new job for work nobody set up (create_job on the shop floor, who = ${ME}, no job number unless he gives one - Kyle is told), add a note to a job (propose_update with log only), log a problem (add_ncr) or a model/drawing revision (add_revision).
+You can NOT: move jobs between stages, change suppliers, orders, prices or quotes, rename jobs, change other people's schedules, Kyle's to-dos or time sheet, or read email. If he asks, say Kyle handles that and offer to leave Kyle a note on the job.
+Nothing happens unless a tool result says ok - never say done otherwise. Every change you make is logged as ${ME}.
+Jobs (shop view): ${JSON.stringify(jobs.map((j: any) => ({ id: j.id, name: j.name, stage: j.stage, summary: j.summary, tasks: j.tasks, ncrs: j.ncrs })))}
+Task ids: ${JSON.stringify((rows || []).map(({ id, data: j }: any) => ({ job: id, tasks: (j.assemblies || []).map((a: any) => ({ id: a.id, name: a.name })) })))}
+${ME}'s time clock, last 60 days:\n${await punchCtx(sb, ME) || "(no punches yet)"}
+Where ${ME} is in the app right now: ${ctx.looking_at || "unknown"} - "this job"/"this task" means that.`;
   for (let turn = 0; turn < 6; turn++) {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 4000, system, tools: CHAT_TOOLS, messages }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 4000, system: sysUse, tools, messages }),
     });
     if (!r.ok) throw new Error("Claude API " + r.status + ": " + (await r.text()).slice(0, 300));
     const out = await r.json();
@@ -397,7 +427,8 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
     for (const u of uses) {
       let res = "ok";
       try {
-        if (u.name === "add_todo") {
+        if (crew && !CREW_OK.includes(u.name)) { res = "error: not allowed for crew - Kyle handles that"; }
+        else if (u.name === "add_todo") {
           const { error } = await sb.from("gvc_todos").insert({ text: u.input.text, job_id: u.input.job_id || null, source: "chat", from_name: "Chat" });
           if (error) throw error; actions.push("Added to-do: " + u.input.text);
         } else if (u.name === "complete_todo") {
@@ -437,10 +468,34 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           const { error } = await sb.from("gvc_jobs").insert({ id, data });
           if (error) throw error;
           res = "created job id " + id;
+          if (crew) await sb.from("gvc_todos").insert({ text: `${ME} started a new job: ${u.input.name}${/^\s*\d{4}/.test(u.input.name || "") ? "" : " (no job number)"}`, job_id: id, source: "crew", from_name: ME });
           { const src = (u.input.tasks || []).filter((t: any) => t && t.name);
             const pl = tasks.map((a: any, ix: number) => ({ key: `j:${id}:${a.id}`, who: src[ix].who || [], date: src[ix].day, hours: src[ix].hours })).filter((x: any) => (isoDay(x.date) && x.who.length) || x.hours != null);
             await placePlan(sb, pl.map((x: any) => isoDay(x.date) && x.who.length ? x : { ...x, date: undefined, who: [] })); }
           actions.push(`Created job ${u.input.name}${tasks.length ? ` with ${tasks.length} task${tasks.length > 1 ? "s" : ""} (in Not scheduled on the Crew tab)` : ""}`);
+        } else if (u.name === "task_status" || (u.name === "punch" && u.input.action === "in")) {
+          const { data: row } = await sb.from("gvc_jobs").select("id,data").eq("id", u.input.job_id || "").maybeSingle();
+          if (!row) throw new Error("job not found");
+          const d = row.data || {}; const q = String(u.input.task || "").trim().toLowerCase(); const as = d.assemblies || [];
+          const a = as.find((x: any) => x.id === u.input.task) || as.find((x: any) => String(x.name).toLowerCase() === q) || as.find((x: any) => String(x.name).toLowerCase().includes(q) || (q && q.includes(String(x.name).toLowerCase())));
+          if (!a) throw new Error(`no task like "${u.input.task}" on ${d.name} - tasks are: ${as.map((x: any) => x.name).join(", ")}`);
+          if (u.name === "task_status") {
+            a.status = u.input.status; d.log = [...(d.log || []), { at: new Date().toISOString(), text: `${a.name}: ${u.input.status} (${ME}, Ask Claude)` }];
+            const { error } = await sb.from("gvc_jobs").update({ data: d }).eq("id", row.id); if (error) throw error;
+            if (u.input.status === "done") await sb.from("gvc_punches").update({ end_at: new Date().toISOString() }).eq("who", ME).eq("task_id", a.id).is("end_at", null);
+            res = `ok - ${a.name} is ${u.input.status}`; actions.push(`${a.name} (${d.name}) → ${({ bend: "waiting on bending", ready: "ready", prog: "in progress", qc: "inspection", done: "done" } as any)[u.input.status]}`);
+          } else {
+            const { error } = await sb.rpc("gvc_punch_in", { p_who: ME, p_job: row.id, p_task: a.id, p_job_name: d.name, p_task_name: a.name }); if (error) throw error;
+            const who = String(a.who || "").split(",").map((x: string) => x.trim()).filter(Boolean);
+            if (a.status === "ready" || !who.includes(ME)) { if (a.status === "ready") a.status = "prog"; if (!who.includes(ME)) a.who = [...who, ME].join(", ");
+              d.log = [...(d.log || []), { at: new Date().toISOString(), text: `${ME} punched in on ${a.name}` }]; await sb.from("gvc_jobs").update({ data: d }).eq("id", row.id); }
+            res = `ok - ${ME} punched in on ${a.name}`; actions.push(`⏱ ${ME} on the clock: ${a.name} (${d.name})`);
+          }
+        } else if (u.name === "punch") {
+          const { data: op } = await sb.from("gvc_punches").select("task_name,start_at").eq("who", ME).is("end_at", null).maybeSingle();
+          const { error } = await sb.rpc("gvc_punch_out", { p_who: ME }); if (error) throw error;
+          const h = op ? ((Date.now() - new Date(op.start_at).getTime()) / 36e5).toFixed(1) : "0";
+          res = op ? `ok - punched out of ${op.task_name} after ${h}h` : "ok - wasn't punched in"; actions.push(op ? `⏱ Punched out: ${op.task_name} (${h}h)` : "Wasn't punched in");
         } else if (u.name === "schedule_task") {
           const { data: row, error: e1 } = await sb.from("gvc_jobs").select("id,data").eq("id", u.input.job_id).single();
           if (e1 || !row) throw new Error("job not found");
@@ -466,6 +521,7 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
           actions.push(`My time ${u.input.date}: ${r.tot}h${u.input.confirm ? " (confirmed)" : ""}${r.sent ? " - already sent, press Send again to update" : ""} - press Send on My time when ready`);
         } else if (u.name === "propose_update") {
           const { summary, job_id, ...changes } = u.input;
+          if (crew) { for (const k of Object.keys(changes)) if (!["log", "tasks"].includes(k)) delete (changes as any)[k]; if ((changes as any).log) (changes as any).log = `${ME}: ${(changes as any).log}`; }
           const { data: ins, error } = await sb.from("gvc_suggestions").insert({ source: "chat", source_ref: "chat:" + Date.now() + "#" + (++n), from_name: "Ask Claude", source_at: new Date().toISOString(), source_text: String(messages.filter((m: any) => m.role === "user" && typeof m.content === "string").slice(-1)[0]?.content || ""), job_id: job_id || null, summary, changes, status: "new" }).select("id").single();
           if (error) throw error;
           const { data: ap, error: e2 } = await sb.rpc("gvc_apply_suggestion", { sid: ins.id, any_stage: true });
@@ -601,7 +657,7 @@ Deno.serve(async (req) => {
       if (!r.ok) return json({ error: "Whisper " + r.status }, 500);
       return json({ text: (await r.json()).text || "" });
     }
-    if (body.action === "chat") return json(await chat(sb, body.messages || [], body.context || {}));
+    if (body.action === "chat") { const { data: me } = await sb.rpc("gvc_me"); return json(await chat(sb, body.messages || [], body.context || {}, me || undefined)); }
     if (body.action === "ms_status") {
       const { data } = await msAdmin().from("gvc_ms").select("email,updated_at").eq("id", "main").maybeSingle();
       return json({ connected: !!data, email: data?.email || "", ready: !!Deno.env.get("MS_CLIENT_ID") });

@@ -174,7 +174,7 @@ nav.innerHTML=`<button class="ni" type="button" data-n="home">${svg("home")}HOME
   <button class="ni" type="button" data-n="crew">${svg("crew")}CREW<span class="bd" id="shCrewN" hidden></span></button>
   <button class="ni" type="button" data-n="more">${svg("more")}MORE<span class="bd" id="shMoreN" hidden></span></button>`;
 document.body.appendChild(nav);
-nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); go(n==="jobs"?lastJobs():n); });
+nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); go(n==="jobs"?(window.ME&&ME.role==="crew"?"build":lastJobs()):n); });
 top.querySelector("#shChat").onclick=()=>openChat();
 top.querySelector("#shBell").onclick=()=>go("todo");
 function note(m){ todoToast(m,null); const u=$("#toastUndo"); if(u) u.style.display="none"; }
@@ -272,6 +272,7 @@ async function j0log(id,text){ const j0=jobs.find(x=>x.id===id); if(!j0) return;
 let nuIdx=0;
 function renderHome(){
   const B=$("#board"); B.className="home"; B.style.gridTemplateColumns="";
+  if(window.ME&&ME.role==="crew"&&window.crewHome){ window.crewHome(B); return; }
   const items=nextUp(); if(nuIdx>=items.length) nuIdx=0;
   const today=new Date(); const P=window.gvcPlan; let crew=[];
   try{ const {M}=P.mc(); const d=P.iso(today);
@@ -306,6 +307,7 @@ function renderHome(){
       </section>
     </div>
   </div>`;
+  if(window.myDayHtml){ const md=window.myDayHtml(); if(md){ const hm=B.querySelector(".hm"); if(hm){ hm.insertAdjacentHTML("afterbegin",md); window.myDayWire&&window.myDayWire(hm); } } }
   const trk=$("#nuTrk");
   if(trk){
     const dots=()=>{ const i=Math.round(trk.scrollLeft/Math.max(1,trk.clientWidth)); nuIdx=i; $("#nuDots").querySelectorAll("i").forEach((d,k)=>d.classList.toggle("on",k===i)); const of=$("#nuOf"); if(of) of.textContent=`${i+1} OF ${items.length}`; };
@@ -362,7 +364,9 @@ function moreMenu(){
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
   const items=[["todo","To do","list"],["time","My time","clock",timeN],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["talks","Talks","rec"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
     ["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
-  sheet(`<h3>MENU</h3>${TALKBTN("mTalk","TALK TO CLAUDE")}<div class="mgrid">${items.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
+  const CREWOK=["inv","ncr","revs","archive","signout"];
+  const items2=window.ME&&ME.role==="crew"?items.filter(x=>CREWOK.includes(x[0])):items;
+  sheet(`<h3>MENU</h3>${TALKBTN("mTalk","TALK TO CLAUDE")}<div class="mgrid">${items2.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
     el.querySelector("#mTalk").onclick=()=>talk("",close);
     el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ const k=b.dataset.m; close();
       if(k==="talks"){ window.openRecaps&&window.openRecaps(); }
@@ -376,7 +380,8 @@ function moreMenu(){
 /* ---- quick-action wheel ---- */
 const ACTS=[["rec","RECORD","rec","#e5483b"],["count","COUNT","count","#f5b041"],["quick","QUICK JOB","bolt","#22c3e6"],["time","LOG TIME","clock","#3ad06b"],["todo","ADD TO-DO","check","#5aa7f3"],["chat","ASK CLAUDE","chat","#ff8a2a"]];
 // phone app only: Check texts on the wheel too (it also stays on the To do tab) (Kyle, 2026-11-04)
-const ACTL=()=>ACTS.concat(typeof Native!=="undefined"&&Native?[["sms","CHECK TEXTS","chat","#9b7bff"]]:[]);
+const CREW_ACTS=[["punch","PUNCH IN","clock","#3ad06b"],["mywork","ADD MY WORK","bolt","#22c3e6"],["count","COUNT","count","#f5b041"],["ncr","PROBLEM / NCR","warn","#e5483b"],["rev","REVISION","rev","#a374ff"],["chat","TALK","chat","#ff8a2a"]];
+const ACTL=()=>window.ME&&ME.role==="crew"?CREW_ACTS:ACTS.concat(typeof Native!=="undefined"&&Native?[["sms","CHECK TEXTS","chat","#9b7bff"]]:[]);
 const plus=$("#shPlus"); let whl=null, hot=null;
 function wheelOpen(){
   if(whl) return; const r=plus.getBoundingClientRect(); const phone=innerWidth<900;
@@ -397,6 +402,7 @@ plus.addEventListener("pointerup",()=>{ if(!downAt) return; downAt=0; if(hot&&sl
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") wheelClose(); });
 
 function act(k){
+  if(window.crewAct&&window.crewAct(k)) return;
   if(k==="chat") return openChat();
   if(k==="time") return go("time");
   if(k==="todo") return addTodoSheet();

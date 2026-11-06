@@ -29,6 +29,7 @@ st.textContent=`
 .cq .wait{padding:30px 10px;text-align:center;color:var(--muted)}
 `;
 document.head.appendChild(st);
+const toast=m=>{ if(typeof todoToast==="function"){ todoToast(m,null); const u=document.getElementById("toastUndo"); if(u) u.style.display="none"; } };
 const fmtD=x=>{ try{ return new Date(x).toLocaleDateString("en-CA",{month:"short",day:"numeric"}); }catch(e){ return ""; } };
 const kb=n=>n>1e6?(n/1e6).toFixed(1)+" MB":Math.max(1,Math.round((n||0)/1e3))+" KB";
 function show(html){ openId=null; $("#dlg").innerHTML=`<div class="cq">${html}</div>`; $("#scrim").classList.add("on"); }

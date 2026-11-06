@@ -531,7 +531,7 @@ function render(){
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
   { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
   if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="ncr"){ if(window.renderNcr) window.renderNcr(); } else if(cur==="ideas"){ if(window.renderIdeas) window.renderIdeas(); } else if(cur==="archive"){ if(window.renderArchive) window.renderArchive(); } else if(cur==="revs"){ if(window.renderRevs) window.renderRevs(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
-  const B=BOARDS.find(b=>b.k===cur);
+  const B=BOARDS.find(b=>b.k===cur); if(!B) return;   // e.g. "home" before the shell has loaded
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
   $("#board").innerHTML=B.stages.map(s=>{
@@ -794,6 +794,7 @@ function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 let wsLast="", wsT=null, wsAt=0;
 function cssCol(c){ const m=String(c||"").match(/var\((--[a-z0-9-]+)\)/i); const v=m?getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim():String(c||""); return /^#[0-9a-f]{3,8}$/i.test(v)?v:"#ffd28a"; }
 function publishTodo(){
+  if(window.ME&&ME.role==='crew') return;   // the widget shows Kyle's list - a crew phone must not overwrite it
   clearTimeout(wsT); wsT=setTimeout(async()=>{
     if(!db||!jobs.length) return;
     let items=[];
@@ -902,6 +903,9 @@ async function startApp(){
   const { data:key, error } = await sb.rpc("gvc_widget_key");
   if(error){ await sb.auth.signOut(); showLogin("This account isn't on the shop list yet. Ask Kyle to add your email.", true); return; }
   try{ Widget && await Widget.setKey({ key }); }catch(e){}
+  // who's signed in: Kyle (admin) or crew (Colton) - crew gets the shop-floor side only (Nov 5)
+  try{ const r=await sb.rpc("gvc_me"); window.ME=r.data||{name:"Kyle",role:"admin"}; }catch(e){ window.ME={name:"Kyle",role:"admin"}; }
+  document.body.classList.toggle("crew",window.ME.role==="crew");
   $("#login").hidden=true; $("#app").hidden=false; $("#chatFab").hidden=$("#chatP").classList.contains("on");
   db=sb; await loadJobs(); loadSide(); setTimeout(()=>checkTexts(false),1500);
   if(Native){ try{ const st=await Native.recStatus(); if(st.on&&!recState.on){ recState.on=true; recState.t0=st.startedAt||Date.now(); recState.timer=setInterval(()=>{const b=$("#recBtn"); if(b) b.textContent="■ Stop recording "+recClock();},1000); render(); } }catch(e){} }
@@ -1280,6 +1284,7 @@ async function acceptSugg(id){
 /* ---- texts (phone app) ---- */
 let smsBusy=false, smsLast=0;
 async function checkTexts(manual){
+  if(window.ME&&ME.role==='crew') return;   // crew phones don't feed their texts into Kyle's board
   if(!Native||smsBusy) return; if(!manual&&Date.now()-smsLast<5*60000) return;
   const contacts=LS.get("gvc_sms_contacts",[]);
   if(!contacts.length){ if(manual) pickContacts(); return; }
@@ -1491,5 +1496,6 @@ render();
 <script src="shell.js"></script>
 <script src="recaps.js"></script>
 <script src="quotes.js"></script>
+<script src="punch.js"></script>
 </body>
 </html>
