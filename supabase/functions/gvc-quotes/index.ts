@@ -83,7 +83,25 @@ async function find(db: any, job: any) {
 
 function b64(u8: Uint8Array) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); }
 
+/* Compare from the price lines already read into gvc_prices (the app reads each doc first, one request each),
+   so this call is text-only and quick - no more 150 s timeouts with many PDFs. (Nov 5) */
+async function compareLines(db: any, job: any, ids: string[]) {
+  const { data: rows } = await db.from("gvc_prices").select("source,vendor,doc_type,doc_no,doc_date,doc_name,item,part_no,kind,material,size,length_ft,qty,unit,unit_price,line_total,per_ft,note").in("source", ids);
+  const have = new Set((rows || []).map((r: any) => r.source)); const need = ids.filter((i) => !have.has(i));
+  if (!rows?.length) throw new Error("no prices could be read off those documents");
+  const d = job.data || {};
+  const docs: any = {}; (rows || []).forEach((r: any) => { const k = r.source; (docs[k] = docs[k] || { vendor: r.vendor, type: r.doc_type, no: r.doc_no, date: r.doc_date, name: r.doc_name, lines: [] }).lines.push(
+    [r.item, r.part_no, r.size, r.material, r.length_ft ? r.length_ft + "ft" : "", r.qty != null ? "qty " + r.qty + (r.unit ? " " + r.unit : "") : "", r.unit_price != null ? "@" + r.unit_price : "", r.line_total != null ? "= $" + r.line_total : "", r.per_ft != null ? "($" + r.per_ft + "/ft)" : "", r.note || ""].filter(Boolean).join(" | ")); });
+  const text = Object.values(docs).map((x: any) => `=== ${x.vendor} · ${x.type || ""} ${x.no || ""} · ${x.date || ""} · ${x.name}\n${x.lines.join("\n")}`).join("\n\n");
+  const used = Object.values(docs).map((x: any) => x.name);
+  return { text, used, need, job: d.name };
+}
 async function compare(db: any, job: any, ids: string[]) {
+  const pre = await compareLines(db, job, ids);
+  if (pre) return await compareText(job, pre);
+  return null;
+}
+async function compareOld(db: any, job: any, ids: string[]) {
   if (!ids?.length) throw new Error("pick at least one quote");
   const blocks: any[] = []; const used: string[] = [];
   for (const id of ids.slice(0, 8)) {
@@ -137,6 +155,39 @@ Line items up across vendors: same part or same material/size on one row even if
   const tu = (out.content || []).find((c: any) => c.type === "tool_use");
   if (!tu) throw new Error("no report came back");
   return { job: d.name, used, report: tu.input };
+}
+async function compareText(job: any, pre: any) {
+  const d = job.data || {};
+  const tool = {
+    name: "report", description: "The quote comparison for Kyle",
+    input_schema: { type: "object", properties: {
+      summary: { type: "string", description: "2-4 short lines, shop language: who is cheaper overall and by how much, the biggest differences, anything that makes the totals not apples-to-apples" },
+      vendors: { type: "array", items: { type: "object", properties: {
+        name: { type: "string" }, quote_no: { type: "string" }, date: { type: "string" }, total: { type: "string", description: "as written, with currency; say if before/after tax" },
+        total_num: { type: "number", description: "pre-tax total as a number, if known" }, lead: { type: "string" }, terms: { type: "string", description: "freight, delivery, validity, payment, tax, cutting/handling charges" },
+        doc: { type: "string", description: "document name it came from" } }, required: ["name"] } },
+      lines: { type: "array", description: "Items lined up across vendors (same part/material on one row). Include every priced item.", items: { type: "object", properties: {
+        item: { type: "string" }, qty: { type: "string" },
+        prices: { type: "array", items: { type: "object", properties: { vendor: { type: "string" }, price: { type: "string", description: "line total as written, or 'not quoted'" }, unit: { type: "string" } }, required: ["vendor", "price"] } },
+        low: { type: "string", description: "vendor with the lowest price, blank if only one quoted it" }, diff: { type: "string", description: "how much more the highest is than the lowest, $ and %" }, note: { type: "string" } }, required: ["item", "prices"] } },
+      gaps: { type: "array", items: { type: "string" }, description: "items one vendor quoted and another didn't, quantity or material mismatches, things to ask about" },
+    }, required: ["summary", "vendors", "lines"] },
+  };
+  const sys = `You compare supplier quotes for Kyle (shop lead at Gordeyville Customs, a fab shop in Grande Prairie). Job: ${d.name}. Suppliers on the job: ${(d.suppliers || []).map((s: any) => s.name + (s.quoteNo ? " #" + s.quoteNo : "")).join(", ") || "none listed"}.
+Read every document. Order acknowledgements and invoices are prices already agreed, not competing bids - still list each as a vendor with its total. If no item was priced by two different vendors, say that plainly in the first line of the summary (e.g. "Nothing here overlaps - these are separate orders, not competing quotes") and still fill vendors with each document's total.
+A document that isn't a quote (a drawing, a BOM Kyle sent, a signature) - ignore it and say so in gaps.
+Line items up across vendors: same part or same material/size on one row even if worded differently. Use the vendors' own numbers - never estimate a price that isn't written. If one vendor quotes per piece and another per lot, compare like for like and say so. Point out what they charge more or less for, quantity/material differences, extra charges (cutting, freight, setup, minimums), lead times. Dollars as written (CAD).`;
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: MODEL, max_tokens: 16000, system: sys, tools: [tool],
+      messages: [{ role: "user", content: "Price lines read off each document (one block per document):\n\n" + pre.text + "\n\nCompare these quotes. Answer only by calling the report tool." }] }),
+  });
+  const out = await r.json();
+  if (!r.ok) throw new Error("Claude: " + (out?.error?.message || r.status));
+  const tu = (out.content || []).find((c: any) => c.type === "tool_use");
+  if (!tu) throw new Error("no report came back");
+  return { job: pre.job, used: pre.used, report: tu.input, missing: pre.need.length };
 }
 
 /* ---------- price history (Kyle, Nov 5): read every priced line off a vendor doc into gvc_prices ---------- */

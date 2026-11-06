@@ -35,7 +35,7 @@ const kb=n=>n>1e6?(n/1e6).toFixed(1)+" MB":Math.max(1,Math.round((n||0)/1e3))+" 
 function show(html){ openId=null; $("#dlg").innerHTML=`<div class="cq">${html}</div>`; $("#scrim").classList.add("on"); }
 async function call(body){
   const r=await sb.functions.invoke("gvc-quotes",{body});
-  if(r.error){ let m=r.error.message; try{ const j=await r.error.context.json(); m=j.error||m; }catch(e){} throw new Error(m); }
+  if(r.error){ let m=r.error.message; try{ const t=await r.error.context.text(); try{ m=JSON.parse(t).error||t||m; }catch(e2){ m=t||m; } }catch(e){} if(/credit balance/i.test(m)) m="The Claude account the app uses is out of credit - top it up at console.anthropic.com (Plans & Billing), then try again."; throw new Error(m); }
   return r.data;
 }
 const close=`<button class="btn" type="button" onclick="closeDlg()">Close</button>`;
@@ -55,10 +55,17 @@ window.compareQuotes=async jobId=>{
   go.onclick=async()=>{
     const ids=[...document.querySelectorAll("[data-q]:checked")].map(x=>docs[+x.dataset.q].id);
     if(!ids.length){ toast("Tick at least one quote"); return; }
-    if(window.priceExtract) window.priceExtract(ids);   // also keeps their prices in Price history
-    show(`<h3>COMPARE QUOTES</h3><div class="wait">Reading ${ids.length} quote${ids.length>1?"s":""} and lining up the prices… (about a minute)</div>`);
-    let c;
-    try{ c=await call({action:"compare",job_id:jobId,docs:ids}); }
+    // read each quote's prices first (one request per document - also fills Price history), then compare the lines
+    let c, failed=[];
+    try{
+      for(let i=0;i<ids.length;i++){
+        const d=docs.find(x=>x.id===ids[i])||{};
+        show(`<h3>COMPARE QUOTES</h3><div class="wait">Reading ${i+1} of ${ids.length}: ${esc(d.name||"")}…<div class="prog" style="height:6px;border-radius:3px;background:#22252a;overflow:hidden;margin:12px auto 0;max-width:360px"><i style="display:block;height:100%;background:#ff8a2a;width:${Math.round(i/ids.length*100)}%"></i></div></div>`);
+        try{ await call({action:"extract",doc:ids[i],job_id:jobId}); }catch(e){ if(/out of credit/.test(e.message)) throw e; failed.push(d.name||ids[i]); }
+      }
+      show(`<h3>COMPARE QUOTES</h3><div class="wait">Lining up the prices…</div>`);
+      c=await call({action:"compare",job_id:jobId,docs:ids}); c.failed=failed;
+    }
     catch(e){ show(`<h3>COMPARE QUOTES</h3><div class="err" style="margin:12px 0">${esc(e.message)}</div><div class="row"><button class="btn ghost" type="button" id="cqBack">← Job</button><span style="flex:1"></span>${close}</div>`); $("#cqBack").onclick=back; return; }
     report(c,jobId);
   };
@@ -69,6 +76,7 @@ function report(c,jobId){
   const best=nums.filter(x=>x!=null).length>1?Math.min(...nums.filter(x=>x!=null)):null;
   const vnames=V.map(v=>v.name);
   const body=`<h3>QUOTE COMPARISON</h3><div class="cqsub">${esc(c.job)} · ${fmtD(new Date())} · from ${c.used.map(esc).join(", ")}</div>
+    ${c.failed&&c.failed.length?`<div class="err" style="margin-bottom:10px">Couldn't read: ${c.failed.map(esc).join(", ")}</div>`:""}
     <div class="sum">${esc(R.summary||"")}</div>
     <div class="vend">${V.map((v,i)=>`<div class="vc ${best!=null&&nums[i]===best?"best":""}"><div class="vn">${esc(v.name)}${best!=null&&nums[i]===best?`<span class="tag">LOWEST</span>`:""}</div>
       <div class="vt">${esc(v.total||"-")}</div>${best!=null&&nums[i]!=null&&nums[i]!==best?`<small style="color:#ff9b91">+$${(nums[i]-best).toLocaleString("en-CA",{maximumFractionDigits:2})} (${Math.round((nums[i]-best)/best*100)}%)</small>`:""}

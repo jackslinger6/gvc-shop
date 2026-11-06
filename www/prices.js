@@ -85,7 +85,7 @@ function draw(){
     c.onmouseenter=c.onclick=()=>{ const r=ch.getBoundingClientRect(), b=c.getBoundingClientRect(); tip.textContent=c.dataset.t; tip.style.left=(b.left+b.width/2-r.left)+"px"; tip.style.top=(b.top-r.top)+"px"; tip.style.display="block"; };
     c.onmouseleave=()=>{ tip.style.display="none"; }; }); });
 }
-async function call(body){ const r=await sb.functions.invoke("gvc-quotes",{body}); if(r.error){ let m=r.error.message; try{ m=(await r.error.context.json()).error||m; }catch(e){} throw new Error(m); } return r.data; }
+async function call(body){ const r=await sb.functions.invoke("gvc-quotes",{body}); if(r.error){ let m=r.error.message; try{ const t=await r.error.context.text(); try{ m=JSON.parse(t).error||t||m; }catch(e2){ m=t||m; } }catch(e){} if(/credit balance/i.test(m)) m="The Claude account the app uses is out of credit - top it up at console.anthropic.com (Plans & Billing), then try again."; throw new Error(m); } return r.data; }
 async function scanUI(){
   const box=$("#prScanBox"); box.innerHTML=`<div class="tnote">Looking through the last 6 months of email for vendor quotes, order acks and invoices…</div>`;
   let docs; try{ docs=(await call({action:"scan",days:180})).docs||[]; }catch(e){ box.innerHTML=`<div class="err">${esc(e.message)}</div>`; return; }
