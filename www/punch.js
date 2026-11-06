@@ -29,6 +29,12 @@ st.textContent=`
 .mday .pin{background:linear-gradient(180deg,#5be38a,#2fae5b);color:#0b1a10}.mday .pout{background:#e5483b;color:#fff}.mday .pdn{background:rgba(255,255,255,.07);color:#e9e6e1;border:1px solid #33373e!important}
 @media (max-width:600px){ .mday .row2{grid-template-columns:1fr auto;row-gap:2px} .mday .tm{grid-column:1/-1;min-width:0} .mday .nm b{white-space:normal} .mday .bt button{height:44px} }
 .mday .none{color:var(--dim);font-size:13px;margin:0 2px 4px}
+.pkh{font:600 11.5px Oswald,sans-serif;letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
+.pkt{display:block;width:100%;text-align:left;border:1px solid #2a2e34;border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin-bottom:6px;cursor:pointer;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--c) 12%,#17191d),#15171a 60%);color:var(--text);font:inherit}
+.pkt b{display:block;font-size:14.5px;font-weight:600}.pkt small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.pkt.on{border-color:#3ad06b;box-shadow:0 0 0 1px #3ad06b inset}.pkt:active{transform:scale(.99)}
+.mday .pdn{font-size:12px!important;padding:0 10px!important}
 .mday .dh{font:600 11.5px Oswald,sans-serif;letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
 .mday .add{width:100%;border:1px dashed #3a3e45;background:none;color:#cfd3d8;border-radius:12px;padding:10px;font:500 14px Inter,sans-serif;cursor:pointer;margin-top:4px}
 .jtime table{width:100%;border-collapse:collapse;font-size:13.5px}.jtime td,.jtime th{padding:6px 8px;border-bottom:1px solid #22252a;text-align:left}
@@ -105,6 +111,7 @@ async function punchOut(){
 }
 async function doneTask(jid,aid){
   if(preview()){ toast(PV); return; }
+  { const j0=jobs.find(x=>x.id===jid); const a0=j0&&(j0.assemblies||[]).find(x=>x.id===aid); if(!confirm(`Is "${a0?a0.name:"this task"}" finished?\n\nThis marks it Done for everyone. (To just switch to something else, punch in on the other task instead.)`)) return; }
   if(open&&open.job_id===jid&&open.task_id===aid) await punchOut();
   const j=jobs.find(x=>x.id===jid); const a=j&&(j.assemblies||[]).find(x=>x.id===aid);
   await setTask(jid,aid,x=>{ x.status="done"; },`${a?a.name:"Task"}: Done (${me()})`);
@@ -135,7 +142,7 @@ function rowHtml(x){
   const j=jobs.find(y=>y.id===x.jid); const a=j&&(j.assemblies||[]).find(y=>y.id===x.aid);
   return `<div class="row2 ${on?"on":""} ${dn?"dn":""}" style="--c:${x.color}"><span class="tm">${esc(x.time||"")}</span>
     <div class="nm" data-oj="${esc(x.jid)}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${a&&a.status==="prog"?" · in progress":""}</small></div>
-    <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ PUNCH IN</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}">✓</button>`}</div></div>`;
+    <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ PUNCH IN</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ DONE</button>`}</div></div>`;
 }
 window.myDayHtml=()=>{
   const T=myTasks(); const n=T.days.reduce((s,d)=>s+d.rows.length,0)+T.other.length;
@@ -291,12 +298,14 @@ function pickTask(){
   const mine=[], other=[];
   jobs.filter(j=>j.stage!=="done"&&!j.archived).forEach(j=>(j.assemblies||[]).forEach(a=>{ if(a.status==="done") return;
     (String(a.who||"").split(",").map(x=>x.trim()).includes(me())?mine:other).push({j,a}); }));
-  const item=x=>`<button class="add" type="button" data-pt="${esc(x.j.id)}|${esc(x.a.id)}" style="text-align:left;border-style:solid"><b>${esc(x.a.name)}</b><span style="display:block;color:var(--muted);font-size:12px">${esc(x.j.name)}${x.a.who?" · "+esc(x.a.who):""}</span></button>`;
+  const item=x=>{ const on=open&&open.job_id===x.j.id&&open.task_id===x.a.id; const c=window.jobColor?window.jobColor(x.j.id):"#8e96a3";
+    return `<button class="pkt ${on?"on":""}" type="button" data-pt="${esc(x.j.id)}|${esc(x.a.id)}" style="--c:${c}"><b>${esc(x.a.name)}</b><small>${esc(x.j.name)}${x.a.who?" · "+esc(x.a.who):""}${on?" · ON THE CLOCK":""}</small></button>`; };
   const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>PUNCH IN ON…</h3>
-    ${mine.length?`<div class="tnote" style="margin:4px 0">YOUR TASKS</div>${mine.map(item).join("")}`:""}
-    ${other.length?`<div class="tnote" style="margin:10px 0 4px">EVERYTHING ELSE</div>${other.map(item).join("")}`:""}
+    <div class="tnote" style="margin:-4px 0 10px">Switching to another task stops the clock on the last one - it doesn't finish it. Only ✓ Done finishes a task.</div>
+    ${mine.length?`<div class="pkh">YOUR TASKS</div>${mine.map(item).join("")}`:""}
+    ${other.length?`<div class="pkh">HELPING SOMEONE ELSE</div>${other.map(item).join("")}`:""}
     ${!mine.length&&!other.length?`<div class="tnote">No open tasks on any job.</div>`:""}
-    ${isCrew()?`<button class="add" type="button" data-pw="1">+ It's not on the list - I'm doing something else</button>`:""}</div>`;
+    ${isCrew()?`<button class="pkt" type="button" data-pw="1" style="--c:#3a3e45;margin-top:8px;border-style:dashed;text-align:center"><b>+ It's not on the list - I'm doing something else</b></button>`:""}</div>`;
   document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
   const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
   ov.onclick=e=>{ if(e.target===ov) close(); };
@@ -332,6 +341,7 @@ const _render=render;
 render=function(){
   if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home";
   _render();
+  { const cb=document.getElementById("crewBar"); if(cb) cb.style.display=cur==="crew"?"":"none"; }
   if(!bar.hidden&&open){ const c=$("#pClk"); if(c) c.textContent=hm(Date.now()-new Date(open.start_at)); }
 };
 // pick up the clock once signed in, and when another device punches

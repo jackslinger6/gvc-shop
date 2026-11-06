@@ -132,7 +132,7 @@ document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==
 window.addEventListener("focus",()=>{ if(db&&planLoaded&&!saving) loadPlan(); });
 let lastSaveAt=0, saving=false, saveChain=Promise.resolve();
 // Saves only if nobody else changed the plan since we loaded it; otherwise reload instead of overwriting their change.
-function savePlan(){ if(window.ME&&ME.role==="crew"){ say("Only Kyle changes the week plan."); loadPlan(); return Promise.resolve(); } saveChain=saveChain.then(doSave,doSave); return saveChain; }
+function savePlan(){ if(window.ME&&ME.role==="crew") return Promise.resolve();   /* crew never writes the plan */ saveChain=saveChain.then(doSave,doSave); return saveChain; }
 async function doSave(){
   if(!planLoaded||!planVer){ await loadPlan(true); say("Couldn't save yet - the plan hadn't loaded. Loaded it now; redo your last change."); return false; }
   saving=true; lastSaveAt=Date.now();
