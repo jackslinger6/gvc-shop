@@ -75,7 +75,10 @@ async function setTask(jid,aid,fn,logText){
   if(logText) j.log=[...(j.log||[]),{at:new Date().toISOString(),text:logText}];
   try{ await saveJob(jid,j); }catch(e){}
 }
+const preview=()=>!!(window.ME&&ME.preview);
+const PV="Preview - nothing is saved. Exit the preview to punch in for real.";
 async function punchIn(jid,aid){
+  if(preview()){ toast(PV); return; }
   const j=jobs.find(x=>x.id===jid); const a=j&&(j.assemblies||[]).find(x=>x.id===aid); if(!a) return;
   const r=await sb.rpc("gvc_punch_in",{p_who:me(),p_job:jid,p_task:aid,p_job_name:j.name,p_task_name:a.name});
   if(r.error){ toast("Couldn't punch in: "+r.error.message); return; }
@@ -85,6 +88,7 @@ async function punchIn(jid,aid){
   delete jobPunches[jid]; await load(); toast(`On the clock: ${a.name}`);
 }
 async function punchOut(){
+  if(preview()){ toast(PV); return; }
   const was=open; const r=await sb.rpc("gvc_punch_out",{p_who:me()});
   if(r.error){ toast("Couldn't punch out: "+r.error.message); return; }
   if(was) delete jobPunches[was.job_id];
@@ -92,6 +96,7 @@ async function punchOut(){
   render();
 }
 async function doneTask(jid,aid){
+  if(preview()){ toast(PV); return; }
   if(open&&open.job_id===jid&&open.task_id===aid) await punchOut();
   const j=jobs.find(x=>x.id===jid); const a=j&&(j.assemblies||[]).find(x=>x.id===aid);
   await setTask(jid,aid,x=>{ x.status="done"; },`${a?a.name:"Task"}: Done (${me()})`);
@@ -126,11 +131,11 @@ function rowHtml(x){
 }
 window.myDayHtml=()=>{
   const T=myTasks(); const n=T.days.reduce((s,d)=>s+d.rows.length,0)+T.other.length;
-  if(!isCrew()&&!n&&!open) return "";
+
   return `<section class="mday" aria-label="My day"><h4><span>MY DAY · ${esc(me()).toUpperCase()}</span>${open?`<span style="color:#7ff0a8">ON THE CLOCK</span>`:`<span>NOT PUNCHED IN</span>`}</h4>
     ${T.days.map(d=>`${T.days.length>1?`<div class="dh">${d.label}</div>`:""}${d.rows.map(rowHtml).join("")||`<div class="none">Nothing planned${d.label==="TODAY"?" for you today":""}.</div>`}`).join("")}
     ${T.other.length?`<div class="dh">ALSO ON YOU</div>${T.other.map(rowHtml).join("")}`:""}
-    ${isCrew()?`<button class="add" type="button" data-addw="1">+ I'm doing something else</button>`:""}</section>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="add" type="button" data-pick="1" style="flex:1;border-style:solid;border-color:rgba(58,208,107,.5);color:#7ff0a8">▶ Punch in on any task…</button>${isCrew()?`<button class="add" type="button" data-addw="1" style="flex:1">+ I'm doing something else</button>`:`<button class="add" type="button" data-crewv="1" style="flex:0 0 auto;width:auto;padding:10px 14px">👁 See Colton's view</button>`}</div></section>`;
 };
 window.myDayWire=root=>{
   root.querySelectorAll("[data-pin]").forEach(b=>b.onclick=()=>{ const [j,a]=b.dataset.pin.split("|"); punchIn(j,a); });
@@ -138,6 +143,8 @@ window.myDayWire=root=>{
   root.querySelectorAll("[data-pdn]").forEach(b=>b.onclick=()=>{ const [j,a]=b.dataset.pdn.split("|"); doneTask(j,a); });
   root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>{ if(b.dataset.oj) openJob(b.dataset.oj); });
   root.querySelectorAll("[data-addw]").forEach(b=>b.onclick=()=>addMyWork());
+  root.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>pickTask());
+  root.querySelectorAll("[data-crewv]").forEach(b=>b.onclick=()=>window.crewPreview(true));
 };
 window.crewHome=B=>{
   B.innerHTML=`<div class="hm shanim">${window.myDayHtml()}</div>`;
@@ -181,6 +188,7 @@ drawDlg=function(){
 
 /* ---- crew: add my own work ---- */
 function addMyWork(){
+  if(preview()){ toast(PV); return; }
   const act=jobs.filter(j=>j.stage!=="done"&&!j.archived).sort((a,b)=>String(a.name).localeCompare(String(b.name),undefined,{numeric:true}));
   const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>I'M DOING SOMETHING ELSE</h3>
     <label>What are you doing<input id="mwWhat" placeholder="e.g. Grinding welds on the headache rack"></label>
@@ -220,8 +228,39 @@ function pickJob(title,fn){
   ov.onclick=e=>{ if(e.target===ov) close(); };
   ov.querySelectorAll("[data-pj]").forEach(b=>b.onclick=()=>{ close(); fn(b.dataset.pj); });
 }
+/* pick any task on an active job to punch into (my tasks first) */
+function pickTask(){
+  const mine=[], other=[];
+  jobs.filter(j=>j.stage!=="done"&&!j.archived).forEach(j=>(j.assemblies||[]).forEach(a=>{ if(a.status==="done") return;
+    (String(a.who||"").split(",").map(x=>x.trim()).includes(me())?mine:other).push({j,a}); }));
+  const item=x=>`<button class="add" type="button" data-pt="${esc(x.j.id)}|${esc(x.a.id)}" style="text-align:left;border-style:solid"><b>${esc(x.a.name)}</b><span style="display:block;color:var(--muted);font-size:12px">${esc(x.j.name)}${x.a.who?" · "+esc(x.a.who):""}</span></button>`;
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>PUNCH IN ON…</h3>
+    ${mine.length?`<div class="tnote" style="margin:4px 0">YOUR TASKS</div>${mine.map(item).join("")}`:""}
+    ${other.length?`<div class="tnote" style="margin:10px 0 4px">EVERYTHING ELSE</div>${other.map(item).join("")}`:""}
+    ${!mine.length&&!other.length?`<div class="tnote">No open tasks on any job.</div>`:""}
+    ${isCrew()?`<button class="add" type="button" data-pw="1">+ It's not on the list - I'm doing something else</button>`:""}</div>`;
+  document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
+  const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  ov.querySelectorAll("[data-pt]").forEach(b=>b.onclick=()=>{ close(); const [j,a]=b.dataset.pt.split("|"); punchIn(j,a); });
+  ov.querySelectorAll("[data-pw]").forEach(b=>b.onclick=()=>{ close(); addMyWork(); });
+}
+window.pickTask=pickTask;
+/* Kyle can look at the app the way Colton sees it (nothing saved while previewing) */
+const pvBar=document.createElement("div"); pvBar.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1200;background:#9085e9;color:#0b0b14;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:6px 8px 6px 14px;border-radius:0 0 12px 12px;display:none;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.5)";
+pvBar.innerHTML=`👁 CREW PREVIEW · WHAT COLTON SEES <button type="button" style="border:none;border-radius:8px;background:#0b0b14;color:#fff;font:600 12px Oswald,sans-serif;letter-spacing:.08em;padding:5px 10px;cursor:pointer">EXIT</button>`;
+document.body.appendChild(pvBar);
+let realMe=null, realOpen=null;
+window.crewPreview=on=>{
+  if(on){ if(window.ME&&ME.preview) return; realMe=window.ME; realOpen=open; window.ME={name:"Colton",role:"crew",preview:true}; open=null; pvBar.style.display="flex"; }
+  else { if(!(window.ME&&ME.preview)) return; window.ME=realMe; open=realOpen; pvBar.style.display="none"; }
+  document.body.classList.toggle("crew",!!(window.ME&&ME.role==="crew"));
+  paint(); shellGo("home");
+  if(!on) load();
+};
+pvBar.querySelector("button").onclick=()=>window.crewPreview(false);
 window.crewAct=k=>{
-  if(k==="punch"){ shellGo("home"); return true; }
+  if(k==="punch"){ pickTask(); return true; }
   if(k==="mywork"){ addMyWork(); return true; }
   if(k==="ncr"){ pickJob("PROBLEM ON WHICH JOB?",id=>{ openJob(id); setTimeout(()=>{ const b=$("#ncrAdd"); if(b) b.click(); },150); }); return true; }
   if(k==="rev"){ pickJob("REVISION FOR WHICH JOB?",id=>{ if(window.newRevision) window.newRevision({job:id}); }); return true; }

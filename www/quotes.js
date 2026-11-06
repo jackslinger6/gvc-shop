@@ -7,7 +7,7 @@
 const st=document.createElement("style");
 st.textContent=`
 .cq h3{margin:0;font:600 20px Oswald,sans-serif;letter-spacing:.06em}
-.cq .sub{color:var(--muted);font-size:12.5px;margin:2px 0 12px}
+.cq .cqsub{color:var(--muted);font-size:12.5px;margin:2px 0 12px}
 .cq .doc{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:rgba(0,0,0,.2);cursor:pointer}
 .cq .doc input{margin-top:3px;width:18px;height:18px;accent-color:#ff8a2a}
 .cq .doc b{font-size:14px;word-break:break-word}.cq .doc small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
@@ -46,8 +46,8 @@ window.compareQuotes=async jobId=>{
   try{ f=await call({action:"find",job_id:jobId}); }
   catch(e){ show(`<h3>COMPARE QUOTES</h3><div class="err" style="margin:12px 0">${esc(e.message)}</div><div class="row"><button class="btn ghost" type="button" id="cqBack">← Job</button><span style="flex:1"></span>${close}</div>`); $("#cqBack").onclick=back; return; }
   const docs=f.docs||[];
-  show(`<h3>COMPARE QUOTES</h3><div class="sub">${esc(f.job)} · ${docs.length?`found ${docs.length} document${docs.length>1?"s":""} - tick the quotes to compare`:"no quote documents found"}</div>
-    ${docs.map((d,i)=>`<label class="doc"><input type="checkbox" data-q="${i}" ${d.likely?"checked":""}><span><b>${esc(d.name)}</b><small>${esc(d.from)} · ${fmtD(d.at)} · ${kb(d.size)}${d.subject?` · ${esc(d.subject)}`:""}</small></span></label>`).join("")||
+  show(`<h3>COMPARE QUOTES</h3><div class="cqsub">${esc(f.job)} · ${docs.length?`found ${docs.length} document${docs.length>1?"s":""} - tick the competing quotes to compare (order acks and invoices are what you already ordered - for those, use Prices)`:"no quote documents found"}</div>
+    ${docs.map((d,i)=>`<label class="doc"><input type="checkbox" data-q="${i}" ${d.likely?"checked":""}><span><b>${esc(d.name)}</b>${d.type?` <em style="font:600 10.5px Oswald,sans-serif;letter-spacing:.1em;padding:1px 6px;border-radius:5px;margin-left:4px;font-style:normal;${d.type==="quote"?"background:#ff8a2a;color:#111":"background:#2a2e34;color:#cfd3d8"}">${esc(d.type.toUpperCase())}</em>`:""}<small>${esc(d.from)} · ${fmtD(d.at)} · ${kb(d.size)}${d.subject?` · ${esc(d.subject)}`:""}</small></span></label>`).join("")||
       `<div class="tnote">Nothing in Outlook mentions this job's number, its quote numbers or its name with a PDF attached. If a quote came under another subject, forward it to yourself with the job number in the subject and try again.</div>`}
     <div class="row" style="margin-top:12px;gap:8px"><button class="btn ghost" type="button" id="cqBack">← Job</button><span style="flex:1"></span>${docs.length?`<button class="btn primary" type="button" id="cqGo">Compare</button>`:""}${close}</div>`);
   $("#cqBack").onclick=back;
@@ -55,6 +55,7 @@ window.compareQuotes=async jobId=>{
   go.onclick=async()=>{
     const ids=[...document.querySelectorAll("[data-q]:checked")].map(x=>docs[+x.dataset.q].id);
     if(!ids.length){ toast("Tick at least one quote"); return; }
+    if(window.priceExtract) window.priceExtract(ids);   // also keeps their prices in Price history
     show(`<h3>COMPARE QUOTES</h3><div class="wait">Reading ${ids.length} quote${ids.length>1?"s":""} and lining up the prices… (about a minute)</div>`);
     let c;
     try{ c=await call({action:"compare",job_id:jobId,docs:ids}); }
@@ -67,7 +68,7 @@ function report(c,jobId){
   const nums=V.map(v=>typeof v.total_num==="number"&&v.total_num>0?v.total_num:null);
   const best=nums.filter(x=>x!=null).length>1?Math.min(...nums.filter(x=>x!=null)):null;
   const vnames=V.map(v=>v.name);
-  const body=`<h3>QUOTE COMPARISON</h3><div class="sub">${esc(c.job)} · ${fmtD(new Date())} · from ${c.used.map(esc).join(", ")}</div>
+  const body=`<h3>QUOTE COMPARISON</h3><div class="cqsub">${esc(c.job)} · ${fmtD(new Date())} · from ${c.used.map(esc).join(", ")}</div>
     <div class="sum">${esc(R.summary||"")}</div>
     <div class="vend">${V.map((v,i)=>`<div class="vc ${best!=null&&nums[i]===best?"best":""}"><div class="vn">${esc(v.name)}${best!=null&&nums[i]===best?`<span class="tag">LOWEST</span>`:""}</div>
       <div class="vt">${esc(v.total||"-")}</div>${best!=null&&nums[i]!=null&&nums[i]!==best?`<small style="color:#ff9b91">+$${(nums[i]-best).toLocaleString("en-CA",{maximumFractionDigits:2})} (${Math.round((nums[i]-best)/best*100)}%)</small>`:""}
@@ -78,7 +79,7 @@ function report(c,jobId){
           return `<td class="${nq?"nq":l.low&&String(l.low).toLowerCase().split(/\s/)[0]===String(n).toLowerCase().split(/\s/)[0]?"low":""}">${nq?"not quoted":esc(x.price)}${x&&x.unit&&!nq?`<small>${esc(x.unit)}</small>`:""}</td>`; }).join("")}
         <td>${esc(l.diff||"")}</td></tr>`; }).join("")}</tbody></table></div>`:""}
     ${G.length?`<div class="h">CHECK BEFORE YOU PICK</div><ul>${G.map(g=>`<li>${esc(g)}</li>`).join("")}</ul>`:""}`;
-  show(body+`<div class="row" style="margin-top:14px;gap:8px"><button class="btn ghost" type="button" id="cqBack">← Job</button><button class="btn" type="button" id="cqPrint">Print / PDF</button><span style="flex:1"></span>${close}</div>`);
+  show(body+`<div class="row" style="margin-top:14px;gap:8px"><button class="btn ghost" type="button" id="cqBack">← Job</button><button class="btn" type="button" id="cqPrint">Print / PDF</button><button class="btn" type="button" onclick="window.openPrices&&window.openPrices('')">Price history</button><span style="flex:1"></span>${close}</div>`);
   $("#cqBack").onclick=()=>openJob(jobId);
   $("#cqPrint").onclick=()=>{ const w=window.open("","_blank"); if(!w){ toast("Allow pop-ups to print"); return; }
     w.document.write(`<!doctype html><html><head><title>Quote comparison - ${esc(c.job)}</title><style>body{font:13px Arial,sans-serif;margin:24px;color:#111}h3{font-size:20px;margin:0}.sub{color:#555;margin:4px 0 12px}.sum{white-space:pre-wrap;border-left:4px solid #e8711a;padding:8px 12px;background:#fff4ea;margin-bottom:12px}.vend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}.vc{border:1px solid #ccc;border-radius:8px;padding:8px 10px;min-width:180px}.vc.best{border:2px solid #1a9d4a}.vn{font-weight:bold}.vt{font-size:18px;font-weight:bold}.tag{background:#1a9d4a;color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-left:6px}small{display:block;color:#555}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px;text-align:left;vertical-align:top}th{background:#eee}td.low{color:#1a7d3a;font-weight:bold}td.nq{color:#999}.h{font-weight:bold;margin:14px 0 6px;letter-spacing:.1em}.row{display:none}</style></head><body>${body}<script>setTimeout(()=>print(),300)<\/script></body></html>`); w.document.close(); };

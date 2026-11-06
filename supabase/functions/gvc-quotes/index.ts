@@ -32,7 +32,9 @@ async function graph(db: any, path: string): Promise<any> {
   return r.json();
 }
 const DOC = /\.(pdf|png|jpe?g)$/i;
-const LIKELY = /quot|estimate|proposal|pricing|price|bid|invoice|order ack|acknowledg/i;
+const LIKELY = /quot|estimate|proposal|pricing|price|bid|FAB-\d/i;     // competing prices - ticked for Compare
+const PRICED = /quot|estimate|proposal|pricing|price|bid|invoice|inv\d|ack|acknowledg|order|FAB-\d|^\d{6,}\.pdf$/i;   // any vendor doc with prices on it
+const docType = (n: string) => /^O_?Ack|ack|acknowledg/i.test(n) ? "order ack" : /invoice|^inv/i.test(n) ? "invoice" : /quot|estimate|proposal|bid|FAB-\d/i.test(n) ? "quote" : "document";
 
 async function find(db: any, job: any) {
   const d = job.data || {};
@@ -64,8 +66,8 @@ async function find(db: any, job: any) {
       if (!DOC.test(a.name || "") || (a.size || 0) > 9_000_000) continue;
       if (/^(image|img|logo|outlook)[\w-]*\.(png|jpe?g)$/i.test(a.name)) continue;   // signature logos / pasted screenshots
       const vendor = supFirst.find((f) => (fromName + " " + from + " " + m.subject).toLowerCase().includes(f)) || "";
-      out.push({ id: `mail:${m.id}:${a.id}`, name: a.name, size: a.size, from: fromName, subject: m.subject, at: m.receivedDateTime,
-        likely: LIKELY.test(a.name) || /^O_?Ack/i.test(a.name) || (!!vendor && LIKELY.test(m.subject)) });
+      out.push({ id: `mail:${m.id}:${a.id}`, name: a.name, size: a.size, from: fromName, subject: m.subject, at: m.receivedDateTime, type: docType(a.name + " " + m.subject),
+        likely: LIKELY.test(a.name) || (!!vendor && LIKELY.test(m.subject) && !/ack/i.test(a.name)) });
     }
   }
   // quote files already saved on the job (from earlier emails)
@@ -74,7 +76,7 @@ async function find(db: any, job: any) {
     const base = String(f.path).split("/").pop() || "";
     if (!DOC.test(base) || !LIKELY.test(f.path) || /BOM|DXF|bend|drawing/i.test(base)) return;
     if (out.some((o) => o.name === base)) return;
-    out.push({ id: `file:${f.path}`, name: base, size: f.size, from: "Saved on the job", subject: String(f.path).split("/").slice(-2, -1)[0] || "", at: f.created_at, likely: true });
+    out.push({ id: `file:${f.path}`, name: base, size: f.size, from: "Saved on the job", subject: String(f.path).split("/").slice(-2, -1)[0] || "", at: f.created_at, type: docType(base), likely: LIKELY.test(base) });
   });
   return { job: name, suppliers: sups.map((s) => ({ name: s.name, status: s.status, quoteNo: s.quoteNo || "", total: s.total || "" })), docs: out };
 }
@@ -121,12 +123,13 @@ async function compare(db: any, job: any, ids: string[]) {
     }, required: ["summary", "vendors", "lines"] },
   };
   const sys = `You compare supplier quotes for Kyle (shop lead at Gordeyville Customs, a fab shop in Grande Prairie). Job: ${d.name}. Suppliers on the job: ${(d.suppliers || []).map((s: any) => s.name + (s.quoteNo ? " #" + s.quoteNo : "")).join(", ") || "none listed"}.
-Read every document. A document that isn't a quote (a drawing, a BOM Kyle sent, a signature) - ignore it and say so in gaps.
+Read every document. Order acknowledgements and invoices are prices already agreed, not competing bids - still list each as a vendor with its total. If no item was priced by two different vendors, say that plainly in the first line of the summary (e.g. "Nothing here overlaps - these are separate orders, not competing quotes") and still fill vendors with each document's total.
+A document that isn't a quote (a drawing, a BOM Kyle sent, a signature) - ignore it and say so in gaps.
 Line items up across vendors: same part or same material/size on one row even if worded differently. Use the vendors' own numbers - never estimate a price that isn't written. If one vendor quotes per piece and another per lot, compare like for like and say so. Point out what they charge more or less for, quantity/material differences, extra charges (cutting, freight, setup, minimums), lead times. Dollars as written (CAD).`;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 8000, system: sys, tools: [tool],
+    body: JSON.stringify({ model: MODEL, max_tokens: 16000, system: sys, tools: [tool],
       messages: [{ role: "user", content: [...blocks, { type: "text", text: "Compare these quotes. Answer only by calling the report tool." }] }] }),
   });
   const out = await r.json();
@@ -134,6 +137,73 @@ Line items up across vendors: same part or same material/size on one row even if
   const tu = (out.content || []).find((c: any) => c.type === "tool_use");
   if (!tu) throw new Error("no report came back");
   return { job: d.name, used, report: tu.input };
+}
+
+/* ---------- price history (Kyle, Nov 5): read every priced line off a vendor doc into gvc_prices ---------- */
+async function docBlock(db: any, id: string) {
+  if (id.startsWith("mail:")) { const [, mid, aid] = id.split(":"); const a = await graph(db, `/me/messages/${mid}/attachments/${aid}`);
+    const m = await graph(db, `/me/messages/${mid}?$select=subject,from,receivedDateTime`);
+    return { data: a.contentBytes, name: a.name, mt: a.contentType || "", from: m.from?.emailAddress?.name || "", fromAddr: m.from?.emailAddress?.address || "", subject: m.subject, at: m.receivedDateTime }; }
+  const path = id.slice(5); const { data: blob } = await db.storage.from("gvc-parts").download(path);
+  if (!blob) throw new Error("file gone");
+  return { data: b64(new Uint8Array(await blob.arrayBuffer())), name: path.split("/").pop() || path, mt: "", from: "", fromAddr: "", subject: "", at: "" };
+}
+async function extract(db: any, id: string, jobId: string | null) {
+  const { count } = await db.from("gvc_prices").select("id", { count: "exact", head: true }).eq("source", id);
+  if ((count || 0) > 0) return { id, saved: 0, already: count };
+  const d = await docBlock(db, id);
+  const isPdf = /\.pdf$/i.test(d.name) || /pdf/i.test(d.mt);
+  const tool = { name: "lines", description: "Every priced line on the document", input_schema: { type: "object", properties: {
+    vendor: { type: "string", description: "supplier company (e.g. Russel Metals, Grandview Fabrication, Starfab)" }, doc_type: { type: "string", enum: ["quote", "order ack", "invoice", "other"] },
+    doc_no: { type: "string" }, doc_date: { type: "string", description: "YYYY-MM-DD" }, job_ref: { type: "string", description: "our job/PO reference on the doc, e.g. 1086WT" },
+    lines: { type: "array", items: { type: "object", properties: {
+      item: { type: "string", description: "description as written" }, part_no: { type: "string", description: "our part number if the line names one (e.g. CENTERLOC.13-FW35, FAB-0128 part names)" },
+      kind: { type: "string", enum: ["tube", "angle", "channel", "flat bar", "plate", "sheet", "round", "pipe", "beam", "laser part", "service", "other"] },
+      material: { type: "string", description: "grade/alloy e.g. A500 MS, 44W, 304 SS, 5052 AL" },
+      size: { type: "string", description: "normalized size: HSS 2x2x1/8, HSS 5x3x1/4, L 2x2x1/4, C 4x5.4, FB 2-1/2x3/8, PL 3/16, SHT 14GA, RD 1, PIPE 2 SCH40, W 6x15. Fractions like 1/8, not decimals, where the doc uses gauge/fraction; wall thickness last." },
+      length_ft: { type: "number" }, qty: { type: "number" }, unit: { type: "string", description: "ea, ft, lb, cwt, sheet, lot" },
+      unit_price: { type: "number" }, line_total: { type: "number" }, note: { type: "string", description: "cutting charge, partial length, etc." } }, required: ["item"] } } }, required: ["vendor", "lines"] } };
+  const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST",
+    headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: MODEL, max_tokens: 12000, tools: [tool],
+      system: "You read supplier documents for Gordeyville Customs (a fab shop) and pull out every line that has a price - material, cut parts, cutting/freight charges. Use the document's own numbers only. Answer only by calling the lines tool.",
+      messages: [{ role: "user", content: [{ type: "text", text: `Document "${d.name}"${d.from ? ` from ${d.from} <${d.fromAddr}>` : ""}${d.subject ? `, email subject "${d.subject}"` : ""}${d.at ? `, received ${d.at.slice(0, 10)}` : ""}.` },
+        isPdf ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: d.data } } : { type: "image", source: { type: "base64", media_type: /png/i.test(d.name) ? "image/png" : "image/jpeg", data: d.data } }] }] }) });
+  const out = await r.json(); if (!r.ok) throw new Error("Claude: " + (out?.error?.message || r.status));
+  const tu = (out.content || []).find((c: any) => c.type === "tool_use"); if (!tu) return { id, saved: 0 };
+  const x = tu.input || {}; const date = /^\d{4}-\d{2}-\d{2}$/.test(x.doc_date || "") ? x.doc_date : (d.at ? d.at.slice(0, 10) : null);
+  let job = jobId;
+  if (!job && x.job_ref) { const n = String(x.job_ref).match(/\d{4}[A-Za-z]{0,3}/); if (n) { const { data: js } = await db.from("gvc_jobs").select("id,data"); const hit = (js || []).find((j: any) => String(j.data?.name || "").replace(/\s/g, "").toUpperCase().startsWith(n[0].toUpperCase())); job = hit?.id || null; } }
+  const rows = (x.lines || []).filter((l: any) => l && l.item).map((l: any) => {
+    const lt = Number(l.line_total) || (Number(l.unit_price) && Number(l.qty) ? Number(l.unit_price) * Number(l.qty) : null);
+    let pf: number | null = null;
+    if (l.unit === "ft" && Number(l.unit_price)) pf = Number(l.unit_price);
+    else if (Number(l.length_ft) && lt && Number(l.qty) && ["tube", "angle", "channel", "flat bar", "round", "pipe", "beam"].includes(l.kind)) pf = lt / (Number(l.qty) * Number(l.length_ft));
+    return { vendor: x.vendor || d.from || "?", doc_type: x.doc_type || docType(d.name), doc_no: x.doc_no || null, doc_date: date, doc_name: d.name, source: id, job_id: job,
+      item: String(l.item).slice(0, 300), part_no: l.part_no || null, kind: l.kind || null, material: l.material || null, size: l.size || null, length_ft: Number(l.length_ft) || null,
+      qty: Number(l.qty) || null, unit: l.unit || null, unit_price: Number(l.unit_price) || null, line_total: lt, per_ft: pf ? Math.round(pf * 10000) / 10000 : null, note: l.note || null };
+  });
+  if (rows.length) { const { error } = await db.from("gvc_prices").insert(rows);
+    if (error) { for (const rw of rows) await db.from("gvc_prices").insert(rw); } }   // a duplicate line skips itself
+  return { id, saved: rows.length, vendor: x.vendor, doc_no: x.doc_no, date };
+}
+// vendor documents with prices in the last N days that aren't in price history yet
+async function scan(db: any, days: number) {
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  const seen = new Set<string>(); const { data: have } = await db.from("gvc_prices").select("source"); (have || []).forEach((h: any) => seen.add(h.source));
+  const out: any[] = []; let url = `/me/messages?$filter=hasAttachments eq true and receivedDateTime ge ${since}&$select=id,subject,from,receivedDateTime&$orderby=receivedDateTime desc&$top=50`;
+  for (let page = 0; page < 6 && url; page++) {
+    const r = await graph(db, url);
+    for (const m of r.value || []) {
+      const from = String(m.from?.emailAddress?.address || "").toLowerCase(), fromName = m.from?.emailAddress?.name || from;
+      if (ME.includes(from) || INTERNAL.test(fromName + " " + from)) continue;
+      let atts: any[] = []; try { atts = (await graph(db, `/me/messages/${m.id}/attachments?$select=id,name,size`)).value || []; } catch (_) { continue; }
+      for (const a of atts) { if (!/\.pdf$/i.test(a.name || "") || !PRICED.test(a.name + " " + m.subject)) continue; const id = `mail:${m.id}:${a.id}`; if (seen.has(id)) continue;
+        out.push({ id, name: a.name, from: fromName, subject: m.subject, at: m.receivedDateTime, type: docType(a.name + " " + m.subject) }); }
+    }
+    url = r["@odata.nextLink"] ? String(r["@odata.nextLink"]).replace("https://graph.microsoft.com/v1.0", "") : "";
+  }
+  return { docs: out };
 }
 
 Deno.serve(async (req) => {
@@ -144,6 +214,8 @@ Deno.serve(async (req) => {
     if (!ok) return json({ error: "Not on the shop list" }, 403);
     const body = await req.json().catch(() => ({}));
     const db = admin();
+    if (body.action === "scan") return json(await scan(db, Math.min(365, Number(body.days) || 90)));
+    if (body.action === "extract") return json(await extract(db, String(body.doc || ""), body.job_id || null));
     const { data: job } = await db.from("gvc_jobs").select("id,data").eq("id", body.job_id || "").maybeSingle();
     if (!job) return json({ error: "job not found" }, 404);
     if (body.action === "find") return json(await find(db, job));
