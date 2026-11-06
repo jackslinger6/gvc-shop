@@ -191,7 +191,7 @@ async function extract(db: any, id: string, jobId: string | null) {
 async function scan(db: any, days: number) {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   const seen = new Set<string>(); const { data: have } = await db.from("gvc_prices").select("source"); (have || []).forEach((h: any) => seen.add(h.source));
-  const out: any[] = []; let url = `/me/messages?$filter=hasAttachments eq true and receivedDateTime ge ${since}&$select=id,subject,from,receivedDateTime&$orderby=receivedDateTime desc&$top=50`;
+  const out: any[] = []; let url = `/me/messages?$filter=receivedDateTime ge ${since} and hasAttachments eq true&$select=id,subject,from,receivedDateTime&$orderby=receivedDateTime desc&$top=50`;
   for (let page = 0; page < 6 && url; page++) {
     const r = await graph(db, url);
     for (const m of r.value || []) {
