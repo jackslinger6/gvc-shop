@@ -34,7 +34,7 @@ async function graph(db: any, path: string): Promise<any> {
 const DOC = /\.(pdf|png|jpe?g)$/i;
 const LIKELY = /quot|estimate|proposal|pricing|price|bid|FAB-\d/i;     // competing prices - ticked for Compare
 const PRICED = /quot|estimate|proposal|pricing|price|bid|invoice|inv\d|ack|acknowledg|order|FAB-\d|^\d{6,}\.pdf$/i;   // any vendor doc with prices on it
-const docType = (n: string) => /^O_?Ack|ack|acknowledg/i.test(n) ? "order ack" : /invoice|^inv/i.test(n) ? "invoice" : /quot|estimate|proposal|bid|FAB-\d/i.test(n) ? "quote" : "document";
+const docType = (n: string) => /^O_?Ack|\back\b|acknowledg/i.test(n) ? "order ack" : /invoice|^inv/i.test(n) ? "invoice" : /quot|estimate|proposal|bid|FAB-\d/i.test(n) ? "quote" : "document";
 
 async function find(db: any, job: any) {
   const d = job.data || {};
