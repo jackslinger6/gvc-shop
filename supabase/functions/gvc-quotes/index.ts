@@ -10,6 +10,8 @@ const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: 
 const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const MODEL = Deno.env.get("GVC_MODEL") || "claude-sonnet-5-5";
 const ME = ["kyle.gvc@hotmail.com", "kdhinter85@hotmail.ca"];
+// shop people send drawings and packages, not quotes (Kyle: Randy, Joe, Jessie, Robin are not vendors)
+const INTERNAL = /gordeyville|hinteregger|derksen|dirksen|\brandy\b|\bjoe\b|\brobin\b|joe\.gvc|robin\.gvc/i;
 const NUM_RE = /^\s*(\d{4}[A-Za-z0-9_]{0,4})\b/;
 
 let tokCache = "";
@@ -55,15 +57,15 @@ async function find(db: any, job: any) {
   for (const m of [...msgs.values()].sort((a, b) => String(b.receivedDateTime).localeCompare(String(a.receivedDateTime))).slice(0, 25)) {
     const from = String(m.from?.emailAddress?.address || "").toLowerCase();
     const fromName = m.from?.emailAddress?.name || from;
-    if (ME.includes(from)) continue;   // Kyle's own sent packages (DXFs, BOMs) aren't quotes
+    if (ME.includes(from) || INTERNAL.test(fromName + " " + from)) continue;   // Kyle's own packages, shop people's drawings
     let atts: any[] = [];
     try { atts = (await graph(db, `/me/messages/${m.id}/attachments?$select=id,name,contentType,size`)).value || []; } catch (_) { continue; }
     for (const a of atts) {
       if (!DOC.test(a.name || "") || (a.size || 0) > 9_000_000) continue;
-      if (/^image0\d+\.(png|jpe?g)$/i.test(a.name) && (a.size || 0) < 60_000) continue;   // signature logos
+      if (/^(image|img|logo|outlook)[\w-]*\.(png|jpe?g)$/i.test(a.name)) continue;   // signature logos / pasted screenshots
       const vendor = supFirst.find((f) => (fromName + " " + from + " " + m.subject).toLowerCase().includes(f)) || "";
       out.push({ id: `mail:${m.id}:${a.id}`, name: a.name, size: a.size, from: fromName, subject: m.subject, at: m.receivedDateTime,
-        likely: LIKELY.test(a.name + " " + m.subject) || !!vendor });
+        likely: LIKELY.test(a.name) || /^O_?Ack/i.test(a.name) || (!!vendor && LIKELY.test(m.subject)) });
     }
   }
   // quote files already saved on the job (from earlier emails)
