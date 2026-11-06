@@ -283,6 +283,8 @@ async function finish(){
         const txt=`${d}: partial delivery counted - ${gt} of ${pcs} pcs (${cm})${myMiss?", short: "+myMiss:""}. Still to come: ${lat.length} part${lat.length>1?"s":""} / ${lpc} pcs (${lm}).`;
         if(sup){ sup.status="production"; sup.updated=now; sup.lead=`Rest still to come: ${lm}`.slice(0,200); sup.note=((sup.note?sup.note+" | ":"")+txt).slice(0,1500); }
         j.log=[...(j.log||[]),{at:now,text:`Counted ${sup?sup.name:"order"}${sup&&sup.quoteNo?" #"+sup.quoteNo:""} - ${txt}`}];
+        // nothing else waiting to be counted on this job -> back to In production until the rest comes
+        if(j.stage==="arrived"&&!(j.suppliers||[]).some(x=>(typeof ACTIVE!=="function"||ACTIVE(x))&&x.status==="arrived")) j.stage="prod";
         if(!await put(j,`Partial delivery counted - ${j.name}`)) ok=false;
       }
       if(ok){ closeDlg(); if(typeof todoToast==="function") todoToast(`Delivery counted: ${t.got} of ${t.pcs} pcs - ${lp} pcs still to come`,null); }
