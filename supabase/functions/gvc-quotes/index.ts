@@ -231,7 +231,7 @@ async function mapParts(db: any, jobId: string | null, jobNo: string, parts: any
   const groups = new Map<string, { total: number; lines: string[] }>();
   for (const r of rows) {
     if ((r.parts || []).length || r.part_no || !(Number(r.line_total) > 0) || !(Number(r.thickness_in) > 0)) continue;
-    if (!["plate", "sheet", "laser part", "other"].includes(r.kind || "other")) continue;
+    if (!["plate", "sheet"].includes(r.kind || "")) continue;   // raw sheet/plate only - a cut part we can't match stays off the part table
     const key = (r.metal || fam(r.material || r.item)) + "|" + Number(r.thickness_in).toFixed(3);
     const g = groups.get(key) || { total: 0, lines: [] }; g.total += Number(r.line_total); g.lines.push(r.item); groups.set(key, g);
   }
