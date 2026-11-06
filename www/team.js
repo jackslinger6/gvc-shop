@@ -62,6 +62,7 @@ const me=()=>(window.ME&&ME.name)||"Kyle";
 const crew=()=>window.ME&&ME.role==="crew";
 const pv=()=>window.ME&&ME.preview;
 const say=m=>{ if(typeof todoToast==="function"){ todoToast(m,null); const u=document.getElementById("toastUndo"); if(u) u.style.display="none"; } };
+const goTo=v=>{ if(typeof go==="function") go(v); else { cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0}); } };
 const people=()=>typeof CREW!=="undefined"?CREW:["Kyle","Colton","Aaron","Cooper"];
 const av=(n,cls="")=>`<span class="tmav ${cls}" style="background:${COL[n]||"#9aa1aa"}">${E((n||"?")[0])}</span>`;
 const ago=t=>{ if(!t) return ""; const s=(Date.now()-new Date(t))/1e3; if(s<90) return "just now"; if(s<3600) return Math.round(s/60)+" min ago"; if(s<86400) return Math.round(s/3600)+"h ago";
@@ -125,7 +126,7 @@ function person(n){
     ${s.cls==="never"?`<div class="tnote" style="margin-top:6px">${E(n)} will see it once ${TEAM[n]?"he signs in":"he's set up on the app"}.</div>`:""}`}
     <div class="tmbtns">${crew()?"":`<button class="btn" type="button" id="tmDay">See ${self?"my":E(n)+"'s"} day</button>`}<button class="btn" type="button" id="tmX">Close</button></div>`);
   S.el.querySelector("#tmX").onclick=S.close;
-  const dy=S.el.querySelector("#tmDay"); if(dy) dy.onclick=()=>{ S.close(); go("crew"); };
+  const dy=S.el.querySelector("#tmDay"); if(dy) dy.onclick=()=>{ S.close(); goTo("crew"); };
   if(self) return;
   openThread={n,ov:S.ov,el:S.el};
   const T=S.el.querySelector("#tmT"); T.scrollTop=T.scrollHeight; markRead(n);
