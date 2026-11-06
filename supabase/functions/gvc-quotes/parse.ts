@@ -62,10 +62,10 @@ function russel(text) {
     if (cur._q && !cur._wt && (m = s.match(/^(\d+)(?: (.+))?$/))) { cur._wt = Number(m[1]); if (m[2]) cur.name = m[2].trim(); continue; }
     if (cur._q && s === "LB") continue;
     if (cur._dim && !cur.part && !cur.name && PART.test(s.replace(/\s+/g, ""))) { cur.part = s.replace(/\s+/g, ""); continue; }
-    if (cur._dim && !cur.part && !cur.name && /^\d{4}[_\w.-]*\s+\S/.test(s) && !/LASER|CUT|STOCK|LEAD|CALL|INCOMING|CROP/i.test(s)) { cur.name = s; continue; }
+    if (cur._dim && !cur.part && !cur.name && !cur.notes.length && !/LASER|\bCUT\b|STOCK|LEAD TIME|CALL|INCOMING|CROP|DXF|^\d{3}-\d{3}-\d{4}$|PLEASE|DELIVER|PICK ?UP|NOTE/i.test(s)) { cur.name = s; continue; }
     cur.notes.push(s);
   }
-  const out = lines.filter((l) => l.unit_price != null).map((l) => {
+  const out = lines.filter((l) => l.unit_price != null).map((l, i, A) => {
     const D = russelDesc(l.item);
     const qs = [l.q1, l.q2].filter(Boolean);
     const ea = qs.find((q) => q[1] === "EA" || q[1] === "PC" || q[1] == null);

@@ -355,6 +355,8 @@ async function saveParsed(db: any, id: string, d: any, px: any, jobId: string | 
   const rows = px.lines.map((l: any) => ({ vendor: px.vendor, doc_type: px.doc_type, doc_no: px.doc_no, doc_date: date, doc_name: d.name, source: id, job_id: job,
     item: l.item, part_no: l.part_no || null, kind: l.kind || null, material: l.material || null, size: l.size || null, length_ft: l.length_ft || null, qty: l.qty || null, unit: l.unit || null,
     unit_price: l.unit_price ?? null, line_total: l.line_total ?? null, per_ft: l.per_ft ?? null, note: l.note || null, thickness_in: l.thickness_in ?? null, metal: l.metal || null, parts: l.parts && l.parts.length ? l.parts : null }));
+  // two lines exactly alike on one document (same item, qty, price) - number them so both are kept
+  const cnt: any = {}; rows.forEach((r: any) => { const k = `${String(r.item).toLowerCase()}|${r.qty}|${r.line_total}`; cnt[k] = (cnt[k] || 0) + 1; if (cnt[k] > 1) r.item = `${r.item} (${cnt[k]})`; });
   await db.from("gvc_prices").delete().eq("source", id);
   const { error } = await db.from("gvc_prices").insert(rows); if (error) throw new Error(error.message);
   const JP = jobId && JP0?.parts?.length ? JP0 : await jobParts(db, job);
