@@ -597,6 +597,10 @@ function wireAsm(root){
   root.querySelectorAll("[data-wc]").forEach(el=>el.onclick=()=>{ const j=jobs.find(x=>x.id===el.dataset.wj); const a=j.assemblies[+el.dataset.wi]; const L=whoList(a); const c=el.dataset.wc; const n=L.includes(c)?L.filter(x=>x!==c):[...L,c]; setAsm(el.dataset.wj,+el.dataset.wi,"who",n.join(", ")); });
 }
 async function setAsm(jid,i,k,v){
+  // crew: only report on your own tasks (status) - assigning people is Kyle's (Nov 5)
+  if(window.ME&&ME.role==="crew"){ const j0=jobs.find(x=>x.id===jid); const a0=j0&&j0.assemblies[i];
+    if(k!=="status"||!a0||!whoList(a0).includes(ME.name)){ if(typeof todoToast==="function"){ todoToast(ME.preview?"Preview - Colton can only update his own tasks":"You can only update tasks you're on - tell Kyle (Talk) about the rest",null); const u=$("#toastUndo"); if(u) u.style.display="none"; } render(); return; }
+    if(ME.preview){ todoToast("Preview - nothing is saved",null); const u=$("#toastUndo"); if(u) u.style.display="none"; return; } }
   const j=structuredClone(jobs.find(x=>x.id===jid)); const a=j.assemblies[i]; const old=a[k]; a[k]=v;
   const label=k==="who"?(v?`${a.name}: ${v}`:`Unassigned ${a.name}`):`${a.name}: ${AST[v].t}`;
   j.log=[...(j.log||[]),{at:new Date().toISOString(),text:label}];

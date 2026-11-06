@@ -132,7 +132,7 @@ document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==
 window.addEventListener("focus",()=>{ if(db&&planLoaded&&!saving) loadPlan(); });
 let lastSaveAt=0, saving=false, saveChain=Promise.resolve();
 // Saves only if nobody else changed the plan since we loaded it; otherwise reload instead of overwriting their change.
-function savePlan(){ saveChain=saveChain.then(doSave,doSave); return saveChain; }
+function savePlan(){ if(window.ME&&ME.role==="crew"){ say("Only Kyle changes the week plan."); loadPlan(); return Promise.resolve(); } saveChain=saveChain.then(doSave,doSave); return saveChain; }
 async function doSave(){
   if(!planLoaded||!planVer){ await loadPlan(true); say("Couldn't save yet - the plan hadn't loaded. Loaded it now; redo your last change."); return false; }
   saving=true; lastSaveAt=Date.now();
@@ -411,8 +411,8 @@ function renderWeek(){
   h+=lastFix.map((f,i)=>{ const t=M.T[f.c.id],p=M.T[f.c.pid];
     return `<div class="palert">⚠ <b>${esc(t.name)}</b> (${t.who.join(", ")}, ${dlabel(Object.keys(M.S[t.who[0]]||{}).find(d=>M.S[t.who[0]][d].includes(t.key))||today)} ${clock(f.c.ds)}) needs <b>${esc(p.name)}</b> first, but ${f.c.pe==null?"that isn't scheduled yet.":`${p.who.join(" + ")} won't finish it until ${clock(f.c.pe)}.`}
       <div class="row">${f.opts.length?f.opts.map((o,j)=>`<button class="btn sm" data-fx="${i}:${j}">${esc(o.label)}</button>`).join(""):"<span>No quick fix - drag things around.</span>"}</div></div>`; }).join("");
-  h+=`<div class="lbl" style="margin:8px 0 4px">Not scheduled (${pool.length}). Drag onto someone's day; drag back here to unschedule.</div>
-   <div class="ppool">${pool.length?gl.map(g=>{ const st=g.stageIdx>=0?STAGES[g.stageIdx]:null; return `<div class="pgrp"><div class="pgh"><span class="dot" style="background:${g.color}"></span><b>${esc(g.job)}</b>${st?`<span class="lbl">${st.bt} · ${st.t}</span>`:""}<span class="lbl">${g.list.filter(t=>!t.why).length} ready${g.list.some(t=>t.why)?`, ${g.list.filter(t=>t.why).length} not ready`:""}</span></div><div class="pgl">${g.list.map(t=>blk(M,t)).join("")}</div></div>`; }).join(""):'<span class="lbl">Everything is scheduled.</span>'}</div>`;
+  h+=`<div class="lbl crewhide" style="margin:8px 0 4px">Not scheduled (${pool.length}). Drag onto someone's day; drag back here to unschedule.</div>
+   <div class="ppool crewhide">${pool.length?gl.map(g=>{ const st=g.stageIdx>=0?STAGES[g.stageIdx]:null; return `<div class="pgrp"><div class="pgh"><span class="dot" style="background:${g.color}"></span><b>${esc(g.job)}</b>${st?`<span class="lbl">${st.bt} · ${st.t}</span>`:""}<span class="lbl">${g.list.filter(t=>!t.why).length} ready${g.list.some(t=>t.why)?`, ${g.list.filter(t=>t.why).length} not ready`:""}</span></div><div class="pgl">${g.list.map(t=>blk(M,t)).join("")}</div></div>`; }).join(""):'<span class="lbl">Everything is scheduled.</span>'}</div>`;
   h+=`<div class="psplit"><div class="pwrap"><table class="pg"><thead><tr><th class="day"></th>${CREW.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>`;
   D.forEach(d=>{ h+=`<tr><th class="day ${d===today?"today":""}">${dlabel(d).replace(", ","<br>")}${d===today?"<br>today":""}</th>`+CREW.map(p=>{
     if(isOff(p,d)) return `<td class="off" data-p="${p}" data-d="${d}"><div class="ld"><span>Day off</span><button data-off="${p}|${d}" title="Working this day">undo</button></div></td>`;
@@ -464,7 +464,7 @@ let drag=null;
 function target(x,y){ const el=document.elementFromPoint(x,y); if(!el) return null; const td=el.closest(".wkv td[data-p]"); if(td) return {td}; if(el.closest(".wkv .ppool")) return {pool:true}; return null; }
 function idxIn(td,y){ const bs=[...td.querySelectorAll(".pblk,.pjob")].filter(b=>!b.classList.contains("fx")&&!b.classList.contains("psub")&&!(drag.el&&drag.el.contains(b))&&!(b.dataset.k===drag.k&&b.dataset.p===drag.fp&&b.dataset.d===drag.fd));
   let i=bs.findIndex(b=>{const r=b.getBoundingClientRect();return y<r.top+r.height/2;}); return {i:i<0?bs.length:i,bs}; }
-document.addEventListener("pointerdown",e=>{ if(cur!=="crew"||view!=="week") return;
+document.addEventListener("pointerdown",e=>{ if(cur!=="crew"||view!=="week") return; if(window.ME&&ME.role==="crew") return;   // crew: look only (Nov 5)
   const b=e.target.closest(".wkv .pblk");
   const g=!b&&e.target.closest(".wkv .pjob"); if(g){ drag={grp:g.dataset.g,ks:(g.dataset.ks||"").split(",").filter(Boolean),fp:g.dataset.p,fd:g.dataset.d,x0:e.clientX,y0:e.clientY,moved:false,el:g}; return; }
   if(!b) return;

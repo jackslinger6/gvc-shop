@@ -40,6 +40,14 @@ body.crew #shBell,body.crew #undoBtn,body.crew #ideasBtn,body.crew #addJob,body.
 body.crew #dlg #back,body.crew #dlg #next,body.crew #dlg #delJob,body.crew #dlg #archJob,body.crew #dlg #cmpQ,body.crew #dlg #addSup,
 body.crew #dlg details[data-fold="edit"],body.crew .subnav .sn[data-sv="pipeline"],body.crew .subnav .sn[data-sv="ordering"],body.crew .subnav .sn[data-sv="todo"]{display:none!important}
 body.crew #dlg .supsec{display:none!important}
+/* crew: no Jobs tab (All jobs is on Home), week plan / lanes are look-only, no assigning people, no adding/removing tasks on jobs */
+body.crew .shnav [data-n="jobs"],body.crew #pTA,body.crew #pTS,body.crew [data-off],body.crew [data-pck],body.crew #pPanel,body.crew .wkv .pool,
+body.crew #dlg [data-rmasm],body.crew #dlg #addAsm,body.crew #dlg #newAsm,body.crew [data-wc]{display:none!important}
+body.crew .lanes select{pointer-events:none;opacity:.8}
+body.crew .crewhide,body.crew .palert{display:none!important}
+body.crew #app .bar,body.crew #subnav{display:none!important}
+body.crew .wkv .pblk,body.crew .wkv .pjob{cursor:default!important}
+@media (max-width:899px){ body.crew .shnav{grid-template-columns:repeat(4,1fr)!important} }
 `;
 document.head.appendChild(st);
 const toast=m=>{ if(typeof todoToast==="function"){ todoToast(m,null); const u=document.getElementById("toastUndo"); if(u) u.style.display="none"; } };
@@ -220,6 +228,34 @@ function addMyWork(){
   };
 }
 window.addMyWork=addMyWork;
+/* crew: "we need more wire" - goes on Kyle's To do (and marks the consumable as out/low if it's on the list) */
+async function needSupplies(){
+  let cons=[]; try{ const r=await sb.from("gvc_consumables").select("id,name,category,unit,qty,min_qty").order("category").order("name"); cons=r.data||[]; }catch(e){}
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>NEED SUPPLIES</h3>
+    <label>What do we need<input id="nsWhat" placeholder="e.g. 0.035 wire, 4.5&quot; flap discs, argon"></label>
+    ${cons.length?`<div class="tnote" style="margin:4px 0 6px">or tap one</div><div class="chips" id="nsChips" style="margin-bottom:10px">${cons.map(c=>`<button type="button" data-ns="${esc(c.id)}">${esc(c.name)}</button>`).join("")}</div>`:""}
+    <label style="display:flex;gap:14px;align-items:center;margin:6px 0">${["Running low","Out"].map((t,i)=>`<span style="display:flex;gap:6px;align-items:center"><input type="radio" name="nsHow" value="${t}" ${i===0?"checked":""} style="width:18px;height:18px"> ${t}</span>`).join("")}</label>
+    <label>Note (optional)<input id="nsNote" placeholder="e.g. last spool on the Miller"></label>
+    <div class="tnote" id="nsMsg" style="margin:8px 0"></div>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" type="button" id="nsX">Cancel</button><button class="btn primary" type="button" id="nsGo" style="min-height:44px">Tell Kyle</button></div></div>`;
+  document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
+  const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
+  ov.onclick=e=>{ if(e.target===ov) close(); }; ov.querySelector("#nsX").onclick=close;
+  let pick=null;
+  ov.querySelectorAll("[data-ns]").forEach(b=>b.onclick=()=>{ pick=cons.find(c=>c.id===b.dataset.ns); ov.querySelector("#nsWhat").value=pick.name; ov.querySelectorAll("[data-ns]").forEach(x=>x.classList.toggle("on",x===b)); });
+  ov.querySelector("#nsGo").onclick=async()=>{
+    const what=ov.querySelector("#nsWhat").value.trim(); if(!what){ ov.querySelector("#nsMsg").textContent="Say what we need."; return; }
+    if(preview()){ toast(PV); close(); return; }
+    const how=(ov.querySelector("[name=nsHow]:checked")||{}).value||"Running low"; const note=ov.querySelector("#nsNote").value.trim();
+    if(!pick||pick.name!==what) pick=cons.find(c=>c.name.toLowerCase()===what.toLowerCase())||null;
+    try{
+      await sb.from("gvc_todos").insert({text:`${how==="Out"?"OUT of":"Low on"} ${what}${note?" - "+note:""} (${me()})`,source:"crew",from_name:me()});
+      if(pick&&how==="Out") await sb.from("gvc_consumables").update({qty:0,counted_at:new Date().toISOString()}).eq("id",pick.id);
+      close(); toast(`Kyle's been told: ${how.toLowerCase()} on ${what}`);
+    }catch(e){ ov.querySelector("#nsMsg").textContent="Couldn't send: "+(e.message||e); }
+  };
+}
+window.needSupplies=needSupplies;
 function pickJob(title,fn){
   const act=jobs.filter(j=>j.stage!=="done"&&!j.archived);
   const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>${title}</h3>${act.map(j=>`<button class="add" type="button" data-pj="${esc(j.id)}" style="text-align:left;border-style:solid">${esc(j.name)}</button>`).join("")}</div>`;
@@ -262,13 +298,14 @@ pvBar.querySelector("button").onclick=()=>window.crewPreview(false);
 window.crewAct=k=>{
   if(k==="punch"){ pickTask(); return true; }
   if(k==="mywork"){ addMyWork(); return true; }
+  if(k==="supplies"){ needSupplies(); return true; }
   if(k==="ncr"){ pickJob("PROBLEM ON WHICH JOB?",id=>{ openJob(id); setTimeout(()=>{ const b=$("#ncrAdd"); if(b) b.click(); },150); }); return true; }
   if(k==="rev"){ pickJob("REVISION FOR WHICH JOB?",id=>{ if(window.newRevision) window.newRevision({job:id}); }); return true; }
   return false;
 };
 
 /* ---- crew mode guard: only the views a crew member uses ---- */
-const CREW_VIEWS=["home","build","archive","crew","ncr","revs","inv"];
+const CREW_VIEWS=["home","archive","crew","ncr","revs","inv"];
 const _render=render;
 render=function(){
   if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home";
