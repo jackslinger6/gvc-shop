@@ -362,14 +362,16 @@ function sheet(html,onReady){
 function moreMenu(){
   const n=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
-  const items=[["todo","To do","list"],["time","My time","clock",timeN],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["talks","Talks","rec"],["prices","Prices","count"],["crewview","Colton's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
+  const items=[["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["talks","Talks","rec"],["prices","Prices","count"],["crewview","Colton's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
     ["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
-  const CREWOK=["supplies","inv","ncr","revs","archive","signout"];
-  const items2=window.ME&&ME.role==="crew"?items.filter(x=>CREWOK.includes(x[0])):items;
+  const CREWOK=["msgs","mytime","supplies","inv","ncr","revs","archive","signout"];
+  const items2=window.ME&&ME.role==="crew"?items.filter(x=>CREWOK.includes(x[0])):items.filter(x=>x[0]!=="mytime");
   sheet(`<h3>MENU</h3>${TALKBTN("mTalk","TALK TO CLAUDE")}<div class="mgrid">${items2.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
     el.querySelector("#mTalk").onclick=()=>talk("",close);
     el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ const k=b.dataset.m; close();
-      if(k==="supplies"){ window.needSupplies&&window.needSupplies(); }
+      if(k==="msgs"){ window.openInbox&&window.openInbox(); }
+      else if(k==="mytime"){ window.openMyTime&&window.openMyTime(); }
+      else if(k==="supplies"){ window.needSupplies&&window.needSupplies(); }
       else if(k==="talks"){ window.openRecaps&&window.openRecaps(); }
       else if(k==="prices"){ window.openPrices&&window.openPrices(); }
       else if(k==="crewview"){ window.crewPreview&&window.crewPreview(true); }
