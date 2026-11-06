@@ -313,4 +313,29 @@ async function finish(){
   const rs=$("#cRecvShort"); if(rs) rs.onclick=()=>recv(true);
   const rc=$("#cRecv"); if(rc) rc.onclick=()=>recv(false);
 }
+/* ---- pick which order to count (Colton, Nov 6) ----
+   The Count button on the wheel only ever opened the first waiting order, and the crew can't see the Orders board or a
+   job's supplier list - so Colton had no way to get to the others. Now Count lists every order that has arrived (or is
+   ready for pickup) and you tap the one in front of you. Orders on the same quote (one physical delivery) show once. */
+window.countPicker=function(){
+  const act=s=>s.status!=="hold"&&s.status!=="declined";
+  const seen=new Set(), list=[];
+  jobs.filter(j=>!j.archived).forEach(j=>(j.suppliers||[]).forEach(s=>{
+    if(!act(s)||!(s.status==="arrived"||s.status==="ready")) return;
+    const k=s.quoteNo?fname(s.name)+"|"+s.quoteNo:j.id+"|"+s.id; if(seen.has(k)) return; seen.add(k);
+    list.push({j,s});
+  }));
+  list.sort((a,b)=>(a.s.status==="arrived"?0:1)-(b.s.status==="arrived"?0:1));
+  if(list.length===1) return window.openCount(list[0].j.id,list[0].s.id);
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>COUNT WHICH ORDER?</h3>
+    ${list.length?`<div class="tnote" style="margin:-4px 0 10px">Tap the delivery that's in front of you.</div>`+list.map((x,i)=>`<button class="add" type="button" data-cp="${i}" style="text-align:left;border-style:solid;border-left:4px solid ${x.s.status==="arrived"?"#f5b041":"#22c3e6"};margin-bottom:6px;display:block">
+      <b style="display:block">${esc(x.s.name||"Order")}${x.s.quoteNo?` · ${esc(x.s.quoteNo)}`:""}</b><small style="color:var(--muted)">${esc(x.j.name)} · ${x.s.status==="arrived"?"in the shop - not counted yet":"ready for pickup"}</small></button>`).join("")
+      :`<div class="tnote">Nothing is waiting to be counted. When an order comes in and gets set to Arrived, it shows up here.</div>`}
+    <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" type="button" data-cx="1">Close</button></div></div>`;
+  document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
+  const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
+  ov.onclick=e=>{ if(e.target===ov) close(); }; ov.querySelector("[data-cx]").onclick=close;
+  ov.querySelectorAll("[data-cp]").forEach(b=>b.onclick=()=>{ const x=list[+b.dataset.cp]; close(); window.openCount(x.j.id,x.s.id); });
+};
 })();
+

@@ -257,14 +257,45 @@ async function drawMT(S){
     try{ await navigator.clipboard.writeText(txt); say("Week copied - paste it in a text to Robin."); }catch(e){ prompt("Copy this:",txt); }
   };
 }
+/* 15-minute time picker (Colton, Nov 6: the phone's clock picker was hard to use) */
+const q15=t=>{ if(!t) return ""; let [h,m]=t.split(":").map(Number); m=Math.round(m/15)*15; if(m===60){ h++; m=0; } return `${pad(Math.min(h,23))}:${pad(m%60)}`; };
+const lab=v=>{ const [h,m]=v.split(":").map(Number); return `${(h+11)%12+1}:${pad(m)} ${h<12?"am":"pm"}`; };
+function qSel(f,val,running){
+  const v=q15(val); const o=[]; for(let h=5;h<23;h++) for(let m=0;m<60;m+=15) o.push(`${pad(h)}:${pad(m)}`);
+  if(v&&!o.includes(v)) o.push(v), o.sort();
+  return `<select data-f="${f}" style="font-size:16px;min-height:44px">${running?`<option value="">Still on the clock</option>`:""}${o.map(x=>`<option value="${x}" ${x===v?"selected":""}>${lab(x)}</option>`).join("")}</select>`;
+}
+/* fit new times [sa,ea) for my punch selfId: entries partly covered get trimmed, a fully covered one blocks */
+async function fitPunch(sa,ea,selfId){
+  const d0=new Date(sa); d0.setHours(0,0,0,0); d0.setDate(d0.getDate()-1); const d1=new Date(d0); d1.setDate(d1.getDate()+3);
+  const q=await sb.from("gvc_punches").select("id,start_at,end_at,job_name,task_name").eq("who",me()).gte("start_at",d0.toISOString()).lt("start_at",d1.toISOString());
+  const S0=+sa, E0=ea?+ea:Date.now(), out={changes:[],block:null};
+  for(const x of (q.data||[])){
+    if(selfId&&x.id===selfId) continue;
+    const xs=+new Date(x.start_at), xe=x.end_at?+new Date(x.end_at):Date.now(), nm=x.task_name||x.job_name||"another entry";
+    if(!(xs<E0&&xe>S0)) continue;
+    if(xs>=S0&&xe<=E0){ out.block=`That covers all of ${nm} (${tm(x.start_at)} – ${x.end_at?tm(x.end_at):"now"}). Delete that entry first, or pick other times.`; return out; }
+    if(xs<S0&&xe>E0){ out.block=`That lands in the middle of ${nm} (${tm(x.start_at)} – ${x.end_at?tm(x.end_at):"now"}). Shorten that entry first.`; return out; }
+    if(xs<S0) out.changes.push({id:x.id,set:{end_at:new Date(S0).toISOString(),edited_at:new Date().toISOString()},label:`${nm} now ends at ${tm(S0)}`});
+    else { if(!x.end_at&&!ea){ out.block=`${nm} is still running.`; return out; }
+      out.changes.push({id:x.id,set:{start_at:new Date(E0).toISOString(),edited_at:new Date().toISOString()},label:`${nm} now starts at ${tm(E0)}`}); }
+  }
+  return out;
+}
+async function applyFit(fit){
+  for(const c of fit.changes){ const r=await sb.from("gvc_punches").update(c.set).eq("id",c.id); if(r.error){ say("Couldn't shorten the other entry: "+r.error.message); return false; } }
+  return true;
+}
+window.gvcFitPunch=fitPunch; window.gvcApplyFit=applyFit; window.gvcQSel=qSel; window.gvcQ15=q15;
 function editor(ed,p,S){
   const act=(typeof jobs!=="undefined"?jobs:[]).filter(j=>!j.archived&&j.stage!=="done").sort((x,y)=>String(x.name).localeCompare(String(y.name),undefined,{numeric:true}));
   const now=new Date(), st0=p?p.start_at:new Date(now.getTime()-36e5).toISOString();
   ed.hidden=false;
   ed.innerHTML=`${p?"":`<label>Job<select data-f="job">${act.map(j=>`<option value="${E(j.id)}">${E(j.name)}</option>`).join("")}</select></label>
       <label style="display:block;margin-top:6px">What you did<input data-f="task" placeholder="e.g. Welding the headache rack"></label>`}
-    <div class="row" style="margin-top:6px"><label>Day<input type="date" data-f="d" value="${dIn(st0)}"></label><label>Start<input type="time" data-f="s" value="${tIn(st0)}"></label><label>End<input type="time" data-f="e" value="${p&&!p.end_at?"":tIn(p?p.end_at:now)}" ${p&&!p.end_at?"placeholder=\"running\"":""}></label></div>
-    ${p&&!p.end_at?`<div class="tnote" style="margin-top:4px">Still running - leave End empty to keep the clock going.</div>`:""}
+    <div class="row" style="margin-top:6px"><label>Day<input type="date" data-f="d" value="${dIn(st0)}"></label><label>Start${qSel("s",tIn(st0))}</label><label>End${qSel("e",p&&!p.end_at?"":tIn(p?p.end_at:now),p&&!p.end_at)}</label></div>
+    ${p&&!p.end_at?`<div class="tnote" style="margin-top:4px">Still running - leave End on "Still on the clock" to keep it going.</div>`:""}
+    <div class="tnote" style="margin-top:4px">Times go by 15 minutes. If this runs into another entry, that one gets shortened to fit (you'll be asked first).</div>
     <div class="acts">${p?`<button class="btn" type="button" data-a="del" style="color:#ff9b9b">Delete</button>`:""}<button class="btn" type="button" data-a="x">Cancel</button><button class="btn primary" type="button" data-a="ok">Save</button></div>`;
   const f=k=>ed.querySelector(`[data-f="${k}"]`);
   ed.querySelector('[data-a="x"]').onclick=()=>{ ed.hidden=true; };
@@ -281,11 +312,11 @@ function editor(ed,p,S){
     if(!ea&&(!p||p.end_at)){ say("Put in the end time too."); return; }   // only a punch that's still running may stay open
     if(sa>new Date(Date.now()+5*60e3)){ say("Start time is in the future."); return; }
     if(ea&&ea>new Date(Date.now()+5*60e3)){ say("End time is in the future."); return; }
-    // no double-counting: the new times can't overlap his other punches
-    { const d0=new Date(sa); d0.setHours(0,0,0,0); const d1=new Date(d0); d1.setDate(d1.getDate()+2); d0.setDate(d0.getDate()-1);
-      const q=await sb.from("gvc_punches").select("id,start_at,end_at,job_name,task_name").eq("who",me()).gte("start_at",d0.toISOString()).lt("start_at",d1.toISOString());
-      const e2=ea?+ea:Date.now(); const hit=(q.data||[]).find(x=>(!p||x.id!==p.id)&&+new Date(x.start_at)<e2&&(x.end_at?+new Date(x.end_at):Date.now())>+sa);
-      if(hit){ say(`That overlaps ${hit.task_name||hit.job_name} (${tm(hit.start_at)} – ${hit.end_at?tm(hit.end_at):"now"}). Fix that one first.`); return; } }
+    // no double-counting: entries this runs into get shortened to fit (asked first); one completely covered has to be fixed first
+    const fit=await fitPunch(sa,ea,p?p.id:null);
+    if(fit.block){ say(fit.block); return; }
+    if(fit.changes.length&&!confirm("This runs into other time:\n\n"+fit.changes.map(c=>"• "+c.label).join("\n")+"\n\nShorten "+(fit.changes.length>1?"those":"that")+" to fit?")) return;
+    if(!await applyFit(fit)) return;
     let r;
     if(p) r=await sb.from("gvc_punches").update({start_at:sa.toISOString(),end_at:ea?ea.toISOString():null,edited_at:new Date().toISOString()}).eq("id",p.id);
     else { const j=act.find(x=>x.id===f("job").value); const task=f("task").value.trim()||"Shop work";

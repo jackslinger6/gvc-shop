@@ -78,7 +78,9 @@ function paint(){
   clearInterval(tick);
   if(!open||$("#app").hidden){ bar.hidden=true; return; }
   bar.hidden=false;
-  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||"On the clock")}</b><small>${esc(open.job_name||"")}</small></div><span class="clk" id="pClk">${hm(paidMs(open.start_at))}</span><button type="button" id="pOut">PUNCH OUT</button>`;
+  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||"On the clock")}</b><small>${esc(open.job_name||"")}</small></div><span class="clk" id="pClk" title="Fix the start time" style="cursor:pointer">${hm(paidMs(open.start_at))}</span><button type="button" id="pFix" title="Forgot to punch in on time? Fix the start" style="background:rgba(255,255,255,.1);color:#e9e6e1;padding:8px 9px">✎</button><button type="button" id="pOut">PUNCH OUT</button>`;
+  bar.querySelector("#pFix").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
+  bar.querySelector("#pClk").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pOut").onclick=()=>punchOut();
   bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)) openJob(open.job_id); };
   tick=setInterval(()=>{ const c=$("#pClk"); if(c&&open) c.textContent=hm(paidMs(open.start_at)); },1000);
@@ -99,16 +101,53 @@ async function setTask(jid,aid,fn,logText){
 }
 const preview=()=>!!(window.ME&&ME.preview);
 const PV="Preview - nothing is saved. Exit the preview to punch in for real.";
-async function punchIn(jid,aid){
+async function punchIn(jid,aid,startAt){
   if(preview()){ toast(PV); return; }
   const j=jobs.find(x=>x.id===jid); const a=j&&(j.assemblies||[]).find(x=>x.id===aid); if(!a) return;
   const r=await sb.rpc("gvc_punch_in",{p_who:me(),p_job:jid,p_task:aid,p_job_name:j.name,p_task_name:a.name});
   if(r.error){ toast("Couldn't punch in: "+r.error.message); return; }
+  if(startAt){ await load(); if(open&&!(await moveStart(startAt,true))) startAt=null; }
   const who=String(a.who||"").split(",").map(s=>s.trim()).filter(Boolean);
   if(["ready","bend"].includes(a.status)||!who.includes(me()))
     await setTask(jid,aid,x=>{ if(x.status==="ready") x.status="prog"; if(!who.includes(me())) x.who=[...who,me()].join(", "); },`${me()} punched in on ${a.name}`);
-  delete jobPunches[jid]; await load(); toast(`On the clock: ${a.name}`);
+  delete jobPunches[jid]; await load(); toast(`On the clock: ${a.name}${startAt?" since "+clk12(startAt):""}`);
 }
+/* forgot to punch in on time (Colton, Nov 6): move the start of the running punch back; the entry before it gets shortened to match */
+const clk12=t=>new Date(t).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}).replace(" ","").toLowerCase();
+async function moveStart(t,quiet){
+  if(!open) return false;
+  const sa=new Date(t); if(sa>new Date()){ toast("That start time is in the future."); return false; }
+  const fit=window.gvcFitPunch?await window.gvcFitPunch(sa,null,open.id):{changes:[]};
+  if(fit.block){ toast("Couldn't move the start: "+fit.block); return false; }
+  if(fit.changes.length&&!quiet&&!confirm("This runs into other time:\n\n"+fit.changes.map(c=>"• "+c.label).join("\n")+"\n\nShorten it to fit?")) return false;
+  if(window.gvcApplyFit&&!(await window.gvcApplyFit(fit))) return false;
+  const r=await sb.from("gvc_punches").update({start_at:sa.toISOString(),edited_at:new Date().toISOString()}).eq("id",open.id);
+  if(r.error){ toast("Couldn't move the start: "+r.error.message); return false; }
+  delete jobPunches[open.job_id]; return true;
+}
+/* quarter-hour start choices for today, newest first: "Now", then 15-minute steps back to 6:00 */
+function startOpts(){
+  const n=new Date(), x=new Date(n); x.setSeconds(0,0); x.setMinutes(Math.floor(x.getMinutes()/15)*15);
+  const o=[]; const z=new Date(n); z.setHours(6,0,0,0);
+  for(let t=new Date(x);t>=z&&o.length<64;t=new Date(t.getTime()-9e5)) o.push(t.toISOString());
+  return o;
+}
+function fixStartSheet(){
+  if(preview()){ toast(PV); return; }
+  if(!open) return;
+  const st0=new Date(open.start_at); const opts=startOpts().filter(t=>new Date(t)<new Date());
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>WHEN DID YOU START?</h3>
+    <div class="tnote" style="margin:-4px 0 10px">${esc(open.task_name||"")} · punched in at ${clk12(st0)}. Forgot to punch in on time? Pick when you really started.</div>
+    <label>Started at<select id="fsT" style="font-size:16px;min-height:48px">${opts.map(t=>`<option value="${t}">${clk12(t)}</option>`).join("")}</select></label>
+    <div class="tnote" id="fsMsg" style="margin:8px 0"></div>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" type="button" id="fsX">Cancel</button><button class="btn primary" type="button" id="fsGo" style="min-height:44px">Save</button></div></div>`;
+  document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
+  const sel=ov.querySelector("#fsT"); const best=opts.reduce((b,t)=>Math.abs(new Date(t)-st0)<Math.abs(new Date(b)-st0)?t:b,opts[0]); if(best) sel.value=best;
+  const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
+  ov.onclick=e=>{ if(e.target===ov) close(); }; ov.querySelector("#fsX").onclick=close;
+  ov.querySelector("#fsGo").onclick=async()=>{ if(await moveStart(sel.value)){ close(); await load(); toast("Start time fixed: "+clk12(sel.value)); } };
+}
+window.punchFixStart=fixStartSheet;
 async function punchOut(){
   if(preview()){ toast(PV); return; }
   const was=open; const r=await sb.rpc("gvc_punch_out",{p_who:me()});
@@ -312,6 +351,7 @@ function pickTask(){
     return `<button class="pkt ${on?"on":""}" type="button" data-pt="${esc(x.j.id)}|${esc(x.a.id)}" style="--c:${c}"><b>${esc(x.a.name)}</b><small>${esc(x.j.name)}${x.a.who?" · "+esc(x.a.who):""}${on?" · ON THE CLOCK":""}</small></button>`; };
   const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>PUNCH IN ON…</h3>
     <div class="tnote" style="margin:-4px 0 10px">Switching to another task stops the clock on the last one - it doesn't finish it. Only ✓ Done finishes a task.</div>
+    <label style="display:flex;gap:10px;align-items:center;margin:0 0 10px">Started<select id="ptStart" style="flex:1;font-size:16px;min-height:44px"><option value="">Now</option>${startOpts().filter(t=>new Date(t)<Date.now()-5*60e3).map(t=>`<option value="${t}">${clk12(t)} - forgot to punch in</option>`).join("")}</select></label>
     ${mine.length?`<div class="pkh">YOUR TASKS</div>${mine.map(item).join("")}`:""}
     ${other.length?`<div class="pkh">HELPING SOMEONE ELSE</div>${other.map(item).join("")}`:""}
     ${!mine.length&&!other.length?`<div class="tnote">No open tasks on any job.</div>`:""}
@@ -319,7 +359,7 @@ function pickTask(){
   document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
   const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
   ov.onclick=e=>{ if(e.target===ov) close(); };
-  ov.querySelectorAll("[data-pt]").forEach(b=>b.onclick=()=>{ close(); const [j,a]=b.dataset.pt.split("|"); punchIn(j,a); });
+  ov.querySelectorAll("[data-pt]").forEach(b=>b.onclick=()=>{ const t=(ov.querySelector("#ptStart")||{}).value||null; close(); const [j,a]=b.dataset.pt.split("|"); punchIn(j,a,t); });
   ov.querySelectorAll("[data-pw]").forEach(b=>b.onclick=()=>{ close(); addMyWork(); });
 }
 window.pickTask=pickTask;
