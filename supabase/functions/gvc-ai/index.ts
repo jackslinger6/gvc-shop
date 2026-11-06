@@ -398,11 +398,11 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
     return { reply, actions };
   };
   // crew (e.g. Colton): shop-floor side only - his own tasks, time clock, notes, NCRs, revisions, new work he's doing (Nov 5)
-  const CREW_OK = ["task_status", "punch", "add_tasks", "create_job", "propose_update", "add_ncr", "add_revision"];
+  const CREW_OK = ["add_todo", "task_status", "punch", "add_tasks", "create_job", "propose_update", "add_ncr", "add_revision"];
   const tools = crew ? CHAT_TOOLS.filter((t: any) => CREW_OK.includes(t.name)) : CHAT_TOOLS;
   const sysUse = !crew ? system : `You are the assistant inside the GVC Shop app at Gordeyville Customs (custom truck decks, BBQ trailers, service bodies) in Grande Prairie. You're talking to ${ME}, a shop crew member. Kyle is the shop lead who plans the work; Randy releases jobs. Talk like a helpful coworker: short, plain.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
-What you can do for ${ME}: punch in/out on tasks (punch), set task status (task_status - started = prog, finished = done), add a task he's doing to a job (add_tasks, who = ${ME}), start a new job for work nobody set up (create_job on the shop floor, who = ${ME}, no job number unless he gives one - Kyle is told), add a note to a job (propose_update with log only), log a problem (add_ncr) or a model/drawing revision (add_revision).
+What you can do for ${ME}: punch in/out on tasks (punch), set task status (task_status - started = prog, finished = done), add a task he's doing to a job (add_tasks, who = ${ME}), start a new job for work nobody set up (create_job on the shop floor, who = ${ME}, no job number unless he gives one - Kyle is told), add a note to a job (propose_update with log only), log a problem (add_ncr) or a model/drawing revision (add_revision), and tell Kyle something with add_todo - e.g. supplies running low or out ("Low on 0.035 wire"), a question, something he needs to know (it lands on Kyle's To do).
 You can NOT: move jobs between stages, change suppliers, orders, prices or quotes, rename jobs, change other people's schedules, Kyle's to-dos or time sheet, or read email. If he asks, say Kyle handles that and offer to leave Kyle a note on the job.
 Nothing happens unless a tool result says ok - never say done otherwise. Every change you make is logged as ${ME}.
 Jobs (shop view): ${JSON.stringify(jobs.map((j: any) => ({ id: j.id, name: j.name, stage: j.stage, summary: j.summary, tasks: j.tasks, ncrs: j.ncrs })))}
@@ -429,7 +429,7 @@ Where ${ME} is in the app right now: ${ctx.looking_at || "unknown"} - "this job"
       try {
         if (crew && !CREW_OK.includes(u.name)) { res = "error: not allowed for crew - Kyle handles that"; }
         else if (u.name === "add_todo") {
-          const { error } = await sb.from("gvc_todos").insert({ text: u.input.text, job_id: u.input.job_id || null, source: "chat", from_name: "Chat" });
+          const { error } = await sb.from("gvc_todos").insert({ text: crew ? `${u.input.text} (${ME})` : u.input.text, job_id: u.input.job_id || null, source: crew ? "crew" : "chat", from_name: crew ? ME : "Chat" });
           if (error) throw error; actions.push("Added to-do: " + u.input.text);
         } else if (u.name === "complete_todo") {
           const td = (todos || []).find((t: any) => t.id === u.input.id);
