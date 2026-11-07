@@ -159,6 +159,7 @@ const ic={
   undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   out:'<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11"/>',
   newj:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8M8 12h8"/>',
+  heart:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
 };
 const svg=(k,c="currentColor",s=24,w=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic[k]}</svg>`;
@@ -371,9 +372,9 @@ function moreMenu(){
   const n=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
   const items=[["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["count","Count an order","count"],["talks","Talks","rec"],["prices","Prices","count"],["requests","Supply requests","box",(window.reqCount?window.reqCount():0)],["staging","Staging kits","box"],["crewview","Colton's view","crew"],["partsview","Robin's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
-    ["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
+    ["theme",window.gvcTheme&&gvcTheme.get()==="girly"?"Girly mode ✓":"Girly mode","heart"],["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
   const CREWOK=["msgs","mytime","supplies","requests","count","inv","ncr","revs","archive","signout"];
-  const PARTSOK=["msgs","inv","staging","archive","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
+  const PARTSOK=["msgs","inv","staging","archive","theme","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
   const items2=window.ME&&ME.role==="crew"?items.filter(x=>CREWOK.includes(x[0])):window.ME&&ME.role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging"].includes(x[0]));
   // Kyle: the two preview buttons get their own highlighted row at the bottom (Nov 6)
   const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0])); const grid=items2.filter(x=>!PVK.includes(x[0]));
@@ -392,6 +393,7 @@ function moreMenu(){
       else if(k==="partsview"){ window.crewPreview&&window.crewPreview(true,"Robin"); }
       else if(k==="newjob"){ go(lastJobs()); setTimeout(()=>$("#addJob").click(),60); }
       else if(k==="undo") $("#undoBtn").click();
+      else if(k==="theme"){ window.gvcTheme&&gvcTheme.toggle(); }
       else if(k==="signout") $("#signOut").click();
       else go(k); });
   });
