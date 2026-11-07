@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GVC Vault</title>
+<!-- iPhone / iPad: Add to Home Screen opens it full-screen like an app (Robin, Nov 6). ?for=robin = pink icon + girly mode -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GVC Vault">
+<link rel="apple-touch-icon" id="appIcon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<script>try{ if(new URLSearchParams(location.search).get("for")==="robin"){ localStorage.setItem("gvc_for","robin"); if(localStorage.getItem("gvc_theme")===null) localStorage.setItem("gvc_theme","girly"); }
+  if(localStorage.getItem("gvc_for")==="robin") document.getElementById("appIcon").href="icon-girly-180.png"; }catch(e){}</script>
 <script>
 window.__errs=[];
 function __showErr(m){ try{ window.__errs.push(m); var d=document.getElementById("errbar"); if(!d){ d=document.createElement("div"); d.id="errbar"; d.style.cssText="margin:12px 16px;padding:10px 12px;border:1px solid #5c2a26;border-radius:10px;background:#2a1513;color:#ffb3ab;font:13px/1.4 system-ui,sans-serif;white-space:pre-wrap;word-break:break-word"; (document.body||document.documentElement).appendChild(d); } d.textContent="Something went wrong - send Claude a screenshot of this:\n"+window.__errs.slice(-4).join("\n"); }catch(e){} }
@@ -911,6 +920,8 @@ async function startApp(){
   try{ const r=await sb.rpc("gvc_me"); window.ME=r.data||{name:"Kyle",role:"admin"}; }catch(e){ window.ME={name:"Kyle",role:"admin"}; }
   document.body.classList.toggle("crew",window.ME.role==="crew"||window.ME.role==="parts");   // crew + parts (Robin) share the shop-side layout
   document.body.classList.toggle("parts",window.ME.role==="parts");
+  // Robin's phone starts in girly mode (she can switch it off in More); an explicit choice is kept
+  try{ if(window.ME.role==="parts"&&localStorage.getItem("gvc_theme")===null&&window.gvcTheme) gvcTheme.set("girly"); }catch(e){}
   $("#login").hidden=true; $("#app").hidden=false; $("#chatFab").hidden=$("#chatP").classList.contains("on");
   db=sb; await loadJobs(); loadSide(); setTimeout(()=>checkTexts(false),1500);
   if(Native){ try{ const st=await Native.recStatus(); if(st.on&&!recState.on){ recState.on=true; recState.t0=st.startedAt||Date.now(); recState.timer=setInterval(()=>{const b=$("#recBtn"); if(b) b.textContent="■ Stop recording "+recClock();},1000); render(); } }catch(e){} }

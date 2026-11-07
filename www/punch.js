@@ -375,6 +375,7 @@ window.crewPreview=(on,who)=>{
   else { if(!(window.ME&&ME.preview)) return; window.ME=realMe; open=realOpen; pvBar.style.display="none"; }
   document.body.classList.toggle("crew",!!(window.ME&&(ME.role==="crew"||ME.role==="parts")));
   document.body.classList.toggle("parts",!!(window.ME&&ME.role==="parts"));
+  if(window.gvcTheme) gvcTheme.preview(!!(on&&window.ME&&ME.role==="parts"));
   paint(); shellGo("home");
   if(!on){ load(); window.teamReload&&window.teamReload(); }
 };

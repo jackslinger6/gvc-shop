@@ -105,7 +105,9 @@ function font(){ if(document.getElementById("gvcQuicksand")) return; const l=doc
 const get=()=>{ try{ return localStorage.getItem(KEY)||""; }catch(e){ return ""; } };
 let t=null; const rebuild=()=>{ clearTimeout(t); t=setTimeout(()=>{ if(get()==="girly") build(); },250); };
 function apply(){ const on=get()==="girly"; if(on){ font(); build(); } document.body.classList.toggle("girly",on); }
-window.gvcTheme={ get, set:v=>{ try{ localStorage.setItem(KEY,v); }catch(e){} apply(); }, toggle:()=>window.gvcTheme.set(get()==="girly"?"":"girly"), rebuild:build };
+window.gvcTheme={ get, set:v=>{ try{ localStorage.setItem(KEY,v); }catch(e){} apply(); }, toggle:()=>window.gvcTheme.set(get()==="girly"?"":"girly"), rebuild:build,
+  // Kyle's "Robin's view" preview shows her girly mode without changing his own setting
+  preview:on=>{ if(on){ font(); build(); document.body.classList.add("girly"); } else apply(); } };
 // screens add their own <style> tags as they load - re-map when new ones appear
 new MutationObserver(ms=>{ if(ms.some(m=>[...m.addedNodes].some(n=>n.tagName==="STYLE"&&n.id!=="gvcGirly"))) rebuild(); }).observe(document.head,{childList:true});
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",apply); else apply();
