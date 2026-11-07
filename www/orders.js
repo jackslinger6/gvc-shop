@@ -183,13 +183,13 @@ function quoteCard(o,q,i){
       ${q.terms?`<div class="m">${E(q.terms)}</div>`:""}${q.note?`<div class="m" style="color:#f5b041">${E(q.note)}</div>`:""}</div>
       <div style="display:flex;gap:6px">${!pick?`<button class="btn sm primary" type="button" data-pq="${i}">Order from ${E(String(q.vendor||"them").split(/\s/)[0])}</button>`:""}<button class="btn sm" type="button" data-pqx="${i}" aria-label="Remove quote">×</button></div></div>
     <details><summary>${L.length} line${L.length===1?"":"s"}${q.src?` · from email "${E(q.src.subject||"")}" ${q.src.at?day(q.src.at):""}`:""}</summary>
-      <table>${L.map(l=>`<tr><td>${E(l.item)}${l.note?`<div class="lbl">${E(l.note)}</div>`:""}</td><td style="text-align:right">${l.qty!=null?E(l.qty)+(l.unit?" "+E(l.unit):""):""}</td><td style="text-align:right">${l.unit_price?$$(l.unit_price)+" ea":""}</td><td style="text-align:right;font-weight:700">${$$(l.line_total)}</td></tr>`).join("")}</table></details></div>`;
+      <table>${L.map(l=>`<tr><td>${E(l.item)}${l.note?`<div class="lbl">${E(l.note)}</div>`:""}</td><td style="text-align:right">${l.qty!=null?E(l.qty)+(l.unit?" "+E(l.unit):""):""}</td><td style="text-align:right">${l.unit_price?$$(l.unit_price)+" / "+E(l.unit||"ea"):""}</td><td style="text-align:right;font-weight:700">${$$(l.line_total)}</td></tr>`).join("")}</table></details></div>`;
 }
 // items x vendors: each vendor's price for each of our items (lines matched by the reader), cheapest green
 function compareTable(o){
   const I=items(o), Q=quotes(o); if(!Q.length) return "";
   const cell=(q,i)=>{ const L=(q.lines||[]).filter(l=>l.match===i); if(!L.length) return null; const t=L.reduce((a,l)=>a+(+l.line_total||0),0);
-    return {t:t||null,u:L.length===1&&L[0].unit_price?L[0].unit_price:null,note:L.map(l=>l.note).filter(Boolean).join("; ")}; };
+    return {t:t||null,u:L.length===1&&L[0].unit_price?L[0].unit_price:null,uu:L.length===1?(L[0].unit||"ea"):"ea",note:L.map(l=>l.note).filter(Boolean).join("; ")}; };
   const rows=I.map((it,i)=>{ const c=Q.map(q=>cell(q,i)); const ps=c.map(x=>x&&x.t).filter(n=>n>0); return {it,c,lo:ps.length>1?Math.min(...ps):null,hi:ps.length>1?Math.max(...ps):null}; });
   const all=rows.filter(r=>r.c.every(x=>x&&x.t>0)); const tot=Q.map((q,qi)=>all.reduce((a,r)=>a+r.c[qi].t,0));
   const cnt=Q.map((q,qi)=>rows.filter(r=>r.c[qi]&&r.c[qi].t>0).length);
@@ -202,7 +202,7 @@ function compareTable(o){
   if(!I.length) return "";
   return `${sums}<div class="cmpw" style="margin:8px 0 10px"><table class="cmp"><thead><tr><th>Item</th>${Q.map(q=>`<th>${E(q.vendor)}</th>`).join("")}</tr></thead><tbody>
     ${rows.map(r=>`<tr><td>${E(itemTxt(r.it))}${r.lo&&r.hi>r.lo?`<small>${$$(r.hi-r.lo)} spread (${Math.round((r.hi/r.lo-1)*100)}%)</small>`:""}</td>${r.c.map(x=>!x?`<td class="na">not quoted</td>`:!(x.t>0)?`<td class="na">no price${x.note?`<small>${E(x.note)}</small>`:""}</td>`
-      :`<td class="${r.lo!=null&&x.t===r.lo?"low":""}">${$$(x.t)}${x.u?`<small>${$$(x.u)} ea</small>`:""}${x.note?`<small>${E(x.note)}</small>`:""}</td>`).join("")}</tr>`).join("")}
+      :`<td class="${r.lo!=null&&x.t===r.lo?"low":""}">${$$(x.t)}${x.u&&Math.abs(x.u-x.t)>0.005?`<small>${$$(x.u)} / ${E(x.uu)}</small>`:""}${x.note?`<small>${E(x.note)}</small>`:""}</td>`).join("")}</tr>`).join("")}
     ${extra.some(x=>x.length)?`<tr><td>Other lines (freight, extras, not on our list)</td>${extra.map(x=>`<td>${x.length?$$(x.reduce((a,l)=>a+(+l.line_total||0),0))+`<small>${x.length} line${x.length>1?"s":""}</small>`:""}</td>`).join("")}</tr>`:""}
     </tbody><tfoot><tr><td>Quote total (before tax)</td>${Q.map(q=>`<td>${$$(q.total)}</td>`).join("")}</tr></tfoot></table></div>`;
 }
