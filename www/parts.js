@@ -255,10 +255,10 @@ window.renderHw=function(){
     <div class="chips"><button class="btn sm ${!hwKind?"primary":""}" data-hk="">All (${HW.length})</button>${KINDS.filter(k=>HW.some(h=>h.kind===k)).map(k=>`<button class="btn sm ${hwKind===k?"primary":""}" data-hk="${E(k)}">${E(k)} <span style="opacity:.6">${HW.filter(h=>h.kind===k).length}</span></button>`).join("")}
       <button class="btn sm ${hwLow?"primary":""}" id="hwL">Low${window.hwLowCount()?` (${window.hwLowCount()})`:""}</button></div>
     <div class="tnote">${list.length} item${list.length===1?"":"s"}${val?` · about $${Math.round(val).toLocaleString()} on the shelf (qty × unit cost)`:""} · from Robin's spreadsheet (Complete Inventory)${hwMeta&&hwMeta.at?", synced "+ago(hwMeta.at):""} - her sheet is still the master; change counts there. Min qty is set here.</div>
-    ${list.slice(0,hwMax).map(h=>`<div class="hwr ${lowHw(h)?"low":""} ${h.qty===0?"out":""}" data-hw="${E(h.key)}">
+    ${list.slice(0,hwMax).map(h=>{ const pic=window.hwPic?window.hwPic(h):""; return `<div class="hwr ${pic?"pic":""} ${lowHw(h)?"low":""} ${h.qty===0?"out":""}" data-hw="${E(h.key)}">${pic}
       <div class="d">${E(h.description||h.part_no||"(no description)")}${h.size?` <span style="font-weight:400;color:var(--muted)">${E(h.size)}</span>`:""}${lowHw(h)?`<span class="tg">LOW</span>`:""}</div>
       <div class="q">${h.qty==null?"?":+h.qty}<small>${E(h.unit||"on hand")}</small></div>
-      <div class="s">${[h.vendor?E(h.vendor)+(h.part_no?" #"+E(h.part_no):""):h.part_no?"#"+E(h.part_no):"",h.unit_cost!=null?money(h.unit_cost)+" ea":"no price",h.spec?E(h.spec):"",h.per_truck?`${+h.per_truck} per truck`:"",h.min_qty!=null?`keep ${+h.min_qty}`:"",E(h.kind||"")].filter(Boolean).join(" · ")}</div></div>`).join("")}
+      <div class="s">${[h.vendor?E(h.vendor)+(h.part_no?" #"+E(h.part_no):""):h.part_no?"#"+E(h.part_no):"",h.unit_cost!=null?money(h.unit_cost)+" ea":"no price",h.spec?E(h.spec):"",h.per_truck?`${+h.per_truck} per truck`:"",h.min_qty!=null?`keep ${+h.min_qty}`:"",E(h.kind||"")].filter(Boolean).join(" · ")}</div></div>`; }).join("")}
     ${list.length>hwMax?`<button class="btn" type="button" id="hwMore" style="width:100%;margin-top:6px">Show ${Math.min(150,list.length-hwMax)} more</button>`:""}
     ${!HW.length?`<div class="empty" style="text-align:left">${hwLoaded?"Robin's hardware list hasn't been synced yet.":"Loading…"}</div>`:""}`;
   if(window.invModeWire) window.invModeWire();
@@ -271,7 +271,7 @@ window.renderHw=function(){
 };
 function hwSheet(h){
   if(!h) return;
-  sheetUI(`<h3 style="text-transform:none;letter-spacing:.02em">${E(h.description||h.part_no)}</h3>
+  sheetUI(`${window.hwPic?window.hwPic(h,"hwsheetpic"):""}<h3 style="text-transform:none;letter-spacing:.02em">${E(h.description||h.part_no)}</h3>
     <div class="tnote" style="margin:-4px 0 10px">${[h.size,h.spec,h.vendor?h.vendor+(h.part_no?" #"+h.part_no:""):h.part_no,h.unit_cost!=null?money(h.unit_cost)+" each":"",h.pack_qty?"pack of "+(+h.pack_qty):"",h.per_truck?`${+h.per_truck} per truck`:"",h.grp?"sheet: "+h.grp:""].filter(Boolean).map(E).join(" · ")}</div>
     <div style="display:flex;gap:10px;margin-bottom:10px"><div class="pcard" style="--c:#9fb3c8;margin:0;cursor:default"><div><span>ON HAND</span><b>${h.qty==null?"?":+h.qty} <small style="font-size:13px;color:var(--muted)">${E(h.unit||"")}</small></b></div></div></div>
     ${office()?`<label>Keep at least (min qty - flags it LOW on the list)<input id="hwMin" type="number" min="0" step="1" value="${h.min_qty??""}" style="font-size:16px"></label>`:""}
