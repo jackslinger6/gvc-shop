@@ -271,7 +271,9 @@ window.renderHw=function(){
 };
 function hwSheet(h){
   if(!h) return;
-  sheetUI(`${window.hwPic?window.hwPic(h,"hwsheetpic"):""}<h3 style="text-transform:none;letter-spacing:.02em">${E(h.description||h.part_no)}</h3>
+  const own=window.hwHasOwnPhoto&&window.hwHasOwnPhoto(h), cred=window.hwPhotoCredit?window.hwPhotoCredit(h):"";
+  sheetUI(`${window.hwPic?window.hwPic(h,"hwsheetpic"):""}${cred?`<div class="hwcred">${cred}</div>`:""}
+    ${office()&&window.hwPhotoSet?`<div class="row" style="justify-content:center;gap:8px;margin-bottom:10px"><label class="btn sm" style="cursor:pointer;margin:0">📷 ${own?"Replace photo":"Add / replace photo"}<input id="hwPh" type="file" accept="image/*" style="display:none"></label>${own?`<button class="btn sm" type="button" id="hwPhX">Remove photo</button>`:""}</div>`:""}<h3 style="text-transform:none;letter-spacing:.02em">${E(h.description||h.part_no)}</h3>
     <div class="tnote" style="margin:-4px 0 10px">${[h.size,h.spec,h.vendor?h.vendor+(h.part_no?" #"+h.part_no:""):h.part_no,h.unit_cost!=null?money(h.unit_cost)+" each":"",h.pack_qty?"pack of "+(+h.pack_qty):"",h.per_truck?`${+h.per_truck} per truck`:"",h.grp?"sheet: "+h.grp:""].filter(Boolean).map(E).join(" · ")}</div>
     <div style="display:flex;gap:10px;margin-bottom:10px"><div class="pcard" style="--c:#9fb3c8;margin:0;cursor:default"><div><span>ON HAND</span><b>${h.qty==null?"?":+h.qty} <small style="font-size:13px;color:var(--muted)">${E(h.unit||"")}</small></b></div></div></div>
     ${office()?`<label>Keep at least (min qty - flags it LOW on the list)<input id="hwMin" type="number" min="0" step="1" value="${h.min_qty??""}" style="font-size:16px"></label>`:""}
@@ -279,6 +281,9 @@ function hwSheet(h){
       ${office()?`<button class="btn" type="button" id="hwOrd">+ Add to order list</button>`:`<button class="btn" type="button" id="hwAsk">We need more of these</button>`}
       <span style="flex:1"></span><button class="btn" type="button" id="hwX">Close</button>${office()?`<button class="btn primary" type="button" id="hwSave">Save</button>`:""}</div>`,(el,close)=>{
     el.querySelector("#hwX").onclick=close;
+    const ph=el.querySelector("#hwPh"); if(ph) ph.onchange=async()=>{ const f=ph.files&&ph.files[0]; if(!f) return; if(pv()){ say(PV); return; }
+      say("Uploading photo…"); try{ await window.hwPhotoSet(h,f); say("Photo saved"); close(); hwSheet(h); }catch(e){ say("Couldn't save the photo: "+(e.message||e)); } };
+    const phx=el.querySelector("#hwPhX"); if(phx) phx.onclick=async()=>{ if(pv()){ say(PV); return; } try{ await window.hwPhotoRemove(h); close(); hwSheet(h); }catch(e){ say("Couldn't remove it: "+(e.message||e)); } };
     const sv=el.querySelector("#hwSave"); if(sv) sv.onclick=async()=>{ if(pv()){ say(PV); return; } const v=el.querySelector("#hwMin").value;
       const r=await sb.from("gvc_hardware").update({min_qty:v===""?null:+v}).eq("key",h.key); if(r.error){ say("Couldn't save: "+r.error.message); return; } h.min_qty=v===""?null:+v; close(); render(); };
     const o=el.querySelector("#hwOrd"); if(o) o.onclick=()=>{ close(); newRequest({what:[h.description,h.size].filter(Boolean).join(" ")+(h.vendor?` (${h.vendor}${h.part_no?" #"+h.part_no:""})`:""),hardware_key:h.key}); };
