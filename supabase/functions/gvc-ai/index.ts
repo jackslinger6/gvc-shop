@@ -200,6 +200,7 @@ const CHAT_TOOLS = [
   { name: "set_time", description: "Log or change Kyle's own hours for one day on the My time tab (what goes on his time invoice). mode 'replace' = these lines are the whole day; 'add' = add to what's there. Each line: job (GVC job number/name like 1086WT, or 'shop' for shop time/cleanup/meetings), hours, note. confirm=true marks the day confirmed (ready to Send) - only when Kyle says it's right/final. It never sends to the time invoice app; Kyle presses Send.",
     input_schema: { type: "object", properties: { date: { type: "string", description: "YYYY-MM-DD" }, mode: { type: "string", enum: ["replace", "add"] }, confirm: { type: "boolean" },
       lines: { type: "array", items: { type: "object", properties: { job: { type: "string" }, hours: { type: "number" }, note: { type: "string" } }, required: ["job", "hours"] } } }, required: ["date", "mode", "lines"] } },
+  { name: "add_request", description: "Supply request: something the shop needs ordered (weld wire, gas, discs, bolts, lights...). From the crew it waits for Kyle to approve; from Kyle or Robin it goes straight onto Robin's order list. Use this (not add_todo) for anything that needs buying.", input_schema: { type: "object", properties: { what: { type: "string", description: "What's needed, as said (size/spec if given)" }, how: { type: ["string", "null"], enum: ["low", "out", null] }, qty: { type: ["string", "null"] }, note: { type: ["string", "null"] }, job_id: { type: ["string", "null"] } }, required: ["what"] } },
   { name: "add_todo", description: "Add a to-do to Kyle's list right away.", input_schema: { type: "object", properties: { text: { type: "string" }, job_id: { type: ["string", "null"] } }, required: ["text"] } },
   { name: "complete_todo", description: "Mark one of Kyle's own to-dos done, by its id (only to-dos from the 'open to-dos' list - board reminders have no id, use clear_reminder for those).", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "clear_reminder", description: "Hide a [board reminder] from Kyle's To do tab (the auto ones like 'Give work to Aaron', 'Look over new job: ...', 'Log your time ...'). Pass the reminder text exactly as it appears in the To do tab list, without the [board reminder] prefix. It comes back on its own if the situation changes.", input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
@@ -359,7 +360,8 @@ First line: TITLE: <5-8 word title, e.g. "Randy - 1086WT and hitch rack plan">`;
 }
 
 async function chat(sb: any, msgs: any[], ctx: any = {}, me: any = { name: "Kyle", role: "admin" }) {
-  const crew = me?.role === "crew"; const ME = me?.name || "Kyle";
+  // anyone who isn't Kyle (admin) gets the limited tool set: crew (Colton...) and parts (Robin) (Nov 6)
+  const crew = (me?.role || "admin") !== "admin"; const parts = me?.role === "parts"; const ME = me?.name || "Kyle";
   const [{ data: rows }, { data: todos }, { data: notes }] = await Promise.all([
     sb.from("gvc_jobs").select("id,data"),
     sb.from("gvc_todos").select("id,text,job_id,from_name,created_at").is("done_at", null).neq("source", "auto"),
@@ -407,11 +409,11 @@ App notes already saved: ${JSON.stringify((notes || []).map((x: any) => ({ id: x
     return { reply, actions };
   };
   // crew (e.g. Colton): shop-floor side only - his own tasks, time clock, notes, NCRs, revisions, new work he's doing (Nov 5)
-  const CREW_OK = ["add_todo", "task_status", "punch", "add_tasks", "create_job", "propose_update", "add_ncr", "add_revision"];
+  const CREW_OK = ["add_todo", "add_request", "task_status", "punch", "add_tasks", "create_job", "propose_update", "add_ncr", "add_revision", ...(parts ? ["set_consumable"] : [])];
   const tools = crew ? CHAT_TOOLS.filter((t: any) => CREW_OK.includes(t.name)) : CHAT_TOOLS;
-  const sysUse = !crew ? system : `You are the assistant inside the GVC Shop app at Gordeyville Customs (custom truck decks, BBQ trailers, service bodies) in Grande Prairie. You're talking to ${ME}, a shop crew member. Kyle is the shop lead who plans the work; Randy releases jobs. Talk like a helpful coworker: short, plain.
+  const sysUse = !crew ? system : `You are the assistant inside the GVC Shop app at Gordeyville Customs (custom truck decks, BBQ trailers, service bodies) in Grande Prairie. You're talking to ${ME}, ${parts ? "the parts person (orders hardware, lights, mud flaps, consumables like weld wire and gas; stages parts for jobs; keeps the stock spreadsheet)" : "a shop crew member"}. Kyle is the shop lead who plans the work; Randy releases jobs. Talk like a helpful coworker: short, plain.
 Today is ${new Date().toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" })}.
-What you can do for ${ME}: punch in/out on tasks (punch), set task status (task_status - started = prog, finished = done), add a task he's doing to a job (add_tasks, who = ${ME}), start a new job for work nobody set up (create_job on the shop floor, who = ${ME}, no job number unless he gives one - Kyle is told), add a note to a job (propose_update with log only), log a problem (add_ncr) or a model/drawing revision (add_revision), and tell Kyle something with add_todo - e.g. supplies running low or out ("Low on 0.035 wire"), a question, something he needs to know (it lands on Kyle's To do).
+What you can do for ${ME}: punch in/out on tasks (punch), set task status (task_status - started = prog, finished = done), add a task he's doing to a job (add_tasks, who = ${ME}), start a new job for work nobody set up (create_job on the shop floor, who = ${ME}, no job number unless he gives one - Kyle is told), add a note to a job (propose_update with log only), log a problem (add_ncr) or a model/drawing revision (add_revision), supplies that need ordering with add_request (${parts ? "goes straight onto the order list" : "Kyle approves it, then Robin orders it"}),${parts ? " update consumable counts and minimums (set_consumable)," : ""} and tell Kyle something with add_todo - a question, something he needs to know (it lands on Kyle's To do). A revision from ${ME} waits for Kyle to look at it before it goes to Jessie.
 You can NOT: move jobs between stages, change suppliers, orders, prices or quotes, rename jobs, change other people's schedules, Kyle's to-dos or time sheet, or read email. If he asks, say Kyle handles that and offer to leave Kyle a note on the job.
 Nothing happens unless a tool result says ok - never say done otherwise. Every change you make is logged as ${ME}.
 Jobs (shop view): ${JSON.stringify(jobs.map((j: any) => ({ id: j.id, name: j.name, stage: j.stage, summary: j.summary, tasks: j.tasks, ncrs: j.ncrs })))}
@@ -436,7 +438,12 @@ Where ${ME} is in the app right now: ${ctx.looking_at || "unknown"} - "this job"
     for (const u of uses) {
       let res = "ok";
       try {
-        if (crew && !CREW_OK.includes(u.name)) { res = "error: not allowed for crew - Kyle handles that"; }
+        if (crew && !CREW_OK.includes(u.name)) { res = `error: not allowed for ${ME} - Kyle handles that`; }
+        else if (u.name === "add_request") {
+          const { error } = await sb.from("gvc_requests").insert({ who: ME, what: String(u.input.what || "").trim(), how: u.input.how || null, qty: u.input.qty || null, note: u.input.note || null, job_id: u.input.job_id || null,
+            status: parts || !crew ? "approved" : "review", log: [{ at: new Date().toISOString(), by: ME, text: "asked (Ask Claude)" }] });
+          if (error) throw error; actions.push(`${parts || !crew ? "On Robin's order list" : "Sent to Kyle to approve"}: ${u.input.what}`);
+        }
         else if (u.name === "add_todo") {
           const { error } = await sb.from("gvc_todos").insert({ text: crew ? `${u.input.text} (${ME})` : u.input.text, job_id: u.input.job_id || null, source: crew ? "crew" : "chat", from_name: crew ? ME : "Chat" });
           if (error) throw error; actions.push("Added to-do: " + u.input.text);
@@ -653,6 +660,9 @@ Deno.serve(async (req) => {
     if (!ok) return json({ error: "Not on the shop list" }, 403);
     const body = await req.json();
 
+    const { data: myRole } = await sb.rpc("gvc_role");
+    const adminOnly = ["suggest", "ms_status", "ms_start", "recording"];
+    if (adminOnly.includes(body.action) && myRole !== "admin") return json({ error: "Only Kyle can do that" }, 403);
     if (body.action === "suggest") return json(await suggest(sb, body.items || []));
     if (body.action === "stt") {
       const bytes = Uint8Array.from(atob(String(body.audio || "")), (c) => c.charCodeAt(0));

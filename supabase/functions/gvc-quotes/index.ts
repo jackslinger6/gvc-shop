@@ -397,7 +397,7 @@ Deno.serve(async (req) => {
     let ok = false; const key = req.headers.get("x-gvc-key");
     if (key) { const { data } = await admin().from("gvc_secret").select("v").eq("k", "files_key").maybeSingle(); ok = !!data && data.v === key; }
     else { const u = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("Authorization") || "" } } });
-      const { data } = await u.rpc("gvc_is_member"); ok = !!data; }
+      const { data } = await u.rpc("gvc_role"); ok = ['admin','parts'].includes(String(data || "")); }   // Nov 6: not the crew
     if (!ok) return json({ error: "Not on the shop list" }, 403);
     const body = await req.json().catch(() => ({}));
     const db = admin();

@@ -8,7 +8,7 @@
    CREW MY TIME: crew (Colton) see their own punches by week - edit start/end, delete, add time they forgot to punch.
    Separate from Kyle's My time / invoices. "Copy week" puts the week on the clipboard to text to Robin for now. */
 (()=>{
-const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0",Vault:"#ff8a2a"};
+const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0",Robin:"#9b7bff",Jessie:"#22c3e6",Vault:"#ff8a2a"};
 const st=document.createElement("style");
 st.textContent=`
 .cw .p .av{position:relative;transition:box-shadow .3s}
@@ -59,11 +59,11 @@ document.head.appendChild(st);
 const $=s=>document.querySelector(s);
 const E=s=>typeof esc==="function"?esc(s):String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const me=()=>(window.ME&&ME.name)||"Kyle";
-const crew=()=>window.ME&&ME.role==="crew";
+const crew=()=>window.ME&&(ME.role==="crew"||ME.role==="parts");
 const pv=()=>window.ME&&ME.preview;
 const say=m=>{ if(typeof todoToast==="function"){ todoToast(m,null); const u=document.getElementById("toastUndo"); if(u) u.style.display="none"; } };
 const goTo=v=>{ if(typeof go==="function") go(v); else { cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0}); } };
-const people=()=>typeof CREW!=="undefined"?CREW:["Kyle","Colton","Aaron","Cooper"];
+const people=()=>[...(typeof CREW!=="undefined"?CREW:["Kyle","Colton","Aaron","Cooper"]),"Robin"];   // Robin isn't on the week plan, but is on the app (Nov 6)
 const av=(n,cls="")=>`<span class="tmav ${cls}" style="background:${COL[n]||"#9aa1aa"}">${E((n||"?")[0])}</span>`;
 const ago=t=>{ if(!t) return ""; const s=(Date.now()-new Date(t))/1e3; if(s<90) return "just now"; if(s<3600) return Math.round(s/60)+" min ago"; if(s<86400) return Math.round(s/3600)+"h ago";
   const d=Math.round(s/86400); return d===1?"yesterday":d<7?d+" days ago":new Date(t).toLocaleDateString([], {month:"short",day:"numeric"}); };

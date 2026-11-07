@@ -3,7 +3,7 @@
    Jobs sub-tabs: Pipeline · Orders · Shop floor · Crew · NCRs · Revisions · Finished jobs (+ New job lives here)
    Inventory sub-tabs: Truck parts · Consumables */
 (()=>{
-const SECT={todo:"todo",pipeline:"jobs",ordering:"jobs",build:"jobs",crew:"jobs",ncr:"jobs",revs:"jobs",archive:"jobs",time:"time",inv:"inv",ideas:"more"};
+const SECT={requests:"todo",staging:"inv",todo:"todo",pipeline:"jobs",ordering:"jobs",build:"jobs",crew:"jobs",ncr:"jobs",revs:"jobs",archive:"jobs",time:"time",inv:"inv",ideas:"more"};
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 let lastJobs=ls.get("gvc_last_jobs")||"build";
 const css=document.createElement("style");
@@ -20,6 +20,7 @@ css.textContent=`
 .invmode{display:none !important}
 #ideasBtn{font-size:12.5px;padding:6px 10px}
 #ncrBtn,#revBtn,#archBtn{display:none !important}
+body.crew .invmode{display:flex !important}   /* crew + Robin: no sub-nav bar, so the Truck parts / Consumables / Hardware buttons show in the page */
 @media (max-width:900px){ .tabs{grid-template-columns:1fr 1fr !important} .tab[data-s]{grid-column:auto !important} .subnav .sep{display:none} .subnav .sn{padding:6px 9px} }
 `;
 document.head.appendChild(css);
@@ -64,7 +65,7 @@ render=function(){
       +`<span class="grow"></span>`+sn("archive","Finished jobs","#6c727a",archN||"","");
   } else if(sec==="inv"&&window.invMode){
     const m=window.invMode.get();
-    h=`<button class="sn ${m==="parts"?"on":""}" style="--c:#9fb3c8" type="button" data-im2="parts">Truck parts<span class="ct">${parts.length||""}</span></button><button class="sn ${m==="cons"?"on":""}" style="--c:#f5b041" type="button" data-im2="cons">Consumables${invLow?`<span class="at">${invLow} low</span>`:""}</button>`;
+    h=`<button class="sn ${m==="parts"?"on":""}" style="--c:#9fb3c8" type="button" data-im2="parts">Truck parts<span class="ct">${parts.length||""}</span></button><button class="sn ${m==="cons"?"on":""}" style="--c:#f5b041" type="button" data-im2="cons">Consumables${invLow?`<span class="at">${invLow} low</span>`:""}</button><button class="sn ${m==="hw"?"on":""}" style="--c:#22c3e6" type="button" data-im2="hw">Hardware${window.hwLowCount&&window.hwLowCount()?`<span class="at">${window.hwLowCount()} low</span>`:""}</button>`;
   }
   sub.innerHTML=h; sub.hidden=!h;
   sub.querySelectorAll("[data-sv]").forEach(b=>b.onclick=()=>go(b.dataset.sv));

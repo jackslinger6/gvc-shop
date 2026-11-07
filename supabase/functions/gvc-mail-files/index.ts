@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
     if (key) { const { data } = await db.from("gvc_secret").select("v").eq("k", "files_key").maybeSingle(); ok = !!data && data.v === key; }
     else {
       const u = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("Authorization") || "" } } });
-      const { data } = await u.rpc("gvc_is_member"); ok = !!data;
+      const { data } = await u.rpc("gvc_role"); ok = ['admin'].includes(String(data || ""));   // Nov 6: not the crew
     }
     if (!ok) return json({ error: "not allowed" }, 403);
     return json(await run(db, { sid: body.suggestion_id, message_id: body.message_id, job_id: body.job_id, parts: body.parts, supplier: body.supplier }));

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Model revisions · Gordeyville Customs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0e10;--panel:#1a1c20;--panel2:#22252a;--line:#3a3e45;--text:#e9e6e1;--muted:#9aa0a8;--orange:#ff8a2a;--green:#3ad06b;--amber:#f5b041;--blue:#2f8ff0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 Inter,system-ui,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:18px 14px 60px}
+h1{font:600 26px Oswald,sans-serif;letter-spacing:.06em;margin:0}
+.sub{color:var(--muted);font-size:13.5px;margin:4px 0 14px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tabs button{font:600 13px Inter,sans-serif;color:#cfc9c0;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 12px;cursor:pointer}
+.tabs button.on{background:var(--orange);color:#111;border-color:var(--orange)}
+.job{font:600 13px Oswald,sans-serif;letter-spacing:.14em;color:var(--orange);margin:18px 2px 6px;text-transform:uppercase}
+.card{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;padding:12px 14px;margin:8px 0}
+.card .h{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.card .tg{font:600 15px Oswald,sans-serif;letter-spacing:.05em}
+.pill{font-size:11px;border:1px solid var(--c);color:var(--c);border-radius:999px;padding:1px 8px}
+.part{color:var(--muted);font-size:13px}
+.what{white-space:pre-wrap;margin-top:6px}
+.ph{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ph img{width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;background:#111}
+.note{margin-top:8px;font-size:13.5px;color:#d9d4cc;background:var(--panel2);border-radius:8px;padding:6px 9px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.acts button{font:600 14px Inter,sans-serif;border-radius:10px;padding:10px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--text);min-height:44px}
+.acts .ok{background:var(--green);border-color:var(--green);color:#0b1a10}
+textarea{width:100%;min-height:70px;margin-top:8px;font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px}
+.empty{color:var(--muted);text-align:center;padding:30px 10px;border:1px dashed var(--line);border-radius:12px}
+.err{color:#ff9b91;margin:12px 0}
+.zoom{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
+.zoom.on{display:flex}.zoom img{max-width:96vw;max-height:94vh}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#202328;border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:none}
+.toast.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MODEL REVISIONS</h1>
+  <div class="sub">Gordeyville Customs · changes the shop needs in the models. When one is updated (model, drawings and DXFs), mark it done here - Kyle gets told and checks it.</div>
+  <div class="tabs" id="tabs"></div>
+  <div id="list"><div class="empty">Loading…</div></div>
+</div>
+<div class="zoom" id="zoom"><img alt=""></div>
+<div class="toast" id="toast"></div>
+<script>
+const FN="https://bfbhosvkzdxjcmvofotk.supabase.co/functions/v1/gvc-jessie", KEY="sb_publishable_2aeUuYaGA1iLXKNfTeiMhQ_-KelUydR";
+const k=(new URLSearchParams(location.hash.slice(1))).get("k")||"";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ST={sent:["To do","#ff8a2a"],question:["You asked a question","#f5b041"],done:["Done - Kyle to check","#2f8ff0"],checked:["Checked by Kyle","#3ad06b"]};
+let items=[], tab="sent", asking=null;
+async function call(body){
+  const r=await fetch(FN,{method:"POST",headers:{"content-type":"application/json",apikey:KEY},body:JSON.stringify({k,...body})});
+  const d=await r.json().catch(()=>({error:"Server error "+r.status})); if(!r.ok||d.error) throw new Error(d.error||("Error "+r.status)); return d;
+}
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("on"),3500); }
+async function load(){
+  if(!k){ document.getElementById("list").innerHTML=`<div class="err">This page needs the link from Kyle's email.</div>`; return; }
+  try{ items=(await call({action:"list"})).items||[]; draw(); }
+  catch(e){ document.getElementById("list").innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+}
+function draw(){
+  const n=s=>items.filter(i=>s.includes(i.status)).length;
+  const T=[["sent","To do",["sent","question"]],["done","Done",["done"]],["checked","Checked",["checked"]]];
+  document.getElementById("tabs").innerHTML=T.map(([key,t,s])=>`<button class="${tab===key?"on":""}" data-t="${key}">${t} (${n(s)})</button>`).join("");
+  document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{ tab=b.dataset.t; asking=null; draw(); });
+  const want=T.find(x=>x[0]===tab)[2]; const L=items.filter(i=>want.includes(i.status));
+  const by={}; L.forEach(i=>(by[i.job||"No job"]=by[i.job||"No job"]||[]).push(i));
+  document.getElementById("list").innerHTML=Object.keys(by).map(j=>`<div class="job">${esc(j)}</div>`+by[j].map(i=>{ const s=ST[i.status]||ST.sent;
+    return `<div class="card" style="--c:${s[1]}"><div class="h"><span class="tg">${esc(i.tag)}</span><span class="pill">${s[0]}</span>${i.part?`<span class="part">${esc(i.part)}</span>`:""}</div>
+      <div class="what">${esc(i.what)}</div>
+      ${i.photos.length?`<div class="ph">${i.photos.map(u=>`<img src="${esc(u)}" alt="Photo for ${esc(i.tag)}" data-z="${esc(u)}">`).join("")}</div>`:""}
+      ${i.note?`<div class="note">${i.status==="question"?"Your question: ":"Note: "}${esc(i.note)}</div>`:""}
+      ${asking===i.id?`<textarea id="q" placeholder="${i.status==="done"?"What changed (optional)":"Your question for Kyle"}"></textarea><div class="acts"><button data-x="1">Cancel</button><button class="ok" data-send="${i.id}">${asking_mode==="done"?"Mark done":"Send question"}</button></div>`
+      :i.status==="sent"||i.status==="question"?`<div class="acts"><button class="ok" data-done="${i.id}">✓ Done - it's updated</button><button data-ask="${i.id}">Ask Kyle a question</button></div>`
+      :i.status==="done"?`<div class="acts"><button data-undo="${i.id}">Not done after all</button></div>`:""}</div>`; }).join("")).join("")||`<div class="empty">${tab==="sent"?"Nothing waiting on you. 👍":"Nothing here."}</div>`;
+  document.querySelectorAll("[data-z]").forEach(im=>im.onclick=()=>{ const z=document.getElementById("zoom"); z.querySelector("img").src=im.dataset.z; z.classList.add("on"); });
+  document.querySelectorAll("[data-done]").forEach(b=>b.onclick=()=>{ asking=b.dataset.done; asking_mode="done"; draw(); });
+  document.querySelectorAll("[data-ask]").forEach(b=>b.onclick=()=>{ asking=b.dataset.ask; asking_mode="question"; draw(); setTimeout(()=>document.getElementById("q").focus(),30); });
+  document.querySelectorAll("[data-x]").forEach(b=>b.onclick=()=>{ asking=null; draw(); });
+  document.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>mark(b.dataset.send,asking_mode,document.getElementById("q").value));
+  document.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>mark(b.dataset.undo,"sent",""));
+}
+let asking_mode="done";
+async function mark(id,status,note){
+  try{ await call({action:"mark",id,status,note}); asking=null; toast(status==="done"?"Marked done - Kyle's been told.":status==="question"?"Question sent to Kyle.":"Back on your list."); await load(); }
+  catch(e){ toast(e.message); }
+}
+document.getElementById("zoom").onclick=e=>e.currentTarget.classList.remove("on");
+load();
+</script>
+</body>
+</html>

@@ -530,7 +530,7 @@ function render(){
   }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${liveAuto().some(t=>/^Assign \d+ assembl/.test(t.text))&&crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+(window.timeTab?window.timeTab():"")+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)&&liveAuto().some(t=>/sitting flat/.test(t.text))?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
   { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
-  if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="ncr"){ if(window.renderNcr) window.renderNcr(); } else if(cur==="ideas"){ if(window.renderIdeas) window.renderIdeas(); } else if(cur==="archive"){ if(window.renderArchive) window.renderArchive(); } else if(cur==="revs"){ if(window.renderRevs) window.renderRevs(); } else if(cur==="inv"){ renderInv(); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
+  if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="ncr"){ if(window.renderNcr) window.renderNcr(); } else if(cur==="ideas"){ if(window.renderIdeas) window.renderIdeas(); } else if(cur==="archive"){ if(window.renderArchive) window.renderArchive(); } else if(cur==="revs"){ if(window.renderRevs) window.renderRevs(); } else if(cur==="inv"){ renderInv(); } else if(window.extraViews&&window.extraViews[cur]){ window.extraViews[cur](); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
   const B=BOARDS.find(b=>b.k===cur); if(!B) return;   // e.g. "home" before the shell has loaded
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
@@ -598,7 +598,7 @@ function wireAsm(root){
 }
 async function setAsm(jid,i,k,v){
   // crew: only report on your own tasks (status) - assigning people is Kyle's (Nov 5)
-  if(window.ME&&ME.role==="crew"){ const j0=jobs.find(x=>x.id===jid); const a0=j0&&j0.assemblies[i];
+  if(window.ME&&(ME.role==="crew"||ME.role==="parts")){ const j0=jobs.find(x=>x.id===jid); const a0=j0&&j0.assemblies[i];
     if(k!=="status"||!a0||!whoList(a0).includes(ME.name)){ if(typeof todoToast==="function"){ todoToast(ME.preview?"Preview - Colton can only update his own tasks":"You can only update tasks you're on - tell Kyle (Talk) about the rest",null); const u=$("#toastUndo"); if(u) u.style.display="none"; } render(); return; }
     if(ME.preview){ todoToast("Preview - nothing is saved",null); const u=$("#toastUndo"); if(u) u.style.display="none"; return; } }
   const j=structuredClone(jobs.find(x=>x.id===jid)); const a=j.assemblies[i]; const old=a[k]; a[k]=v;
@@ -798,7 +798,7 @@ function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 let wsLast="", wsT=null, wsAt=0;
 function cssCol(c){ const m=String(c||"").match(/var\((--[a-z0-9-]+)\)/i); const v=m?getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim():String(c||""); return /^#[0-9a-f]{3,8}$/i.test(v)?v:"#ffd28a"; }
 function publishTodo(){
-  if(window.ME&&ME.role==='crew') return;   // the widget shows Kyle's list - a crew phone must not overwrite it
+  if(window.ME&&ME.role!=='admin') return;   // the widget shows Kyle's list - a crew/parts phone must not overwrite it
   clearTimeout(wsT); wsT=setTimeout(async()=>{
     if(!db||!jobs.length) return;
     let items=[];
@@ -909,7 +909,8 @@ async function startApp(){
   try{ Widget && await Widget.setKey({ key }); }catch(e){}
   // who's signed in: Kyle (admin) or crew (Colton) - crew gets the shop-floor side only (Nov 5)
   try{ const r=await sb.rpc("gvc_me"); window.ME=r.data||{name:"Kyle",role:"admin"}; }catch(e){ window.ME={name:"Kyle",role:"admin"}; }
-  document.body.classList.toggle("crew",window.ME.role==="crew");
+  document.body.classList.toggle("crew",window.ME.role==="crew"||window.ME.role==="parts");   // crew + parts (Robin) share the shop-side layout
+  document.body.classList.toggle("parts",window.ME.role==="parts");
   $("#login").hidden=true; $("#app").hidden=false; $("#chatFab").hidden=$("#chatP").classList.contains("on");
   db=sb; await loadJobs(); loadSide(); setTimeout(()=>checkTexts(false),1500);
   if(Native){ try{ const st=await Native.recStatus(); if(st.on&&!recState.on){ recState.on=true; recState.t0=st.startedAt||Date.now(); recState.timer=setInterval(()=>{const b=$("#recBtn"); if(b) b.textContent="■ Stop recording "+recClock();},1000); render(); } }catch(e){} }
@@ -1288,7 +1289,7 @@ async function acceptSugg(id){
 /* ---- texts (phone app) ---- */
 let smsBusy=false, smsLast=0;
 async function checkTexts(manual){
-  if(window.ME&&ME.role==='crew') return;   // crew phones don't feed their texts into Kyle's board
+  if(window.ME&&ME.role!=='admin') return;   // only Kyle's phone feeds texts into his board
   if(!Native||smsBusy) return; if(!manual&&Date.now()-smsLast<5*60000) return;
   const contacts=LS.get("gvc_sms_contacts",[]);
   if(!contacts.length){ if(manual) pickContacts(); return; }
@@ -1393,7 +1394,7 @@ $("#msBtn").onclick=async()=>{
   setTimeout(()=>{ alert((m[1]==="ok"?"✅ ":"⚠️ ")+decodeURIComponent(m[2])); if(typeof msRefresh==="function") msRefresh(); },1200); })();
 async function sendChat(){
   const t=$("#chatIn").value.trim(); if(!t||chatBusy) return;
-  if(window.ME&&ME.preview){ chatMsgs.push({role:"assistant",content:"This is Colton's view (preview) - Claude isn't asked from here, so nothing changes. Exit the preview to talk to Claude."}); $("#chatIn").value=""; drawChat(); return; }
+  if(window.ME&&ME.preview){ chatMsgs.push({role:"assistant",content:`This is a preview of ${ME.name}'s view - Claude isn't asked from here, so nothing changes. Exit the preview to talk to Claude.`}); $("#chatIn").value=""; drawChat(); return; }
   $("#chatIn").value=""; chatMsgs.push({role:"user",content:t}); chatBusy=true; drawChat();
   try{
     const hist=chatMsgs.filter(m=>m.role!=="act").slice(-20);
@@ -1504,6 +1505,7 @@ render();
 <script src="punch.js"></script>
 <script src="prices.js"></script>
 <script src="team.js"></script>
+<script src="parts.js"></script>
 <script src="back.js"></script>
 </body>
 </html>

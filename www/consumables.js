@@ -64,12 +64,13 @@ function renderCons(){
   B.querySelectorAll("[data-cdel]").forEach(el=>el.onclick=async()=>{ const i=items.find(x=>x.id===el.dataset.cdel); items=items.filter(x=>x!==i); render(); await sb.from("gvc_consumables").delete().eq("id",i.id);
     todoToast(`Removed ${i.name}`,async()=>{ await sb.from("gvc_consumables").insert(i); load(); }); });
 }
-function modeBar(){ return `<div class="invmode"><button class="btn sm ${mode==="parts"?"primary":""}" type="button" data-im="parts">Truck parts</button><button class="btn sm ${mode==="cons"?"primary":""}" type="button" data-im="cons">Consumables${items.some(low)?` (${items.filter(low).length} low)`:""}</button></div>`; }
+function modeBar(){ return `<div class="invmode"><button class="btn sm ${mode==="parts"?"primary":""}" type="button" data-im="parts">Truck parts</button><button class="btn sm ${mode==="cons"?"primary":""}" type="button" data-im="cons">Consumables${items.some(low)?` (${items.filter(low).length} low)`:""}</button><button class="btn sm ${mode==="hw"?"primary":""}" type="button" data-im="hw">Hardware${window.hwLowCount&&window.hwLowCount()?` (${window.hwLowCount()} low)`:""}</button></div>`; }
+window.invModeBar=()=>modeBar(); window.invModeWire=()=>wireMode();
 function wireMode(){ document.querySelectorAll("[data-im]").forEach(b=>b.onclick=()=>{ mode=b.dataset.im; try{localStorage.setItem("gvc_inv_mode",mode)}catch(e){} render(); }); }
 try{ mode=localStorage.getItem("gvc_inv_mode")||"parts"; }catch(e){}
 window.invMode={get:()=>mode,set:m=>{ mode=m; try{localStorage.setItem("gvc_inv_mode",m)}catch(e){} render(); },low:()=>items.filter(low).length};
 const _inv=renderInv;
-renderInv=function(){ if(mode==="cons") return renderCons(); _inv(); const B=$("#board"); B.insertAdjacentHTML("afterbegin",modeBar()); wireMode(); };
+renderInv=function(){ if(mode==="hw"&&window.renderHw) return window.renderHw(); if(mode==="cons") return renderCons(); _inv(); const B=$("#board"); B.insertAdjacentHTML("afterbegin",modeBar()); wireMode(); };
 const _auto=autoTodos;
 autoTodos=function(){ const out=_auto(); try{ if(!loaded||!items.length) return out; const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   const lows=items.filter(low); if(lows.length){ const text=`Low on consumables: ${lows.map(i=>`${i.name} (${+i.qty}${i.unit?" "+i.unit:""}, keep ${+i.min_qty})`).join(", ")}`; if(!hidden.has(text)) out.unshift({text,c:"#e5483b",view:"inv"}); }

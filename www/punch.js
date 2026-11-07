@@ -66,7 +66,7 @@ body.crew .wkv .pblk,body.crew .wkv .pjob{cursor:default!important}
 document.head.appendChild(st);
 const toast=m=>{ if(typeof todoToast==="function"){ todoToast(m,null); const u=document.getElementById("toastUndo"); if(u) u.style.display="none"; } };
 const me=()=>(window.ME&&ME.name)||"Kyle";
-const isCrew=()=>!!(window.ME&&ME.role==="crew");
+const isCrew=()=>!!(window.ME&&(ME.role==="crew"||ME.role==="parts"));   // crew + parts (Robin): own tasks only, no office boards
 let open=null, tick=null, jobPunches={};
 const hm=ms=>{ const s=Math.max(0,Math.floor(ms/1000)); return `${Math.floor(s/3600)}:${String(Math.floor(s/60)%60).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`; };
 const hrs=ms=>{ const h=ms/36e5; return h<0.1?"<0.1h":(Math.round(h*10)/10)+"h"; };
@@ -368,26 +368,30 @@ const pvBar=document.createElement("div"); pvBar.style.cssText="position:fixed;t
 pvBar.innerHTML=`👁 CREW PREVIEW · WHAT COLTON SEES <button type="button" style="border:none;border-radius:8px;background:#0b0b14;color:#fff;font:600 12px Oswald,sans-serif;letter-spacing:.08em;padding:5px 10px;cursor:pointer">EXIT</button>`;
 document.body.appendChild(pvBar);
 let realMe=null, realOpen=null;
-window.crewPreview=on=>{
-  if(on){ if(window.ME&&ME.preview) return; realMe=window.ME; realOpen=open; window.ME={name:"Colton",role:"crew",preview:true}; open=null; pvBar.style.display="flex"; }
+window.crewPreview=(on,who)=>{
+  if(on){ if(window.ME&&ME.preview) return; realMe=window.ME; realOpen=open; who=who||"Colton";
+    window.ME={name:who,role:who==="Robin"?"parts":"crew",preview:true}; open=null; pvBar.firstChild.textContent=`👁 PREVIEW · WHAT ${who.toUpperCase()} SEES `; pvBar.style.display="flex"; }
   else { if(!(window.ME&&ME.preview)) return; window.ME=realMe; open=realOpen; pvBar.style.display="none"; }
-  document.body.classList.toggle("crew",!!(window.ME&&ME.role==="crew"));
+  document.body.classList.toggle("crew",!!(window.ME&&(ME.role==="crew"||ME.role==="parts")));
+  document.body.classList.toggle("parts",!!(window.ME&&ME.role==="parts"));
   paint(); shellGo("home");
   if(!on){ load(); window.teamReload&&window.teamReload(); }
 };
 pvBar.querySelector("button").onclick=()=>window.crewPreview(false);
 window.crewAct=k=>{
-  if(preview()&&["count","ncr","rev","chat","quick","todo","time","rec","sms"].includes(k)){ toast("Preview - nothing is saved. Exit the preview to do that."); return true; }
+  if(preview()&&["count","ncr","rev","chat","quick","todo","time","rec","sms","order"].includes(k)){ toast("Preview - nothing is saved. Exit the preview to do that."); return true; }
   if(k==="punch"){ pickTask(); return true; }
   if(k==="mywork"){ addMyWork(); return true; }
-  if(k==="supplies"){ needSupplies(); return true; }
+  if(k==="supplies"){ window.needSupplies(); return true; }
+  if(k==="order"){ if(window.newRequest) window.newRequest(); return true; }
+  if(k==="requests"){ shellGo("requests"); return true; }
   if(k==="ncr"){ pickJob("PROBLEM ON WHICH JOB?",id=>{ openJob(id); setTimeout(()=>{ const b=$("#ncrAdd"); if(b) b.click(); },150); }); return true; }
   if(k==="rev"){ pickJob("REVISION FOR WHICH JOB?",id=>{ if(window.newRevision) window.newRevision({job:id}); }); return true; }
   return false;
 };
 
 /* ---- crew mode guard: only the views a crew member uses ---- */
-const CREW_VIEWS=["home","archive","crew","ncr","revs","inv"];
+const CREW_VIEWS=["home","archive","crew","ncr","revs","inv","requests","staging"];
 const _render=render;
 render=function(){
   if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home";
