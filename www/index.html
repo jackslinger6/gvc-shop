@@ -939,7 +939,7 @@ $("#lIn").onclick=async()=>{
 $("#lUp").onclick=async()=>{
   const email=$("#lEmail").value.trim(), password=$("#lPass").value;
   if(!email||password.length<8){ showLogin("Enter your email and a password of at least 8 characters.", true); return; }
-  const { data, error } = await sb.auth.signUp({ email, password });
+  const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: HOME_URL } });   // confirm link comes back to the app, not localhost (Nov 6)
   if(error){ showLogin(error.message, true); return; }
   if(data.session) await startApp(); else showLogin("Check your email and tap the confirm link, then come back and sign in.");
 };
