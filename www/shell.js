@@ -105,6 +105,13 @@ body:has(.scrim.on) .shnav,body:has(.chatp.on) .shnav{display:none}
 .mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .mgrid button{min-height:86px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:500 13px Oswald,sans-serif;letter-spacing:.06em;cursor:pointer;position:relative;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s,border-color .15s}
 .shov.on .mgrid button{opacity:1;transform:none}
+.mpv{margin:4px 0 16px;padding:12px;border:1px solid rgba(144,133,233,.45);border-radius:16px;background:rgba(144,133,233,.07)}
+.mpvh{font:600 11.5px Oswald,sans-serif;letter-spacing:.16em;color:#b9b1ff;margin:0 2px 8px}
+.mpvb{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mpvb button{display:flex;gap:10px;align-items:center;text-align:left;min-height:64px;border-radius:14px;border:1px solid #9085e9;background:linear-gradient(135deg,rgba(144,133,233,.28),rgba(144,133,233,.08));color:var(--text);padding:10px 12px;cursor:pointer;font:inherit;box-shadow:0 0 16px rgba(144,133,233,.18)}
+.mpvb button:hover{border-color:#b9b1ff}
+.mpvb .av{width:34px;height:34px;border-radius:50%;background:#9085e9;color:#0b0b14;display:grid;place-items:center;font:600 16px Oswald,sans-serif;flex:none}
+.mpvb b{display:block;font-size:14px}.mpvb small{display:block;font-size:11.5px;color:var(--muted)}
 .mgrid button:hover{border-color:#5a5f68}
 .mgrid button .bd{position:absolute;top:6px;right:8px;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font:600 11px Inter,sans-serif;display:flex;align-items:center;justify-content:center;padding:0 4px}
 .shsheet label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);margin-bottom:12px}
@@ -368,7 +375,11 @@ function moreMenu(){
   const CREWOK=["msgs","mytime","supplies","requests","count","inv","ncr","revs","archive","signout"];
   const PARTSOK=["msgs","requests","inv","count","mytime","staging","archive","signout"];
   const items2=window.ME&&ME.role==="crew"?items.filter(x=>CREWOK.includes(x[0])):window.ME&&ME.role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging"].includes(x[0]));
-  sheet(`<h3>MENU</h3>${TALKBTN("mTalk","TALK TO CLAUDE")}<div class="mgrid">${items2.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
+  // Kyle: the two preview buttons get their own highlighted row at the bottom (Nov 6)
+  const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0])); const grid=items2.filter(x=>!PVK.includes(x[0]));
+  const pvRow=pvItems.length?`<div class="mpv"><div class="mpvh">👁 SEE THE APP AS…</div><div class="mpvb">${pvItems.map(([k])=>{ const who=k==="partsview"?"Robin":"Colton";
+    return `<button type="button" data-m="${k}"><span class="av">${who[0]}</span><span><b>${who}'s view</b><small>${who==="Robin"?"Parts · ordering":"Shop crew"}</small></span></button>`; }).join("")}</div></div>`:"";
+  sheet(`<h3>MENU</h3>${TALKBTN("mTalk","TALK TO CLAUDE")}${pvRow}<div class="mgrid">${grid.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
     el.querySelector("#mTalk").onclick=()=>talk("",close);
     el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ const k=b.dataset.m; close();
       if(k==="msgs"){ window.openInbox&&window.openInbox(); }

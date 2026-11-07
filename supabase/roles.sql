@@ -219,3 +219,8 @@ begin
   if coalesce(public.gvc_role(),'') <> 'admin' then return null; end if;
   return (select v from public.gvc_settings where k = 'widget_key');
 end $$;
+
+-- migration gvc_hardware_buckets (Nov 6): daily hardware sync sends only changed buckets (scripts/hw_sync.py computes the same fingerprints)
+-- gvc_hw_bucket(key) = first byte of md5(key) % 32; gvc_hardware_buckets() = {bucket: md5(concat of row h ordered by key collate "C")}
+-- gvc_hardware_sync2(p_rows [[key,grp,section,sub,vendor,vendor_raw,part_no,description,size,spec,category,qty,unit,pack_qty,unit_cost,per_truck,sort,h]], p_run, p_buckets, p_last)
+-- (full SQL as applied is in the Supabase migration history)
