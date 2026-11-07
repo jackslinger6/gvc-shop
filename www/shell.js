@@ -373,7 +373,7 @@ function moreMenu(){
   const items=[["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["count","Count an order","count"],["talks","Talks","rec"],["prices","Prices","count"],["requests","Supply requests","box",(window.reqCount?window.reqCount():0)],["staging","Staging kits","box"],["crewview","Colton's view","crew"],["partsview","Robin's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
     ["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
   const CREWOK=["msgs","mytime","supplies","requests","count","inv","ncr","revs","archive","signout"];
-  const PARTSOK=["msgs","requests","inv","count","mytime","staging","archive","signout"];
+  const PARTSOK=["msgs","inv","staging","archive","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
   const items2=window.ME&&ME.role==="crew"?items.filter(x=>CREWOK.includes(x[0])):window.ME&&ME.role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging"].includes(x[0]));
   // Kyle: the two preview buttons get their own highlighted row at the bottom (Nov 6)
   const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0])); const grid=items2.filter(x=>!PVK.includes(x[0]));
@@ -401,7 +401,7 @@ function moreMenu(){
 const ACTS=[["punch","PUNCH IN","clock","#3ad06b"],["rec","RECORD","rec","#e5483b"],["count","COUNT","count","#f5b041"],["quick","QUICK JOB","bolt","#22c3e6"],["time","LOG TIME","clock","#3ad06b"],["todo","ADD TO-DO","check","#5aa7f3"],["chat","ASK CLAUDE","chat","#ff8a2a"]];
 // phone app only: Check texts on the wheel too (it also stays on the To do tab) (Kyle, 2026-11-04)
 const CREW_ACTS=[["punch","PUNCH IN","clock","#3ad06b"],["mywork","ADD MY WORK","bolt","#22c3e6"],["supplies","NEED SUPPLIES","box","#9fb3c8"],["count","COUNT","count","#f5b041"],["ncr","PROBLEM / NCR","warn","#e5483b"],["rev","REVISION","rev","#a374ff"],["chat","TALK","chat","#ff8a2a"]];
-const PARTS_ACTS=[["punch","PUNCH IN","clock","#3ad06b"],["order","ADD TO ORDER LIST","box","#9fb3c8"],["count","COUNT","count","#f5b041"],["requests","REQUESTS","list","#22c3e6"],["chat","TALK","chat","#ff8a2a"]];
+const PARTS_ACTS=[["inv","INVENTORY","box","#9fb3c8"],["msgs","MESSAGES","chat","#2f8ff0"],["chat","TALK","chat","#ff8a2a"]];
 const ACTL=()=>window.ME&&ME.role==="parts"?PARTS_ACTS:window.ME&&ME.role==="crew"?CREW_ACTS:ACTS.concat(typeof Native!=="undefined"&&Native?[["sms","CHECK TEXTS","chat","#9b7bff"]]:[]);
 const plus=$("#shPlus"); let whl=null, hot=null;
 function wheelOpen(){

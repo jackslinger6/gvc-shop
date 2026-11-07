@@ -305,8 +305,9 @@ function renderStaging(){
 
 /* ================= Robin's Home ================= */
 window.partsHome=B=>{
-  if(window.crewHome) window.crewHome(B);   // my day + punch clock + my time + the crew (messages)
-  const hm=B.querySelector(".hm"); if(!hm) return;
+  // Robin doesn't punch in or track her own time here (Kyle, Nov 6) - her Home is ordering, stock and the crew to message
+  B.innerHTML=`<div class="hm shanim"></div>`;
+  const hm=B.querySelector(".hm");
   const flat=(typeof parts!=="undefined"?parts:[]).reduce((a,p)=>a+(p.stock_flat||0),0);
   const consLow=window.invMode&&window.invMode.low?window.invMode.low():0;
   const sec=document.createElement("section"); sec.setAttribute("aria-label","Parts");
@@ -323,7 +324,12 @@ window.partsHome=B=>{
     <button class="soon" type="button" data-pg="staging" style="display:block;width:100%;text-align:left;background:none;font:inherit;cursor:pointer"><b>Staging kits<i>COMING LATER</i></b>Parts for upcoming jobs, pulled and ready before the build starts.</button>
     <div class="soon"><b>Hardware price comparison<i>COMING LATER</i></b>The same bolt at Fastenal, Resource and Gregg's side by side, with price history.</div>
     <div class="soon"><b>Time & payroll<i>COMING LATER</i></b>Everyone's punched hours by pay period (semi-monthly), approved and exported for QuickBooks.</div>`;
-  const first=hm.firstElementChild; hm.insertBefore(sec,first?first.nextSibling:null);
+  hm.appendChild(sec);
+  const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0",Robin:"#9b7bff"};
+  const crewSec=document.createElement("section"); crewSec.setAttribute("aria-label","The crew");
+  crewSec.innerHTML=`<h4><span>THE CREW</span><span>TAP TO MESSAGE</span></h4><div class="cw tmrow">${[...(typeof CREW!=="undefined"?CREW:["Kyle","Colton","Aaron","Cooper"]),"Robin"].map(p=>`<button class="p" type="button" data-cw="${E(p)}"><span class="av" style="background:${COL[p]||"#9aa1aa"}">${E(p[0])}</span><span class="n">${E(p)}</span></button>`).join("")}</div>`;
+  hm.appendChild(crewSec);
+  if(window.teamDecorate) window.teamDecorate();
   sec.querySelectorAll("[data-pt]").forEach(b=>b.onclick=()=>{ rqTab=b.dataset.pt; shellGo("requests"); });
   sec.querySelectorAll("[data-pi]").forEach(b=>b.onclick=()=>{ if(window.invMode) window.invMode.set(b.dataset.pi); shellGo("inv"); });
   sec.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>shellGo(b.dataset.pg));

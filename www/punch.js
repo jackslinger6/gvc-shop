@@ -59,6 +59,7 @@ body.crew .shnav [data-n="jobs"],body.crew #pTA,body.crew #pTS,body.crew [data-o
 body.crew #dlg [data-rmasm],body.crew #dlg #addAsm,body.crew #dlg #newAsm,body.crew [data-wc]{display:none!important}
 body.crew .lanes select{pointer-events:none;opacity:.8}
 body.crew .crewhide,body.crew .palert{display:none!important}
+body.parts .pbar{display:none!important}
 body.crew #app .bar,body.crew #subnav{display:none!important}
 body.crew .wkv .pblk,body.crew .wkv .pjob{cursor:default!important}
 @media (max-width:899px){ body.crew .shnav{grid-template-columns:repeat(4,1fr)!important} }
@@ -384,6 +385,8 @@ window.crewAct=k=>{
   if(k==="mywork"){ addMyWork(); return true; }
   if(k==="supplies"){ window.needSupplies(); return true; }
   if(k==="order"){ if(window.newRequest) window.newRequest(); return true; }
+  if(k==="inv"){ shellGo("inv"); return true; }
+  if(k==="msgs"){ if(window.openInbox) window.openInbox(); return true; }
   if(k==="requests"){ shellGo("requests"); return true; }
   if(k==="ncr"){ pickJob("PROBLEM ON WHICH JOB?",id=>{ openJob(id); setTimeout(()=>{ const b=$("#ncrAdd"); if(b) b.click(); },150); }); return true; }
   if(k==="rev"){ pickJob("REVISION FOR WHICH JOB?",id=>{ if(window.newRevision) window.newRevision({job:id}); }); return true; }
