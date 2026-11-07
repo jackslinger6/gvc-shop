@@ -83,7 +83,7 @@ body:has(.scrim.on) .shnav,body:has(.chatp.on) .shnav{display:none}
 @media (hover:hover){ .nu .arr{display:block} }
 .nu .arr.l{left:-12px}.nu .arr.r{right:-12px}
 .nu .empty{border-radius:18px;padding:22px;border:1px solid #2a2e35;background:rgba(0,0,0,.25);text-align:center;color:#b9bec5}
-.cw{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.cw{display:grid;grid-template-columns:repeat(auto-fit,minmax(62px,1fr));gap:8px}
 .cw .p{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
 .cw .p.idle{border-color:#5a2a2a}
 .cw .av{width:36px;height:36px;border-radius:18px;font:600 15px Oswald,sans-serif;display:flex;align-items:center;justify-content:center;color:#111}
@@ -308,7 +308,7 @@ function renderHome(){
     <div style="display:flex;flex-direction:column;gap:16px">
       <section aria-label="Crew today">
         <h4><span>CREW TODAY</span><span style="color:var(--text)">${all?`${dn} / ${all} TASKS`:""}</span></h4>
-        <div class="cw">${crew.map(c=>`<button class="p ${c.n?"":"idle"}" type="button" data-cw="${c.p}"><span class="av" style="background:${COL[c.p]||"#9aa1aa"}">${c.p[0]}</span><span class="n">${c.p}</span><div class="bar"><i style="width:${c.n?Math.round(c.done/c.n*100):0}%"></i></div><span class="s">${c.n?`${c.done} / ${c.n}`:"nothing planned"}</span></button>`).join("")}</div>
+        <div class="cw">${crew.map(c=>`<button class="p ${c.n?"":"idle"}" type="button" data-cw="${c.p}"><span class="av" style="background:${COL[c.p]||"#9aa1aa"}">${c.p[0]}</span><span class="n">${c.p}</span><div class="bar"><i style="width:${c.n?Math.round(c.done/c.n*100):0}%"></i></div><span class="s">${c.n?`${c.done} / ${c.n}`:"nothing planned"}</span></button>`).join("")}<button class="p" type="button" data-cw="Robin"><span class="av" style="background:#9b7bff">R</span><span class="n">Robin</span><div class="bar" style="visibility:hidden"><i></i></div><span class="tnote" style="font-size:11px">parts</span></button></div>
       </section>
       <section aria-label="To do">
         <h4><span>TO DO · ${(typeof liveMine==="function"?liveMine().length:0)+(typeof liveAuto==="function"?liveAuto().length:0)}</span><button type="button" id="shAll">See all</button></h4>
