@@ -62,7 +62,7 @@ export async function readQuote(db, body, MODEL) {
     total: { type: "number", description: "pre-tax total of the priced lines" }, valid: { type: "string", description: "how long the prices are good for" },
     lead: { type: "string", description: "availability / when it can be ready, per the supplier" }, terms: { type: "string", description: "freight, FOB/pickup, tax, cutting, payment - short" },
     note: { type: "string", description: "one short line: anything Robin must know (items not available, substitutions, partial)" },
-    requested: { type: "array", items: { type: "string" }, description: "the items GordeyVille ASKED for, if the request is visible in the thread (e.g. Robin's original email) - one line each, with qty/length if given" },
+    requested: { type: "array", items: { type: "object", properties: { desc: { type: "string", description: "the item as Robin wrote it, sizes included (e.g. 4 x 4 x .125 HSS 50W C x 24')" }, qty: { type: "number", description: "only if she gave a quantity - sizes like 4 x 4 are NOT quantities" }, unit: { type: "string" } }, required: ["desc"] }, description: "the items GordeyVille ASKED for, if the request is visible in the thread (e.g. Robin's original email), in her order" },
     lines: { type: "array", items: { type: "object", properties: {
       item: { type: "string", description: "the item as the supplier wrote it (part no + description)" }, qty: { type: "number" }, unit: { type: "string", description: "ea, ft, length, box, lb..." },
       unit_price: { type: "number" }, line_total: { type: "number" }, note: { type: "string", description: "length, not in stock, substitute, etc." },
@@ -70,7 +70,7 @@ export async function readQuote(db, body, MODEL) {
     required: ["vendor", "lines"] } };
   const sys = `You read supplier quotes for Robin, the parts person at GordeyVille Customs (fab shop, Grande Prairie AB). The email may be a forward - the supplier's reply is inside it; the supplier is whoever sent the quote, never GordeyVille/Robin.
 Read the prices from the email text and the attachments. Use the supplier's own numbers only - never estimate. line_total = extended price before tax. Skip tax/total rows as lines, but include freight, cutting or handling charges as lines (match -1).
-${items ? `OUR ITEMS for this order (number: item):\n${items}\nFor each priced line set match to the number of our item it is for - same part even if worded differently (sizes like 2 1/2 x 3/8 flat bar = 3/8 X 2 1/2 HR FLAT). -1 if it isn't one of ours.` : "This order has no item list yet - set match -1 on every line, and fill requested if the original request is visible."}
+${items ? `OUR ITEMS for this order (number: item):\n${items}\nFor each priced line set match to the number of our item it is for - same part even if worded differently (sizes like 2 1/2 x 3/8 flat bar = 3/8 X 2 1/2 HR FLAT). -1 if it isn't one of ours.` : "This order has no item list yet. If the original request is visible in the thread, fill requested (in Robin's order) and set each line's match to the 0-based number of the requested item it prices (-1 if none). If the request isn't visible, leave requested empty and set match -1."}
 Answer only by calling the quote tool.`;
   const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST",
     headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },

@@ -91,8 +91,11 @@ const items=o=>Array.isArray(o.items)?o.items:[];
 const quotes=o=>Array.isArray(o.quotes)?o.quotes:[];
 const itemTxt=it=>[it.qty!=null&&it.qty!==""?it.qty+(it.unit?" "+it.unit:"")+" ×":"",it.desc].filter(Boolean).join(" ");
 // "10 x 1/2-13 bolt", "1/2-13 bolt x 10", "24' 2x2x1/8 HSS" -> {qty, desc}
-function parseLine(s){ s=String(s||"").trim(); if(!s) return null; let m=s.match(/^(\d+(?:\.\d+)?)\s*(?:x|×|pcs?|ea|-)\s+(.+)$/i); if(m) return {qty:+m[1],desc:m[2].trim()};
-  m=s.match(/^(.+?)\s+(?:x|×|qty:?)\s*(\d+(?:\.\d+)?)$/i); if(m) return {qty:+m[2],desc:m[1].trim()}; return {qty:null,desc:s}; }
+function parseLine(s){ if(s&&typeof s==="object") return s.desc?{qty:s.qty??null,unit:s.unit||null,desc:String(s.desc)}:null;
+  s=String(s||"").trim(); if(!s) return null; let m=s.match(/^(\d+(?:\.\d+)?)\s*(?:pcs?|ea|qty|@|-)\s+(.+)$/i); if(m) return {qty:+m[1],desc:m[2].trim()};
+  m=s.match(/^(\d+)\s*(?:x|×)\s+(\D.*)$/i); if(m&&!/\s(x|×)\s/i.test(m[2])) return {qty:+m[1],desc:m[2].trim()};   // "10 x bolt" - but "4 x 4 x .125 HSS" is a size
+  m=s.match(/^(.+?)\s*\(?\s*qty:?\s*(\d+(?:\.\d+)?)\s*(?:pcs?|ea)?\s*\)?$/i); if(m) return {qty:+m[2],desc:m[1].trim()};
+  m=s.match(/^(.+?)\s+(?:×|x)\s*(\d+)\s*(?:pcs?|ea)$/i); if(m) return {qty:+m[2],desc:m[1].trim()}; return {qty:null,desc:s}; }
 const cheapest=o=>{ const t=quotes(o).map(q=>+q.total).filter(n=>n>0); return t.length?Math.min(...t):null; };
 
 /* ================= list ================= */
@@ -218,7 +221,7 @@ function newOrder(pre={}){
   sheetUI(`<h3>NEW ORDER</h3>
     <label>What's it for<input id="noT" value="${E(pre.title||"")}" placeholder="e.g. Steel for 1086 / 1087, Grade 8 bolt restock"></label>
     <label>Job (optional)<input id="noJ" list="noJL" placeholder="e.g. 1086WT"><datalist id="noJL">${jobNames().map(n=>`<option value="${E(n)}">`).join("")}</datalist></label>
-    <label>Items - one per line (optional - they can come from the first quote)<textarea id="noI" rows="5" placeholder="10 x 1/2-13 x 1-1/2 Gr 8 bolt&#10;2x2x1/8 HSS 24'"></textarea></label>
+    <label>Items - one per line (optional - they can come from the first quote)<textarea id="noI" rows="5" placeholder="10 pcs 1/2-13 x 1-1/2 Gr 8 bolt&#10;2x2x1/8 HSS 24' (qty 2)"></textarea></label>
     <label>Who you asked for quotes (optional)<input id="noA" placeholder="e.g. Fastenal, Gregg's, RPSI"></label>
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn" type="button" id="noX">Cancel</button><button class="btn primary" type="button" id="noGo" style="min-height:44px">Create</button></div>`,(el,close)=>{
     el.querySelector("#noX").onclick=close;
@@ -240,7 +243,7 @@ function editOrder(o){
   });
 }
 function addItems(o){
-  sheetUI(`<h3>ADD ITEMS</h3><label>One per line<textarea id="aiI" rows="6" placeholder="10 x 1/2-13 x 1-1/2 Gr 8 bolt"></textarea></label>
+  sheetUI(`<h3>ADD ITEMS</h3><label>One per line<textarea id="aiI" rows="6" placeholder="10 pcs 1/2-13 x 1-1/2 Gr 8 bolt"></textarea><div class="lbl">Quantity first with pcs (10 pcs …) or at the end (… qty 10).</div></label>
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn" type="button" id="aiX">Cancel</button><button class="btn primary" type="button" id="aiGo">Add</button></div>`,(el,close)=>{
     el.querySelector("#aiX").onclick=close;
     el.querySelector("#aiGo").onclick=async()=>{ const n=el.querySelector("#aiI").value.split("\n").map(parseLine).filter(Boolean); if(!n.length){ close(); return; }
