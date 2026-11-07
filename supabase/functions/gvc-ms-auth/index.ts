@@ -24,7 +24,9 @@ Deno.serve(async (req) => {
   if (!r.ok || !t.refresh_token) return page("Not connected", "Token exchange failed: " + (t.error_description || t.error || r.status), false);
   let email = "";
   try { const me = await (await fetch("https://graph.microsoft.com/v1.0/me", { headers: { Authorization: "Bearer " + t.access_token } })).json(); email = me.mail || me.userPrincipalName || ""; } catch (_) { /* ignore */ }
-  const { error } = await admin.from("gvc_ms").upsert({ id: "main", email, refresh_token: t.refresh_token, updated_at: new Date().toISOString() });
+  const box = String(state).startsWith("robin-") ? "robin" : "main";   // Robin's mailbox (her order tracker) is kept apart from Kyle's
+  const { error } = await admin.from("gvc_ms").upsert({ id: box, email, refresh_token: t.refresh_token, updated_at: new Date().toISOString() });
   if (error) return page("Not connected", "Couldn't save: " + error.message, false);
+  if (box === "robin") return page("Email connected", `GVC Vault can now read quotes in ${email || "your"} email for your order tracker. It never sends anything. You can close this tab.`);
   return page("Outlook connected", `Claude in GVC Vault can now read ${email || "your"} email and write drafts there. It can't send - you press Send in Outlook. You can close this tab.`);
 });

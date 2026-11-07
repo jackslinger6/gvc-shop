@@ -395,7 +395,7 @@ window.crewAct=k=>{
 };
 
 /* ---- crew mode guard: only the views a crew member uses ---- */
-const CREW_VIEWS=["home","archive","crew","ncr","revs","inv","requests","staging"];
+const CREW_VIEWS=["home","archive","crew","ncr","revs","inv","requests","staging","porders"];
 const _render=render;
 render=function(){
   if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home";

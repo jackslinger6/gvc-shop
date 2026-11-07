@@ -6,6 +6,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { parseDoc, docSubtotal } from "./parse.ts";
+import { mailList, readQuote, msStartRobin, boxFor } from "./rfq.ts";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-gvc-key", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -394,10 +395,10 @@ async function partsTable(db: any, jobId: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
-    let ok = false; const key = req.headers.get("x-gvc-key");
+    let ok = false, role = "admin"; const key = req.headers.get("x-gvc-key");
     if (key) { const { data } = await admin().from("gvc_secret").select("v").eq("k", "files_key").maybeSingle(); ok = !!data && data.v === key; }
     else { const u = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("Authorization") || "" } } });
-      const { data } = await u.rpc("gvc_role"); ok = ['admin','parts'].includes(String(data || "")); }   // Nov 6: not the crew
+      const { data } = await u.rpc("gvc_role"); role = String(data || ""); ok = ['admin','parts'].includes(role); }   // Nov 6: not the crew
     if (!ok) return json({ error: "Not on the shop list" }, 403);
     const body = await req.json().catch(() => ({}));
     const db = admin();
@@ -410,6 +411,11 @@ Deno.serve(async (req) => {
           await db.from("gvc_doc_text").upsert({ source: it.id, name: d.name, vendor: d.from || it.from || "", subject: d.subject || it.subject || "", at: d.at || it.at || null, type: it.type || null, text: t });
           out.push({ name: d.name, chars: t.length }); } catch (e) { out.push({ name: it.name, err: String((e as Error).message || e).slice(0, 120) }); } }
       return json({ out }); }
+    // Robin's order tracker
+    if (body.action === "rfq_mail") return json(await mailList(db, role, body));
+    if (body.action === "rfq_read") return json(await readQuote(db, body, MODEL));
+    if (body.action === "rfq_box") return json(await boxFor(db));
+    if (body.action === "rfq_connect") return json(await msStartRobin(db));
     if (body.action === "parse") return json(await parseAll(db, body));
     if (body.action === "raw") { const d = await docBlock(db, String(body.doc || "")); return json({ name: d.name, from: d.from, subject: d.subject, at: d.at, b64: d.data }); }
     if (body.action === "remap") { const ids: string[] = body.docs || []; const out: any[] = [];

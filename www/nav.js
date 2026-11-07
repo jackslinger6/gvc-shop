@@ -3,7 +3,7 @@
    Jobs sub-tabs: Pipeline · Orders · Shop floor · Crew · NCRs · Revisions · Finished jobs (+ New job lives here)
    Inventory sub-tabs: Truck parts · Consumables */
 (()=>{
-const SECT={requests:"todo",staging:"inv",todo:"todo",pipeline:"jobs",ordering:"jobs",build:"jobs",crew:"jobs",ncr:"jobs",revs:"jobs",archive:"jobs",time:"time",inv:"inv",ideas:"more"};
+const SECT={porders:"todo",requests:"todo",staging:"inv",todo:"todo",pipeline:"jobs",ordering:"jobs",build:"jobs",crew:"jobs",ncr:"jobs",revs:"jobs",archive:"jobs",time:"time",inv:"inv",ideas:"more"};
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 let lastJobs=ls.get("gvc_last_jobs")||"build";
 const css=document.createElement("style");
