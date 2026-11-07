@@ -3,7 +3,7 @@
 // mark each one Done or ask a question - nobody in the app can set those (gvc_revisions_guard). Kyle gets a message each time.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type, apikey, authorization, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "content-type": "application/json" } });
 const tag = (n: number) => "REV-" + String(n).padStart(3, "0");
 

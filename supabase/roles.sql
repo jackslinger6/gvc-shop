@@ -211,3 +211,11 @@ begin
   end if;
   return jsonb_build_object('upserted',n,'no_longer_in_sheet',gone);
 end $$;
+
+-- follow-up migration gvc_widget_key_members: sign-in calls gvc_widget_key for everyone - members pass, only Kyle gets the key
+create or replace function public.gvc_widget_key() returns text language plpgsql stable security definer set search_path=public as $$
+begin
+  if not public.gvc_is_member() then raise exception 'not allowed'; end if;
+  if coalesce(public.gvc_role(),'') <> 'admin' then return null; end if;
+  return (select v from public.gvc_settings where k = 'widget_key');
+end $$;
