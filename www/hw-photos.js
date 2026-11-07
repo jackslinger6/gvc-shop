@@ -1,9 +1,29 @@
 /* Hardware photos.
-   (Stock photos per part type were tried and dropped Nov 6 - Kyle prefers the drawn icons.)
-   ITEM photos: Robin/Kyle tap "Add / replace photo" on any item and snap it on the desk. Stored at
+   1. TYPE photos: free-licence photos from Wikimedia Commons, only for the types Kyle okayed Nov 6 (bolts, washers, shrink tube, drill bits,
+      annular cutters, coin cells) - everything else uses the drawn icons, stored in
+      storage gvc-parts/hwimg/type/<key>.<ext>. Credits below (shown on the item sheet).
+   2. ITEM photos: Robin/Kyle tap "Add / replace photo" on any item and snap it on the desk. Stored at
       gvc-parts/hwimg/item/<hash of item key>.jpg - no database column, so the daily spreadsheet sync never touches it.
-   Order shown: item photo > drawn icon (hw-icons.js) > nothing. */
+   Order shown: item photo > type photo > drawn icon (hw-icons.js) > nothing. */
 (function(){
+const C="https://commons.wikimedia.org/wiki/File:";
+const T={ // key: [ext, artist, licence, commons file]
+hexbolt:["jpg","Ralf Roletschek","GFDL 1.2","18-03-16-Schrauben-M6x20_RRK3179.jpg"],
+shcs:["jpg","Ralf Roletschek","GFDL 1.2","18-03-16-Schrauben-M6x20_RRK3177.jpg"],
+button:["jpg","Ralf Roletschek","GFDL 1.2","18-03-16-Schrauben-M6x20_RRK3181.jpg"],
+flathead:["jpg","Renato.pierri","CC BY-SA 4.0","44215700s_03.jpg"],
+carriage:["jpg","Karl Bednarik","Copyrighted free use","TORBANDSCHRAUBEN_DSCM1953.JPG"],
+selfdrill:["png","Zheer16 @ Pixabay","CC0","Hex-head-self-drilling-screw-1614969_340.png"],
+machscrew:["jpg","Andrew Pertsev","CC0","Screw_Head_-_Slotted-Phillips_(pan_head_with_press_washer).jpg"],
+drill:["jpg","andersen_mrjh","CC BY-SA 2.0","Twist_Drill_Bit_(6954963717).jpg"],
+annular:["jpg","Rohan von Indien","CC BY-SA 3.0","Annular_Cutter.jpg"],
+washer:["jpg","Tiesse","Public domain","Plain_washer1.jpg"],
+fender:["png","Taylor 49","CC BY-SA 4.0","Many_washers_of_different_sizes.png"],
+lockwasher:["jpg","Dietmar Rabich","CC BY-SA 4.0","Unterlegscheiben,_Mini-Skyline_--_2020_--_3875.jpg"],
+shrink:["jpg","oomlout","CC BY-SA 2.0","Heat-shrink_tubing.jpg"],
+battery:["jpg","Raimond Spekking","CC BY-SA 4.0","Toshiba_CR2032-92326.jpg"],
+};
+const typePath=k=>`hwimg/type/${k}.${T[k][0]}`;
 // short stable hash of the item key (cyrb53) -> safe file name
 const hash=s=>{ let h1=0xdeadbeef,h2=0x41c6ce57; for(let i=0;i<s.length;i++){ const c=s.charCodeAt(i); h1=Math.imul(h1^c,2654435761); h2=Math.imul(h2^c,1597334677); }
   h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909); h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
@@ -17,7 +37,7 @@ async function sign(paths){ for(let i=0;i<paths.length;i+=100){ const r=await sb
   (r.data||[]).forEach(u=>{ if(u.signedUrl) URL_[u.path]=u.signedUrl; }); } }
 async function load(){
   try{ const l=await sb.storage.from("gvc-parts").list("hwimg/item",{limit:2000}); (l.data||[]).forEach(f=>{ if(f.name&&f.name.endsWith(".jpg")) ITEMS.add("hwimg/item/"+f.name); }); }catch(e){}
-  try{ if(ITEMS.size) await sign([...ITEMS]); }catch(e){}
+  try{ await sign([...Object.keys(T).map(typePath),...ITEMS]); }catch(e){}
   ready=true; rerender();
 }
 let started=false;
@@ -27,10 +47,12 @@ const drawn=window.hwPic; // drawn-icon fallback from hw-icons.js
 const img=(u,cls,alt)=>`<span class="hwpic photo ${cls}"><img src="${u}" alt="${String(alt||"").replace(/"/g,"&quot;")}" loading="lazy" decoding="async"></span>`;
 window.hwPic=(h,cls="")=>{
   const ip=itemPath(h); if(ITEMS.has(ip)&&URL_[ip]) return img(URL_[ip],cls,h.description);
+  const k=window.hwPicKey(h); if(k&&T[k]&&URL_[typePath(k)]) return img(URL_[typePath(k)],cls,k);
   return drawn?drawn(h,cls):"";
 };
 window.hwHasOwnPhoto=h=>ITEMS.has(itemPath(h));
-window.hwPhotoCredit=()=>"";
+window.hwPhotoCredit=h=>{ if(ITEMS.has(itemPath(h))) return ""; const k=window.hwPicKey(h); if(!k||!T[k]) return "";
+  const t=T[k]; return `Example photo: ${t[1]}, ${t[2]}, <a href="${C+t[3]}" target="_blank" rel="noopener">Wikimedia Commons</a>`; };
 
 // shrink a camera photo to ~900px JPEG before upload (phone photos are 3-5 MB)
 async function shrink(file){
