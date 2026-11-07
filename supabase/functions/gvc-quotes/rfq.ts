@@ -74,7 +74,7 @@ ${items ? `OUR ITEMS for this order (number: item):\n${items}\nFor each priced l
 Answer only by calling the quote tool.`;
   const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST",
     headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 12000, system: sys, tools: [tool], tool_choice: { type: "tool", name: "quote" },
+    body: JSON.stringify({ model: MODEL, max_tokens: 12000, system: sys, tools: [tool],
       messages: [{ role: "user", content: [{ type: "text", text: `Email "${m.subject}" from ${m.from?.emailAddress?.name || ""} <${m.from?.emailAddress?.address || ""}>, received ${String(m.receivedDateTime).slice(0, 10)}:\n\n${text}` }, ...blocks] }] }) });
   const out = await r.json();
   if (!r.ok) { const e = out?.error?.message || String(r.status); throw new Error(/credit balance/i.test(e) ? "The Claude account the app uses is out of credit - top it up at console.anthropic.com, then try again." : "Claude: " + e); }
