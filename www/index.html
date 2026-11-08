@@ -359,6 +359,24 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .dtile .dimg img{max-width:100%;max-height:100%;object-fit:contain}
 .dtile span{display:block;font-size:12px;color:var(--muted);margin-top:5px}
 .drw .dbtns{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;width:100%}
+
+.sgrp{border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;margin-bottom:8px;background:var(--panel)}
+.sgrp.done{opacity:.72}
+.sgrp>summary{list-style:none;display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;padding:10px 12px;cursor:pointer}
+.sgrp>summary::-webkit-details-marker{display:none}
+.sgrp>summary::after{content:"▸";grid-column:3;grid-row:1;justify-self:end;color:var(--muted);display:none}
+.sgno{font:600 16px Oswald,sans-serif;letter-spacing:.03em;white-space:nowrap}
+.sgt{min-width:0;display:flex;flex-direction:column}.sgt b{font-size:14.5px}.sgt>span{font-size:12.5px;color:var(--muted);line-height:1.35}
+.sgt .sgm{color:var(--text);opacity:.8}
+.sgp{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--c);color:#fff;white-space:nowrap}
+.sgb{padding:0 12px 12px;border-top:1px solid var(--line)}
+.sgl{padding:10px 0;border-bottom:1px dashed var(--line)}.sgl:last-of-type{border-bottom:0}
+.sgh{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.sgd{color:var(--muted);font-size:13px}
+.sgf{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:6px;font-size:13.5px}.sgf span{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sgn{margin-top:6px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;background:rgba(255,255,255,.04);border-radius:8px;padding:8px 10px}
+.sgdl{margin-top:8px;font-size:13px;display:grid;gap:4px}.sgdl b{font-size:12px;letter-spacing:.08em;color:var(--muted)}
+.sgedit{margin-top:8px}
+@media (max-width:600px){ .sgrp>summary{grid-template-columns:1fr auto} .sgno{grid-column:1/-1} }
 </style>
 </head>
 <body>
@@ -493,6 +511,44 @@ function flags(j){
 /* a job only "needs you" while its To do reminder is still live (not cleared or moved to Later) */
 const needsAttention=j=>!j.sample&&flags(j).length>0&&liveAuto().some(t=>t.job===j.id);
 const PAINT_T={sent:"Dropped off - waiting",replied:"Replied",approved:"Booked in",production:"Being painted",ready:"Ready to pick up",arrived:"Back in the shop",received:"Back - checked"};
+
+/* Suppliers on the job card (Kyle, Nov 8): one collapsible block per PO / RFQ (an RFQ that became a PO sits inside that PO,
+   with the vendors that quoted but weren't chosen), lines with no number on their own. Read-only summary; the old
+   editable fields are behind "✎ Edit" on each line. */
+const supOpen=new Set();
+function supGroupsHTML(j,stOpts,editBox){
+  const S=j.suppliers||[]; if(!S.length) return `<div class="empty" style="text-align:left">No suppliers on this job.</div>`;
+  const rec=no=>window.posByNo&&window.posByNo(no);
+  const rfqToPo={}; S.forEach(x=>{ if(x.po&&x.rfq) rfqToPo[x.rfq]=x.po; const r=x.po&&rec(x.po); if(r&&r.rfq_no) rfqToPo[r.rfq_no]=x.po; });
+  const G=new Map();
+  S.forEach((x,k)=>{ const key=x.po||(x.rfq&&rfqToPo[x.rfq])||x.rfq||"line:"+(x.id||k); if(!G.has(key)) G.set(key,[]); G.get(key).push({x,k}); });
+  const done=x=>["received","declined"].includes(x.status);
+  const groups=[...G.entries()].map(([key,L])=>{ const isPo=/^PO-/.test(key), isRfq=/^RFQ-/.test(key);
+    const main=isPo?(L.find(o=>o.x.po===key)||L[0]):(L.find(o=>!done(o.x))||L[0]);
+    return {key,L,isPo,isRfq,main,closed:L.every(o=>done(o.x))}; })
+    .sort((a,b)=>(a.closed-b.closed)||String(b.main.x.updated||b.main.x.sent||"").localeCompare(String(a.main.x.updated||a.main.x.sent||"")));
+  const pill=x=>{ const st=ST[x.status]||ST.sent; return `<span class="sgp" style="--c:${st.c}">${esc(x.status==="declined"&&x.rfq?"Quoted - not chosen":st.t)}</span>`; };
+  return groups.map(g=>{ const r=(g.isPo||g.isRfq)&&rec(g.key); const x=g.main.x;
+    const rfqNo=g.isPo?((r&&r.rfq_no)||(g.L.find(o=>o.x.rfq)||{x:{}}).x.rfq):null;
+    const desc=(r&&r.title)||x.scope||"";
+    const D=(r&&r.deliveries)||[]; const dl=D.length?` · ${D.filter(d=>d.status==="received").length} of ${D.length} deliveries in`:"";
+    const vendors=g.isPo?x.name:[...new Set(g.L.map(o=>o.x.name))].join(", ");
+    const open=supOpen.has(g.key);
+    return `<details class="sgrp ${g.closed?"done":""}" data-sgk="${esc(g.key)}" ${open?"open":""} style="--c:${(ST[x.status]||ST.sent).c}">
+      <summary><span class="sgno">${g.isPo||g.isRfq?esc(g.key):"—"}</span>
+        <span class="sgt"><b>${esc(vendors)}</b>${desc?`<span>${esc(desc.length>90?desc.slice(0,88)+"…":desc)}</span>`:""}
+          <span class="sgm">${[rfqNo?"from "+rfqNo:"",x.quoteNo&&g.isPo?esc(x.quoteNo.length>40?x.quoteNo.slice(0,38)+"…":x.quoteNo):"",x.lead&&!done(x)?esc(x.lead):""].filter(Boolean).join(" · ")}${dl}</span></span>
+        ${pill(x)}</summary>
+      <div class="sgb">
+        ${g.L.map(({x,k})=>`<div class="sgl"><div class="sgh"><b>${esc(x.name)}</b>${x.contact?` <span class="sgd">· ${esc(x.contact)}</span>`:""} ${pill(x)}
+            <span style="flex:1"></span>${window.openCount&&!["sent","replied","quote","declined"].includes(x.status)?`<button class="btn sm${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">Count</button>`:""}<button class="btn sm" type="button" data-sged="${k}">✎ Edit</button></div>
+          <div class="sgf">${[x.quoteNo?`<div><span>${x.po?"Their #":"Quote #"}</span>${esc(x.quoteNo)}</div>`:"",x.total?`<div><span>Total</span>${esc(x.total)}</div>`:"",x.lead?`<div><span>Lead time</span>${esc(x.lead)}</div>`:"",x.sent?`<div><span>Sent</span>${fmt(x.sent)}</div>`:"",x.scope&&x.scope!==desc?`<div><span>What</span>${esc(x.scope)}</div>`:""].join("")}</div>
+          ${x.note?`<div class="sgn">${esc(x.note)}</div>`:""}
+          <div class="sgedit" data-sge="${k}" hidden>${editBox(x,k)}</div></div>`).join("")}
+        ${D.length?`<div class="sgdl"><b>Deliveries</b>${D.map(d=>`<div><span class="sgp" style="--c:${d.status==="received"?"#3ad06b":d.status==="arrived"?"#f5b041":d.status==="ready"?"#22c3e6":"#9b4dff"}">${esc(({production:"In production",ready:"Ready",arrived:"Arrived",received:"Received"})[d.status]||d.status)}</span> ${esc(d.ref||"?")}${d.what?` · ${esc(d.what)}`:""}</div>`).join("")}</div>`:""}
+        ${g.isPo||g.isRfq?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button class="btn sm" type="button" data-opo="${esc(g.key)}">Open ${esc(g.key)} ›</button>${rfqNo?`<button class="btn sm" type="button" data-opo="${esc(rfqNo)}">Open ${esc(rfqNo)} ›</button>`:""}</div>`:""}
+      </div></details>`; }).join("");
+}
 function supLine(x,stage){
   const st=ST[x.status]||ST.sent; let extra="";
   if(x.status==="sent"&&x.sent){const d=days(x.sent);extra=d<1?" · today":" · "+d+"d";}
@@ -693,7 +749,7 @@ function drawDlg(){
    </tbody></table></div>`:`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.</div>`}
    <div id="newAsm"></div>`:""}
    <div class="sec"><span>Suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm" type="button" onclick="window.newRfqFor&&window.newRfqFor(openId)" title="Send out for quotes - gets an RFQ number">+ RFQ</button><button class="btn sm" type="button" onclick="window.newPoFor&&window.newPoFor(openId)" title="Order straight - gets a PO number">+ PO</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
-   ${(j.suppliers||[]).map((x,k)=>{const st=ST[x.status]||ST.sent;return `<div class="supbox" style="--c:${st.c}">
+   ${supGroupsHTML(j,stOpts,(x,k)=>{const st=ST[x.status]||ST.sent;return `<div class="supbox" style="--c:${st.c}">
      <div class="top"><div><b>${esc(x.name)}</b>${x.contact?` <span style="color:var(--muted)">· ${esc(x.contact)}</span>`:""}
        <div class="meta">${x.scope?esc(x.scope)+" · ":""}${x.sent?"Sent "+fmt(x.sent):"Not sent yet"}${x.updated?" · last update "+fmt(x.updated):""}</div>
        ${x.rfq||x.po?`<div class="supchips">${x.po?`<button type="button" data-opo="${esc(x.po)}">${esc(x.po)}</button>`:""}${x.rfq?`<button type="button" data-opo="${esc(x.rfq)}">${esc(x.rfq)}</button>`:""}</div>`:""}</div>
@@ -703,7 +759,7 @@ function drawDlg(){
        <label>Quote #<input data-f="quoteNo" data-i="${k}" value="${esc(x.quoteNo||"")}"></label>
        <label>Total<input data-f="total" data-i="${k}" value="${esc(x.total||"")}" placeholder="$"></label>
        <label>Lead time<input data-f="lead" data-i="${k}" value="${esc(x.lead||"")}"></label></div>
-     <label style="margin-top:8px">Latest<textarea data-f="note" data-i="${k}">${esc(x.note||"")}</textarea></label></div>`;}).join("")||`<div class="empty" style="text-align:left">No suppliers on this job.</div>`}
+     <label style="margin-top:8px">Latest<textarea data-f="note" data-i="${k}">${esc(x.note||"")}</textarea></label></div>`;})}
    <div id="newSup"></div>
    <details class="jfold" data-fold="notes" ${dlgFold.notes?"open":""}><summary><span>Notes · ${(j.log||[]).length}</span>${(j.log||[]).length?`<em>${esc(String((j.log||[])[(j.log||[]).length-1].text).slice(0,70))}</em>`:""}</summary>
    <div class="row" style="margin-top:8px"><label style="flex:4">Add a note<input id="fNote" placeholder="Cooper picked it up"></label><button class="btn" type="button" id="addNote">Add</button></div>
@@ -737,6 +793,8 @@ function drawDlg(){
       const jj=collect(); jj.assemblies=[...(jj.assemblies||[]),...lines.map((n,ix)=>({id:uid(),name:n,meta:"",status:"ready",who,final:fin&&ix===lines.length-1}))]; await put(jj,`Added ${lines.length} task${lines.length>1?"s":""} to ${jj.name}`);};
   };
   $("#dlg").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeSup(+b.dataset.del));
+  $("#dlg").querySelectorAll("details[data-sgk]").forEach(d=>d.addEventListener("toggle",()=>{ d.open?supOpen.add(d.dataset.sgk):supOpen.delete(d.dataset.sgk); }));
+  $("#dlg").querySelectorAll("[data-sged]").forEach(b=>b.onclick=()=>{ const e=$("#dlg").querySelector(`[data-sge="${b.dataset.sged}"]`); e.hidden=!e.hidden; b.textContent=e.hidden?"✎ Edit":"Done editing"; });
   $("#dlg").querySelectorAll("[data-scnt]").forEach(b=>b.onclick=async()=>{ const jid=openId; const j=collect(); if(JSON.stringify(j)!==JSON.stringify(job())) await put(j); window.openCount(jid,b.dataset.scnt); });
 }
 function collect(){
