@@ -499,6 +499,7 @@ function supLine(x,stage){
   if(x.status==="quote"&&x.quoteNo) extra=" · #"+esc(x.quoteNo);
   if(x.lead&&["approved","production"].includes(x.status)) extra+=" · "+esc(x.lead);
   const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:st.t;
+  if(x.po||x.rfq) extra+=" · "+esc(x.po||x.rfq);
   return `<div class="sup"><span class="dot" style="background:${st.c}"></span><span class="who">${esc(x.name)}</span><span class="st">${t}${extra}</span></div>`;
 }
 /* Shop floor cards: who's on it and when the plan says it's done (filled in by planner.js) */
@@ -691,10 +692,11 @@ function drawDlg(){
      <td><button type="button" class="rmb" data-rmasm="${k}" aria-label="Remove ${esc(a.name)}">×</button></td></tr>`;}).join("")}
    </tbody></table></div>`:`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.</div>`}
    <div id="newAsm"></div>`:""}
-   <div class="sec"><span>Suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
+   <div class="sec"><span>Suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm" type="button" onclick="window.newRfqFor&&window.newRfqFor(openId)" title="Send out for quotes - gets an RFQ number">+ RFQ</button><button class="btn sm" type="button" onclick="window.newPoFor&&window.newPoFor(openId)" title="Order straight - gets a PO number">+ PO</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
    ${(j.suppliers||[]).map((x,k)=>{const st=ST[x.status]||ST.sent;return `<div class="supbox" style="--c:${st.c}">
      <div class="top"><div><b>${esc(x.name)}</b>${x.contact?` <span style="color:var(--muted)">· ${esc(x.contact)}</span>`:""}
-       <div class="meta">${x.scope?esc(x.scope)+" · ":""}${x.sent?"Sent "+fmt(x.sent):"Not sent yet"}${x.updated?" · last update "+fmt(x.updated):""}</div></div>
+       <div class="meta">${x.scope?esc(x.scope)+" · ":""}${x.sent?"Sent "+fmt(x.sent):"Not sent yet"}${x.updated?" · last update "+fmt(x.updated):""}</div>
+       ${x.rfq||x.po?`<div class="supchips">${x.po?`<button type="button" data-opo="${esc(x.po)}">${esc(x.po)}</button>`:""}${x.rfq?`<button type="button" data-opo="${esc(x.rfq)}">${esc(x.rfq)}</button>`:""}</div>`:""}</div>
        <span style="display:flex;gap:6px">${window.openCount?`<button class="btn sm${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">Count</button>`:""}<button class="btn sm danger" type="button" data-del="${k}">Remove</button></span></div>
      <div class="row" style="margin-top:8px">
        <label>Status<select data-f="status" data-i="${k}">${stOpts(x)}</select></label>
@@ -1525,6 +1527,7 @@ render();
 <script src="hw-photos.js"></script>
 <script src="parts.js"></script>
 <script src="orders.js"></script>
+<script src="pos.js"></script>
 <script src="theme.js"></script>
 <script src="back.js"></script>
 </body>
