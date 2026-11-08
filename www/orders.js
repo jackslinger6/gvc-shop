@@ -53,7 +53,9 @@ css.textContent=`
 .pov .grp>h4{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:12px;letter-spacing:.12em;color:var(--muted)}
 .pov .grp>h4 i{width:10px;height:10px;border-radius:50%;background:var(--c)}
 .poc{display:block;width:100%;text-align:left;font:inherit;color:inherit;background:var(--panel,#1d2025);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
-.poc b{font-size:15px}.poc .m{font-size:12.5px;color:var(--muted);margin-top:3px}
+.poc b{font-size:15px}
+.pno{font:600 20px/1.1 Oswald,sans-serif;letter-spacing:.04em;color:var(--c,#2f8ff0);margin-bottom:2px}.pno.big{font-size:28px;--c:#2f8ff0}
+.pno small{display:block;font-family:system-ui,sans-serif;font-size:12.5px;font-weight:500;line-height:1.3;letter-spacing:0;color:var(--muted);margin-top:2px}.poc .m{font-size:12.5px;color:var(--muted);margin-top:3px}
 .pod .psec{margin-top:16px}
 .pod .psec>h3{font-family:Oswald,sans-serif;letter-spacing:.08em;font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
 .pod .steps{display:flex;gap:5px;flex-wrap:wrap}
@@ -138,12 +140,24 @@ function renderList(B){
   B.querySelectorAll("[data-po]").forEach(b=>b.onclick=()=>{ poId=b.dataset.po; render(); toTop(); });
   const cn=B.querySelector("#poCon"); if(cn) cn.onclick=connect;
 }
+/* the number that matters: RFQ while asking/comparing, PO once ordered (RFQ shown under it) */
+function nums(o){
+  const m=String(o.title||"").match(/^\s*(RFQ-\d+)\s*[·\-:]\s*/i);
+  const rfq=o.rfq||(m?m[1].toUpperCase():"");
+  const name=m?String(o.title).slice(m[0].length):String(o.title||"");
+  const po=o.po?(/^PO-/i.test(o.po)?o.po:"PO "+o.po):"";
+  const ordered=!["rfq","compare"].includes(o.status);
+  const big=ordered&&po?po:rfq||(ordered?"":"");
+  const sub=ordered&&po?(rfq?`from ${rfq}`+(quotes(o).length>1?` · compared ${quotes(o).map(q=>vshort(q.vendor)).join(", ")}`:""):""):(po?po:"");
+  return {rfq,po,name,big,sub,ordered};
+}
 function card(o){
   const s=SL[o.status]||{t:o.status,c:"#9aa1aa"}; const Q=quotes(o), lo=cheapest(o);
   const bits=[o.job?"Job "+o.job:"",`${items(o).length} item${items(o).length===1?"":"s"}`,
     Q.length?`${Q.length} quote${Q.length>1?"s":""}${lo&&!o.vendor?" · lowest "+$$(lo):""}`:(o.asked||[]).length?"asked "+o.asked.join(", "):"no quotes yet",
-    o.vendor?"from "+o.vendor:"",o.po?(/^PO-/i.test(o.po)?o.po:"PO "+o.po):"",o.eta&&!["delivered","received"].includes(o.status)?"ETA "+o.eta:""].filter(Boolean);
-  return `<button class="poc" type="button" data-po="${o.id}" style="--c:${s.c}"><b>${E(o.title)}</b>${tab!=="active"?` <span class="lbl">· ${E(s.t)}</span>`:""}
+    o.vendor?"from "+o.vendor:"",o.eta&&!["delivered","received"].includes(o.status)?"ETA "+o.eta:""].filter(Boolean);
+  const N=nums(o);
+  return `<button class="poc" type="button" data-po="${o.id}" style="--c:${s.c}">${N.big?`<div class="pno">${E(N.big)}${N.sub?`<small>${E(N.sub)}</small>`:""}</div>`:""}<b>${E(N.name)}</b>${tab!=="active"?` <span class="lbl">· ${E(s.t)}</span>`:""}
     <div class="m">${bits.map(E).join(" · ")}</div><div class="m">${E(s.t)} · updated ${ago(o.updated_at)}</div></button>`;
 }
 
@@ -153,12 +167,12 @@ function renderOrder(B,o){
   const si=ST.findIndex(x=>x[0]===o.status);
   B.innerHTML=`<div class="pod">
     <button class="btn sm" type="button" id="poBack">‹ All orders</button>
-    <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px"><h2 style="font-family:Oswald,sans-serif;letter-spacing:.04em;margin:0">${E(o.title)}</h2>
+    <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px">${(N=>N.big?`<div class="pno big">${E(N.big)}${N.sub?`<small>${E(N.sub)}</small>`:""}</div>`:"")(nums(o))}<h2 style="font-family:Oswald,sans-serif;letter-spacing:.04em;margin:0">${E(nums(o).name)}</h2>
       <div class="lbl">${[o.job?"Job "+o.job:"","started "+day(o.created_at)+(o.created_by?" by "+o.created_by:"")].filter(Boolean).map(E).join(" · ")}</div></div>
       <button class="btn sm" type="button" id="poEd">✎ Edit</button></div>
     <div class="psec"><div class="steps">${ST.map(([k,t,c],i)=>`<button class="btn sm ${k===o.status?"on":i<si?"past":""}" type="button" data-pst="${k}" style="--c:${c}">${t}</button>`).join("")}</div>
       ${nextHint(o)}</div>
-    <div class="psec"><div class="sum">${o.vendor?`<div style="border-color:#3ad06b">Ordered from<b>${E(o.vendor)}</b></div>`:""}${o.po?`<div>PO<b>${E(o.po)}</b></div>`:""}${o.eta?`<div>ETA<b>${E(o.eta)}</b></div>`:""}${(o.asked||[]).length&&!o.vendor?`<div>Asked<b>${E(o.asked.join(", "))}</b></div>`:""}</div>
+    <div class="psec"><div class="sum">${o.vendor?`<div style="border-color:#3ad06b">Ordered from<b>${E(o.vendor)}</b></div>`:""}${o.eta?`<div>ETA<b>${E(o.eta)}</b></div>`:""}${(o.asked||[]).length&&!o.vendor?`<div>Asked<b>${E(o.asked.join(", "))}</b></div>`:""}</div>
       ${o.notes?`<div class="lbl" style="white-space:pre-wrap">${E(o.notes)}</div>`:""}
       <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" type="button" id="poInfo">✎ Vendor, PO, ETA, notes</button>${["delivered","ready","shipped","ordered"].includes(o.status)?`<button class="btn sm primary" type="button" id="poCount">Count it in</button>`:""}</div></div>
     <div class="psec"><h3>PRICES <span class="lbl" style="font-family:inherit;letter-spacing:0">${I.length} item${I.length===1?"":"s"} · ${Q.length} quote${Q.length===1?"":"s"}</span><span style="flex:1"></span><button class="btn sm" type="button" id="poAddI">+ Items</button><button class="btn sm primary" type="button" id="poRead">📧 Read a quote</button></h3>
@@ -308,12 +322,12 @@ function newOrder(pre={}){
   });
 }
 function editOrder(o){
-  sheetUI(`<h3>EDIT ORDER</h3><label>What's it for<input id="eoT" value="${E(o.title)}"></label>
+  sheetUI(`<h3>EDIT ORDER</h3><label>What's it for<input id="eoT" value="${E(nums(o).name)}"></label>
     <label>Job (optional)<input id="eoJ" list="eoJL" value="${E(o.job||"")}"><datalist id="eoJL">${jobNames().map(n=>`<option value="${E(n)}">`).join("")}</datalist></label>
     <label>Who you asked for quotes<input id="eoA" value="${E((o.asked||[]).join(", "))}"></label>
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn" type="button" id="eoX">Cancel</button><button class="btn primary" type="button" id="eoGo">Save</button></div>`,(el,close)=>{
     el.querySelector("#eoX").onclick=close;
-    el.querySelector("#eoGo").onclick=async()=>{ const t=el.querySelector("#eoT").value.trim()||o.title;
+    el.querySelector("#eoGo").onclick=async()=>{ const n0=nums(o), t0=el.querySelector("#eoT").value.trim(); const t=t0?(n0.rfq&&!o.rfq&&!/^RFQ-/i.test(t0)?n0.rfq+" · "+t0:t0):o.title;
       if(await save(o,{title:t,job:el.querySelector("#eoJ").value.trim()||null,asked:el.querySelector("#eoA").value.split(/[,;]/).map(x=>x.trim()).filter(Boolean)},"edited")) close(); };
   });
 }
