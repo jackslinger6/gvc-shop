@@ -137,7 +137,7 @@ function hydrateFlat(){
 async function openFlat(ix){
   const it=st.items[ix], pn=it.part_no; if(!FL[pn]) await drawFlat(pn); const F=FL[pn];
   if(!F){ const im=url(it.thumb||it.img); if(im) zoomImg(im,pn); return; }
-  window.gvcFlat.view({title:pn||it.name,mat:matLabel(it.mat),sub:it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)?it.name:"",
+  window.gvcFlat.view({title:pn||it.name,mat:matLabel(it.mat),sub:it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)&&!String(it.mat||"").includes(it.name)?it.name:"",
     svg:F.x.svg,W:F.x.W,H:F.x.H,vw:F.x.vw,vh:F.x.vh,warn:F.warn,
     count:{qty:it.qty||0,got:()=>got(it),set:n=>{ it.got=n; changed(it.g); }}, onClose:()=>{ const D=$("#dlg"), sc=D.scrollTop; draw(); D.scrollTop=sc; }});
 }
