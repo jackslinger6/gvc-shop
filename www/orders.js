@@ -84,6 +84,27 @@ css.textContent=`
 .pom .ml .m{font-size:12px;color:var(--muted)}
 .pom .ml.used{opacity:.5}
 body.girly .poc,body.girly .pod .qc{background:#fffafd}
+.pod .plbar{position:sticky;top:0;z-index:3;background:var(--bg);padding:6px 0 8px;border-bottom:1px solid var(--line)}
+.pod .plbar input,.pod .plbar select{font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--text)}
+.pod .plc{font:inherit;font-size:13px;padding:4px 11px;border-radius:99px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer}
+.pod .plc[aria-pressed="true"]{background:#2f8ff0;border-color:#2f8ff0;color:#fff}
+.pod .pltot{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+.pod .plt{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel)}.pod .plt b{display:block;font:600 22px Oswald,sans-serif}.pod .plt span{display:block;font-size:11.5px;color:var(--muted);line-height:1.35}
+.pod .plt.low{border-color:#3ad06b}.pod .plt.low b{color:#3ad06b}.pod .plt.ord{box-shadow:0 0 0 2px #3ad06b inset}
+.pod .pll{display:grid;gap:6px;margin-top:8px}
+.pod .plr{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:6px 12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
+.pod .plr.win{border-left-color:#3ad06b}.pod .plr.miss{border-left-color:#e5483b}
+.pod .plth{width:56px;height:46px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font:600 15px Oswald,sans-serif}
+.pod .plth .hwpic{width:46px;height:46px;background:none;border:0}.pod .plth .hwpic svg{width:100%;height:100%}
+.pod .pln{font-weight:600;font-size:14px;line-height:1.3;word-break:break-word}
+.pod .plm{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);margin-top:2px}
+.pod .plp{display:grid;grid-template-columns:repeat(var(--n),minmax(70px,auto));gap:2px 12px;text-align:right;font-variant-numeric:tabular-nums}
+.pod .plp i{display:block;font-style:normal;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pod .plp b{font-size:14px}.pod .plp small{display:block;font-size:11px;color:var(--muted)}.pod .plp em{color:var(--muted)}
+.pod .plp .lo b{color:#3ad06b}
+.pod .plx{grid-column:1/-1;font-size:13px;border-top:1px dashed var(--line);padding-top:6px;line-height:1.45}
+.pod .srcq>summary{cursor:pointer;list-style:none}.pod .srcq>summary::-webkit-details-marker{display:none}
+@media (max-width:640px){ .pod .plr{grid-template-columns:48px minmax(0,1fr)} .pod .plth{width:48px;height:40px} .pod .plp{grid-column:1/-1;grid-template-columns:repeat(var(--n),1fr);text-align:left;border-top:1px solid var(--line);padding-top:6px} }
 `;
 document.head.appendChild(css);
 
@@ -137,19 +158,17 @@ function renderOrder(B,o){
       <button class="btn sm" type="button" id="poEd">✎ Edit</button></div>
     <div class="psec"><div class="steps">${ST.map(([k,t,c],i)=>`<button class="btn sm ${k===o.status?"on":i<si?"past":""}" type="button" data-pst="${k}" style="--c:${c}">${t}</button>`).join("")}</div>
       ${nextHint(o)}</div>
-    <div class="psec"><h3>ITEMS <span class="lbl" style="font-family:inherit;letter-spacing:0">${I.length}</span><span style="flex:1"></span><button class="btn sm" type="button" id="poAddI">+ Items</button></h3>
-      ${I.map((it,i)=>`<div class="it"><div class="q">${it.qty!=null&&it.qty!==""?E(it.qty):"-"}</div><div>${E(it.desc)}${it.unit?` <span class="lbl">${E(it.unit)}</span>`:""}${it.got!=null?` <span class="lbl" style="color:${+it.got>=+(it.qty||0)?"#3ad06b":"#e5483b"}">· got ${E(it.got)}</span>`:""}</div>
-        <button class="btn sm" type="button" data-pix="${i}" aria-label="Remove">×</button></div>`).join("")||`<div class="lbl">No items yet - add them, or read a quote from email and the items come from it.</div>`}</div>
-    <div class="psec"><h3>QUOTES <span class="lbl" style="font-family:inherit;letter-spacing:0">${Q.length}</span><span style="flex:1"></span><button class="btn sm primary" type="button" id="poRead">📧 Read a quote from email</button></h3>
-      ${Q.length>1||(Q.length&&I.length)?compareTable(o):""}
-      ${Q.map((q,i)=>quoteCard(o,q,i)).join("")||`<div class="lbl">No quotes yet.${(o.asked||[]).length?" Asked: "+E(o.asked.join(", "))+".":""}</div>`}</div>
-    <div class="psec"><h3>ORDER</h3>
-      <div class="sum"><div>Vendor<b>${E(o.vendor||"-")}</b></div><div>PO / order #<b>${E(o.po||"-")}</b></div><div>ETA<b>${E(o.eta||"-")}</b></div></div>
+    <div class="psec"><div class="sum">${o.vendor?`<div style="border-color:#3ad06b">Ordered from<b>${E(o.vendor)}</b></div>`:""}${o.po?`<div>PO<b>${E(o.po)}</b></div>`:""}${o.eta?`<div>ETA<b>${E(o.eta)}</b></div>`:""}${(o.asked||[]).length&&!o.vendor?`<div>Asked<b>${E(o.asked.join(", "))}</b></div>`:""}</div>
       ${o.notes?`<div class="lbl" style="white-space:pre-wrap">${E(o.notes)}</div>`:""}
       <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" type="button" id="poInfo">✎ Vendor, PO, ETA, notes</button>${["delivered","ready","shipped","ordered"].includes(o.status)?`<button class="btn sm primary" type="button" id="poCount">Count it in</button>`:""}</div></div>
+    <div class="psec"><h3>PRICES <span class="lbl" style="font-family:inherit;letter-spacing:0">${I.length} item${I.length===1?"":"s"} · ${Q.length} quote${Q.length===1?"":"s"}</span><span style="flex:1"></span><button class="btn sm" type="button" id="poAddI">+ Items</button><button class="btn sm primary" type="button" id="poRead">📧 Read a quote</button></h3>
+      ${I.length?priceListShell(o):`<div class="lbl">No items yet - add them, or read a quote from email and the items come from it.</div>`}</div>
+    <div class="psec"><details class="srcq"><summary><h3 style="display:inline-flex;margin:0">SOURCE QUOTES <span class="lbl" style="font-family:inherit;letter-spacing:0;margin-left:6px">${Q.length} - the emails these prices came from</span></h3></summary>
+      <div style="margin-top:8px">${Q.map((q,i)=>quoteCard(o,q,i)).join("")||`<div class="lbl">No quotes yet.</div>`}</div></details></div>
     <div class="psec"><h3>HISTORY</h3>${(o.log||[]).slice().reverse().slice(0,12).map(l=>`<div class="lg">${day(l.at)} · ${E(l.who)}: ${E(l.t)}</div>`).join("")||`<div class="lg">-</div>`}
       <div style="margin-top:12px"><button class="btn sm" type="button" id="poDel" style="color:#e5483b">Delete order</button></div></div>
   </div>`;
+  if(I.length) wirePriceList(B,o);
   B.querySelector("#poBack").onclick=()=>{ poId=null; render(); toTop(); };
   B.querySelector("#poEd").onclick=()=>editOrder(o);
   B.querySelector("#poAddI").onclick=()=>addItems(o);
@@ -166,7 +185,7 @@ function renderOrder(B,o){
   B.querySelectorAll("[data-pqx]").forEach(b=>b.onclick=()=>{ const q=Q[+b.dataset.pqx]; if(!confirm(`Remove ${q.vendor}'s quote?`)) return; save(o,{quotes:Q.filter(x=>x!==q)},"removed "+q.vendor+" quote"); });
 }
 function nextHint(o){
-  const h={rfq:"Waiting on quotes. When they come in, tap 📧 Read a quote from email.",compare:"Look over the compare table, then tap Order from … on the one you want.",
+  const h={rfq:"Waiting on quotes. When they come in, tap 📧 Read a quote from email.",compare:"Look over the prices, then tap Order from … on the one you want.",
     ordered:"Ordered. Move it along when the vendor says it's shipped or ready.",shipped:"On its way. Tap Delivered when it shows up.",ready:"Ready to pick up. Tap Delivered once it's here.",
     delivered:"It's here - tap Count it in to check it against the order.",received:"Counted in. Done."}[o.status];
   return h?`<div class="lbl" style="margin-top:6px">${h}</div>`:"";
@@ -178,6 +197,60 @@ async function setStage(o,k){
   save(o,patch,"→ "+SL[k].t);
 }
 
+
+/* ---- price list: one card per item with each vendor's price, filter bar on top (like the Russel vs Wave parts page) ---- */
+const PLS={};   // per order: {q, sort, show, open:Set}
+const vshort=v=>String(v||"?").replace(/\(.*?\)/g,"").replace(/\b(LP|Ltd|Inc|Distributors|Steel|Metals|Fabrication|Services|Supply)\b\.?/gi,"").trim().split(/\s+/)[0]||v;
+function plRows(o){
+  const I=items(o), Q=quotes(o);
+  return I.map((it,i)=>{
+    const c=Q.map(q=>{ const L=(q.lines||[]).filter(l=>l.match===i); if(!L.length) return null; const t=L.reduce((a,l)=>a+(+l.line_total||0),0);
+      return {t:t>0?t:null,u:L.length===1&&L[0].unit_price?+L[0].unit_price:null,uu:L.length===1?(L[0].unit||"ea"):"ea",txt:L.map(l=>l.item).join(" + "),note:L.map(l=>l.note).filter(Boolean).join("; ")}; });
+    const ps=c.map(x=>x&&x.t).filter(n=>n>0); const lo=ps.length?Math.min(...ps):null, hi=ps.length?Math.max(...ps):null;
+    return {it,i,c,lo,hi,best:lo!=null?c.findIndex(x=>x&&x.t===lo):-1,every:Q.length>0&&c.every(x=>x&&x.t>0),n:ps.length};
+  });
+}
+function priceListShell(o){
+  const st=PLS[o.id]=PLS[o.id]||{q:"",sort:"item",show:"all",open:new Set()}; const Q=quotes(o);
+  return `<div class="plbar"><div class="row" style="gap:6px;flex-wrap:wrap"><input type="search" id="plQ" placeholder="Search items" value="${E(st.q)}" style="flex:1 1 180px">
+      <select id="plS">${[["item","Item order"],["save","Biggest saving"],["price","Highest price"],["qty","Quantity"]].map(([k,t])=>`<option value="${k}" ${st.sort===k?"selected":""}>${t}</option>`).join("")}</select></div>
+    ${Q.length?`<div class="row" id="plF" style="gap:6px;flex-wrap:wrap;margin-top:6px"><span class="lbl">Show</span>${[["all","All"],...(Q.length>1?[["every","Everyone priced"],["missing","Missing a price"]]:[]),...(Q.length>1?Q.map((q,k)=>["best:"+k,"Cheapest at "+vshort(q.vendor)]):[])].map(([k,t])=>`<button type="button" class="plc" data-plf="${E(k)}" aria-pressed="${st.show===k}">${E(t)}</button>`).join("")}</div>`:""}
+    </div><div class="pltot" id="plT"></div><div id="plL" class="pll"></div>`;
+}
+function wirePriceList(B,o){
+  const st=PLS[o.id]; const R=plRows(o), Q=quotes(o);
+  const draw=()=>{
+    // totals: each vendor on the items everyone priced (fair), how many it's cheapest on, its whole quote; cheapest mix
+    const every=R.filter(r=>r.every);
+    const T=Q.map((q,k)=>({q,k,common:every.reduce((a,r)=>a+r.c[k].t,0),wins:R.filter(r=>r.best===k).length,priced:R.filter(r=>r.c[k]&&r.c[k].t>0).length}));
+    const lo=every.length&&Q.length>1?Math.min(...T.map(t=>t.common)):null;
+    const mix=R.reduce((a,r)=>a+(r.lo||0),0);
+    B.querySelector("#plT").innerHTML=T.map(t=>`<div class="plt ${o.vendor&&t.q.vendor===o.vendor?"ord":""} ${lo!=null&&t.common===lo?"low":""}"><span>${E(vshort(t.q.vendor))}${o.vendor&&t.q.vendor===o.vendor?" · ORDERED":""}</span>
+        <b>${Q.length>1&&every.length?$$(t.common):$$(t.q.total)}</b><span>${Q.length>1&&every.length?`on the ${every.length} items everyone priced · `:""}${t.priced} of ${R.length} priced${Q.length>1?` · cheapest on ${t.wins}`:""}</span>
+        ${Q.length>1?`<span>whole quote ${$$(t.q.total)}</span>`:""}</div>`).join("")+(Q.length>1?`<div class="plt"><span>Cheapest mix</span><b>${$$(mix)}</b><span>each item from whoever is lowest</span></div>`:"");
+    // filter + sort
+    const q=st.q.trim().toLowerCase();
+    let L=R.filter(r=>!q||(r.it.desc+" "+r.c.map(x=>x?x.txt:"").join(" ")).toLowerCase().includes(q));
+    if(st.show==="every") L=L.filter(r=>r.every); else if(st.show==="missing") L=L.filter(r=>!r.every); else if(st.show.startsWith("best:")){ const k=+st.show.slice(5); L=L.filter(r=>r.best===k); }
+    if(st.sort==="save") L.sort((a,b)=>((b.hi||0)-(b.lo||0))-((a.hi||0)-(a.lo||0))); else if(st.sort==="price") L.sort((a,b)=>(b.hi||0)-(a.hi||0)); else if(st.sort==="qty") L.sort((a,b)=>(+b.it.qty||0)-(+a.it.qty||0));
+    const box=B.querySelector("#plL");
+    box.innerHTML=(L.length?"":`<div class="lbl" style="padding:10px 0">Nothing matches.</div>`)+L.map(r=>{ const pic=window.hwPic?window.hwPic({description:r.it.desc},"plpic"):""; const open=st.open.has(r.i);
+      const cls=Q.length>1&&!r.every?"miss":r.best>=0&&Q.length>1?"win":"";
+      return `<div class="plr ${cls} ${open?"open":""}" data-pr="${r.i}" style="--bc:${r.best>=0?"#3ad06b":"#e5483b"}">
+        <div class="plth">${pic||`<span>${r.i+1}</span>`}</div>
+        <div class="plin"><div class="pln">${E(r.it.desc)}</div><div class="plm">${r.it.qty!=null&&r.it.qty!==""?`<span>qty ${E(r.it.qty)}${r.it.unit?" "+E(r.it.unit):""}</span>`:""}${Q.length>1&&r.best>=0&&r.hi>r.lo?`<span style="color:#3ad06b">${E(vshort(Q[r.best].vendor))} saves ${$$(r.hi-r.lo)} (${Math.round((r.hi/r.lo-1)*100)}%)</span>`:""}${Q.length>1&&!r.every?`<span style="color:#e5483b">${Q.filter((_,k)=>!(r.c[k]&&r.c[k].t>0)).map(q=>vshort(q.vendor)).join(", ")} didn't price it</span>`:""}${r.c.some(x=>x&&x.note)?`<span style="color:#f5b041">⚠ note</span>`:""}</div></div>
+        <div class="plp" style="--n:${Q.length}">${Q.map((qq,k)=>{ const x=r.c[k]; return `<div class="${x&&x.t===r.lo&&Q.length>1?"lo":""}"><i>${E(vshort(qq.vendor))}</i>${x&&x.t>0?`<b>${$$(x.t)}</b>${x.u&&Math.abs(x.u-x.t)>0.005?`<small>${$$(x.u)}/${E(x.uu)}</small>`:""}`:`<em>—</em>`}</div>`; }).join("")}</div>
+        ${open?`<div class="plx">${Q.map((qq,k)=>{ const x=r.c[k]; return `<div><b>${E(qq.vendor)}</b>: ${x?E(x.txt):"<em>not quoted</em>"}${x&&x.note?` <span style="color:#f5b041">· ${E(x.note)}</span>`:""}</div>`; }).join("")}
+          <div style="margin-top:6px"><button class="btn sm" type="button" data-pix="${r.i}">Remove this item</button></div></div>`:""}</div>`; }).join("");
+    box.querySelectorAll("[data-pr]").forEach(el=>el.onclick=e=>{ if(e.target.closest("[data-pix]")) return; const i=+el.dataset.pr; st.open.has(i)?st.open.delete(i):st.open.add(i); draw(); });
+    box.querySelectorAll("[data-pix]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const i=+b.dataset.pix; const I=items(o), Qs=quotes(o); const it=I[i]; if(!confirm(`Remove "${it.desc}"?`)) return;
+      const n=I.filter((_,j)=>j!==i); const q=Qs.map(x=>({...x,lines:(x.lines||[]).map(l=>({...l,match:l.match===i?-1:l.match>i?l.match-1:l.match}))})); st.open.clear(); save(o,{items:n,quotes:q},"removed "+it.desc); });
+  };
+  const qi=B.querySelector("#plQ"); qi.oninput=()=>{ st.q=qi.value; draw(); };
+  B.querySelector("#plS").onchange=e=>{ st.sort=e.target.value; draw(); };
+  B.querySelectorAll("[data-plf]").forEach(b=>b.onclick=()=>{ st.show=b.dataset.plf; B.querySelectorAll("[data-plf]").forEach(x=>x.setAttribute("aria-pressed",x===b)); draw(); });
+  draw();
+}
 function quoteCard(o,q,i){
   const L=q.lines||[]; const pick=o.vendor&&q.vendor&&o.vendor===q.vendor;
   return `<div class="qc ${pick?"pick":""}"><div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:180px"><b>${E(q.vendor||"?")}</b>${q.quote_no?` <span class="lbl">#${E(q.quote_no)}</span>`:""}${pick?` <span class="lbl" style="color:#3ad06b">· ORDERED</span>`:""}
