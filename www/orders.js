@@ -98,6 +98,8 @@ function parseLine(s){ if(s&&typeof s==="object") return s.desc?{qty:s.qty??null
   m=s.match(/^(.+?)\s+(?:×|x)\s*(\d+)\s*(?:pcs?|ea)$/i); if(m) return {qty:+m[2],desc:m[1].trim()}; return {qty:null,desc:s}; }
 const cheapest=o=>{ const t=quotes(o).map(q=>+q.total).filter(n=>n>0); return t.length?Math.min(...t):null; };
 
+// the phone app scrolls an inner container, not the window - jump whatever is scrolled back to the top of the board
+const toTop=()=>{ const B=$("#board"); try{ window.scrollTo(0,0); let e=B; while(e){ if(e.scrollTop) e.scrollTop=0; e=e.parentElement; } B.scrollIntoView({block:"start"}); }catch(x){} };
 /* ================= list ================= */
 function renderList(B){
   const act=PO.filter(o=>!["received","cancelled"].includes(o.status));
@@ -112,7 +114,7 @@ function renderList(B){
     ${!list.length?`<div class="empty" style="text-align:left;margin-top:12px">${loaded?(tab==="active"?"No open orders. Tap + New order to start one - or read a quote from email straight into a new order.":"Nothing here."):"Loading…"}</div>`:""}`;
   B.querySelector("#poNew").onclick=newOrder;
   B.querySelectorAll("[data-pot]").forEach(b=>b.onclick=()=>{ tab=b.dataset.pot; render(); });
-  B.querySelectorAll("[data-po]").forEach(b=>b.onclick=()=>{ poId=b.dataset.po; render(); window.scrollTo(0,0); });
+  B.querySelectorAll("[data-po]").forEach(b=>b.onclick=()=>{ poId=b.dataset.po; render(); toTop(); });
   const cn=B.querySelector("#poCon"); if(cn) cn.onclick=connect;
 }
 function card(o){
@@ -148,7 +150,7 @@ function renderOrder(B,o){
     <div class="psec"><h3>HISTORY</h3>${(o.log||[]).slice().reverse().slice(0,12).map(l=>`<div class="lg">${day(l.at)} · ${E(l.who)}: ${E(l.t)}</div>`).join("")||`<div class="lg">-</div>`}
       <div style="margin-top:12px"><button class="btn sm" type="button" id="poDel" style="color:#e5483b">Delete order</button></div></div>
   </div>`;
-  B.querySelector("#poBack").onclick=()=>{ poId=null; render(); };
+  B.querySelector("#poBack").onclick=()=>{ poId=null; render(); toTop(); };
   B.querySelector("#poEd").onclick=()=>editOrder(o);
   B.querySelector("#poAddI").onclick=()=>addItems(o);
   B.querySelector("#poRead").onclick=()=>mailPicker(o);
