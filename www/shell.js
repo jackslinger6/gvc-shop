@@ -36,6 +36,7 @@ body:has(.scrim.on) .shnav,body:has(.chatp.on) .shnav{display:none}
 .shnav .plus:active{transform:scale(.93)}
 .shnav .plus.open{transform:rotate(45deg)}
 body.girly .shnav .ni.on{color:#e0569a!important}
+body.girly .trk .cell[style*="--cc"]{background:var(--cc)!important}body.girly .trk .cell.past{opacity:.4}
 .shnav [data-n="orders"]{display:none}body.parts .shnav [data-n="orders"]{display:flex}
 @media (max-width:899px){
   body.crew.parts .shnav{grid-template-columns:repeat(5,minmax(0,1fr))!important}

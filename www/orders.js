@@ -494,7 +494,17 @@ window.partsHome=B=>{ _ph(B); const hm=B.querySelector(".hm"); if(!hm) return;
   sec.innerHTML=`<h4><span>MY ORDERS</span><span>${window.pordersOpen()} OPEN</span></h4>
     <div class="pnums" style="grid-template-columns:repeat(3,minmax(0,1fr))">${ST.filter(([k])=>k!=="received").map(([k,t,c])=>`<button type="button" data-pok="${k}" style="--c:${c}"><b>${n(k)}</b><span>${t.toUpperCase()}</span></button>`).join("")}</div>
     <div class="row" style="gap:8px;margin-top:8px"><button class="btn" type="button" id="poHN" style="flex:1">+ New order</button><button class="btn" type="button" id="poHA" style="flex:1">All my orders ›</button></div>`;
-  hm.insertBefore(sec,hm.firstChild);
+  // left column: her orders, what's waiting on her, then the crew - so nothing leaves a hole beside the tall stock column (Kyle, Nov 8)
+  const left=document.createElement("div"); left.style.cssText="display:grid;gap:16px;align-content:start;min-width:0";
+  left.appendChild(sec);
+  const need=PO.filter(o=>["compare","ready","delivered"].includes(o.status));
+  const nd=document.createElement("section"); nd.setAttribute("aria-label","Waiting on you");
+  nd.innerHTML=`<h4><span>WAITING ON YOU</span><span>${need.length||""}</span></h4>${need.length?`<div class="pogrid" style="margin-top:0">${need.map(boardCard).join("")}</div>`:`<div class="lbl" style="padding:10px 2px">Nothing waiting on you - no quotes to compare and nothing to pick up or count.</div>`}`;
+  left.appendChild(nd);
+  const crew=hm.querySelector('section[aria-label="The crew"]'); if(crew) left.appendChild(crew);
+  hm.insertBefore(left,hm.firstChild);
+  nd.querySelectorAll("[data-po]").forEach(b=>b.onclick=()=>{ tab="active"; poId=b.dataset.po; shellGo("porders"); });
+  nd.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const o=PO.find(x=>x.id===el.dataset.cnt); if(o) countSheet(o); });
   sec.querySelectorAll("[data-pok]").forEach(b=>b.onclick=()=>window.pordersGo(b.dataset.pok));
   sec.querySelector("#poHN").onclick=()=>newOrder();
   sec.querySelector("#poHA").onclick=()=>window.pordersGo("active");
