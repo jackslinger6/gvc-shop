@@ -24,7 +24,9 @@ css.textContent=`
 .cnt .it.full{--c:#3ad06b}.cnt .it.part{--c:#f5b041}
 .cnt .th{width:84px;height:60px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font-size:10.5px;text-align:center}
 .cnt .th img{max-width:100%;max-height:100%;object-fit:contain}
-.cnt .th[data-fv]{cursor:zoom-in}.cnt .th svg{width:100%;height:100%;display:block;padding:3px;box-sizing:border-box}
+.cnt .th[data-fv]{cursor:zoom-in}
+.cnt .mchip{display:inline-block;font:600 12.5px Oswald,sans-serif;letter-spacing:.03em;padding:1px 7px;border-radius:5px;background:#f5b041;color:#1a1204;text-transform:uppercase;margin:2px 0}
+.cnt .mchip.al{background:#9fd3ff;color:#06223a}.cnt .mchip.ss{background:#d9dde3;color:#15181c}.cnt .th svg{width:100%;height:100%;display:block;padding:3px;box-sizing:border-box}
 .cnt .nm{font-weight:600;font-size:14px;word-break:break-word;display:flex;justify-content:space-between;gap:8px}
 .cnt .nm .q{font-family:Oswald,sans-serif;font-size:15px;white-space:nowrap}
 .cnt .mt{font-size:12px;color:var(--muted);margin-top:1px}
@@ -135,8 +137,12 @@ function hydrateFlat(){
 async function openFlat(ix){
   const it=st.items[ix], pn=it.part_no; if(!FL[pn]) await drawFlat(pn); const F=FL[pn];
   if(!F){ const im=url(it.thumb||it.img); if(im) zoomImg(im,pn); return; }
-  window.gvcFlat.view({title:pn||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat,`${got(it)} of ${it.qty||0} counted`].filter(Boolean).join(" · "),svg:F.x.svg,W:F.x.W,H:F.x.H,vw:F.x.vw,vh:F.x.vh,warn:F.warn});
+  window.gvcFlat.view({title:pn||it.name,mat:matLabel(it.mat),sub:it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)?it.name:"",
+    svg:F.x.svg,W:F.x.W,H:F.x.H,vw:F.x.vw,vh:F.x.vh,warn:F.warn,
+    count:{qty:it.qty||0,got:()=>got(it),set:n=>{ it.got=n; changed(it.g); }}, onClose:()=>{ const D=$("#dlg"), sc=D.scrollTop; draw(); D.scrollTop=sc; }});
 }
+// '0.125" 0.125 ALUMINUM' -> '0.125" ALUMINUM' (the material name repeats the thickness)
+function matLabel(m){ m=String(m||"").trim(); const x=m.match(/^([\d.]+)"\s+([\d.]+)\s+(.*)$/); return x&&Math.abs(+x[1]-+x[2])<1e-6?`${x[1]}" ${x[3]}`:m; }
 window.gvcCountFlatThumb=pn=>FL[pn]?"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(FL[pn].x.thumb):"";
 
 function head(){
@@ -157,7 +163,7 @@ function itemRow(it,ix){
     :`<div class="th" ${im?`data-fv="${ix}" role="button"`:""}>${im?`<img src="${esc(im)}" alt="" loading="lazy">`:esc(it.part_no||"")}</div>`;
   return `<div class="it ${cls}">${th}
     <div><div class="nm"><span>${esc(it.part_no||it.name)}</span><span class="q">${g} / ${q}</span></div>
-    <div class="mt">${[it.part_no&&it.name&&it.name!==it.part_no?esc(it.name):"",esc(it.mat||"")].filter(Boolean).join(" · ")}</div>
+    <div class="mt">${it.mat?`<span class="mchip ${/alum|\bal\b/i.test(it.mat)?"al":/stainless|\bss\b/i.test(it.mat)?"ss":""}">${esc(matLabel(it.mat))}</span>`:""}${it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)&&!String(it.mat||"").includes(it.name)?" "+esc(it.name):""}</div>
     ${fl?`<div class="mt" data-dm>${flatDims(it.part_no)}</div>`:""}
     ${boxes}
     <div style="margin-top:6px;display:flex;gap:14px"><button class="lnk" type="button" data-later="${ix}">Comes later</button><button class="lnk" type="button" data-skip="${ix}">Not on this order</button></div></div></div>`;

@@ -111,46 +111,76 @@ function fromDxf(text){
   return {svg,thumb,W,H,W0,H0,turned:!!bestA,vw:W+pad*1.6,vh:H+pad*1.6};
 }
 
-/* full-screen viewer: pinch / buttons / double-tap to zoom, drag to pan, Back closes */
+/* full-screen viewer: material + size up top, the flat pattern fitted to the screen (pinch / +− / double-tap to zoom,
+   drag to pan), piece check boxes at the bottom (when opened from a count), Back closes */
 const css=document.createElement("style");
-css.textContent=`#gFlat{position:fixed;inset:0;z-index:8500;background:#0d0e10f2;display:flex;flex-direction:column;color:#fff;font-family:Inter,system-ui,sans-serif}
-#gFlat .hd{display:flex;gap:8px;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 8px}
-#gFlat .hd .t{flex:1;min-width:0}#gFlat .hd b{display:block;font-size:15px;word-break:break-word}#gFlat .hd small{font-size:12.5px;opacity:.75}
-#gFlat .dm{font:600 20px Oswald,sans-serif;color:#3ad06b;white-space:nowrap}
-#gFlat button{font:inherit;font-weight:600;border:0;border-radius:999px;padding:9px 14px;background:rgba(255,255,255,.16);color:#fff;min-height:40px;cursor:pointer}
-#gFlat .bx{flex:1;overflow:auto;background:#fff;margin:0 8px calc(env(safe-area-inset-bottom,0px) + 8px);border-radius:10px;touch-action:pan-x pan-y}
-#gFlat .bx{display:grid}#gFlat .bx img{display:block;margin:auto;max-width:none}
-#gFlat .lg{font-size:11.5px;opacity:.7;padding:0 14px 6px}`;
+css.textContent=`#gFlat{position:fixed;inset:0;z-index:8500;background:#0d0e10;display:flex;flex-direction:column;color:#fff;font-family:Inter,system-ui,sans-serif}
+#gFlat .hd{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:start;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 10px}
+#gFlat .pn{font-weight:700;font-size:16px;line-height:1.25;overflow-wrap:anywhere;align-self:center}
+#gFlat .mt{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#gFlat .mat{font:600 20px Oswald,sans-serif;letter-spacing:.03em;padding:4px 12px;border-radius:8px;background:#f5b041;color:#1a1204;text-transform:uppercase}
+#gFlat .mat.al{background:#9fd3ff;color:#06223a}#gFlat .mat.ss{background:#d9dde3;color:#15181c}
+#gFlat .dm{font:600 24px Oswald,sans-serif;color:#3ad06b;letter-spacing:.01em;white-space:nowrap}
+#gFlat .sb{grid-column:1/-1;font-size:12.5px;color:#aab0b8;line-height:1.35}
+#gFlat .wn{grid-column:1/-1;font-size:12.5px;color:#f5b041;line-height:1.35}
+#gFlat button{font:inherit;font-weight:600;border:0;border-radius:999px;padding:8px 16px;background:rgba(255,255,255,.14);color:#fff;min-height:40px;cursor:pointer}
+#gFlat .bx{position:relative;flex:1;min-height:0;overflow:auto;background:#fff;margin:0 10px;border-radius:12px;touch-action:pan-x pan-y;display:grid}
+#gFlat .bx img{display:block;margin:auto;max-width:none}
+#gFlat .zm{position:absolute;right:20px;top:12px;display:flex;flex-direction:column;gap:8px;z-index:2}
+#gFlat .zm button{width:44px;height:44px;padding:0;font-size:22px;background:#1d2025e6;box-shadow:0 2px 8px #0005}
+#gFlat .lg{position:absolute;left:20px;top:12px;font-size:11px;color:#444;background:#ffffffe0;border-radius:8px;padding:4px 8px;z-index:2}
+#gFlat .lg i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin:0 3px 0 6px}
+#gFlat .stage{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
+#gFlat .ct{padding:10px 14px calc(env(safe-area-inset-bottom,0px) + 12px)}
+#gFlat .ct .tt{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+#gFlat .ct .tt b{font:600 22px Oswald,sans-serif}#gFlat .ct .tt b.full{color:#3ad06b}
+#gFlat .bxs{display:flex;flex-wrap:wrap;gap:8px}
+#gFlat .pc{width:46px;height:46px;border-radius:10px;border:2px solid #5a5f68;background:transparent;color:transparent;font-size:24px;padding:0;min-height:0}
+#gFlat .pc.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}
+#gFlat .stp{display:flex;gap:8px;align-items:center}#gFlat .stp button{min-width:56px;height:48px;font-size:20px}#gFlat .stp .all{flex:1;font-size:16px}`;
 document.head.appendChild(css);
 let closeView=null;
+const matCls=m=>/alum|\bal\b|5052|6061/i.test(m)?"al":/stainless|\bss\b|304|316/i.test(m)?"ss":"";
 function view(o){
   if(closeView) closeView();
   const url=URL.createObjectURL(new Blob([o.svg],{type:"image/svg+xml"}));
+  const eng=/<path d="M[^"]*" fill="none" stroke="#1f6fd1"/.test(o.svg), bend=/<path d="M[^"]*" fill="none" stroke="#d0342c"/.test(o.svg);
   const ov=document.createElement("div"); ov.id="gFlat";
-  ov.innerHTML=`<div class="hd"><div class="t"><b>${esc(o.title||"Flat pattern")}</b>${o.sub?`<small>${esc(o.sub)}</small>`:""}</div>
-    <span class="dm">${inch(o.W)} × ${inch(o.H)}</span><button type="button" data-z="-">−</button><button type="button" data-z="+">+</button><button type="button" id="gfX">Close</button></div>
-    ${o.warn?`<div class="lg" style="color:#f5b041;opacity:1;font-size:13px">⚠ ${esc(o.warn)}</div>`:""}
-    <div class="lg">Flat pattern from the laser DXF · black = cut · <span style="color:#7fb4ff">blue = engrave</span> · <span style="color:#ff8a80">red dashed = bend</span> · pinch or double-tap to zoom</div>
-    <div class="bx"><img alt="Flat pattern" src="${url}"></div>`;
+  ov.innerHTML=`<div class="hd"><div class="pn">${esc(o.title||"Flat pattern")}</div><button type="button" id="gfX">Close</button>
+      <div class="mt">${o.mat?`<span class="mat ${matCls(o.mat)}">${esc(o.mat)}</span>`:""}<span class="dm">${inch(Math.max(o.W,o.H))} × ${inch(Math.min(o.W,o.H))}</span></div>
+      ${o.sub?`<div class="sb">${esc(o.sub)}</div>`:""}${o.warn?`<div class="wn">⚠ ${esc(o.warn)}</div>`:""}</div>
+    <div class="stage"><div class="bx"><img alt="Flat pattern" src="${url}"></div>
+      <div class="zm"><button type="button" data-z="+" aria-label="Zoom in">+</button><button type="button" data-z="-" aria-label="Zoom out">−</button></div>
+      ${eng||bend?`<div class="lg"><i style="color:#111"></i>cut${eng?`<i style="color:#1f6fd1"></i>engrave`:""}${bend?`<i style="color:#d0342c;border-top-style:dashed"></i>bend`:""}</div>`:""}</div>
+    ${o.count?`<div class="ct" id="gfC"></div>`:`<div style="height:calc(env(safe-area-inset-bottom,0px) + 10px)"></div>`}`;
   document.body.appendChild(ov);
+  // piece check boxes (same rules as the count list: tap box n = n pieces found)
+  const C=ov.querySelector("#gfC");
+  const drawC=()=>{ if(!C) return; const q=o.count.qty||0, g=Math.min(o.count.got()||0,q), full=q>0&&g>=q;
+    C.innerHTML=`<div class="tt"><span style="font-size:13px;color:#aab0b8">Tick one box per piece</span><b class="${full?"full":""}">${g} of ${q}${full?" ✓":""}</b></div>`+
+      (q<=24?`<div class="bxs">${Array.from({length:q},(_,k)=>`<button type="button" class="pc ${k<g?"on":""}" data-k="${k}" aria-label="piece ${k+1}">✓</button>`).join("")}</div>`
+        :`<div class="stp"><button type="button" data-s="-1">−</button><button type="button" data-s="+1">+</button><button type="button" class="all" data-s="all">All ${q} here</button></div>`);
+    C.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{ const k=+b.dataset.k; o.count.set(g>=k+1?k:k+1); drawC(); });
+    C.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{ const s=b.dataset.s; o.count.set(s==="all"?q:Math.max(0,Math.min(q,g+(+s)))); drawC(); }); };
+  drawC();
   const img=ov.querySelector("img"), bx=ov.querySelector(".bx"); let z=1;
   const ar=(o.vw&&o.vh)?o.vw/o.vh:(o.W&&o.H?o.W/o.H:1);
   const set=n=>{ const cx=bx.scrollLeft+bx.clientWidth/2, cy=bx.scrollTop+bx.clientHeight/2, oldW=img.offsetWidth||1;
-    z=Math.max(1,Math.min(10,n)); const bw=bx.clientWidth-8, bh=bx.clientHeight-8; const fw=Math.min(bw,bh*ar);   // fitted width at zoom 1
+    z=Math.max(1,Math.min(10,n)); const bw=bx.clientWidth-8, bh=bx.clientHeight-8; const fw=Math.min(bw,bh*ar);
     img.style.width=Math.round(fw*z)+"px"; img.style.height=Math.round(fw*z/ar)+"px";
     const k=(fw*z)/oldW; bx.scrollLeft=cx*k-bx.clientWidth/2; bx.scrollTop=cy*k-bx.clientHeight/2; };
-  requestAnimationFrame(()=>set(1)); window.addEventListener("resize",()=>set(z));
+  requestAnimationFrame(()=>set(1)); const onR=()=>set(z); window.addEventListener("resize",onR);
   ov.querySelectorAll("[data-z]").forEach(b=>b.onclick=()=>set(b.dataset.z==="+"?z*1.6:z/1.6));
   img.ondblclick=()=>set(z>1?1:3);
   let d0=null,z0=1;
   bx.addEventListener("touchstart",e=>{ if(e.touches.length===2){ d0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); z0=z; } },{passive:true});
   bx.addEventListener("touchmove",e=>{ if(e.touches.length===2&&d0){ e.preventDefault(); set(z0*Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)/d0); } },{passive:false});
   bx.addEventListener("touchend",()=>{ d0=null; });
-  let drag=null; bx.addEventListener("mousedown",e=>{ drag={x:e.clientX,y:e.clientY,l:bx.scrollLeft,t:bx.scrollTop}; e.preventDefault(); });
-  window.addEventListener("mousemove",e=>{ if(drag){ bx.scrollLeft=drag.l-(e.clientX-drag.x); bx.scrollTop=drag.t-(e.clientY-drag.y); } });
-  window.addEventListener("mouseup",()=>{ drag=null; });
-  closeView=()=>{ ov.remove(); URL.revokeObjectURL(url); closeView=null; };
-  ov.querySelector("#gfX").onclick=closeView;
+  let drag=null; const mm=e=>{ if(drag){ bx.scrollLeft=drag.l-(e.clientX-drag.x); bx.scrollTop=drag.t-(e.clientY-drag.y); } }, mu=()=>{ drag=null; };
+  bx.addEventListener("mousedown",e=>{ drag={x:e.clientX,y:e.clientY,l:bx.scrollLeft,t:bx.scrollTop}; e.preventDefault(); });
+  window.addEventListener("mousemove",mm); window.addEventListener("mouseup",mu);
+  closeView=()=>{ ov.remove(); URL.revokeObjectURL(url); window.removeEventListener("resize",onR); window.removeEventListener("mousemove",mm); window.removeEventListener("mouseup",mu); closeView=null; o.onClose&&o.onClose(); };
+  ov.querySelector("#gfX").onclick=()=>closeView();
   if(!window.__gfBack){ window.__gfBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(closeView){ closeView(); return true; } return ob?ob():false; }; }
 }
 // the drawing's flat size vs what's in the DXF (either orientation). Returns a warning or "".
