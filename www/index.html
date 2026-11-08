@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>/* Android app (served from https://localhost): don't draw under the status bar / Back-Home buttons - Android keeps the app between them.
+   The iPhone home-screen app keeps viewport-fit=cover (Kyle, Nov 8). */
+try{ if(/Android/i.test(navigator.userAgent)&&location.hostname==="localhost"){ const m=document.querySelector('meta[name="viewport"]'); m.setAttribute("content","width=device-width, initial-scale=1"); } }catch(e){}</script>
 <title>GVC Vault</title>
 <!-- iPhone / iPad: Add to Home Screen opens it full-screen like an app (Robin, Nov 6). ?for=robin = pink icon + girly mode -->
 <meta name="apple-mobile-web-app-capable" content="yes">
