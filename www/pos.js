@@ -20,7 +20,7 @@ const jobOf=id=>allJobs().find(j=>j.id===id);
 const jobTag=id=>{ const j=jobOf(id); if(!j) return id; const m=String(j.name).match(/^\s*([A-Z0-9]+)\b/i); return m?m[1]:j.name; };
 const linesOf=r=>{ const out=[]; (r.jobs||[]).forEach(jid=>{ const j=jobOf(jid); (j&&j.suppliers||[]).forEach(x=>{ if(x.po===r.no||x.rfq===r.no) out.push({j,x}); }); }); return out; };
 
-async function load(){ const r=await sb.from("gvc_pos").select("*").order("created_at",{ascending:false}); if(!r.error){ POS=r.data||[]; loaded=true; } if(typeof cur!=="undefined"&&cur==="pos") render(); }
+async function load(){ const r=await sb.from("gvc_pos").select("*").order("created_at",{ascending:false}); if(!r.error){ POS=r.data||[]; loaded=true; } await syncPos(); if(typeof cur!=="undefined"&&cur==="pos") render(); }
 let started=false;
 setInterval(()=>{ if(!started&&typeof sb!=="undefined"&&sb&&window.ME){ started=true; load(); try{ sb.channel("gvc_pos").on("postgres_changes",{event:"*",schema:"public",table:"gvc_pos"},()=>load()).subscribe(); }catch(e){} } },1500);
 window.posByNo=no=>POS.find(r=>r.no===no);
@@ -238,8 +238,18 @@ async function orderFrom(r,v){
   }catch(e){ say("Couldn't make the PO: "+e.message); }
 }
 
+/* a PO follows its job lines: the hourly email check (or anyone on a job card) moving a line forward moves the PO too */
+const ORD=PST.map(x=>x[0]); let syncing=false;
+async function syncPos(){
+  if(syncing||!isKyle()) return; syncing=true;
+  try{ for(const r of POS){ if(r.kind!=="po"||["received","cancelled"].includes(r.status)) continue;
+    const L=linesOf(r).map(o=>o.x.status).filter(k=>ORD.includes(k)); if(!L.length) continue;
+    const lo=L.reduce((a,k)=>ORD.indexOf(k)<ORD.indexOf(a)?k:a,L[0]);       // the PO is as far as its slowest line
+    if(ORD.indexOf(lo)>ORD.indexOf(r.status)){ const q=await sb.from("gvc_pos").update({status:lo,log:[...(r.log||[]),{at:new Date().toISOString(),t:`${PL[lo].t} (from the job)`}].slice(-80),updated_at:new Date().toISOString()}).eq("id",r.id); if(!q.error){ r.status=lo; } } }
+  }finally{ syncing=false; } }
 /* ================= view + hooks ================= */
 function renderPos(){
+  syncPos().then(()=>{});
   const B=$("#board"); B.className="posv"; B.style.gridTemplateColumns="";
   const r=selNo&&POS.find(x=>x.no===selNo);
   if(r) (r.kind==="rfq"?renderRfq:renderPo)(B,r); else { selNo=null; renderList(B); }
