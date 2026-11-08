@@ -72,7 +72,21 @@ const inch=n=>{ const r=Math.round(n*100)/100; return r.toFixed(r%1?((r*10)%1?2:
 function fromDxf(text){
   const G=geom(parse(text)); if(!G.length) return null;
   const cut=G.filter(g=>g.kind!=="eng"&&g.kind!=="bend"); const B=(cut.length?cut:G);
-  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; B.forEach(g=>g.pl.forEach(([x,y])=>{ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }));
+  const ext=()=>{ let a=1e9,b=1e9,c=-1e9,d=-1e9; B.forEach(g=>g.pl.forEach(([x,y])=>{ if(x<a)a=x; if(x>c)c=x; if(y<b)b=y; if(y>d)d=y; })); return [a,b,c,d]; };
+  const E0=ext(), W0=E0[2]-E0[0], H0=E0[3]-E0[1];          // as drawn in the DXF (what the drawing's flat size is)
+  // parts drawn at an angle: turn them square to their smallest box so the overall size is what a tape measure reads
+  const pts=[]; B.forEach(g=>g.pl.forEach(p=>pts.push(p)));
+  const hull=(P=>{ P=P.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]); const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]); const lo=[],up=[];
+    for(const p of P){ while(lo.length>1&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); }
+    for(let i=P.length-1;i>=0;i--){ const p=P[i]; while(up.length>1&&cr(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
+    return lo.slice(0,-1).concat(up.slice(0,-1)); })(pts);
+  let bestA=0, bestArea=W0*H0;
+  for(let i=0;i<hull.length;i++){ const a=hull[i], b=hull[(i+1)%hull.length]; const t=-Math.atan2(b[1]-a[1],b[0]-a[0]); const c=Math.cos(t), sn=Math.sin(t);
+    let mx=1e9,my=1e9,Mx=-1e9,My=-1e9; for(const p of hull){ const x=p[0]*c-p[1]*sn, y=p[0]*sn+p[1]*c; if(x<mx)mx=x; if(x>Mx)Mx=x; if(y<my)my=y; if(y>My)My=y; }
+    const ar=(Mx-mx)*(My-my); if(ar<bestArea*0.97){ bestArea=ar; bestA=t; } }
+  if(bestA){ const c=Math.cos(bestA), sn=Math.sin(bestA); G.forEach(g=>{ g.pl=g.pl.map(([x,y])=>[x*c-y*sn,x*sn+y*c]); });
+    const e=ext(); if(e[3]-e[1]>e[2]-e[0]) G.forEach(g=>{ g.pl=g.pl.map(([x,y])=>[y,-x]); }); }   // long side across
+  let [x0,y0,x1,y1]=ext();
   const W=x1-x0, H=y1-y0, S=Math.max(W,H)||1;
   // rot: tall parts are turned sideways in the small thumbnails so they fill the box
   const path=(k,rot)=>G.filter(g=>g.kind===k).map(g=>"M"+g.pl.map(([x,y])=>rot?f(y1-y)+" "+f(W-(x-x0)):f(x-x0)+" "+f(y1-y)).join("L")).join("");
@@ -94,7 +108,7 @@ function fromDxf(text){
     <text x="${f(W/2)}" y="${f(H+gap+fs*1.25)}" font-size="${f(fs)}" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" fill="#111">${inch(W)}</text>
     <text x="${f(W+gap+fs*0.5)}" y="${f(H/2)}" font-size="${f(fs)}" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" fill="#111" transform="rotate(-90 ${f(W+gap+fs*0.5)} ${f(H/2)})" dy="${f(fs*0.35)}">${inch(H)}</text>`;
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(-pad*0.5)} ${f(-pad*0.5)} ${f(W+pad*1.6)} ${f(H+pad*1.6)}" preserveAspectRatio="xMidYMid meet"><rect x="${f(-pad*0.5)}" y="${f(-pad*0.5)}" width="${f(W+pad*1.6)}" height="${f(H+pad*1.6)}" fill="#fff"/>${body(1.6,false)}${dimH}</svg>`;
-  return {svg,thumb,W,H,vw:W+pad*1.6,vh:H+pad*1.6};
+  return {svg,thumb,W,H,W0,H0,turned:!!bestA,vw:W+pad*1.6,vh:H+pad*1.6};
 }
 
 /* full-screen viewer: pinch / buttons / double-tap to zoom, drag to pan, Back closes */
@@ -140,8 +154,8 @@ function view(o){
   if(!window.__gfBack){ window.__gfBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(closeView){ closeView(); return true; } return ob?ob():false; }; }
 }
 // the drawing's flat size vs what's in the DXF (either orientation). Returns a warning or "".
-function check(x,w,h){ if(!x||!(+w>0)||!(+h>0)) return ""; const a=[x.W,x.H].sort((m,n)=>m-n), b=[+w,+h].sort((m,n)=>m-n);
+function check(x,w,h){ if(!x||!(+w>0)||!(+h>0)) return ""; const a=[x.W0??x.W,x.H0??x.H].sort((m,n)=>m-n), b=[+w,+h].sort((m,n)=>m-n);
   if(Math.abs(a[0]-b[0])<=0.06&&Math.abs(a[1]-b[1])<=0.06) return "";
-  return `The drawing says ${inch(+w)} × ${inch(+h)} but the DXF measures ${inch(x.W)} × ${inch(x.H)} - the DXF has something outside the part (a stray hole or line?). Check before it's cut.`; }
+  return `The drawing says ${inch(+w)} × ${inch(+h)} but the DXF measures ${inch(x.W0??x.W)} × ${inch(x.H0??x.H)} - the DXF has something outside the part (a stray hole or line?). Check before it's cut.`; }
 window.gvcFlat={fromDxf,view,inch,parse,geom,check};
 })();
