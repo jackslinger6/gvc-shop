@@ -24,6 +24,7 @@ css.textContent=`
 .cnt .it.full{--c:#3ad06b}.cnt .it.part{--c:#f5b041}
 .cnt .th{width:84px;height:60px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font-size:10.5px;text-align:center}
 .cnt .th img{max-width:100%;max-height:100%;object-fit:contain}
+.cnt .th[data-fv]{cursor:zoom-in}.cnt .th svg{width:100%;height:100%;display:block;padding:3px;box-sizing:border-box}
 .cnt .nm{font-weight:600;font-size:14px;word-break:break-word;display:flex;justify-content:space-between;gap:8px}
 .cnt .nm .q{font-family:Oswald,sans-serif;font-size:15px;white-space:nowrap}
 .cnt .mt{font-size:12px;color:var(--muted);margin-top:1px}
@@ -94,10 +95,49 @@ window.openCount=async function(jobId,supId){
     if(!its){ its=await seed(jobOf(S.jobId)); if(its.length) seeded=true; }
     its.forEach(i=>{ i.g=g; items.push(i); });
   }
-  st={jobId, supId:sup.id, sets, items, q:"", f:"all", seeded, dirty:new Set(), timer:null, addQ:"", addG:0};
-  await sign(items.map(i=>i.thumb||i.img));
+  st={jobId, supId:sup.id, sets, items, q:"", f:"all", seeded, dirty:new Set(), timer:null, addQ:"", addG:0, flat:{}};
+  await loadFlat(items);
+  await sign(items.filter(i=>!st.flat[i.part_no]).map(i=>i.thumb||i.img));
   draw();
 };
+
+/* ---- flat patterns instead of bend drawings (Kyle, Nov 8): drawn from the laser DXF by flat.js, tap to enlarge ---- */
+const FL={};   // part_no -> {x:{svg,thumb,W,H}, warn} once drawn
+async function loadFlat(items){
+  if(!window.gvcFlat) return;
+  const jp=[...new Set(items.filter(i=>i.part_no&&i.src!=="inv").map(i=>i.part_no))], ip=[...new Set(items.filter(i=>i.part_no&&i.src==="inv").map(i=>i.part_no))];
+  for(let i=0;i<jp.length;i+=150){ const r=await sb.from("gvc_job_parts").select("part_no,dxf_path,flat_w,flat_h").in("part_no",jp.slice(i,i+150));
+    (r.data||[]).forEach(p=>{ if(p.dxf_path) st.flat[p.part_no]={dxf:p.dxf_path,w:p.flat_w,h:p.flat_h}; }); }
+  for(let i=0;i<ip.length;i+=150){ const r=await sb.from("gvc_parts").select("part_no,dxf_path,dxf_damaged,flat_path,flat_w,flat_h").in("part_no",ip.slice(i,i+150));
+    (r.data||[]).forEach(p=>{ if(p.dxf_path&&!p.dxf_damaged) st.flat[p.part_no]={dxf:p.dxf_path,w:p.flat_w,h:p.flat_h}; else if(p.flat_path) st.flat[p.part_no]={svgPath:p.flat_path,w:p.flat_w,h:p.flat_h}; }); }
+  await sign(Object.values(st.flat).map(f=>f.dxf||f.svgPath));
+}
+const flatQ=new Set(); let flatBusy=0;
+async function drawFlat(pn){
+  if(FL[pn]||flatQ.has(pn)) return; const f=st&&st.flat[pn]; if(!f) return; flatQ.add(pn);
+  while(flatBusy>=4) await new Promise(r=>setTimeout(r,60)); flatBusy++;
+  try{ const u=url(f.dxf||f.svgPath); if(!u) throw 0; const t=await (await fetch(u)).text();
+    if(f.dxf){ const x=window.gvcFlat.fromDxf(t); if(x) FL[pn]={x,warn:window.gvcFlat.check(x,f.w,f.h)}; }
+    else { const sv=t.replace(/<\?xml[^>]*>/,""); FL[pn]={x:{svg:sv,thumb:sv,W:+f.w||0,H:+f.h||0},warn:""}; }
+  }catch(e){} finally{ flatBusy--; flatQ.delete(pn); }
+  document.querySelectorAll(`.cnt [data-fl="${CSS.escape(pn)}"]`).forEach(fillFlat);
+}
+function fillFlat(el){ const F=FL[el.dataset.fl]; if(!F) return; el.innerHTML=F.x.thumb; const d=el.closest(".it")&&el.closest(".it").querySelector("[data-dm]");
+  if(d) d.innerHTML=flatDims(el.dataset.fl); }
+function flatDims(pn){ const f=st.flat[pn]||{}, F=FL[pn]; const W=F?F.x.W:+f.w, H=F?F.x.H:+f.h; if(!(W>0&&H>0)) return "";
+  return `<b style="color:var(--text)">${window.gvcFlat.inch(Math.max(W,H))} × ${window.gvcFlat.inch(Math.min(W,H))}</b>${F&&F.warn?` <span style="color:#f5b041" title="${esc(F.warn)}">⚠ DXF size doesn't match the drawing</span>`:""}`; }
+let flatIO=null;
+function hydrateFlat(){
+  const els=[...document.querySelectorAll(".cnt [data-fl]")]; if(!els.length) return;
+  if(!flatIO&&"IntersectionObserver" in window) flatIO=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ flatIO.unobserve(e.target); FL[e.target.dataset.fl]?fillFlat(e.target):drawFlat(e.target.dataset.fl); } }),{rootMargin:"300px"});
+  els.forEach(el=>{ if(FL[el.dataset.fl]) fillFlat(el); else if(flatIO) flatIO.observe(el); else drawFlat(el.dataset.fl); });
+}
+async function openFlat(ix){
+  const it=st.items[ix], pn=it.part_no; if(!FL[pn]) await drawFlat(pn); const F=FL[pn];
+  if(!F){ const im=url(it.thumb||it.img); if(im) zoomImg(im,pn); return; }
+  window.gvcFlat.view({title:pn||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat,`${got(it)} of ${it.qty||0} counted`].filter(Boolean).join(" · "),svg:F.x.svg,W:F.x.W,H:F.x.H,warn:F.warn});
+}
+window.gvcCountFlatThumb=pn=>FL[pn]?"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(FL[pn].x.thumb):"";
 
 function head(){
   const j=jobOf(st.jobId), sup=(j.suppliers||[]).find(x=>x.id===st.supId)||{}; const t=totals();
@@ -110,12 +150,15 @@ function head(){
 }
 function itemRow(it,ix){
   const g=got(it), q=it.qty||0, cls=g>=q&&q>0?"full":g>0?"part":"";
-  const im=url(it.thumb||it.img);
+  const im=url(it.thumb||it.img); const fl=st.flat&&it.part_no&&st.flat[it.part_no];
   const boxes=q<=24?`<div class="boxes">${Array.from({length:q},(_,b)=>`<button class="bx ${b<g?"on":""}" type="button" data-bx="${ix}" data-b="${b}" aria-label="piece ${b+1}">✓</button>`).join("")}</div>`
     :`<div class="step"><button class="btn" type="button" data-dn="${ix}">−</button><b>${g} / ${q}</b><button class="btn" type="button" data-up="${ix}">+</button><button class="btn sm" type="button" data-all="${ix}">All here</button></div>`;
-  return `<div class="it ${cls}"><div class="th">${im?`<img src="${esc(im)}" alt="" loading="lazy">`:esc(it.part_no||"")}</div>
+  const th=fl?`<div class="th fl" data-fl="${esc(it.part_no)}" data-fv="${ix}" role="button" aria-label="Enlarge the flat pattern">${FL[it.part_no]?FL[it.part_no].x.thumb:`<span>…</span>`}</div>`
+    :`<div class="th" ${im?`data-fv="${ix}" role="button"`:""}>${im?`<img src="${esc(im)}" alt="" loading="lazy">`:esc(it.part_no||"")}</div>`;
+  return `<div class="it ${cls}">${th}
     <div><div class="nm"><span>${esc(it.part_no||it.name)}</span><span class="q">${g} / ${q}</span></div>
     <div class="mt">${[it.part_no&&it.name&&it.name!==it.part_no?esc(it.name):"",esc(it.mat||"")].filter(Boolean).join(" · ")}</div>
+    ${fl?`<div class="mt" data-dm>${flatDims(it.part_no)}</div>`:""}
     ${boxes}
     <div style="margin-top:6px;display:flex;gap:14px"><button class="lnk" type="button" data-later="${ix}">Comes later</button><button class="lnk" type="button" data-skip="${ix}">Not on this order</button></div></div></div>`;
 }
@@ -203,11 +246,13 @@ function wire(){
   const D=$("#dlg");
   $("#cBack").onclick=async()=>{ await flush(); openJob(st.jobId); };
   $("#cPrint").onclick=printSheet;
+  D.querySelectorAll("[data-fv]").forEach(b=>b.onclick=()=>openFlat(+b.dataset.fv));
+  hydrateFlat();
   const sc=$("#cScan"); if(sc) sc.onclick=()=>{   // live camera: read the engraved part number (scan.js)
     const L=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&!it.later);
     window.gvcScan({title:"Scan a part number",
       items:L.map(({it,ix})=>({id:String(ix),keys:[it.part_no,it.part_no?"":it.name],label:it.part_no||it.name})),
-      info:id=>{ const it=st.items[+id]; return {label:it.part_no||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat].filter(Boolean).join(" · "),got:got(it),qty:it.qty||0,img:url(it.thumb||it.img)}; },
+      info:id=>{ const it=st.items[+id]; return {label:it.part_no||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat].filter(Boolean).join(" · "),got:got(it),qty:it.qty||0,img:window.gvcCountFlatThumb(it.part_no)||url(it.thumb||it.img)}; },
       act:(id,op)=>{ const it=st.items[+id]; it.got=op==="all"?(it.qty||0):op==="+1"?Math.min(it.qty||0,got(it)+1):Math.max(0,got(it)-1); changed(it.g); },
       onClose:()=>draw()});
   };

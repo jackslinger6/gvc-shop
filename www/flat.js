@@ -84,9 +84,9 @@ function fromDxf(text){
   // big view: part + overall width (below) and height (right)
   const th=Math.min(S*0.045, Math.max(W,H)*0.045), gap=th*1.4, tx=th*0.9;
   const fs=Math.max(th,S*0.03), pad=fs*3.2;
-  const dimH=`<g stroke="#444" stroke-width="1" vector-effect="non-scaling-stroke" fill="none">
-      <path d="M0 ${f(H+gap*0.3)}V${f(H+gap+tx)}M${f(W)} ${f(H+gap*0.3)}V${f(H+gap+tx)}M0 ${f(H+gap)}H${f(W)}"/>
-      <path d="M${f(W+gap*0.3)} 0H${f(W+gap+tx)}M${f(W+gap*0.3)} ${f(H)}H${f(W+gap+tx)}M${f(W+gap)} 0V${f(H)}"/></g>
+  const ln='stroke="#444" stroke-width="1" vector-effect="non-scaling-stroke" fill="none"';
+  const dimH=`<path ${ln} d="M0 ${f(H+gap*0.3)}V${f(H+gap+tx)}M${f(W)} ${f(H+gap*0.3)}V${f(H+gap+tx)}M0 ${f(H+gap)}H${f(W)}"/>
+      <path ${ln} d="M${f(W+gap*0.3)} 0H${f(W+gap+tx)}M${f(W+gap*0.3)} ${f(H)}H${f(W+gap+tx)}M${f(W+gap)} 0V${f(H)}"/>
     <g fill="#444"><path d="M0 ${f(H+gap)}l${f(tx)} ${f(-tx*0.35)}v${f(tx*0.7)}zM${f(W)} ${f(H+gap)}l${f(-tx)} ${f(-tx*0.35)}v${f(tx*0.7)}z"/>
       <path d="M${f(W+gap)} 0l${f(-tx*0.35)} ${f(tx)}h${f(tx*0.7)}zM${f(W+gap)} ${f(H)}l${f(-tx*0.35)} ${f(-tx)}h${f(tx*0.7)}z"/></g>
     <text x="${f(W/2)}" y="${f(H+gap+fs*1.25)}" font-size="${f(fs)}" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" fill="#111">${inch(W)}</text>
@@ -113,6 +113,7 @@ function view(o){
   const ov=document.createElement("div"); ov.id="gFlat";
   ov.innerHTML=`<div class="hd"><div class="t"><b>${esc(o.title||"Flat pattern")}</b>${o.sub?`<small>${esc(o.sub)}</small>`:""}</div>
     <span class="dm">${inch(o.W)} × ${inch(o.H)}</span><button type="button" data-z="-">−</button><button type="button" data-z="+">+</button><button type="button" id="gfX">Close</button></div>
+    ${o.warn?`<div class="lg" style="color:#f5b041;opacity:1;font-size:13px">⚠ ${esc(o.warn)}</div>`:""}
     <div class="lg">Flat pattern from the laser DXF · black = cut · <span style="color:#7fb4ff">blue = engrave</span> · <span style="color:#ff8a80">red dashed = bend</span> · pinch or double-tap to zoom</div>
     <div class="bx"><img alt="Flat pattern" src="${url}"></div>`;
   document.body.appendChild(ov);
@@ -131,5 +132,9 @@ function view(o){
   ov.querySelector("#gfX").onclick=closeView;
   if(!window.__gfBack){ window.__gfBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(closeView){ closeView(); return true; } return ob?ob():false; }; }
 }
-window.gvcFlat={fromDxf,view,inch,parse,geom};
+// the drawing's flat size vs what's in the DXF (either orientation). Returns a warning or "".
+function check(x,w,h){ if(!x||!(+w>0)||!(+h>0)) return ""; const a=[x.W,x.H].sort((m,n)=>m-n), b=[+w,+h].sort((m,n)=>m-n);
+  if(Math.abs(a[0]-b[0])<=0.06&&Math.abs(a[1]-b[1])<=0.06) return "";
+  return `The drawing says ${inch(+w)} × ${inch(+h)} but the DXF measures ${inch(x.W)} × ${inch(x.H)} - the DXF has something outside the part (a stray hole or line?). Check before it's cut.`; }
+window.gvcFlat={fromDxf,view,inch,parse,geom,check};
 })();
