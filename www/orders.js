@@ -54,6 +54,12 @@ css.textContent=`
 .pov .grp>h4 i{width:10px;height:10px;border-radius:50%;background:var(--c)}
 .poc{display:block;width:100%;text-align:left;font:inherit;color:inherit;background:var(--panel,#1d2025);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
 .poc b{font-size:15px}
+.potabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.potabs .tab{font-size:14px;padding:6px 12px}
+.poboard{margin-top:12px}.poboard .card .sups,.pogrid .card .sups{display:flex}
+.pogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:12px}
+#poAll .trk{grid-template-columns:minmax(150px,280px) minmax(0,1fr) 150px}
+#poAll .cell[style*='--cc']{background:var(--cc)!important}#poAll .cell.past{opacity:.4}
+@media (max-width:760px){ .potabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.potabs .tab{flex:0 0 auto;font-size:12.5px;padding:5px 10px} #poAll .trk{grid-template-columns:1fr} #poAll .where{margin-bottom:8px} }
 .pno{font:600 20px/1.1 Oswald,sans-serif;letter-spacing:.04em;color:var(--c,#2f8ff0);margin-bottom:2px}.pno.big{font-size:28px;--c:#2f8ff0}
 .pno small{display:block;font-family:system-ui,sans-serif;font-size:12.5px;font-weight:500;line-height:1.3;letter-spacing:0;color:var(--muted);margin-top:2px}.poc .m{font-size:12.5px;color:var(--muted);margin-top:3px}
 .pod .psec{margin-top:16px}
@@ -123,19 +129,64 @@ const cheapest=o=>{ const t=quotes(o).map(q=>+q.total).filter(n=>n>0); return t.
 
 // the phone app scrolls an inner container, not the window - jump whatever is scrolled back to the top of the board
 const toTop=()=>{ const B=$("#board"); try{ window.scrollTo(0,0); let e=B; while(e){ if(e.scrollTop) e.scrollTop=0; e=e.parentElement; } B.scrollIntoView({block:"start"}); }catch(x){} };
+
+/* ---- board like Kyle's Orders board: a column per stage, a card per order, every vendor on it with where they're at ---- */
+const BOARD_ST=ST.filter(([k])=>k!=="received");
+function needsYou(o){ return (o.status==="compare")||(o.status==="ready")||(o.status==="delivered"); }
+function vendorLines(o){
+  const Q=quotes(o), lo=cheapest(o), N=nums(o), ord=!["rfq","compare"].includes(o.status);
+  const names=[...new Set([...(o.asked||[]),...Q.map(q=>q.vendor),o.vendor].filter(Boolean))];
+  const same=(a,b)=>a&&b&&(a.toLowerCase().includes(vshort(b).toLowerCase())||b.toLowerCase().includes(vshort(a).toLowerCase()));
+  return names.filter((v,i)=>names.findIndex(x=>same(x,v))===i).map(v=>{
+    const q=Q.find(x=>same(x.vendor,v)); const won=o.vendor&&same(o.vendor,v);
+    const price=q&&+q.total>0?$$(q.total):"";
+    let c="#6c727a", t;
+    if(won&&ord){ c="#3ad06b"; t=`PO issued${N.po?" · "+N.po:""}${price?" · "+price:""}${q&&+q.total===lo&&Q.length>1?" · cheapest":""}`; }
+    else if(q){ const best=Q.length>1&&+q.total===lo; c=ord?"#6c727a":best?"#3ad06b":"#22c3e6"; t=`${ord?"Quoted":"Quote in"}${price?" · "+price:""}${best?" · cheapest":""}${ord?" · not chosen":""}`; }
+    else { const d=Math.floor((Date.now()-new Date(o.created_at||Date.now()))/864e5); c=ord?"#6c727a":"#9b7bff"; t=ord?"Asked · no quote":`Asked · waiting${d>=1?" "+d+"d":""}`; }
+    return `<div class="sup"><span class="dot" style="background:${c}"></span><span class="who">${E(v)}</span><span class="st">${E(t)}</span></div>`;
+  }).join("");
+}
+function boardCard(o){
+  const s=SL[o.status]||{t:o.status,c:"#9aa1aa"}, N=nums(o), Q=quotes(o), I=items(o);
+  const flag=o.status==="compare"&&Q.length?`<span class="flag you">${Q.length} quote${Q.length>1?"s":""} in - pick one</span>`:o.status==="rfq"&&!Q.length&&(o.asked||[]).length&&Date.now()-new Date(o.created_at)>2*864e5?`<span class="flag late">No quotes back yet</span>`:o.status==="ready"?`<span class="flag go">Pick up${o.vendor?" at "+E(vshort(o.vendor)):""}</span>`:"";
+  return `<button class="card" type="button" style="--c:${s.c}" data-po="${o.id}">
+    <div class="nm">${N.big?`<span class="jnum">${E(N.big)}</span>`:""}<span class="jname">${E(N.name)}</span></div>
+    ${N.sub?`<div class="offtag">${E(N.sub)}</div>`:""}
+    <div class="tx">${E([o.job?"Job "+o.job:"",`${I.length} item${I.length===1?"":"s"}`,o.eta&&!["delivered","received"].includes(o.status)?"ETA "+o.eta:""].filter(Boolean).join(" · "))}</div>
+    ${vendorLines(o)?`<div class="sups">${vendorLines(o)}</div>`:""}
+    ${flag}${["ready","delivered","shipped"].includes(o.status)?`<span class="cntb" role="button" tabindex="0" data-cnt="${o.id}">☑ Count it in</span>`:""}</button>`;
+}
+function boardHTML(act){
+  return `<div class="board poboard" style="grid-template-columns:repeat(${BOARD_ST.length},minmax(0,1fr))">${BOARD_ST.map(([k,t,c])=>{ const L=act.filter(o=>o.status===k);
+    return `<section class="col ${L.length?"":"emptycol"}" style="--c:${c}"><div class="colhead"><h2>${t}</h2><span class="none">none</span><div class="n">${L.length||""}</div></div><div class="cards">${L.map(boardCard).join("")}</div></section>`; }).join("")}</div>
+    ${!act.length?`<div class="empty" style="text-align:left;margin-top:12px">${loaded?"No open orders. Tap + New order to start one - or read a quote from email straight into a new order.":"Loading…"}</div>`:""}`;
+}
+let allOpen=true; try{ allOpen=localStorage.getItem("gvc_allorders")!=="0"; }catch(e){}
+function allOrdersHTML(){
+  const recent=o=>o.status!=="received"||Date.now()-new Date(o.updated_at||0)<14*864e5;
+  const L=PO.filter(o=>o.status!=="cancelled"&&recent(o)).sort((a,b)=>ST.findIndex(x=>x[0]===a.status)-ST.findIndex(x=>x[0]===b.status)||String(b.updated_at).localeCompare(String(a.updated_at)));
+  const short={"Asked for quotes":"Asked","Comparing quotes":"Comparing","Ready to pick up":"Pick up","Received ✓":"Received"};
+  return `<section class="list ${allOpen?"":"closed"}" id="poAll"><div class="listhead" id="poAllH" role="button" tabindex="0"><h3><span class="caret">▾</span> All orders <span class="n">${L.length}${PO.filter(needsYou).length?` · ${PO.filter(needsYou).length} need attention`:""}</span></h3></div>
+    <div class="trk"><div class="hdr"></div><div class="cells lbl" style="--n:${ST.length}">${ST.map(([k,t])=>`<div>${E(short[t]||t)}</div>`).join("")}</div><div class="hdr"></div>
+    ${L.map(o=>{ const i=ST.findIndex(x=>x[0]===o.status), N=nums(o); return `<button class="jn" type="button" data-po="${o.id}" title="${E(N.name)}">${N.big?`<b style="color:${SL[o.status].c}">${E(N.big)}</b> - `:""}${E(N.name)}</button>
+      <div class="cells" style="--n:${ST.length}">${ST.map(([k,t,c],xi)=>`<div class="cell ${xi<i?"past":xi===i?"now":""}" title="${E(t)}" style="${xi<=i?`background:${c};--cc:${c}`:""}"></div>`).join("")}</div>
+      <div class="where">${E(SL[o.status].t)}${o.vendor&&i>=2?" · "+E(vshort(o.vendor)):""}</div>`; }).join("")}</div></section>`;
+}
 /* ================= list ================= */
 function renderList(B){
   const act=PO.filter(o=>!["received","cancelled"].includes(o.status));
   const tabs=[["active","Open",act.length],...ST.map(([k,t])=>[k,t,PO.filter(o=>o.status===k).length])];
   const list=tab==="active"?act:PO.filter(o=>o.status===tab);
   const box=BOX?`<div class="lbl" style="margin-top:6px">${BOX.box==="robin"?`📧 Reading quotes from ${E(BOX.email||"Robin's email")}`:`📧 Robin's email isn't connected yet - for now it reads the quote emails ${role()==="parts"?"you forward":"Robin forwards"} to Kyle. <button class="btn sm" type="button" id="poCon" style="margin-left:4px">Connect Robin's email</button>`}</div>`:"";
-  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2>${role()==="parts"?"My orders":"Robin's orders"}</h2><span style="flex:1"></span><button class="btn primary" type="button" id="poNew">+ New order</button></div>
-    <div class="lbl" style="margin-top:4px">Ask for quotes, compare them, order, then follow it until it's counted in.</div>${box}
-    <div class="stg">${tabs.map(([k,t,n])=>`<button class="btn sm ${tab===k?"primary":""}" type="button" data-pot="${k}">${t}${n?` <span style="opacity:.7">${n}</span>`:""}</button>`).join("")}</div>
-    ${tab==="active"?ST.filter(([k])=>k!=="received").map(([k,t,c])=>{ const L=act.filter(o=>o.status===k); return L.length?`<div class="grp" style="--c:${c}"><h4><i></i>${t.toUpperCase()} · ${L.length}</h4>${L.map(card).join("")}</div>`:""; }).join("")
-      :list.map(card).join("")}
-    ${!list.length?`<div class="empty" style="text-align:left;margin-top:12px">${loaded?(tab==="active"?"No open orders. Tap + New order to start one - or read a quote from email straight into a new order.":"Nothing here."):"Loading…"}</div>`:""}`;
+  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2>${role()==="parts"?"My orders":"Robin's orders"}</h2><span class="lbl">${act.length} open${PO.filter(needsYou).length?` · ${PO.filter(needsYou).length} need attention`:""}</span><span style="flex:1"></span><button class="btn primary" type="button" id="poNew">+ New order</button></div>${box}
+    <div class="stg potabs">${tabs.map(([k,t,n])=>`<button class="tab ${tab===k?"on":""}" style="--c:${k==="active"?"#ff8a2a":SL[k].c}" type="button" data-pot="${k}">${t}${n?`<span class="ct">${n}</span>`:""}</button>`).join("")}</div>
+    ${tab==="active"?boardHTML(act):`<div class="pogrid">${list.map(boardCard).join("")}</div>`}
+    ${!list.length&&tab!=="active"?`<div class="empty" style="text-align:left;margin-top:12px">${loaded?"Nothing here.":"Loading…"}</div>`:""}
+    ${PO.length?allOrdersHTML():""}`;
+  B.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const o=PO.find(x=>x.id===el.dataset.cnt); if(o) countSheet(o); });
   B.querySelector("#poNew").onclick=newOrder;
+  { const H=B.querySelector("#poAllH"); if(H) H.onclick=()=>{ allOpen=!allOpen; try{localStorage.setItem("gvc_allorders",allOpen?"1":"0")}catch(e){} B.querySelector("#poAll").classList.toggle("closed",!allOpen); }; }
   B.querySelectorAll("[data-pot]").forEach(b=>b.onclick=()=>{ tab=b.dataset.pot; render(); });
   B.querySelectorAll("[data-po]").forEach(b=>b.onclick=()=>{ poId=b.dataset.po; render(); toTop(); });
   const cn=B.querySelector("#poCon"); if(cn) cn.onclick=connect;
