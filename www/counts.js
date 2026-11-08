@@ -210,13 +210,13 @@ function draw(){
   D.innerHTML=`<div class="cnt">${head()}
     ${st.items.length?`<div class="tools">${window.gvcScan?`<button class="btn primary" type="button" id="cScan" style="min-height:40px">📷 Scan</button>`:""}<input type="search" id="cQ" placeholder="Find a part (number, name, material)" value="${esc(st.q)}">
       ${[["all","All"],["missing","Missing"],["done","Counted"]].map(([k,t])=>`<button class="chip ${st.f===k?"on":""}" type="button" data-cf="${k}" style="${st.f===k?"border-color:#3ad06b;color:#3ad06b":""}">${t}</button>`).join("")}</div>
-      ${mats.length>1?`<div class="tools">${mats.map(m=>`<button class="chip" type="button" data-cq="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}`:""}
+      ${mats.length>1?`<div class="tools">${mats.map(m=>`<button class="chip" type="button" data-cq="${esc(m)}">${esc(matLabel(m))}</button>`).join("")}</div>`:""}`:""}
     ${st.seeded&&st.items.length?`<div class="tnote">Started from the job's parts list (${st.items.length} parts). If this order is only part of the job, tap "Not on this order" on the rest.</div>`:""}
     ${!st.items.length?`<div class="tnote">No parts list for this order yet. Add what was ordered below - pick from the inventory list or type it in.</div>`:""}
     ${allMats.length>1?`<details class="addbox" style="margin-top:8px" ${lat.length?"open":""}><summary style="cursor:pointer;font-size:13px;font-weight:600">Only part of the order came?</summary>
       <div class="tnote" style="margin-top:4px">Tap the materials that came in this delivery. The rest stays on the order as "still to come" and isn't counted short.</div>
       <div class="tools">${allMats.map(m=>{ const on=st.items.some(i=>!i.skip&&!i.later&&(i.mat||"Other")===m); const n=st.items.filter(i=>!i.skip&&(i.mat||"Other")===m).reduce((a,i)=>a+(i.qty||0),0);
-        return `<button class="chip ${on?"on":""}" type="button" data-pm="${esc(m)}" style="${on?"border-color:#3ad06b;color:#3ad06b":"opacity:.6"}">${on?"✓ ":""}${esc(m)} · ${n}</button>`; }).join("")}
+        return `<button class="chip ${on?"on":""}" type="button" data-pm="${esc(m)}" style="${on?"border-color:#3ad06b;color:#3ad06b":"opacity:.6"}">${on?"✓ ":""}${esc(matLabel(m))} · ${n}</button>`; }).join("")}
         <button class="lnk" type="button" id="cPmAll">All came</button></div></details>`:""}
     <div id="cList">${listHtml(vis)}</div>
     ${lat.length?`<details style="margin-top:10px"><summary class="tnote" style="cursor:pointer;color:#f5b041">Still to come - later delivery (${lat.length} parts, ${lat.reduce((a,{it})=>a+(it.qty||0),0)} pcs)</summary>${lat.map(({it,ix})=>`<div class="tnote" style="display:flex;justify-content:space-between;gap:8px;margin:4px 0"><span>${esc(it.part_no||it.name)} · ${esc(it.mat||"")} · ${it.qty} pcs</span><button class="lnk" type="button" data-unlater="${ix}">It's here</button></div>`).join("")}</details>`:""}
