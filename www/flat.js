@@ -137,6 +137,8 @@ css.textContent=`#gFlat{position:fixed;inset:0;z-index:8500;background:#0d0e10;d
 #gFlat .bxs{display:flex;flex-wrap:wrap;gap:8px}
 #gFlat .pc{width:46px;height:46px;border-radius:10px;border:2px solid #5a5f68;background:transparent;color:transparent;font-size:24px;padding:0;min-height:0}
 #gFlat .pc.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}
+#gFlat .acts{display:flex;gap:8px;margin-top:12px}#gFlat .acts button{flex:1;min-height:52px;border-radius:14px;font-size:15px}
+#gFlat .acts .go{background:#2f8ff0}#gFlat .acts .re{background:rgba(255,255,255,.12)}
 #gFlat .stp{display:flex;gap:8px;align-items:center}#gFlat .stp button{min-width:56px;height:48px;font-size:20px}#gFlat .stp .all{flex:1;font-size:16px}`;
 document.head.appendChild(css);
 let closeView=null;
@@ -145,18 +147,18 @@ function view(o){
   if(closeView) closeView();
   const url=URL.createObjectURL(new Blob([o.svg],{type:"image/svg+xml"}));
   const eng=/<path d="M[^"]*" fill="none" stroke="#1f6fd1"/.test(o.svg), bend=/<path d="M[^"]*" fill="none" stroke="#d0342c"/.test(o.svg);
-  const ov=document.createElement("div"); ov.id="gFlat";
+  const ov=document.createElement("div"); ov.id="gFlat"; if(o.z) ov.style.zIndex=o.z;
   ov.innerHTML=`<div class="hd"><div class="pn">${esc(o.title||"Flat pattern")}</div><button type="button" id="gfX">Close</button>
       <div class="mt">${o.mat?`<span class="mat ${matCls(o.mat)}">${esc(o.mat)}</span>`:""}<span class="dm">${inch(Math.max(o.W,o.H))} × ${inch(Math.min(o.W,o.H))}</span></div>
       ${o.sub?`<div class="sb">${esc(o.sub)}</div>`:""}${o.warn?`<div class="wn">⚠ ${esc(o.warn)}</div>`:""}</div>
     <div class="stage"><div class="bx"><img alt="Flat pattern" src="${url}"></div>
       <div class="zm"><button type="button" data-z="+" aria-label="Zoom in">+</button><button type="button" data-z="-" aria-label="Zoom out">−</button></div>
       ${eng||bend?`<div class="lg"><i style="color:#111"></i>cut${eng?`<i style="color:#1f6fd1"></i>engrave`:""}${bend?`<i style="color:#d0342c;border-top-style:dashed"></i>bend`:""}</div>`:""}</div>
-    ${o.count?`<div class="ct" id="gfC"></div>`:`<div style="height:calc(env(safe-area-inset-bottom,0px) + 10px)"></div>`}`;
+    ${o.count||o.actions?`<div class="ct"><div id="gfC"></div>${o.actions?`<div class="acts">${o.actions.map((a,i)=>`<button type="button" class="${a.cls||""}" data-act="${i}">${esc(a.label)}</button>`).join("")}</div>`:""}</div>`:`<div style="height:calc(env(safe-area-inset-bottom,0px) + 10px)"></div>`}`;
   document.body.appendChild(ov);
   // piece check boxes (same rules as the count list: tap box n = n pieces found)
   const C=ov.querySelector("#gfC");
-  const drawC=()=>{ if(!C) return; const q=o.count.qty||0, g=Math.min(o.count.got()||0,q), full=q>0&&g>=q;
+  const drawC=()=>{ if(!C||!o.count) return; const q=o.count.qty||0, g=Math.min(o.count.got()||0,q), full=q>0&&g>=q;
     C.innerHTML=`<div class="tt"><span style="font-size:13px;color:#aab0b8">Tick one box per piece</span><b class="${full?"full":""}">${g} of ${q}${full?" ✓":""}</b></div>`+
       (q<=24?`<div class="bxs">${Array.from({length:q},(_,k)=>`<button type="button" class="pc ${k<g?"on":""}" data-k="${k}" aria-label="piece ${k+1}">✓</button>`).join("")}</div>`
         :`<div class="stp"><button type="button" data-s="-1">−</button><button type="button" data-s="+1">+</button><button type="button" class="all" data-s="all">All ${q} here</button></div>`);
@@ -179,9 +181,10 @@ function view(o){
   let drag=null; const mm=e=>{ if(drag){ bx.scrollLeft=drag.l-(e.clientX-drag.x); bx.scrollTop=drag.t-(e.clientY-drag.y); } }, mu=()=>{ drag=null; };
   bx.addEventListener("mousedown",e=>{ drag={x:e.clientX,y:e.clientY,l:bx.scrollLeft,t:bx.scrollTop}; e.preventDefault(); });
   window.addEventListener("mousemove",mm); window.addEventListener("mouseup",mu);
-  closeView=()=>{ ov.remove(); URL.revokeObjectURL(url); window.removeEventListener("resize",onR); window.removeEventListener("mousemove",mm); window.removeEventListener("mouseup",mu); closeView=null; o.onClose&&o.onClose(); };
-  ov.querySelector("#gfX").onclick=()=>closeView();
-  if(!window.__gfBack){ window.__gfBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(closeView){ closeView(); return true; } return ob?ob():false; }; }
+  closeView=(why)=>{ ov.remove(); URL.revokeObjectURL(url); window.removeEventListener("resize",onR); window.removeEventListener("mousemove",mm); window.removeEventListener("mouseup",mu); closeView=null; o.onClose&&o.onClose(why||"close"); };
+  ov.querySelector("#gfX").onclick=()=>closeView("close");
+  ov.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>closeView(o.actions[+b.dataset.act].why));
+  if(!window.__gfBack){ window.__gfBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(closeView){ closeView("close"); return true; } return ob?ob():false; }; }
 }
 // the drawing's flat size vs what's in the DXF (either orientation). Returns a warning or "".
 function check(x,w,h){ if(!x||!(+w>0)||!(+h>0)) return ""; const a=[x.W0??x.W,x.H0??x.H].sort((m,n)=>m-n), b=[+w,+h].sort((m,n)=>m-n);

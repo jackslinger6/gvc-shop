@@ -134,12 +134,15 @@ function hydrateFlat(){
   if(!flatIO&&"IntersectionObserver" in window) flatIO=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ flatIO.unobserve(e.target); FL[e.target.dataset.fl]?fillFlat(e.target):drawFlat(e.target.dataset.fl); } }),{rootMargin:"300px"});
   els.forEach(el=>{ if(FL[el.dataset.fl]) fillFlat(el); else if(flatIO) flatIO.observe(el); else drawFlat(el.dataset.fl); });
 }
-async function openFlat(ix){
+async function openFlat(ix,scan){
   const it=st.items[ix], pn=it.part_no; if(!FL[pn]) await drawFlat(pn); const F=FL[pn];
+  if(!F&&scan) return false;
   if(!F){ const im=url(it.thumb||it.img); if(im) zoomImg(im,pn); return; }
   window.gvcFlat.view({title:pn||it.name,mat:matLabel(it.mat),sub:it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)&&!String(it.mat||"").includes(it.name)?it.name:"",
     svg:F.x.svg,W:F.x.W,H:F.x.H,vw:F.x.vw,vh:F.x.vh,warn:F.warn,
-    count:{qty:it.qty||0,got:()=>got(it),set:n=>{ it.got=n; changed(it.g); }}, onClose:()=>{ const D=$("#dlg"), sc=D.scrollTop; draw(); D.scrollTop=sc; }});
+    count:{qty:it.qty||0,got:()=>got(it),set:n=>{ it.got=n; changed(it.g); }},
+    ...(scan?{z:9500,actions:[{label:"↺ Rescan",cls:"re",why:"rescan"},{label:"Scan next part ›",cls:"go",why:"next"}],onClose:why=>scan(why)}
+      :{onClose:()=>{ const D=$("#dlg"), sc=D.scrollTop; draw(); D.scrollTop=sc; }})});
 }
 // '0.125" 0.125 ALUMINUM' -> '0.125" ALUMINUM' (the material name repeats the thickness)
 function matLabel(m){ m=String(m||"").trim(); const x=m.match(/^([\d.]+)"\s+([\d.]+)\s+(.*)$/); return x&&Math.abs(+x[1]-+x[2])<1e-6?`${x[1]}" ${x[3]}`:m; }
@@ -259,6 +262,7 @@ function wire(){
     window.gvcScan({title:"Scan a part number",
       items:L.map(({it,ix})=>({id:String(ix),keys:[it.part_no,it.part_no?"":it.name],label:it.part_no||it.name})),
       info:id=>{ const it=st.items[+id]; return {label:it.part_no||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat].filter(Boolean).join(" · "),got:got(it),qty:it.qty||0,img:window.gvcCountFlatThumb(it.part_no)||url(it.thumb||it.img)}; },
+      open:(id,done)=>{ const it=st.items[+id]; if(!st.flat[it.part_no]) return false; openFlat(+id,done).then(r=>{ if(r===false) done("next"); }); return true; },
       act:(id,op)=>{ const it=st.items[+id]; it.got=op==="all"?(it.qty||0):op==="+1"?Math.min(it.qty||0,got(it)+1):Math.max(0,got(it)-1); changed(it.g); },
       onClose:()=>draw()});
   };

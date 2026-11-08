@@ -100,7 +100,7 @@ window.gvcScan=async function(o){
   const setMsg=(t,sm)=>{ M.innerHTML=esc(t)+(sm?`<small>${esc(sm)}</small>`:""); };
   let stream=null, alive=true, paused=false, torch=false, hist=[], ignore={}, rotI=0, misses=0;
   const close=()=>{ alive=false; try{ stream&&stream.getTracks().forEach(t=>t.stop()); }catch(e){} ov.remove(); window.gvcScanClose=null; o.onClose&&o.onClose(); };
-  if(!window.__gsBack){ window.__gsBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(window.gvcScanClose){ window.gvcScanClose(); return true; } return ob?ob():false; }; }
+  if(!window.__gsBack){ window.__gsBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(window.gvcScanClose&&!document.getElementById("gFlat")){ window.gvcScanClose(); return true; } return ob?ob():false; }; }
   ov.querySelector("#gsX").onclick=close;
   window.gvcScanClose=close;
   try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false}); }
@@ -132,6 +132,9 @@ window.gvcScan=async function(o){
     B.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>found(b.dataset.g)); }
   function found(id){
     paused=true; BOX.classList.add("hit"); try{ navigator.vibrate&&navigator.vibrate(60); }catch(e){}
+    if(o.open){ B.innerHTML=""; setMsg("");
+      const shown=o.open(id,why=>{ if(!alive) return; ignore[id]=Date.now()+(why==="rescan"?4000:2500); resume(); setMsg(why==="rescan"?"Rescanning - point at the part number again":"Point at the next part number"); });
+      if(shown!==false) return; }
     const draw=()=>{ const f=o.info(id)||{}; const full=f.qty&&f.got>=f.qty;
       B.innerHTML=`<div class="card"><div class="r">${f.img?`<img src="${esc(f.img)}" alt="">`:""}<div style="flex:1"><div class="nm">${esc(f.label||id)}</div>${f.sub?`<div class="sb">${esc(f.sub)}</div>`:""}</div></div>
         <div class="ct ${full?"full":""}">${f.got||0} of ${f.qty||0}${full?" ✓":""}</div>
