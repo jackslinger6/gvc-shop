@@ -74,13 +74,15 @@ function fromDxf(text){
   const cut=G.filter(g=>g.kind!=="eng"&&g.kind!=="bend"); const B=(cut.length?cut:G);
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; B.forEach(g=>g.pl.forEach(([x,y])=>{ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }));
   const W=x1-x0, H=y1-y0, S=Math.max(W,H)||1;
-  const path=k=>G.filter(g=>g.kind===k).map(g=>"M"+g.pl.map(([x,y])=>f(x-x0)+" "+f(y1-y)).join("L")).join("");
-  const body=(sw)=>`<path d="${path("cut")}" fill="none" stroke="#111" stroke-width="${sw}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-    <path d="${path("eng")}" fill="none" stroke="#1f6fd1" stroke-width="${sw*0.8}" vector-effect="non-scaling-stroke"/>
-    <path d="${path("bend")}" fill="none" stroke="#d0342c" stroke-width="${sw}" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`;
+  // rot: tall parts are turned sideways in the small thumbnails so they fill the box
+  const path=(k,rot)=>G.filter(g=>g.kind===k).map(g=>"M"+g.pl.map(([x,y])=>rot?f(y1-y)+" "+f(W-(x-x0)):f(x-x0)+" "+f(y1-y)).join("L")).join("");
+  const body=(sw,rot)=>`<path d="${path("cut",rot)}" fill="none" stroke="#111" stroke-width="${sw}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <path d="${path("eng",rot)}" fill="none" stroke="#1f6fd1" stroke-width="${sw*0.8}" vector-effect="non-scaling-stroke"/>
+    <path d="${path("bend",rot)}" fill="none" stroke="#d0342c" stroke-width="${sw}" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`;
   // thumbnail: just the part
   const m=S*0.04;
-  const thumb=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(-m)} ${f(-m)} ${f(W+2*m)} ${f(H+2*m)}" preserveAspectRatio="xMidYMid meet">${body(1.2)}</svg>`;
+  const rot=H>W*1.2, TW=rot?H:W, TH=rot?W:H;
+  const thumb=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(-m)} ${f(-m)} ${f(TW+2*m)} ${f(TH+2*m)}" preserveAspectRatio="xMidYMid meet">${body(1.2,rot)}</svg>`;
   // big view: part + overall width (below) and height (right)
   const th=Math.min(S*0.045, Math.max(W,H)*0.045), gap=th*1.4, tx=th*0.9;
   const fs=Math.max(th,S*0.03), pad=fs*3.2;
@@ -91,8 +93,8 @@ function fromDxf(text){
       <path d="M${f(W+gap)} 0l${f(-tx*0.35)} ${f(tx)}h${f(tx*0.7)}zM${f(W+gap)} ${f(H)}l${f(-tx*0.35)} ${f(-tx)}h${f(tx*0.7)}z"/></g>
     <text x="${f(W/2)}" y="${f(H+gap+fs*1.25)}" font-size="${f(fs)}" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" fill="#111">${inch(W)}</text>
     <text x="${f(W+gap+fs*0.5)}" y="${f(H/2)}" font-size="${f(fs)}" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" fill="#111" transform="rotate(-90 ${f(W+gap+fs*0.5)} ${f(H/2)})" dy="${f(fs*0.35)}">${inch(H)}</text>`;
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(-pad*0.5)} ${f(-pad*0.5)} ${f(W+pad*1.6)} ${f(H+pad*1.6)}" preserveAspectRatio="xMidYMid meet"><rect x="${f(-pad*0.5)}" y="${f(-pad*0.5)}" width="${f(W+pad*1.6)}" height="${f(H+pad*1.6)}" fill="#fff"/>${body(1.6)}${dimH}</svg>`;
-  return {svg,thumb,W,H};
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(-pad*0.5)} ${f(-pad*0.5)} ${f(W+pad*1.6)} ${f(H+pad*1.6)}" preserveAspectRatio="xMidYMid meet"><rect x="${f(-pad*0.5)}" y="${f(-pad*0.5)}" width="${f(W+pad*1.6)}" height="${f(H+pad*1.6)}" fill="#fff"/>${body(1.6,false)}${dimH}</svg>`;
+  return {svg,thumb,W,H,vw:W+pad*1.6,vh:H+pad*1.6};
 }
 
 /* full-screen viewer: pinch / buttons / double-tap to zoom, drag to pan, Back closes */
@@ -103,7 +105,7 @@ css.textContent=`#gFlat{position:fixed;inset:0;z-index:8500;background:#0d0e10f2
 #gFlat .dm{font:600 20px Oswald,sans-serif;color:#3ad06b;white-space:nowrap}
 #gFlat button{font:inherit;font-weight:600;border:0;border-radius:999px;padding:9px 14px;background:rgba(255,255,255,.16);color:#fff;min-height:40px;cursor:pointer}
 #gFlat .bx{flex:1;overflow:auto;background:#fff;margin:0 8px calc(env(safe-area-inset-bottom,0px) + 8px);border-radius:10px;touch-action:pan-x pan-y}
-#gFlat .bx img{display:block;width:100%;height:auto;min-height:100%}
+#gFlat .bx{display:grid}#gFlat .bx img{display:block;margin:auto;max-width:none}
 #gFlat .lg{font-size:11.5px;opacity:.7;padding:0 14px 6px}`;
 document.head.appendChild(css);
 let closeView=null;
@@ -118,7 +120,12 @@ function view(o){
     <div class="bx"><img alt="Flat pattern" src="${url}"></div>`;
   document.body.appendChild(ov);
   const img=ov.querySelector("img"), bx=ov.querySelector(".bx"); let z=1;
-  const set=n=>{ z=Math.max(1,Math.min(8,n)); img.style.width=(z*100)+"%"; };
+  const ar=(o.vw&&o.vh)?o.vw/o.vh:(o.W&&o.H?o.W/o.H:1);
+  const set=n=>{ const cx=bx.scrollLeft+bx.clientWidth/2, cy=bx.scrollTop+bx.clientHeight/2, oldW=img.offsetWidth||1;
+    z=Math.max(1,Math.min(10,n)); const bw=bx.clientWidth-8, bh=bx.clientHeight-8; const fw=Math.min(bw,bh*ar);   // fitted width at zoom 1
+    img.style.width=Math.round(fw*z)+"px"; img.style.height=Math.round(fw*z/ar)+"px";
+    const k=(fw*z)/oldW; bx.scrollLeft=cx*k-bx.clientWidth/2; bx.scrollTop=cy*k-bx.clientHeight/2; };
+  requestAnimationFrame(()=>set(1)); window.addEventListener("resize",()=>set(z));
   ov.querySelectorAll("[data-z]").forEach(b=>b.onclick=()=>set(b.dataset.z==="+"?z*1.6:z/1.6));
   img.ondblclick=()=>set(z>1?1:3);
   let d0=null,z0=1;

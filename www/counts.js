@@ -135,7 +135,7 @@ function hydrateFlat(){
 async function openFlat(ix){
   const it=st.items[ix], pn=it.part_no; if(!FL[pn]) await drawFlat(pn); const F=FL[pn];
   if(!F){ const im=url(it.thumb||it.img); if(im) zoomImg(im,pn); return; }
-  window.gvcFlat.view({title:pn||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat,`${got(it)} of ${it.qty||0} counted`].filter(Boolean).join(" · "),svg:F.x.svg,W:F.x.W,H:F.x.H,warn:F.warn});
+  window.gvcFlat.view({title:pn||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat,`${got(it)} of ${it.qty||0} counted`].filter(Boolean).join(" · "),svg:F.x.svg,W:F.x.W,H:F.x.H,vw:F.x.vw,vh:F.x.vh,warn:F.warn});
 }
 window.gvcCountFlatThumb=pn=>FL[pn]?"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(FL[pn].x.thumb):"";
 
