@@ -207,8 +207,8 @@ window.crewHome=B=>{
   const hm=B.querySelector(".hm"); if(!hm) return;
   const sec=document.createElement("section"); sec.setAttribute("aria-label","Team");
   sec.innerHTML=`<h4><span>MY TIME</span></h4><button class="mycard" type="button" id="myTimeC"><div><span>THIS WEEK</span><b id="myTimeW">…</b></div><div style="text-align:right"><span>TODAY</span><b id="myTimeD" style="font-size:20px">…</b></div><span style="font-size:22px;color:var(--muted)">›</span></button>
-    <h4 style="margin-top:16px"><span>THE CREW</span><span>TAP TO MESSAGE</span></h4>
-    <div class="cw tmrow">${people().map(p=>`<button class="p" type="button" data-cw="${E(p)}"><span class="av" style="background:${COL[p]||"#9aa1aa"}">${E(p[0])}</span><span class="n">${E(p)}</span></button>`).join("")}</div>`;
+    <div class="homecrew"><h4 style="margin-top:16px"><span>THE CREW</span><span>TAP TO MESSAGE</span></h4>
+    <div class="cw tmrow">${people().map(p=>`<button class="p" type="button" data-cw="${E(p)}"><span class="av" style="background:${COL[p]||"#9aa1aa"}">${E(p[0])}</span><span class="n">${E(p)}</span></button>`).join("")}</div></div>`;
   hm.appendChild(sec);
   sec.querySelector("#myTimeC").onclick=()=>window.openMyTime();
   weekPunches(0).then(L=>{ const w=document.getElementById("myTimeW"), d=document.getElementById("myTimeD"); if(!w) return;

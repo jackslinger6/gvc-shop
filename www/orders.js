@@ -486,27 +486,52 @@ window.pordersGo=k=>{ tab=k||"active"; poId=null; shellGo("porders"); };
 const _back=window.gvcBack;
 window.gvcBack=()=>{ try{ const sh=[...document.querySelectorAll(".shov.on")].length; if(!sh&&typeof cur!=="undefined"&&cur==="porders"&&poId&&!document.querySelector("#scrim.on")){ poId=null; render(); return true; } }catch(e){} return _back?_back():false; };
 
-/* Robin's Home: her orders on top */
-const _ph=window.partsHome;
-window.partsHome=B=>{ _ph(B); const hm=B.querySelector(".hm"); if(!hm) return;
-  const sec=document.createElement("section"); sec.setAttribute("aria-label","My orders");
-  const n=k=>PO.filter(o=>o.status===k).length;
-  sec.innerHTML=`<h4><span>MY ORDERS</span><span>${window.pordersOpen()} OPEN</span></h4>
-    <div class="pnums" style="grid-template-columns:repeat(3,minmax(0,1fr))">${ST.filter(([k])=>k!=="received").map(([k,t,c])=>`<button type="button" data-pok="${k}" style="--c:${c}"><b>${n(k)}</b><span>${t.toUpperCase()}</span></button>`).join("")}</div>
-    <div class="row" style="gap:8px;margin-top:8px"><button class="btn" type="button" id="poHN" style="flex:1">+ New order</button><button class="btn" type="button" id="poHA" style="flex:1">All my orders ›</button></div>`;
-  // left column: her orders, what's waiting on her, then the crew - so nothing leaves a hole beside the tall stock column (Kyle, Nov 8)
-  const left=document.createElement("div"); left.style.cssText="display:grid;gap:16px;align-content:start;min-width:0";
-  left.appendChild(sec);
-  const need=PO.filter(o=>["compare","ready","delivered"].includes(o.status));
-  const nd=document.createElement("section"); nd.setAttribute("aria-label","Waiting on you");
-  nd.innerHTML=`<h4><span>WAITING ON YOU</span><span>${need.length||""}</span></h4>${need.length?`<div class="pogrid" style="margin-top:0">${need.map(boardCard).join("")}</div>`:`<div class="lbl" style="padding:10px 2px">Nothing waiting on you - no quotes to compare and nothing to pick up or count.</div>`}`;
-  left.appendChild(nd);
-  const crew=hm.querySelector('section[aria-label="The crew"]'); if(crew) left.appendChild(crew);
-  hm.insertBefore(left,hm.firstChild);
-  nd.querySelectorAll("[data-po]").forEach(b=>b.onclick=()=>{ tab="active"; poId=b.dataset.po; shellGo("porders"); });
-  nd.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const o=PO.find(x=>x.id===el.dataset.cnt); if(o) countSheet(o); });
-  sec.querySelectorAll("[data-pok]").forEach(b=>b.onclick=()=>window.pordersGo(b.dataset.pok));
-  sec.querySelector("#poHN").onclick=()=>newOrder();
-  sec.querySelector("#poHA").onclick=()=>window.pordersGo("active");
+/* Robin's Home: only what needs her right now, as Next up cards like Kyle's (Kyle, Nov 8).
+   Stock numbers live on the Inventory tab, order counts on the Orders tab - not repeated here. */
+function robinNext(){
+  const out=[], now=Date.now(), dd=t=>Math.floor((now-new Date(t||now))/864e5);
+  const open=o=>()=>{ tab="active"; poId=o.id; shellGo("porders"); toTop(); };
+  PO.forEach(o=>{ const N=nums(o), Q=quotes(o), nm=(N.big?N.big+" · ":"")+N.name;
+    if(o.status==="ready") out.push({r:1,tag:"PICK UP",c:"#3ad06b",text:`Pick up at ${o.vendor||"the vendor"}`,sub:nm,act:{t:"PICKED UP - COUNT IT",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="delivered") out.push({r:2,tag:"COUNT IT IN",c:"#2f8ff0",text:`Count in ${N.name}`,sub:[N.big,o.vendor].filter(Boolean).join(" · "),act:{t:"COUNT IT IN",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="compare"&&Q.length) out.push({r:3,tag:"PICK A VENDOR",c:"#22c3e6",text:`Compare quotes: ${N.name}`,sub:`${N.big?N.big+" · ":""}${Q.length} quote${Q.length>1?"s":""} in${cheapest(o)?" · lowest "+$$(cheapest(o)):""}`,act:{t:"COMPARE QUOTES",fn:open(o)}});
+    else if(o.status==="rfq"&&!Q.length&&dd(o.created_at)>=2) out.push({r:5,tag:"NO REPLY",c:"#e5483b",text:`No quotes back: ${N.name}`,sub:`${N.big?N.big+" · ":""}asked ${(o.asked||[]).join(", ")||"vendors"} ${dd(o.created_at)} days ago`,act:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="shipped"&&o.eta&&/today/i.test(o.eta)) out.push({r:6,tag:"COMING TODAY",c:"#f5b041",text:`${N.name} should show up today`,sub:nm,act:{t:"OPEN",fn:open(o)}});
+  });
+  // supply requests Kyle approved - she orders them
+  (window.reqList?window.reqList():[]).filter(r=>r.status==="approved").forEach(r=>out.push({r:4,tag:"TO ORDER",c:"#ff8a2a",text:`Order ${window.reqLine(r)}`,sub:[r.how==="out"?"OUT":"",r.who?r.who+" asked":"",r.note||""].filter(Boolean).join(" · ")||"On the order list",act:{t:"OPEN",fn:()=>window.reqGo("approved")}}));
+  const hw=window.hwLowCount?window.hwLowCount():0, cl=window.invMode&&window.invMode.low?window.invMode.low():0;
+  if(hw) out.push({r:7,tag:"LOW STOCK",c:"#e5483b",text:`${hw} hardware item${hw>1?"s":""} running low`,sub:"Hardware · bolts, lights, electrical",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("hw"); shellGo("inv"); }}});
+  if(cl) out.push({r:7,tag:"LOW STOCK",c:"#e5483b",text:`${cl} consumable${cl>1?"s":""} running low`,sub:"Wire, gas, discs",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("cons"); shellGo("inv"); }}});
+  // her own to-dos
+  (typeof liveMine==="function"?liveMine():[]).forEach(t=>out.push({r:8,tag:"TO DO",c:"#ffd28a",text:t.text,sub:t.from_name||"Your to-do",
+    act:{t:"DONE",fn:()=>{ if(typeof setTodo==="function"){ setTodo(t.id,true); if(typeof todoToast==="function") todoToast("Done: "+t.text,()=>setTodo(t.id,false)); } }},later:{id:t.id,text:t.text}}));
+  return out.sort((a,b)=>a.r-b.r);
+}
+window.partsHome=B=>{
+  B.innerHTML=`<div class="hm shanim"></div>`; const hm=B.querySelector(".hm");
+  const items=robinNext(), NU=window.shellNu;
+  const left=document.createElement("section"); left.setAttribute("aria-label","Next up");
+  left.innerHTML=`<h4><span>NEXT UP${items.length?" · "+items.length:""}</span>${items.length>1?`<span style="letter-spacing:.08em">SWIPE FOR MORE</span>`:""}</h4>
+    ${NU?NU.html(items,"No quotes to compare, nothing to order, pick up or count."):""}
+    <div class="row" style="gap:8px;margin-top:12px"><button class="btn" type="button" id="poHN" style="flex:1">+ New order</button><button class="btn" type="button" id="poHA" style="flex:1">My orders ›</button><button class="btn" type="button" id="poHI" style="flex:1">Inventory ›</button></div>`;
+  hm.appendChild(left);
+  const right=document.createElement("section"); right.setAttribute("aria-label","Coming later");
+  const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0",Robin:"#9b7bff"};
+  right.innerHTML=`<div class="homecrew"><h4><span>THE CREW</span><span>TAP TO MESSAGE</span></h4><div class="cw tmrow" style="margin-bottom:14px">${[...(typeof CREW!=="undefined"?CREW:["Kyle","Colton","Aaron","Cooper"]),"Robin"].map(p=>`<button class="p" type="button" data-cw="${E(p)}"><span class="av" style="background:${COL[p]||"#9aa1aa"}">${E(p[0])}</span><span class="n">${E(p)}</span></button>`).join("")}</div></div>
+    <h4><span>COMING LATER</span></h4>
+    <button class="soon" type="button" data-pg="staging" style="display:block;width:100%;text-align:left;background:none;font:inherit;cursor:pointer"><b>Staging kits<i>COMING LATER</i></b>Parts for upcoming jobs, pulled and ready before the build starts.</button>
+    <div class="soon"><b>Hardware price comparison<i>COMING LATER</i></b>The same bolt at Fastenal, Resource and Gregg's side by side, with price history.</div>
+    <div class="soon"><b>Time & payroll<i>COMING LATER</i></b>Everyone's punched hours by pay period (semi-monthly), approved and exported for QuickBooks.</div>`;
+  hm.appendChild(right);
+  if(PO.length){ B.insertAdjacentHTML("beforeend",allOrdersHTML());
+    const H=B.querySelector("#poAllH"); if(H) H.onclick=()=>{ allOpen=!allOpen; try{localStorage.setItem("gvc_allorders",allOpen?"1":"0")}catch(e){} B.querySelector("#poAll").classList.toggle("closed",!allOpen); };
+    B.querySelectorAll("#poAll [data-po]").forEach(b=>b.onclick=()=>{ tab="active"; poId=b.dataset.po; shellGo("porders"); toTop(); }); }
+  if(NU) NU.wire(B,items);
+  if(window.teamDecorate) window.teamDecorate();
+  B.querySelector("#poHN").onclick=()=>newOrder();
+  B.querySelector("#poHA").onclick=()=>window.pordersGo("active");
+  B.querySelector("#poHI").onclick=()=>shellGo("inv");
+  right.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>shellGo(b.dataset.pg));
 };
 })();

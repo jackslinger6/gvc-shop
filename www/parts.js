@@ -70,6 +70,7 @@ setInterval(()=>{ if(!rqStarted&&typeof db!=="undefined"&&db&&window.ME){ rqStar
   try{ sb.channel("gvc_requests").on("postgres_changes",{event:"*",schema:"public",table:"gvc_requests"},()=>loadReq()).subscribe(); }catch(e){} } },1000);
 const mine=()=>REQ.filter(r=>r.who===me());
 const by=s=>REQ.filter(r=>r.status===s);
+window.reqList=()=>REQ; window.reqLine=r=>`${r.what}${r.qty?" × "+r.qty:""}`; window.reqGo=t=>{ rqTab=t; shellGo("requests"); };
 window.reqCount=()=>isAdmin()?by("review").length:isParts()?by("approved").length:0;
 window.myRequests=()=>mine();
 

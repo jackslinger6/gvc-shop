@@ -37,9 +37,13 @@ body:has(.scrim.on) .shnav,body:has(.chatp.on) .shnav{display:none}
 .shnav .plus.open{transform:rotate(45deg)}
 body.girly .shnav .ni.on{color:#e0569a!important}
 body.girly .trk .cell[style*="--cc"]{background:var(--cc)!important}body.girly .trk .cell.past{opacity:.4}
-.shnav [data-n="orders"]{display:none}body.parts .shnav [data-n="orders"]{display:flex}
+.shnav [data-n="orders"],.shnav [data-n="inv"]{display:none}body.parts .shnav [data-n="orders"],body.parts .shnav [data-n="inv"]{display:flex}
+/* the crew's status lives in the side rail under the + on a computer; on a phone it stays on Home (Kyle, Nov 8) */
+.railcrew{display:none!important}
+.shnav .ni .ic{display:contents}
 @media (max-width:899px){
   body.crew.parts .shnav{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+  body.parts .shnav [data-n="crew"]{display:none}
   .shnav{left:0;right:0;bottom:0;height:calc(78px + env(safe-area-inset-bottom));padding:0 4px env(safe-area-inset-bottom);grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;border-top:1px solid var(--line)}
   .shnav .plus{margin-top:-30px}
   body{padding-bottom:96px}
@@ -50,6 +54,17 @@ body.girly .trk .cell[style*="--cc"]{background:var(--cc)!important}body.girly .
   /* the + sits in the middle of the rail, away from the tabs (Kyle, Nov 8) */
   .shnav .pluswrap{order:50;margin:auto 0}
   @media (min-height:640px){ .shnav .pluswrap{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);margin:0} .shnav .plus{margin:0 auto} }
+  .hm .homecrew{display:none!important}
+  .shnav .railcrew{display:flex!important;flex-direction:column;align-items:center;gap:4px;order:60;margin-top:10px;overflow-y:auto;scrollbar-width:none;padding:4px 0}
+  @media (min-height:640px){ .shnav .railcrew{position:absolute;left:0;right:0;top:calc(50% + 46px);bottom:6px;margin:0} }
+  .shnav .railcrew::-webkit-scrollbar{display:none}
+  .shnav .railcrew .p{width:80px;background:none!important;border:0!important;border-radius:10px;padding:5px 2px;gap:3px;box-shadow:none!important}
+  .shnav .railcrew .p:hover{background:rgba(255,255,255,.05)!important}
+  .shnav .railcrew .av{width:32px;height:32px;font-size:14px}
+  .shnav .railcrew .n{font-size:11.5px;line-height:1}
+  .shnav .railcrew .ost,.shnav .railcrew .s{font-size:9px!important;letter-spacing:.04em;line-height:1.1;text-align:center;color:var(--muted)}
+  .shnav .railcrew .bar{width:44px;height:3px;margin:1px 0 0}
+  .shnav .railcrew .rh{font:600 9.5px Oswald,sans-serif;letter-spacing:.1em;color:var(--dim);margin-bottom:2px}
   body{padding-left:92px}
 }
 @keyframes shIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -170,7 +185,7 @@ const ic={
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
 };
 const svg=(k,c="currentColor",s=24,w=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic[k]}</svg>`;
-const SECT=v=>v==="home"?"home":v==="porders"&&window.ME&&ME.role==="parts"?"orders":["pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
+const SECT=v=>v==="home"?"home":v==="porders"&&window.ME&&ME.role==="parts"?"orders":v==="inv"&&window.ME&&ME.role==="parts"?"inv":["pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
 const go=v=>{ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0,behavior:"smooth"}); };
 window.shellGo=go;
 const lastJobs=()=>{ try{ const v=localStorage.getItem("gvc_last_jobs"); return ["pipeline","ordering","build"].includes(v)?v:"ordering"; }catch(e){ return "ordering"; } };
@@ -185,12 +200,14 @@ const wrap=document.querySelector(".wrap"); wrap.parentNode.insertBefore(top,wra
 const nav=document.createElement("nav"); nav.className="shnav"; nav.setAttribute("aria-label","Main"); nav.hidden=true;
 nav.innerHTML=`<button class="ni" type="button" data-n="home">${svg("home")}HOME</button>
   <button class="ni" type="button" data-n="jobs">${svg("jobs")}JOBS<span class="bd" id="shJobsN" hidden></span></button>
-  <button class="ni" type="button" data-n="orders">${svg("box")}ORDERS<span class="bd" id="shOrdN" hidden></span></button>
+  <button class="ni" type="button" data-n="orders">${svg("list")}ORDERS<span class="bd" id="shOrdN" hidden></span></button>
   <div class="pluswrap" style="display:flex;align-items:center;justify-content:center"><button class="plus" type="button" id="shPlus" aria-label="Quick actions">${svg("plus","#111",28,2.6)}</button></div>
+  <button class="ni" type="button" data-n="inv">${svg("box")}INVENTORY</button>
   <button class="ni" type="button" data-n="crew">${svg("crew")}CREW<span class="bd" id="shCrewN" hidden></span></button>
-  <button class="ni" type="button" data-n="more">${svg("more")}MORE<span class="bd" id="shMoreN" hidden></span></button>`;
+  <button class="ni" type="button" data-n="more">${svg("more")}MORE<span class="bd" id="shMoreN" hidden></span></button>
+  <div class="cw railcrew" id="railCrew" aria-label="The crew"></div>`;
 document.body.appendChild(nav);
-nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); if(n==="orders") return window.pordersGo?window.pordersGo("active"):go("porders"); go(n==="jobs"?((window.ME&&(ME.role==="crew"||ME.role==="parts"))?"build":lastJobs()):n); });
+nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); if(n==="inv") return go("inv"); if(n==="orders") return window.pordersGo?window.pordersGo("active"):go("porders"); go(n==="jobs"?((window.ME&&(ME.role==="crew"||ME.role==="parts"))?"build":lastJobs()):n); });
 top.querySelector("#shChat").onclick=()=>openChat();
 top.querySelector("#shBell").onclick=()=>go("todo");
 function note(m){ todoToast(m,null); const u=$("#toastUndo"); if(u) u.style.display="none"; }
@@ -286,6 +303,34 @@ function mailNum(j,to){
 async function j0log(id,text){ const j0=jobs.find(x=>x.id===id); if(!j0) return; const j=structuredClone(j0); delete j.id; j.log=[...(j.log||[]),{at:new Date().toISOString(),text}]; try{ await saveJob(id,j); }catch(e){} }
 
 let nuIdx=0;
+function drawRailCrew(){
+  const R=$("#railCrew"); if(!R) return;
+  const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0",Robin:"#9b7bff"};
+  const names=[...(typeof CREW!=="undefined"?CREW:["Kyle","Colton","Aaron","Cooper"]),"Robin"];
+  let plan={}; try{ const {M}=window.gvcPlan.mc(); const d=window.gvcPlan.iso(new Date());
+    names.forEach(p=>{ const ks=(M.S[p]||{})[d]||[]; plan[p]={n:ks.length,done:ks.filter(k=>M.T[k]&&M.T[k].done).length}; }); }catch(e){}
+  const html=`<div class="rh">CREW</div>`+names.map(p=>{ const t=plan[p]; return `<button class="p" type="button" data-cw="${p}" title="${p}${t&&t.n?` - ${t.done} of ${t.n} tasks today`:""}"><span class="av" style="background:${COL[p]||"#9aa1aa"}">${p[0]}</span><span class="n">${p}</span>${t&&t.n?`<div class="bar"><i style="width:${Math.round(t.done/t.n*100)}%"></i></div><span class="s">${t.done}/${t.n} tasks</span>`:""}</button>`; }).join("");
+  if(R._h!==html){ R._h=html; R.innerHTML=html; }
+  if(window.teamDecorate) window.teamDecorate();
+}
+/* Next up cards - Kyle's Home, Robin's Home and anyone else's use the same swipe cards (Kyle, Nov 8) */
+function nuHTML(items,empty){ if(nuIdx>=items.length) nuIdx=0;
+  return `<div class="nu">${items.length?`<div class="trk" id="nuTrk">${items.map((t,i)=>`<article class="cd" style="--c:${t.c}">
+          <span class="ntg">${esc(t.tag)}</span><div class="ntt">${esc(t.text.replace(/^Get a job number: /,""))}</div><div class="nsub">${t.nonum?"No job number yet · ":""}${esc(t.sub||"")}</div>
+          <div class="nac">${t.act?`<button class="go" type="button" data-nu="${i}">${esc(t.act.t)}</button>`:""}${t.act2?`<button class="lt" type="button" data-nu2="${i}">${esc(t.act2.t)}</button>`:""}${t.later?`<button class="lt" type="button" data-nl="${i}">LATER</button>`:""}</div></article>`).join("")}</div>
+        <button class="arr l" type="button" aria-label="Previous" id="nuL">‹</button><button class="arr r" type="button" aria-label="Next" id="nuR">›</button>
+        <div class="dots" id="nuDots">${items.slice(0,12).map((_,i)=>`<i class="${i===nuIdx?"on":""}"></i>`).join("")}<span id="nuOf">${nuIdx+1} OF ${items.length}</span></div>`
+        :`<div class="empty">${svg("check","#3ad06b",28,2)}<div style="margin-top:6px;font:600 18px Oswald,sans-serif">You're all caught up</div><div style="font-size:13px;margin-top:4px">${esc(empty||"Nothing needs you right now.")}</div></div>`}</div>`; }
+function nuWire(B,items){
+  const trk=B.querySelector("#nuTrk"); if(!trk) return;
+  const dots=()=>{ const i=Math.round(trk.scrollLeft/Math.max(1,trk.clientWidth)); nuIdx=i; B.querySelectorAll("#nuDots i").forEach((d,k)=>d.classList.toggle("on",k===i)); const of=B.querySelector("#nuOf"); if(of) of.textContent=`${i+1} OF ${items.length}`; };
+  trk.scrollLeft=nuIdx*trk.clientWidth; trk.onscroll=()=>{ clearTimeout(trk._t); trk._t=setTimeout(dots,60); };
+  B.querySelector("#nuL").onclick=()=>trk.scrollBy({left:-trk.clientWidth,behavior:"smooth"}); B.querySelector("#nuR").onclick=()=>trk.scrollBy({left:trk.clientWidth,behavior:"smooth"});
+  B.querySelectorAll("[data-nu]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.nu]; t&&t.act&&t.act.fn(); });
+  B.querySelectorAll("[data-nu2]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.nu2]; t&&t.act2&&t.act2.fn(); });
+  B.querySelectorAll("[data-nl]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const t=items[+b.dataset.nl]; if(t&&t.later&&typeof laterMenu==="function") laterMenu(b,t.later); });
+}
+window.shellNu={html:nuHTML,wire:nuWire};
 function renderHome(){
   const B=$("#board"); B.className="home"; B.style.gridTemplateColumns="";
   if(window.ME&&ME.role==="parts"&&window.partsHome){ window.partsHome(B); return; }
@@ -304,17 +349,12 @@ function renderHome(){
   B.innerHTML=`<div class="hm shanim">
     <section aria-label="Next up">
       <h4><span>NEXT UP${items.length?" · "+items.length:""}</span>${items.length>1?`<span style="letter-spacing:.08em">SWIPE FOR MORE</span>`:""}</h4>
-      <div class="nu">${items.length?`<div class="trk" id="nuTrk">${items.map((t,i)=>`<article class="cd" style="--c:${t.c}">
-          <span class="ntg">${esc(t.tag)}</span><div class="ntt">${esc(t.text.replace(/^Get a job number: /,""))}</div><div class="nsub">${t.nonum?"No job number yet · ":""}${esc(t.sub||"")}</div>
-          <div class="nac">${t.act?`<button class="go" type="button" data-nu="${i}">${esc(t.act.t)}</button>`:""}${t.act2?`<button class="lt" type="button" data-nu2="${i}">${esc(t.act2.t)}</button>`:""}${t.later?`<button class="lt" type="button" data-nl="${i}">LATER</button>`:""}</div></article>`).join("")}</div>
-        <button class="arr l" type="button" aria-label="Previous" id="nuL">‹</button><button class="arr r" type="button" aria-label="Next" id="nuR">›</button>
-        <div class="dots" id="nuDots">${items.slice(0,12).map((_,i)=>`<i class="${i===nuIdx?"on":""}"></i>`).join("")}<span id="nuOf">${nuIdx+1} OF ${items.length}</span></div>`
-        :`<div class="empty">${svg("check","#3ad06b",28,2)}<div style="margin-top:6px;font:600 18px Oswald,sans-serif">All caught up</div><div style="font-size:13px;margin-top:4px">Nothing needs you right now.</div></div>`}</div>
+      ${nuHTML(items)}
       ${doneToday?`<button class="adone" type="button" id="shAuto">${svg("check","#3ad06b",14,2.2)} ${doneToday} update${doneToday>1?"s":""} put on the board for you today - tap to see or undo</button>`:""}
       ${window.recapLine?window.recapLine():""}
     </section>
     <div style="display:flex;flex-direction:column;gap:16px">
-      <section aria-label="Crew today">
+      <section aria-label="Crew today" class="homecrew">
         <h4><span>CREW TODAY</span><span style="color:var(--text)">${all?`${dn} / ${all} TASKS`:""}</span></h4>
         <div class="cw">${crew.map(c=>`<button class="p ${c.n?"":"idle"}" type="button" data-cw="${c.p}"><span class="av" style="background:${COL[c.p]||"#9aa1aa"}">${c.p[0]}</span><span class="n">${c.p}</span><div class="bar"><i style="width:${c.n?Math.round(c.done/c.n*100):0}%"></i></div><span class="s">${c.n?`${c.done} / ${c.n}`:"nothing planned"}</span></button>`).join("")}<button class="p" type="button" data-cw="Robin"><span class="av" style="background:#9b7bff">R</span><span class="n">Robin</span><div class="bar" style="visibility:hidden"><i></i></div><span class="tnote" style="font-size:11px">parts</span></button></div>
       </section>
@@ -325,15 +365,7 @@ function renderHome(){
     </div>
   </div>`;
   if(window.myDayHtml){ const md=window.myDayHtml(); if(md){ const hm=B.querySelector(".hm"); if(hm){ hm.insertAdjacentHTML("afterbegin",md); window.myDayWire&&window.myDayWire(hm); } } }
-  const trk=$("#nuTrk");
-  if(trk){
-    const dots=()=>{ const i=Math.round(trk.scrollLeft/Math.max(1,trk.clientWidth)); nuIdx=i; $("#nuDots").querySelectorAll("i").forEach((d,k)=>d.classList.toggle("on",k===i)); const of=$("#nuOf"); if(of) of.textContent=`${i+1} OF ${items.length}`; };
-    trk.scrollLeft=nuIdx*trk.clientWidth; trk.onscroll=()=>{ clearTimeout(trk._t); trk._t=setTimeout(dots,60); };
-    $("#nuL").onclick=()=>trk.scrollBy({left:-trk.clientWidth,behavior:"smooth"}); $("#nuR").onclick=()=>trk.scrollBy({left:trk.clientWidth,behavior:"smooth"});
-    B.querySelectorAll("[data-nu]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.nu]; t&&t.act&&t.act.fn(); });
-    B.querySelectorAll("[data-nu2]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.nu2]; t&&t.act2&&t.act2.fn(); });
-    B.querySelectorAll("[data-nl]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const t=items[+b.dataset.nl]; if(t&&t.later&&typeof laterMenu==="function") laterMenu(b,t.later); });
-  }
+  nuWire(B,items);
   const sa=$("#shAuto"); if(sa) sa.onclick=()=>{ try{localStorage.setItem("gvc_auto_open","true")}catch(e){} go("todo"); };
   $("#shAll").onclick=()=>go("todo");
   B.querySelectorAll("[data-cw]").forEach(b=>b.onclick=()=>go("crew"));
@@ -366,6 +398,7 @@ render=function(){
   let un=0; try{ un=crewItems().filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length; }catch(e){}
   const ce=$("#shCrewN"); ce.hidden=!un; ce.textContent=un;
   { const on=window.pordersAttn?window.pordersAttn():0; const oe=$("#shOrdN"); if(oe){ oe.hidden=!on; oe.textContent=on; } }
+  drawRailCrew();
 };
 
 /* ---- More menu ---- */
