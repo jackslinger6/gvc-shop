@@ -35,14 +35,20 @@ body:has(.scrim.on) .shnav,body:has(.chatp.on) .shnav{display:none}
 .shnav .plus{width:64px;height:64px;border-radius:32px;border:4px solid var(--bg);background:linear-gradient(180deg,#ff9a40,#e8711a);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 18px rgba(255,120,40,.35);transition:transform .15s;touch-action:none;margin:auto}
 .shnav .plus:active{transform:scale(.93)}
 .shnav .plus.open{transform:rotate(45deg)}
+body.girly .shnav .ni.on{color:#e0569a!important}
+.shnav [data-n="orders"]{display:none}body.parts .shnav [data-n="orders"]{display:flex}
 @media (max-width:899px){
+  body.crew.parts .shnav{grid-template-columns:repeat(5,minmax(0,1fr))!important}
   .shnav{left:0;right:0;bottom:0;height:calc(78px + env(safe-area-inset-bottom));padding:0 4px env(safe-area-inset-bottom);grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;border-top:1px solid var(--line)}
   .shnav .plus{margin-top:-30px}
   body{padding-bottom:96px}
 }
 @media (min-width:900px){
-  .shnav{top:0;bottom:0;left:0;width:92px;padding:16px 6px;grid-template-rows:auto repeat(4,72px) 1fr;align-content:start;gap:6px;border-right:1px solid var(--line)}
-  .shnav .plus{order:-1;margin:4px auto 14px}
+  .shnav{top:0;bottom:0;left:0;width:92px;padding:16px 6px;display:flex;flex-direction:column;gap:6px;border-right:1px solid var(--line)}
+  .shnav .ni{min-height:72px;flex:0 0 auto}
+  /* the + sits in the middle of the rail, away from the tabs (Kyle, Nov 8) */
+  .shnav .pluswrap{order:50;margin:auto 0}
+  @media (min-height:640px){ .shnav .pluswrap{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);margin:0} .shnav .plus{margin:0 auto} }
   body{padding-left:92px}
 }
 @keyframes shIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -163,7 +169,7 @@ const ic={
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
 };
 const svg=(k,c="currentColor",s=24,w=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic[k]}</svg>`;
-const SECT=v=>v==="home"?"home":["pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
+const SECT=v=>v==="home"?"home":v==="porders"&&window.ME&&ME.role==="parts"?"orders":["pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
 const go=v=>{ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0,behavior:"smooth"}); };
 window.shellGo=go;
 const lastJobs=()=>{ try{ const v=localStorage.getItem("gvc_last_jobs"); return ["pipeline","ordering","build"].includes(v)?v:"ordering"; }catch(e){ return "ordering"; } };
@@ -178,11 +184,12 @@ const wrap=document.querySelector(".wrap"); wrap.parentNode.insertBefore(top,wra
 const nav=document.createElement("nav"); nav.className="shnav"; nav.setAttribute("aria-label","Main"); nav.hidden=true;
 nav.innerHTML=`<button class="ni" type="button" data-n="home">${svg("home")}HOME</button>
   <button class="ni" type="button" data-n="jobs">${svg("jobs")}JOBS<span class="bd" id="shJobsN" hidden></span></button>
-  <div style="display:flex;align-items:center;justify-content:center"><button class="plus" type="button" id="shPlus" aria-label="Quick actions">${svg("plus","#111",28,2.6)}</button></div>
+  <button class="ni" type="button" data-n="orders">${svg("box")}ORDERS<span class="bd" id="shOrdN" hidden></span></button>
+  <div class="pluswrap" style="display:flex;align-items:center;justify-content:center"><button class="plus" type="button" id="shPlus" aria-label="Quick actions">${svg("plus","#111",28,2.6)}</button></div>
   <button class="ni" type="button" data-n="crew">${svg("crew")}CREW<span class="bd" id="shCrewN" hidden></span></button>
   <button class="ni" type="button" data-n="more">${svg("more")}MORE<span class="bd" id="shMoreN" hidden></span></button>`;
 document.body.appendChild(nav);
-nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); go(n==="jobs"?((window.ME&&(ME.role==="crew"||ME.role==="parts"))?"build":lastJobs()):n); });
+nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); if(n==="orders") return window.pordersGo?window.pordersGo("active"):go("porders"); go(n==="jobs"?((window.ME&&(ME.role==="crew"||ME.role==="parts"))?"build":lastJobs()):n); });
 top.querySelector("#shChat").onclick=()=>openChat();
 top.querySelector("#shBell").onclick=()=>go("todo");
 function note(m){ todoToast(m,null); const u=$("#toastUndo"); if(u) u.style.display="none"; }
@@ -357,6 +364,7 @@ render=function(){
   const jn=jobs.filter(j=>typeof needsAttention==="function"&&needsAttention(j)).length; const je=$("#shJobsN"); je.hidden=!jn; je.textContent=jn;
   let un=0; try{ un=crewItems().filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length; }catch(e){}
   const ce=$("#shCrewN"); ce.hidden=!un; ce.textContent=un;
+  { const on=window.pordersAttn?window.pordersAttn():0; const oe=$("#shOrdN"); if(oe){ oe.hidden=!on; oe.textContent=on; } }
 };
 
 /* ---- More menu ---- */
@@ -403,7 +411,7 @@ function moreMenu(){
 const ACTS=[["punch","PUNCH IN","clock","#3ad06b"],["rec","RECORD","rec","#e5483b"],["count","COUNT","count","#f5b041"],["quick","QUICK JOB","bolt","#22c3e6"],["time","LOG TIME","clock","#3ad06b"],["todo","ADD TO-DO","check","#5aa7f3"],["chat","ASK CLAUDE","chat","#ff8a2a"]];
 // phone app only: Check texts on the wheel too (it also stays on the To do tab) (Kyle, 2026-11-04)
 const CREW_ACTS=[["punch","PUNCH IN","clock","#3ad06b"],["mywork","ADD MY WORK","bolt","#22c3e6"],["supplies","NEED SUPPLIES","box","#9fb3c8"],["count","COUNT","count","#f5b041"],["ncr","PROBLEM / NCR","warn","#e5483b"],["rev","REVISION","rev","#a374ff"],["chat","TALK","chat","#ff8a2a"]];
-const PARTS_ACTS=[["inv","INVENTORY","box","#9fb3c8"],["msgs","MESSAGES","chat","#2f8ff0"],["chat","TALK","chat","#ff8a2a"]];
+const PARTS_ACTS=[["orders","MY ORDERS","list","#ff8a2a"],["inv","INVENTORY","box","#9fb3c8"],["msgs","MESSAGES","chat","#2f8ff0"],["chat","TALK","chat","#ff8a2a"]];
 const ACTL=()=>window.ME&&ME.role==="parts"?PARTS_ACTS:window.ME&&ME.role==="crew"?CREW_ACTS:ACTS.concat(typeof Native!=="undefined"&&Native?[["sms","CHECK TEXTS","chat","#9b7bff"]]:[]);
 const plus=$("#shPlus"); let whl=null, hot=null;
 function wheelOpen(){
@@ -427,6 +435,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") wheelClose(); });
 function act(k){
   if(window.crewAct&&window.crewAct(k)) return;
   if(k==="chat") return openChat();
+  if(k==="orders") return window.pordersGo?window.pordersGo("active"):go("porders");
   if(k==="time") return go("time");
   if(k==="todo") return addTodoSheet();
   if(k==="quick") return quickJob();

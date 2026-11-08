@@ -21,6 +21,7 @@ const $$=n=>n==null||n===""||isNaN(n)?"":"$"+(+n).toLocaleString(undefined,{mini
 const ST=[["rfq","Asked for quotes","#9b7bff"],["compare","Comparing quotes","#22c3e6"],["ordered","On order","#ff8a2a"],["shipped","On its way","#f5b041"],["ready","Ready to pick up","#3ad06b"],["delivered","Delivered","#2f8ff0"],["received","Received ✓","#7d8794"]];
 const SL=Object.fromEntries(ST.map(([k,t,c])=>[k,{t,c}]));
 let PO=[], loaded=false, tab="active", poId=null, ch=null, BOX=null;
+window.pordersAttn=()=>PO.filter(o=>["compare","ready","delivered"].includes(o.status)).length;
 window.pordersOpen=()=>PO.filter(o=>!["received","cancelled"].includes(o.status)).length;
 window.pordersBy=k=>PO.filter(o=>o.status===k).length;
 
