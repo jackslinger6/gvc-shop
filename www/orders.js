@@ -121,7 +121,7 @@ function card(o){
   const s=SL[o.status]||{t:o.status,c:"#9aa1aa"}; const Q=quotes(o), lo=cheapest(o);
   const bits=[o.job?"Job "+o.job:"",`${items(o).length} item${items(o).length===1?"":"s"}`,
     Q.length?`${Q.length} quote${Q.length>1?"s":""}${lo&&!o.vendor?" · lowest "+$$(lo):""}`:(o.asked||[]).length?"asked "+o.asked.join(", "):"no quotes yet",
-    o.vendor?"from "+o.vendor:"",o.po?"PO "+o.po:"",o.eta&&!["delivered","received"].includes(o.status)?"ETA "+o.eta:""].filter(Boolean);
+    o.vendor?"from "+o.vendor:"",o.po?(/^PO-/i.test(o.po)?o.po:"PO "+o.po):"",o.eta&&!["delivered","received"].includes(o.status)?"ETA "+o.eta:""].filter(Boolean);
   return `<button class="poc" type="button" data-po="${o.id}" style="--c:${s.c}"><b>${E(o.title)}</b>${tab!=="active"?` <span class="lbl">· ${E(s.t)}</span>`:""}
     <div class="m">${bits.map(E).join(" · ")}</div><div class="m">${E(s.t)} · updated ${ago(o.updated_at)}</div></button>`;
 }
