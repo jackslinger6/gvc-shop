@@ -159,7 +159,7 @@ function draw(){
   const allMats=[...new Set(st.items.filter(i=>!i.skip).map(i=>i.mat||"Other"))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const lat=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&it.later);
   D.innerHTML=`<div class="cnt">${head()}
-    ${st.items.length?`<div class="tools"><input type="search" id="cQ" placeholder="Find a part (number, name, material)" value="${esc(st.q)}">
+    ${st.items.length?`<div class="tools">${window.gvcScan?`<button class="btn primary" type="button" id="cScan" style="min-height:40px">📷 Scan</button>`:""}<input type="search" id="cQ" placeholder="Find a part (number, name, material)" value="${esc(st.q)}">
       ${[["all","All"],["missing","Missing"],["done","Counted"]].map(([k,t])=>`<button class="chip ${st.f===k?"on":""}" type="button" data-cf="${k}" style="${st.f===k?"border-color:#3ad06b;color:#3ad06b":""}">${t}</button>`).join("")}</div>
       ${mats.length>1?`<div class="tools">${mats.map(m=>`<button class="chip" type="button" data-cq="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}`:""}
     ${st.seeded&&st.items.length?`<div class="tnote">Started from the job's parts list (${st.items.length} parts). If this order is only part of the job, tap "Not on this order" on the rest.</div>`:""}
@@ -203,6 +203,14 @@ function wire(){
   const D=$("#dlg");
   $("#cBack").onclick=async()=>{ await flush(); openJob(st.jobId); };
   $("#cPrint").onclick=printSheet;
+  const sc=$("#cScan"); if(sc) sc.onclick=()=>{   // live camera: read the engraved part number (scan.js)
+    const L=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&!it.later);
+    window.gvcScan({title:"Scan a part number",
+      items:L.map(({it,ix})=>({id:String(ix),keys:[it.part_no,it.part_no?"":it.name],label:it.part_no||it.name})),
+      info:id=>{ const it=st.items[+id]; return {label:it.part_no||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat].filter(Boolean).join(" · "),got:got(it),qty:it.qty||0,img:url(it.thumb||it.img)}; },
+      act:(id,op)=>{ const it=st.items[+id]; it.got=op==="all"?(it.qty||0):op==="+1"?Math.min(it.qty||0,got(it)+1):Math.max(0,got(it)-1); changed(it.g); },
+      onClose:()=>draw()});
+  };
   const q=$("#cQ"); if(q) q.oninput=()=>{ st.q=q.value; const pos=q.selectionStart; draw(); const n=$("#cQ"); n.focus(); n.setSelectionRange(pos,pos); };
   D.querySelectorAll("[data-cf]").forEach(b=>b.onclick=()=>{ st.f=b.dataset.cf; draw(); });
   D.querySelectorAll("[data-cq]").forEach(b=>b.onclick=()=>{ st.q=st.q===b.dataset.cq?"":b.dataset.cq; draw(); });

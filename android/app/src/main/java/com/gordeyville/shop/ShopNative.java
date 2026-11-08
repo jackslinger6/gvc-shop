@@ -10,6 +10,13 @@ import android.os.Build;
 import android.provider.ContactsContract;
 import android.provider.Telephony;
 import android.util.Base64;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -279,5 +286,30 @@ public class ShopNative extends Plugin {
                 JSObject o = new JSObject(); o.put("bytes", got); call.resolve(o);
             } catch (Exception e) { call.reject("Download failed: " + e.getMessage()); }
         }).start();
+    }
+
+    /** Read text in a camera frame on the phone (Google ML Kit, no internet) - for scanning engraved part numbers (scan.js).
+        img = base64 JPEG, rot = 0/90/180/270. Returns {text, lines[]}. */
+    private TextRecognizer recognizer;
+    @PluginMethod
+    public void ocr(PluginCall call) {
+        String b64 = call.getString("img");
+        if (b64 == null) { call.reject("no image"); return; }
+        Bitmap bmp;
+        try { byte[] b = Base64.decode(b64, Base64.DEFAULT); bmp = BitmapFactory.decodeByteArray(b, 0, b.length); }
+        catch (Exception e) { call.reject("bad image"); return; }
+        if (bmp == null) { call.reject("bad image"); return; }
+        int rot = call.getInt("rot", 0);
+        if (recognizer == null) recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        recognizer.process(InputImage.fromBitmap(bmp, rot))
+            .addOnSuccessListener(t -> {
+                JSObject r = new JSObject();
+                r.put("text", t.getText());
+                JSArray lines = new JSArray();
+                for (Text.TextBlock bl : t.getTextBlocks()) for (Text.Line ln : bl.getLines()) lines.put(ln.getText());
+                r.put("lines", lines);
+                call.resolve(r);
+            })
+            .addOnFailureListener(e -> call.reject(e.getMessage() == null ? "ocr failed" : e.getMessage()));
     }
 }
