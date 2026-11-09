@@ -76,9 +76,69 @@ function keysFor(it){
     const short=String(k).replace(/^[0-9]{3,}[A-Z0-9_]*[.\-]/i,""); const cs=canon(short); if(cs.length>=4) out.add(cs); });   // also without the "1086_7W." job prefix
   return [...out]; }
 function rank(lines,cands){
-  const L=lines.map(canon).filter(x=>x.length>=3); if(!L.length) return [];
+  const L=lines.map(canon).filter(x=>x.length>=3);
+  // short names: each line, and all lines run together when they're short (vertical text can come back one letter a line)
+  const raw=lines.map(x=>String(x).trim()).filter(Boolean), reads=[...raw,raw.join(" "),raw.join("")].map(abbrRead).filter(Boolean);
+  if(!L.length&&!reads.length) return [];
   const all=L.join("."); const pool=[...L,all];
-  return cands.map(c=>({c,s:Math.max(...c.K.map(K=>Math.max(...pool.map(l=>partial(K,l)))))})).filter(x=>x.s>0.45).sort((a,b)=>b.s-a.s||b.c.K[0].length-a.c.K[0].length); }
+  return cands.map(c=>{ const full=L.length?Math.max(...c.K.map(K=>Math.max(...pool.map(l=>partial(K,l))))):0, ab=reads.length?abbrScore(reads,c):0;
+      return {c,s:Math.max(full,ab),ab:ab>full?reads.find(r=>r.num===(c.A&&c.A.num)):null}; })
+    .filter(x=>x.s>0.45).sort((a,b)=>b.s-a.s||b.c.K[0].length-a.c.K[0].length); }
+
+/* ---- short names (Kyle, Nov 9) ----
+   On small parts the laser shop engraves a short name instead of the full part number: "CB.5" = CHAINBASKET.5,
+   "PB.6" = PASSBOX.6 (our DXFs carry no engraving text - checked all 121 for 1086WT). A short name = a few letters
+   (the first letters of the words in the name) + the full end number. The number must match exactly; the letters must
+   start the name and appear in order, best when each one starts a word. Once Kyle confirms a part, the short name is
+   remembered on the phone ("CB" -> CHAINBASKET) and opens straight away next time. */
+const WORDS=("CHAIN BASKET PASS BOX PUCK BOARD FENDER UPPER LOWER ROUND HEAD ACHE CENTER LOC LOCK STEP AL ALUM HYD TANK DRIVER "+
+  "PASSENGER TOP BOTTOM DOOR TIRE HANGER HANGERS MIDDLE FRONT REAR SHEAR PLATE LOGO AVAL AVALANCHE AVALANCE MOUNT LIGHT LIGHTS PULL "+
+  "OUT REMOVE MUD FLAP RAMP KENWORTH WINDOW CAGE SIGN END CAP EXTRUSION FORMED BENDIX OVAL UP DOWN SIDE BODY BRACKET BRACE "+
+  "SKIRT WHEEL PIN TROUGH SHIM FRAME RACK WINCH BUMPER GUSSET TAB FLANGE COVER CABINET BELLY DECK RAIL POST LID BASE CLIP STRAP "+
+  "HOOK HINGE HANDLE LATCH TRAY SHELF BIN SUPPORT ANGLE CHANNEL TUBE BAR BLOCK PANEL WALL FLOOR ROOF CONSOLE TOOL HOSE REEL "+
+  "VALVE PUMP BATTERY GUARD SPLASH STRIKER RUB STRIP CORNER INNER OUTER LEFT RIGHT HEADER FILLER SPACER WASHER DOUBLER STIFFENER").split(" ");
+const WSET=new Set(WORDS);
+// split a run of letters into words: dictionary words where possible (fewest leftover letters, then fewest words)
+function wordStarts(name){
+  const n=name.length, best=new Array(n+1).fill(null); best[0]={u:0,w:0,st:[],unk:false};
+  const put=(j,o)=>{ const c=best[j]; if(!c||o.u<c.u||o.u===c.u&&o.w<c.w) best[j]=o; };
+  for(let i=0;i<n;i++){ const b=best[i]; if(!b) continue;
+    for(let j=i+1;j<=n&&j-i<=12;j++) if(WSET.has(name.slice(i,j))) put(j,{u:b.u,w:b.w+1,st:[...b.st,i],unk:false});
+    put(i+1,b.unk?{u:b.u+1,w:b.w,st:b.st,unk:true}:{u:b.u+1,w:b.w+1,st:[...b.st,i],unk:true}); }   // a run of unknown letters counts as one word
+  return best[n].st; }
+const D2L={"0":"O","1":"I","5":"S","8":"B","2":"Z","6":"G"}, L2D={O:"0",Q:"0",D:"0",I:"1",L:"1",T:"1",S:"5",B:"8",Z:"2",G:"6"};
+const numNorm=s=>String(s).toUpperCase().replace(/[^A-Z0-9]/g,"");
+// name letters + end number of a part number: "1086_7.CHAINBASKET.5" -> {name:"CHAINBASKET", num:"5"}
+function abbrInfo(it){
+  const k=String((it.keys||[])[0]||"").toUpperCase().replace(/^[0-9]{3,}[A-Z0-9_]*[.\-]/,"");
+  const m=k.match(/^(.*?)[.\s_-]+(\d+(?:[.\-][A-Z0-9]+)*)$/); if(!m) return null;
+  const segs=m[1].split(/[^A-Z]+/).filter(Boolean), name=segs.join(""); if(name.length<4) return null;
+  const starts=new Set(); let off=0; segs.forEach(sg=>{ wordStarts(sg).forEach(i=>starts.add(off+i)); off+=sg.length; });   // "." also splits words
+  return {name, num:numNorm(m[2]), starts}; }
+// a read that looks like a short name: 1-4 letters, a separator or not, then a number. Look-alike digits/letters folded.
+function abbrRead(line){
+  const t=String(line).toUpperCase().replace(/\s+/g," ").trim();
+  const m=t.match(/^([A-Z0-9]{1,4})[ .,:_\-]*([0-9OILSBGZTQD]{1,3}(?:[ .\-][0-9A-Z]{1,3})?)$/); if(!m) return null;
+  const letters=m[1].replace(/[0-9]/g,c=>D2L[c]||c); if(!/^[A-Z]+$/.test(letters)) return null;
+  const parts=m[2].split(/[ .\-]/), num=[parts[0].replace(/[A-Z]/g,c=>L2D[c]||c),...parts.slice(1)].join("");
+  if(!/^\d/.test(num)||letters.length<1) return null;
+  return {letters,num}; }
+let learned={}; try{ learned=JSON.parse(localStorage.getItem("gvcScanAbbr")||"{}"); }catch(e){}
+const saveL=()=>{ try{ localStorage.setItem("gvcScanAbbr",JSON.stringify(learned)); }catch(e){} };
+const learn=(letters,name)=>{ learned[letters]=name; saveL(); }, forget=letters=>{ delete learned[letters]; saveL(); };
+// how well short letters fit a name: 0 = not at all
+function abbrFit(letters,A){
+  if(letters.length>=A.name.length||letters[0]!==A.name[0]) return 0;
+  const st=[...A.starts].sort((x,y)=>x-y);
+  let k=0, ok=true; for(const ch of letters){ while(k<st.length&&A.name[st[k]]!==ch) k++; if(k>=st.length){ ok=false; break; } k++; }
+  if(ok) return letters.length===st.length?0.8:0.74;          // every letter starts a word (and one per word = 0.8)
+  let i=0; for(const ch of letters){ const j=A.name.indexOf(ch,i); if(j<0) return 0; i=j+1; }
+  return 0.66; }                                               // letters in order, but not all on word starts
+function abbrScore(reads,c){
+  if(!c.A) return 0; let best=0;
+  for(const r of reads){ if(r.num!==c.A.num) continue;
+    let sc=learned[r.letters]===c.A.name?0.97:Math.min(0.78,abbrFit(r.letters,c.A)); if(sc>best) best=sc; }   // not learned yet = a guess to tap, never opens by itself
+  return best; }
 
 /* ---- text readers ---- */
 let tess=null, tessP=null;
@@ -103,7 +163,7 @@ async function pickEngine(setMsg){
    tapped. Now reads add up over frames (ev, decays 0.8 per frame), a guess stays up 8 s after it was last read, buttons
    never move or get rebuilt while a finger is on them, and a part opens on its own once its added-up reads clearly lead. */
 window.gvcScan=async function(o){
-  const cands=(o.items||[]).map(it=>({...it,K:keysFor(it)})).filter(c=>c.K.length);
+  const cands=(o.items||[]).map(it=>({...it,K:keysFor(it),A:abbrInfo(it)})).filter(c=>c.K.length);
   if(!cands.length){ alert("Nothing on this order has a part number to scan for."); return; }
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ alert("The camera isn't available here."); return; }
   const ov=document.createElement("div"); ov.id="gScan";
@@ -168,15 +228,18 @@ window.gvcScan=async function(o){
     if(next.join()!==shown.join()||!B.querySelector(".guess")){
       shown=next; shownAt=now;
       B.innerHTML=`<div class="guess"><div class="gh">Not sure yet - tap the right one, or keep pointing</div>${shown.map(id=>{ const e=ev.get(id);
-        return `<button type="button" data-g="${esc(id)}">Is it <b>${esc(e.c.label)}</b>? <span class="pc" style="opacity:.6"></span></button>`; }).join("")}</div>`;
+        return `<button type="button" data-g="${esc(id)}">Is it <b>${esc(e.c.label)}</b>?${e.ab?` <span style="opacity:.75">(${esc(e.ab)} short for ${esc(e.c.A.name)})</span>`:""} <span class="pc" style="opacity:.6"></span></button>`; }).join("")}</div>`;
       B.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{ hold=false; found(b.dataset.g); });
     }
     B.querySelectorAll("[data-g]").forEach(b=>{ const e=ev.get(b.dataset.g); const pc=b.querySelector(".pc"); if(e&&pc) pc.textContent=Math.round(e.best*100)+"%"; });
   }
   function found(id){
+    const fe=ev.get(id), taught=fe&&fe.ab&&fe.c.A&&learned[fe.ab]!==fe.c.A.name?{letters:fe.ab,was:learned[fe.ab]}:null;
+    if(taught) learn(taught.letters,fe.c.A.name);          // remember "CB" = CHAINBASKET; undone below if it was the wrong part
+    const untaught=()=>{ if(!taught) return; if(taught.was) learn(taught.letters,taught.was); else forget(taught.letters); };
     paused=true; clearGuess(); BOX.classList.add("hit"); try{ navigator.vibrate&&navigator.vibrate(60); }catch(e){}
     if(o.open){ B.innerHTML=""; setMsg("");
-      const shown=o.open(id,why=>{ if(!alive) return; ignore[id]=Date.now()+(why==="rescan"?4000:2500); resume(); setMsg(why==="rescan"?"Rescanning - point at the part number again":"Point at the next part number"); });
+      const shown=o.open(id,why=>{ if(!alive) return; if(why==="rescan") untaught(); ignore[id]=Date.now()+(why==="rescan"?4000:2500); resume(); setMsg(why==="rescan"?"Rescanning - point at the part number again":"Point at the next part number"); });
       if(shown!==false) return; }
     const draw=()=>{ const f=o.info(id)||{}; const full=f.qty&&f.got>=f.qty;
       B.innerHTML=`<div class="card"><div class="r">${f.img?`<img src="${esc(f.img)}" alt="">`:""}<div style="flex:1"><div class="nm">${esc(f.label||id)}</div>${f.sub?`<div class="sb">${esc(f.sub)}</div>`:""}</div></div>
@@ -184,7 +247,7 @@ window.gvcScan=async function(o){
         <div class="bt"><button type="button" data-a="-1">−1</button><button type="button" class="p" data-a="+1">+1</button><button type="button" data-a="all">All ${f.qty||""}</button></div>
         <div class="nx"><button type="button" id="gsN">Not this part</button><button type="button" class="go" id="gsG">Scan next ›</button></div></div>`;
       B.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{ o.act(id,b.dataset.a); draw(); });
-      B.querySelector("#gsN").onclick=()=>{ ignore[id]=Date.now()+4000; resume(); };
+      B.querySelector("#gsN").onclick=()=>{ untaught(); ignore[id]=Date.now()+4000; resume(); };
       B.querySelector("#gsG").onclick=()=>{ ignore[id]=Date.now()+2500; resume(); }; };
     draw(); setMsg("");
   }
@@ -203,12 +266,12 @@ window.gvcScan=async function(o){
       hist.push(null); hist=hist.slice(-5); updateGuess(); continue; }      // guesses are NOT cleared here - they expire on their own
     misses=0;
     const a=top[0], b=top[1], margin=a.s-(b?b.s:0);
-    top.slice(0,6).forEach(x=>{ if(x.s<0.55||a.s-x.s>0.2) return; const e=ev.get(x.c.id)||{c:x.c,sum:0,best:0,last:0}; e.sum+=x.s; e.best=Math.max(e.best,x.s); e.last=now; ev.set(x.c.id,e); });
+    top.slice(0,6).forEach(x=>{ if(x.s<0.55||a.s-x.s>0.2) return; const e=ev.get(x.c.id)||{c:x.c,sum:0,best:0,last:0}; if(x.ab) e.ab=x.ab.letters; e.sum+=x.s; e.best=Math.max(e.best,x.s); e.last=now; ev.set(x.c.id,e); });
     hist.push(a.s>=0.75&&margin>=0.04?a.c.id:null); hist=hist.slice(-5);
     const wins=hist.filter(x=>x===a.c.id).length;
     // leader over the last few frames, by added-up evidence
     const lead=[...ev.values()].sort((x,y)=>y.sum-x.sum), L1=lead[0], L2=lead[1];
-    const evPick=L1&&L1.best>=0.8&&L1.sum>=2&&L1.sum>=1.6*(L2?L2.sum:0);
+    const evPick=L1&&L1.best>=0.8&&L1.sum>=2&&L1.sum>=1.6*(L2?L2.sum:0)&&!(L1.ab&&learned[L1.ab]!==(L1.c.A&&L1.c.A.name));
     if(!hold){
       if(a.s>=0.97&&margin>=0.05||a.s>=0.8&&margin>=0.08&&wins>=2){ found(a.c.id); continue; }
       if(evPick&&!(ignore[L1.c.id]>now)){ found(L1.c.id); continue; }
@@ -219,5 +282,5 @@ window.gvcScan=async function(o){
     if(engine!=="tess") await new Promise(r=>setTimeout(r,120));
   }
 };
-window.gvcScanMatch={canon,partial,rank,keysFor};   // for testing
+window.gvcScanMatch={canon,partial,rank,keysFor,abbrInfo,abbrRead,abbrFit,wordStarts,learned:()=>learned,learn};   // for testing
 })();
