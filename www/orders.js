@@ -101,7 +101,7 @@ body.girly .poc,body.girly .pod .qc{background:#fffafd}
 .pod .plt{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel)}.pod .plt b{display:block;font:600 22px Oswald,sans-serif}.pod .plt span{display:block;font-size:11.5px;color:var(--muted);line-height:1.35}
 .pod .plt.low{border-color:#3ad06b}.pod .plt.low b{color:#3ad06b}.pod .plt.ord{box-shadow:0 0 0 2px #3ad06b inset}
 .pod .pll{display:grid;gap:6px;margin-top:8px}
-.pod .plr{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:6px 12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
+.pod .plr{display:grid;grid-template-columns:56px minmax(0,1fr) 70px 130px auto;gap:6px 12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
 .pod .plr.win{border-left-color:#3ad06b}.pod .plr.miss{border-left-color:#e5483b}
 .pod .plth{width:56px;height:46px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font:600 15px Oswald,sans-serif}
 .pod .plth .hwpic{width:46px;height:46px;background:none;border:0}.pod .plth .hwpic svg{width:100%;height:100%}
@@ -111,9 +111,11 @@ body.girly .poc,body.girly .pod .qc{background:#fffafd}
 .pod .plp i{display:block;font-style:normal;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .pod .plp b{font-size:14px}.pod .plp small{display:block;font-size:11px;color:var(--muted)}.pod .plp em{color:var(--muted)}
 .pod .plp .lo b{color:#3ad06b}
+.pod .plq{text-align:center;line-height:1.05}.pod .plq b{display:block;font:600 24px Oswald,sans-serif}.pod .plq small,.pod .plb small{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.pod .plb{line-height:1.15;border-left:1px solid var(--line);padding-left:10px;min-height:34px}.pod .plb b{display:block;font:600 16px Oswald,sans-serif;color:#3ad06b;letter-spacing:.03em}.pod .plb small{text-transform:none;letter-spacing:0;color:#3ad06b;font-size:12px}
 .pod .plx{grid-column:1/-1;font-size:13px;border-top:1px dashed var(--line);padding-top:6px;line-height:1.45}
 .pod .srcq>summary{cursor:pointer;list-style:none}.pod .srcq>summary::-webkit-details-marker{display:none}
-@media (max-width:640px){ .pod .plr{grid-template-columns:48px minmax(0,1fr)} .pod .plth{width:48px;height:40px} .pod .plp{grid-column:1/-1;grid-template-columns:repeat(var(--n),1fr);text-align:left;border-top:1px solid var(--line);padding-top:6px} }
+@media (max-width:640px){ .pod .plr{grid-template-columns:48px minmax(0,1fr) 54px} .pod .plq b{font-size:20px} .pod .plb{grid-column:1/-1;border:0;padding:0;min-height:0;display:flex;gap:8px;align-items:baseline} .pod .plb:empty{display:none} .pod .plth{width:48px;height:40px} .pod .plp{grid-column:1/-1;grid-template-columns:repeat(var(--n),1fr);text-align:left;border-top:1px solid var(--line);padding-top:6px} }
 `;
 document.head.appendChild(css);
 
@@ -304,7 +306,9 @@ function wirePriceList(B,o){
       const cls=Q.length>1&&!r.every?"miss":r.best>=0&&Q.length>1?"win":"";
       return `<div class="plr ${cls} ${open?"open":""}" data-pr="${r.i}" style="--bc:${r.best>=0?"#3ad06b":"#e5483b"}">
         <div class="plth">${pic||`<span>${r.i+1}</span>`}</div>
-        <div class="plin"><div class="pln">${E(r.it.desc)}</div><div class="plm">${r.it.qty!=null&&r.it.qty!==""?`<span>qty ${E(r.it.qty)}${r.it.unit?" "+E(r.it.unit):""}</span>`:""}${Q.length>1&&r.best>=0&&r.hi>r.lo?`<span style="color:#3ad06b">${E(vshort(Q[r.best].vendor))} saves ${$$(r.hi-r.lo)} (${Math.round((r.hi/r.lo-1)*100)}%)</span>`:""}${Q.length>1&&!r.every?`<span style="color:#e5483b">${Q.filter((_,k)=>!(r.c[k]&&r.c[k].t>0)).map(q=>vshort(q.vendor)).join(", ")} didn't price it</span>`:""}${r.c.some(x=>x&&x.note)?`<span style="color:#f5b041">⚠ note</span>`:""}</div></div>
+        <div class="plin"><div class="pln">${E(r.it.desc)}</div><div class="plm">${Q.length>1&&!r.every?`<span style="color:#e5483b">${Q.filter((_,k)=>!(r.c[k]&&r.c[k].t>0)).map(q=>vshort(q.vendor)).join(", ")} didn't price it</span>`:""}${r.c.some(x=>x&&x.note)?`<span style="color:#f5b041">⚠ note</span>`:""}</div></div>
+        <div class="plq">${r.it.qty!=null&&r.it.qty!==""?`<b>${E(r.it.qty)}</b><small>${E(r.it.unit||"qty")}</small>`:`<small>qty ?</small>`}</div>
+        <div class="plb">${Q.length>1&&r.best>=0&&r.hi>r.lo?`<b>${E(vshort(Q[r.best].vendor))}</b><small>saves ${$$(r.hi-r.lo)} · ${Math.round((1-r.lo/r.hi)*100)}%</small>`:Q.length>1&&r.best>=0&&r.n>1?`<small>same price</small>`:""}</div>
         <div class="plp" style="--n:${Q.length}">${Q.map((qq,k)=>{ const x=r.c[k]; return `<div class="${x&&x.t===r.lo&&Q.length>1?"lo":""}"><i>${E(vshort(qq.vendor))}</i>${x&&x.t>0?`<b>${$$(x.t)}</b>${x.u&&Math.abs(x.u-x.t)>0.005?`<small>${$$(x.u)}/${E(x.uu)}</small>`:""}`:`<em>—</em>`}</div>`; }).join("")}</div>
         ${open?`<div class="plx">${Q.map((qq,k)=>{ const x=r.c[k]; return `<div><b>${E(qq.vendor)}</b>: ${x?E(x.txt):"<em>not quoted</em>"}${x&&x.note?` <span style="color:#f5b041">· ${E(x.note)}</span>`:""}</div>`; }).join("")}
           <div style="margin-top:6px"><button class="btn sm" type="button" data-pix="${r.i}">Remove this item</button></div></div>`:""}</div>`; }).join("");
