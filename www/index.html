@@ -444,8 +444,12 @@ const BOARDS=[
 const STAGES=[]; BOARDS.forEach(b=>b.stages.forEach(s=>STAGES.push({...s,board:b.k,bc:b.c,bt:b.t})));
 const SIDX=Object.fromEntries(STAGES.map((s,i)=>[s.k,i]));
 /* one colour per job - same on the week planner blocks and the To do suggestion cards */
-const JOB_COLORS=window.JOB_COLORS=["#2f8ff0","#ff8a2a","#3ad06b","#e04fa0","#9b4dff","#22c3e6","#e5483b","#c9a46a"];
-window.jobColor=jid=>{const ids=jobs.map(j=>j.id).sort();return JOB_COLORS[Math.max(0,ids.indexOf(jid))%JOB_COLORS.length];};
+const JOB_COLORS=window.JOB_COLORS=["#2f8ff0","#ff8a2a","#3ad06b","#e04fa0","#9b4dff","#22c3e6","#e5483b","#c9a46a","#f5d142","#a3e635","#14b8a6","#ff9ecf","#8b9cff","#b45309"];
+/* every job that's on the go gets its own colour - no two active jobs share one (Kyle, Nov 8). Finished jobs reuse colours. */
+window.jobColor=jid=>{ const live=j=>j&&j.stage!=="done"&&!j.archived&&j.id!=="inventory";
+  const act=jobs.filter(live).map(j=>j.id).sort(); const i=act.indexOf(jid);
+  if(i>=0) return JOB_COLORS[i%JOB_COLORS.length];
+  const ids=jobs.map(j=>j.id).sort(); return JOB_COLORS[Math.max(0,ids.indexOf(jid))%JOB_COLORS.length]; };
 const ST={
  sent:{t:"Sent - waiting",c:"#8e96a3"}, replied:{t:"Replied",c:"#2f8ff0"}, quote:{t:"Quote in",c:"#ff8a2a"},
  approved:{t:"Approved / PO",c:"#9b4dff"}, production:{t:"In production",c:"#9b4dff"}, ready:{t:"Ready for pickup",c:"#22c3e6"},
