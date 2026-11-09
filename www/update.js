@@ -3,7 +3,24 @@
    shows "⬆ Update" in the header when there's a newer one, downloads it and opens Android's installer.
    The first time, Android asks to allow "Install unknown apps" for GVC Vault. */
 (()=>{
-if(typeof Native==="undefined"||!Native) return;
+/* Web version (Robin's iPhone, any browser): no app store - just show "⬆ New version" when the site has been updated
+   since this page was opened; tapping it pulls the fresh files past the browser cache and reloads (Robin, Nov 8). */
+if(typeof Native==="undefined"||!Native){
+  if(!/^https?:/.test(location.protocol)) return;
+  const btn=document.createElement("button"); btn.className="btn"; btn.type="button"; btn.id="updBtn"; btn.style.display="none";
+  btn.style.cssText+=";border-color:#3ad06b;color:#7be29b"; btn.textContent="⬆ Update"; btn.title="A new version is out - tap to load it";
+  const host=document.getElementById("undoBtn"); if(host) host.parentNode.insertBefore(btn,host); else document.body.appendChild(btn);
+  let mine=null;
+  const ver=async()=>{ try{ const r=await fetch("version.txt?t="+Date.now(),{cache:"no-store"}); if(r.ok) return (await r.text()).trim(); }catch(e){} return null; };
+  const check=async()=>{ const v=await ver(); if(!v) return; if(!mine){ mine=v; return; } if(v!==mine) btn.style.display=""; };
+  btn.onclick=async()=>{ btn.textContent="Updating…";
+    const urls=[location.pathname,...[...document.scripts].map(s=>s.src).filter(Boolean),...[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>l.href)];
+    await Promise.all(urls.map(u=>fetch(u,{cache:"reload"}).catch(()=>{})));
+    location.reload(); };
+  check(); setInterval(check,5*60e3);
+  document.addEventListener("visibilitychange",()=>{ if(!document.hidden) check(); });
+  return;
+}
 const REL="https://api.github.com/repos/jackslinger6/gvc-shop/releases/latest";
 let latest=null, mine=null, busy=false;
 const btn=document.createElement("button"); btn.className="btn"; btn.type="button"; btn.id="updBtn"; btn.style.display="none";
