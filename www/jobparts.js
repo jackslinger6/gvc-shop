@@ -81,8 +81,8 @@ function draw(jobNo,jobName,rows){
   D.querySelectorAll("[data-jm]").forEach(b=>b.onclick=()=>{ mat=b.dataset.jm; draw(jobNo,jobName,rows); });
   $("#jpRefresh").onclick=async()=>{ const r=await load(jobNo,true); await sign(r.map(x=>x.thumb_path)); draw(jobNo,jobName,r); };
   D.querySelectorAll("[data-jv]").forEach(el=>el.onclick=async()=>{ const p=rows.find(x=>x.id===el.dataset.jv); if(!p||!p.thumb_path) return;
-    await sign([p.thumb_path]); const back=()=>draw(jobNo,jobName,rows);
-    viewDrawing(urls[p.thumb_path],"Bend drawing - "+p.part_no,false);
+    await sign([p.thumb_path].concat(p.pdf_path?[p.pdf_path]:[])); const back=()=>draw(jobNo,jobName,rows);
+    viewDrawing(urls[p.thumb_path],"Bend drawing - "+p.part_no,false,p.pdf_path?urls[p.pdf_path]:null);   // the PDF is drawn sharp; the picture shows until it's ready
     const x=$("#dlg").querySelector("button[onclick='closeDlg()']"); if(x){ x.textContent="Back"; x.onclick=e=>{ e.preventDefault(); back(); }; x.removeAttribute("onclick"); } });
   D.querySelectorAll("[data-jo]").forEach(el=>el.onclick=async()=>{ el.disabled=true;
     const r=await sb.storage.from("gvc-parts").createSignedUrl(el.dataset.jo,60*30,el.dataset.dl?{download:el.dataset.jn}:undefined); el.disabled=false;
