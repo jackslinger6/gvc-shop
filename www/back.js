@@ -8,13 +8,16 @@
 (()=>{
 const D=()=>document.getElementById("dlg"), S=()=>document.getElementById("scrim");
 const isOn=()=>{ const s=S(); return !!(s&&s.classList.contains("on")); };
-let stack=[], curKey=null, curFn=null, pending=null, goingBack=false;
+let stack=[], curKey=null, curFn=null, pending=null, goingBack=false, replay=null;
 
 /* what's showing in the pop-up right now */
 function keyNow(){
   const d=D(); if(!d) return null;
   if(typeof openId!=="undefined"&&openId) return "job:"+openId;
-  const f=d.firstElementChild; const z=d.querySelector("#zImg")||(f&&f.tagName==="IMG"?f:null); if(z) return "draw:"+(z.getAttribute("src")||"").split("?")[0];
+  // a drawing is named by its title, not the picture: the sharp PDF canvas replaces the picture a moment later,
+  // which used to look like a new screen - Back then re-opened the same drawing (Kyle, Nov 9)
+  const zb=d.querySelector("#zBox"); if(zb){ const t=d.querySelector("b"); return "draw:"+(t?t.textContent.trim():""); }
+  const f=d.firstElementChild; const z=f&&f.tagName==="IMG"?f:null; if(z) return "img:"+(z.getAttribute("src")||"").split("?")[0];
   const jp=d.querySelector(".jp h3"); if(jp) return "parts:"+jp.textContent.trim();
   const c=d.querySelector(".cnt h3"); if(c) return "count:"+c.textContent.trim();
   const h=d.querySelector("h2,h3"); return "x:"+(h?h.textContent.trim().slice(0,60):d.textContent.trim().slice(0,30));
@@ -29,23 +32,37 @@ function wrap(name,mk){
 wrap("openJob"); wrap("openJobParts"); wrap("viewDrawing"); wrap("zoomImg"); wrap("openCount"); wrap("openPrices");
 
 function check(){
-  if(!isOn()){ stack=[]; curKey=null; curFn=null; pending=null; goingBack=false; return; }
+  if(!isOn()){ stack=[]; curKey=null; curFn=null; pending=null; replay=null; goingBack=false; return; }
   const k=keyNow(); if(!k||k===curKey){ if(pending&&k===curKey&&!curFn) curFn=pending; pending=null; return; }
   const i=stack.findIndex(x=>x.key===k);
-  if(i>=0){ stack.length=i; }                       // went back with an in-app Back button
+  let keep=null;
+  if(i>=0){ keep=stack[i].fn; stack.length=i; }     // went back with an in-app Back button
   else if(curKey&&!goingBack) stack.push({key:curKey,fn:curFn});
-  curKey=k; curFn=pending; pending=null; goingBack=false;
+  // coming back to a screen re-drawn by its own code (not one of the wrapped openers) keeps the way to open it again;
+  // before, it lost it and the next Back skipped right past it - "goes back too far" (Kyle, Nov 9)
+  curKey=k; curFn=pending||keep||replay; pending=null; replay=null; goingBack=false;
+  tidy();
+}
+/* a drawing or picture opened from another screen: its Close button becomes Back (one step), the ✕ closes everything */
+function tidy(){
+  if(!stack.length) return; const d=D(); if(!d) return;
+  if(!/^(draw|img):/.test(curKey||"")) return;
+  d.querySelectorAll("button[onclick='closeDlg()']").forEach(x=>{ if(x.dataset.bk) return; x.dataset.bk="1"; x.removeAttribute("onclick"); x.textContent="Back";
+    x.onclick=e=>{ e.preventDefault(); e.stopPropagation(); window.gvcDlgBack(); };
+    const c=document.createElement("button"); c.type="button"; c.className=x.className; c.textContent="✕"; c.title="Close"; c.setAttribute("aria-label","Close");
+    c.onclick=e=>{ e.preventDefault(); e.stopPropagation(); closeDlg(); }; x.after(c); });
 }
 const mo=new MutationObserver(check);
 const start=()=>{ if(D()) mo.observe(D(),{childList:true}); if(S()) mo.observe(S(),{attributes:true,attributeFilter:["class"]}); };
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start); else start();
 
 /* one step back inside the pop-up */
+window.gvcBackDebug=()=>({stack:stack.map(x=>[x.key,!!x.fn]),curKey,curFn:!!curFn});
 window.gvcDlgBack=()=>{
   check();
   while(stack.length){
     const t=stack.pop();
-    if(t.fn){ goingBack=true; try{ t.fn(); return; }catch(e){ goingBack=false; } }
+    if(t.fn){ goingBack=true; replay=t.fn; try{ t.fn(); check(); return; }catch(e){ goingBack=false; replay=null; } }
   }
   if(typeof closeDlg==="function") closeDlg();
 };
@@ -63,7 +80,8 @@ window.gvcBack=()=>{
     if(isOn()){ window.gvcDlgBack(); return true; }
     if(window.ME&&ME.preview&&window.crewPreview){ window.crewPreview(false); return true; }
     const login=document.getElementById("app"); if(login&&login.hidden) return false;
-    if(typeof cur!=="undefined"&&cur!=="home"){ if(typeof shellGo==="function") shellGo("home"); else { cur="home"; render(); } return true; }
+    const atHome=cur==="home"||(cur==="todo"&&window.gvcHomeIsTodo&&window.gvcHomeIsTodo());   // Kyle's Home is the To do list
+    if(typeof cur!=="undefined"&&!atHome){ if(typeof shellGo==="function") shellGo("home"); else { cur="home"; render(); } return true; }
   }catch(e){}
   return false;
 };
