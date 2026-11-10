@@ -18,14 +18,14 @@ window.paidMs=(a,b)=>{ a=+new Date(a); b=b==null?Date.now():+new Date(b); if(!(b
   return ms; };
 const st=document.createElement("style");
 st.textContent=`
-.pbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;margin:0 auto 10px;max-width:1500px;padding:8px 12px;border-radius:12px;
+.pclk{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;margin:0 auto 10px;max-width:1500px;padding:8px 12px;border-radius:12px;
   background:linear-gradient(90deg,rgba(58,208,107,.22),rgba(58,208,107,.06));border:1px solid rgba(58,208,107,.55);box-shadow:0 0 18px rgba(58,208,107,.18)}
-.pbar[hidden]{display:none}
-.pbar .dot{width:10px;height:10px;border-radius:50%;background:#3ad06b;box-shadow:0 0 10px #3ad06b;animation:pdot 1.4s ease-in-out infinite;flex:none}
+.pclk[hidden]{display:none}
+.pclk .dot{width:10px;height:10px;border-radius:50%;background:#3ad06b;box-shadow:0 0 10px #3ad06b;animation:pdot 1.4s ease-in-out infinite;flex:none}
 @keyframes pdot{50%{opacity:.35}}
-.pbar .t{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pbar .t b{font-weight:600}.pbar .t small{color:var(--muted);margin-left:6px}
-.pbar .clk{font:600 18px Oswald,sans-serif;letter-spacing:.06em;color:#7ff0a8;font-variant-numeric:tabular-nums}
-.pbar button{border:none;border-radius:10px;background:#e5483b;color:#fff;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:8px 12px;cursor:pointer}
+.pclk .t{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pclk .t b{font-weight:600}.pclk .t small{color:var(--muted);margin-left:6px}
+.pclk .clk{font:600 18px Oswald,sans-serif;letter-spacing:.06em;color:#7ff0a8;font-variant-numeric:tabular-nums}
+.pclk button{border:none;border-radius:10px;background:#e5483b;color:#fff;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:8px 12px;cursor:pointer}
 .mday{grid-column:1/-1}
 .mday .row2{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid #2a2e34;border-left:4px solid var(--c);border-radius:12px;margin-bottom:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 12%,#17191d),#15171a 60%)}
 .mday .row2.on{border-color:#3ad06b;box-shadow:0 0 0 1px #3ad06b inset}
@@ -68,7 +68,7 @@ body.crew .shnav [data-n="jobs"],body.crew #pTA,body.crew #pTS,body.crew [data-o
 body.crew #dlg [data-rmasm],body.crew #dlg #addAsm,body.crew #dlg #newAsm,body.crew [data-wc]{display:none!important}
 body.crew .lanes select{pointer-events:none;opacity:.8}
 body.crew .crewhide,body.crew .palert{display:none!important}
-body.parts .pbar{display:none!important}
+body.parts .pclk{display:none!important}
 body.crew #app .bar,body.crew #subnav{display:none!important}
 body.crew .wkv .pblk,body.crew .wkv .pjob{cursor:default!important}
 @media (max-width:899px){ body.crew .shnav{grid-template-columns:repeat(4,1fr)!important} }
@@ -82,7 +82,7 @@ const hm=ms=>{ const s=Math.max(0,Math.floor(ms/1000)); return `${Math.floor(s/3
 const hrs=ms=>{ const h=ms/36e5; return h<0.1?"<0.1h":(Math.round(h*10)/10)+"h"; };
 
 /* ---- clock bar ---- */
-const bar=document.createElement("div"); bar.className="pbar"; bar.hidden=true;
+const bar=document.createElement("div"); bar.className="pclk"; bar.hidden=true;
 const wrap=document.querySelector(".wrap"); if(wrap) wrap.prepend(bar);
 function paint(){
   clearInterval(tick);

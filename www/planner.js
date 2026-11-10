@@ -21,6 +21,13 @@ css.textContent=`
 .wkv .pbar input[type=text]{flex:1;min-width:150px;width:auto}
 .wkv .pbar select{width:auto}
 .wkv .pbar.hid{display:none}
+/* phone: the week controls sit on one quiet row that scrolls sideways, not three rows of big buttons (Kyle, Nov 9) */
+@media (max-width:700px){ .wkv .pbar.ptop{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:5px;padding-bottom:2px}
+  .wkv .pbar.ptop::-webkit-scrollbar{display:none}
+  .wkv .pbar.ptop .btn{padding:5px 9px;font-size:12.5px;white-space:nowrap;flex:none;min-height:0}
+  .wkv .pbar.ptop .prng{white-space:nowrap;font-size:12.5px;margin:0 4px!important}
+  .wkv .pbar.ptop>span[style*="flex:1"]{display:none}
+  .wkv .pbar.ptop .lbl{white-space:nowrap;font-size:12px;color:var(--muted)} .wkv .pbar.ptop select{flex:none;padding:4px 6px} }
 .wkv .pbar input,.wkv .pbar select{font:inherit;font-size:13px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
 .wkv .lbl{font-size:12px;color:var(--muted)}
 .wkv .plbl{width:84px;font-size:12px;color:var(--muted)}
@@ -400,11 +407,11 @@ function renderWeek(){
   const ws=fromIso(D[0]||iso(planMonday(wk))), we=fromIso(D[D.length-1]||iso(planMonday(wk)));
   const rng=`${ws.toLocaleDateString("en-CA",{month:"short",day:"numeric"})} – ${we.toLocaleDateString("en-CA",{month:"short",day:"numeric"})}`;
   const jobOpts=jobs.filter(j=>j.stage!=="done").map(j=>`<option value="${esc(j.id)}">${esc(j.name)}</option>`).join("");
-  let h=`<div class="pbar"><button class="btn sm" data-wk="-1" aria-label="Previous week">‹</button><button class="btn sm" data-wk="0">This week</button><button class="btn sm" data-wk="1" aria-label="Next week">›</button>
-     <span style="font-weight:600;margin:0 6px">${rng}</span>
-     <button class="btn sm ${weeks===1?"primary":""}" data-wn="1">1 week</button><button class="btn sm ${weeks===2?"primary":""}" data-wn="2">2 weeks</button>
+  let h=`<div class="pbar ptop"><button class="btn sm" data-wk="-1" aria-label="Previous week">‹</button><button class="btn sm" data-wk="0">This week</button><button class="btn sm" data-wk="1" aria-label="Next week">›</button>
+     <span class="prng" style="font-weight:600;margin:0 6px">${rng}</span>
+     <button class="btn sm ${weeks===1?"primary":""}" data-wn="1">1 wk</button><button class="btn sm ${weeks===2?"primary":""}" data-wn="2">2 wk</button>
      <button class="btn sm ${weekend?"primary":""}" id="pWe">Sat/Sun</button><span style="flex:1"></span>
-     <button class="btn sm" id="pTA">+ Task</button><button class="btn sm" id="pTS">Send someone now</button><span class="lbl">Day starts</span><select id="pStart">${[6,6.5,7,7.5,8,8.5,9].map(x=>`<option value="${x}" ${DS()===x?"selected":""}>${clock(x-DS())}</option>`).join("")}</select></div>
+     <button class="btn sm" id="pTA">+ Task</button><button class="btn sm" id="pTS">Send now</button><span class="lbl">Starts</span><select id="pStart">${[6,6.5,7,7.5,8,8.5,9].map(x=>`<option value="${x}" ${DS()===x?"selected":""}>${clock(x-DS())}</option>`).join("")}</select></div>
    <div class="pbar ${openRow==="add"?"":"hid"}"><span class="plbl">Add a task</span><input type="text" id="pQn" placeholder="e.g. Grind welds on tailgate"><select id="pQh">${[0.5,1,2,3,4,6,8].map(x=>`<option ${x===2?"selected":""}>${x}</option>`).join("")}</select><span class="lbl">h</span><select id="pQj"><option value="">No job (other)</option>${jobOpts}</select><button class="btn sm" id="pQa">Add</button></div>
    <div class="pbar ${openRow==="send"?"":"hid"}"><span class="plbl">Send now</span><select id="pIp">${CREW.map(c=>`<option ${c==="Cooper"?"selected":""}>${c}</option>`).join("")}</select><input type="text" id="pIw" value="Pick up parts at paint"><select id="pIh">${[0.5,1,1.5,2,3,4].map(x=>`<option ${x===1?"selected":""}>${x}</option>`).join("")}</select><span class="lbl">h</span><button class="btn sm primary" id="pIg">Send</button></div>
    <div class="pmsg">${esc(msg)}</div>`;

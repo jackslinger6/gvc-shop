@@ -144,7 +144,7 @@ render=function(){
   if(cur==="drawings"&&!showDrawings()) cur=homeView();
   if(isCrewM()&&["pipeline","ordering","build"].includes(cur)) cur="crewjobs";   // crew Jobs = the All jobs list, no boards
   _render();
-  if(cur===homeView()||["punch","drawings","mytodo","crewjobs"].includes(cur)){ const sub=$("#subnav"); if(sub) sub.hidden=true; }
+  if(cur===homeView()||["punch","drawings","mytodo","crewjobs","crew"].includes(cur)){ const sub=$("#subnav"); if(sub) sub.hidden=true; }
   if(!(window.ME&&ME.role==="parts")){ const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",!(cur==="crewjobs"||["pipeline","ordering","build","archive"].includes(cur))); }
   navState();
 };
