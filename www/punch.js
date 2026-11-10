@@ -137,9 +137,9 @@ const clk12=t=>new Date(t).toLocaleTimeString([], {hour:"numeric",minute:"2-digi
 async function moveStart(t,quiet){
   if(!open) return false;
   const sa=new Date(t); if(sa>new Date()){ toast("That start time is in the future."); return false; }
-  const fit=window.gvcFitPunch?await window.gvcFitPunch(sa,null,open.id):{changes:[]};
+  const fit=window.gvcFitPunch?await window.gvcFitPunch(sa,null,open.id,!quiet):{changes:[]};
   if(fit.block){ toast("Couldn't move the start: "+fit.block); return false; }
-  if(fit.changes.length&&!quiet&&!confirm("This runs into other time:\n\n"+fit.changes.map(c=>"• "+c.label).join("\n")+"\n\nShorten it to fit?")) return false;
+  if(fit.changes.length&&!quiet&&!confirm("This runs into other time:\n\n"+fit.changes.map(c=>"• "+c.label).join("\n")+"\n\nFix that to fit?")) return false;
   if(window.gvcApplyFit&&!(await window.gvcApplyFit(fit))) return false;
   const r=await sb.from("gvc_punches").update({start_at:sa.toISOString(),edited_at:new Date().toISOString()}).eq("id",open.id);
   if(r.error){ toast("Couldn't move the start: "+r.error.message); return false; }
