@@ -292,6 +292,25 @@ window.myDayWire=root=>{
   root.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>pickTask());
   root.querySelectorAll("[data-crewv]").forEach(b=>b.onclick=()=>window.crewPreview(true));
 };
+/* ---- crew To do (Colton, Aaron): Home is their task list, the clock is on the Punch tab - same layout as Kyle (Nov 9) ---- */
+window.myTodoHtml=()=>{
+  const T=myTasks(); const seen=new Set(); let open=0;
+  const row=x=>{ const j=x.jid&&jobs.find(y=>y.id===x.jid); const a=j&&(j.assemblies||[]).find(y=>y.id===x.aid); const k=x.jid+"|"+x.aid;
+    if(seen.has(k)) return ""; seen.add(k);
+    const dn=x.t.done||(a&&a.status==="done"); if(!dn) open++;
+    const num=j&&window.jobNum?window.jobNum(j.name):""; const c=x.color||"#8e96a3";
+    return `<div class="ti ctd ${dn?"dn":""}" style="--c:${c}"><button class="ck" type="button" ${a&&!dn?`data-pdn="${esc(x.jid)}|${esc(x.aid)}"`:"disabled"} title="${dn?"Done":"Mark done"}">${dn?"✓":""}</button><span class="bar"></span>
+      <div class="body" ${j?`data-oj="${esc(j.id)}"`:""}><div class="tt">${esc(x.t.name)}</div><div class="meta">${num?`<span class="jb" style="background:${c}">${esc(num)}</span> `:""}${esc(j?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,""):(x.t.job||""))}${x.time?" · "+esc(x.time):""}${a&&a.status==="prog"?" · in progress":""}</div></div></div>`; };
+  const days=T.days.map(d=>{ const r=d.rows.map(row).join(""); return `<div class="dh">${d.label}</div>${r||`<div class="none">Nothing planned${d.label==="TODAY"?" for you today":""}.</div>`}`; }).join("");
+  const other=T.other.map(row).join("");
+  return `<section class="tbox mday ctodo" aria-label="To do"><h3>To do <span class="n">${open}</span></h3>${days}${other?`<div class="dh">ALSO ON YOU</div>${other}`:""}
+    <button class="add" type="button" data-addw="1" style="margin-top:10px">+ I'm doing something else</button></section>`;
+};
+window.myTodoWire=root=>{
+  root.querySelectorAll("[data-pdn]").forEach(b=>b.onclick=()=>{ const [j,a]=b.dataset.pdn.split("|"); doneTask(j,a); });
+  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>openJob(b.dataset.oj));
+  root.querySelectorAll("[data-addw]").forEach(b=>b.onclick=()=>addMyWork());
+};
 window.crewHome=B=>{
   B.innerHTML=`<div class="hm shanim">${window.myDayHtml()}</div>`;
   window.myDayWire(B);
@@ -475,7 +494,7 @@ window.crewAct=k=>{
 };
 
 /* ---- crew mode guard: only the views a crew member uses ---- */
-const CREW_VIEWS=["home","drawings","archive","crew","ncr","revs","inv","requests","staging","porders"];
+const CREW_VIEWS=["home","drawings","mytodo","punch","crewjobs","archive","crew","ncr","revs","inv","requests","staging","porders"];
 const _render=render;
 render=function(){
   if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home";

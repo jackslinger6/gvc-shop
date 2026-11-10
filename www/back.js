@@ -80,7 +80,7 @@ window.gvcBack=()=>{
     if(isOn()){ window.gvcDlgBack(); return true; }
     if(window.ME&&ME.preview&&window.crewPreview){ window.crewPreview(false); return true; }
     const login=document.getElementById("app"); if(login&&login.hidden) return false;
-    const atHome=cur==="home"||(cur==="todo"&&window.gvcHomeIsTodo&&window.gvcHomeIsTodo());   // Kyle's Home is the To do list
+    const atHome=cur==="home"||(window.gvcHomeView&&cur===window.gvcHomeView());   // Kyle's Home is To do, the crew's is their task list   // Kyle's Home is the To do list
     if(typeof cur!=="undefined"&&!atHome){ if(typeof shellGo==="function") shellGo("home"); else { cur="home"; render(); } return true; }
   }catch(e){}
   return false;

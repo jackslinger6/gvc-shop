@@ -3,11 +3,17 @@
    - PUNCH tab (Kyle): the punch clock - My day with Punch in / Done, My time this week, the crew.
      Crew (Colton) already has this as his Home, so he doesn't get a second copy.
    - DRAWINGS tab (Kyle + crew): active jobs that have parts & drawings, tap one to open its parts list.
-     Jobs with no drawings yet and finished jobs are folded underneath, with a search. */
+     Jobs with no drawings yet and finished jobs are folded underneath, with a search.
+   - Same layout for the crew (Colton, Aaron), Nov 9: HOME · JOBS · DRAWINGS · + · PUNCH · CREW · MORE.
+     Their Home is their To do (the tasks on them: today, next days, also on you - tick to finish), Punch is the clock
+     screen that used to be their Home, Jobs is the All jobs list (look-only, no boards). Robin (parts) unchanged. */
 (()=>{
 const isAdmin=()=>!(window.ME&&(ME.role==="crew"||ME.role==="parts"));
+const isCrewM=()=>!!(window.ME&&ME.role==="crew");
+const homeView=()=>isAdmin()?"todo":isCrewM()?"mytodo":"home";
 const showDrawings=()=>!(window.ME&&ME.role==="parts");
 window.gvcHomeIsTodo=()=>isAdmin();
+window.gvcHomeView=homeView;
 
 const css=document.createElement("style");
 css.textContent=`
@@ -28,6 +34,12 @@ css.textContent=`
 .dw .fold.open span:last-child{transform:rotate(90deg)}
 .dw .empty2{font-size:13px;color:var(--muted);padding:8px 2px}
 .shnav .ni.nx{font-size:12px}
+body.crew:not(.parts) .shnav [data-n="jobs"]{display:flex!important}
+.ctodo .ti .body{cursor:pointer;min-width:0}
+.ctodo .ti.dn .tt{text-decoration:line-through;opacity:.55}
+.ctodo .ti .ck:disabled{cursor:default;border-color:#3ad06b;color:#3ad06b}
+.ctodo .jb{font:600 11.5px Oswald,sans-serif;letter-spacing:.06em;color:#111;border-radius:5px;padding:0 6px}
+.cjobs{margin-top:10px}
 @media (max-width:899px){ body.nav7 .shnav .ni{font-size:10.5px;letter-spacing:.04em} body.nav7 .shnav .ni svg{width:21px;height:21px} body.nav7 .shnav .plus{width:58px;height:58px} }
 `;
 document.head.appendChild(css);
@@ -50,9 +62,9 @@ if(nav){
 function navState(){
   if(!nav) return;
   bD.style.display=showDrawings()?"":"none";
-  bP.style.display=isAdmin()?"":"none";
-  const on=cur==="todo"&&isAdmin()?"home":cur;
-  if(["home","drawings","punch"].includes(on)) nav.querySelectorAll("[data-n]").forEach(b=>b.classList.toggle("on",b.dataset.n===on));
+  bP.style.display=isAdmin()||isCrewM()?"":"none";
+  const on=cur===homeView()?"home":cur==="crewjobs"?"jobs":cur;
+  if(["home","drawings","punch","jobs"].includes(on)) nav.querySelectorAll("[data-n]").forEach(b=>b.classList.toggle("on",b.dataset.n===on));
   const n=[...nav.children].filter(el=>!el.classList.contains("railcrew")&&getComputedStyle(el).display!=="none").length;
   const phone=window.innerWidth<900;
   if(phone) nav.style.setProperty("grid-template-columns",`repeat(${n},minmax(0,1fr))`,"important"); else nav.style.removeProperty("grid-template-columns");
@@ -113,18 +125,27 @@ function renderDrawings(){
   $("#dwFin").onclick=()=>{ showFin=!showFin; renderDrawings(); };
   B.querySelectorAll("[data-dj]").forEach(b=>b.onclick=()=>{ if(window.jpFresh) window.jpFresh(); openJobParts(b.dataset.dj,b.dataset.dn,"drawings"); });
 }
-window.extraViews=Object.assign(window.extraViews||{},{punch:renderPunch,drawings:renderDrawings});
+function renderMyTodo(){
+  const B=$("#board"); B.className="home"; B.style.gridTemplateColumns="";
+  B.innerHTML=`<div class="hm shanim">${window.myTodoHtml?window.myTodoHtml():""}</div>`;
+  if(window.myTodoWire) window.myTodoWire(B);
+}
+function renderCrewJobs(){ const B=$("#board"); B.className="home cjobs"; B.style.gridTemplateColumns=""; B.innerHTML=""; }
+window.extraViews=Object.assign(window.extraViews||{},{punch:renderPunch,drawings:renderDrawings,mytodo:renderMyTodo,crewjobs:renderCrewJobs});
 // when parts are imported or refreshed in the panel, the counts here go stale
 const _ojp=window.openJobParts; if(_ojp) window.openJobParts=function(...a){ countsAt=0; return _ojp.apply(this,a); };
 
 /* ---- render: Kyle's Home is the To do list ---- */
 const _render=render;
 render=function(){
-  if(cur==="home"&&isAdmin()) cur="todo";        // "todo" is Home for Kyle; everything that refreshes To do keeps working
-  if(cur==="punch"&&!isAdmin()) cur="home";
-  if(cur==="drawings"&&!showDrawings()) cur="home";
+  if(cur==="home") cur=homeView();              // "todo" is Home for Kyle, "mytodo" for the crew; everything that refreshes To do keeps working
+  if(cur==="mytodo"&&!isCrewM()) cur=homeView();
+  if(cur==="punch"&&!(isAdmin()||isCrewM())) cur=homeView();
+  if(cur==="drawings"&&!showDrawings()) cur=homeView();
+  if(isCrewM()&&["pipeline","ordering","build"].includes(cur)) cur="crewjobs";   // crew Jobs = the All jobs list, no boards
   _render();
-  if((cur==="todo"&&isAdmin())||cur==="punch"||cur==="drawings"){ const sub=$("#subnav"); if(sub) sub.hidden=true; }
+  if(cur===homeView()||["punch","drawings","mytodo","crewjobs"].includes(cur)){ const sub=$("#subnav"); if(sub) sub.hidden=true; }
+  if(!(window.ME&&ME.role==="parts")){ const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",!(cur==="crewjobs"||["pipeline","ordering","build","archive"].includes(cur))); }
   navState();
 };
 })();
