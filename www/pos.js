@@ -71,8 +71,13 @@ css.textContent=`
 `;
 document.head.appendChild(css);
 
-const recColor=r=>r.kind==="rfq"?(r.status==="open"?"#2f8ff0":"#6c727a"):((PL[r.status]||{}).c||"#6c727a");
-const recStatus=r=>r.kind==="rfq"?({open:"Waiting on quotes",ordered:"Ordered",closed:"Closed"})[r.status]||r.status:((PL[r.status]||{}).t||r.status);
+/* an open RFQ says what's actually happened: how many of the asked vendors have quoted (Kyle, Nov 10 - RFQ-1004 said "Waiting on quotes" with the quote in hand) */
+const rfqIn=r=>{ const V=[...new Set([...(r.vendors||[]),...linesOf(r).map(o=>o.x.name)])]; const L=linesOf(r);
+  const got=V.filter(v=>L.some(o=>o.x.name===v&&(["quote","ordered","received"].includes(o.x.status)||o.x.quoteNo||o.x.total))).length; return {got,n:V.length}; };
+const recColor=r=>r.kind==="rfq"?(r.status==="open"?(rfqIn(r).got&&rfqIn(r).got>=rfqIn(r).n?"#3ad06b":"#2f8ff0"):"#6c727a"):((PL[r.status]||{}).c||"#6c727a");
+const recStatus=r=>{ if(r.kind!=="rfq") return (PL[r.status]||{}).t||r.status;
+  if(r.status==="open"){ const {got,n}=rfqIn(r); return !got?"Waiting on quote"+(n>1?"s":""):got>=n?(n>1?"Quotes in":"Quote in"):`${got} of ${n} quotes in`; }
+  return ({ordered:"Ordered",closed:"Closed"})[r.status]||r.status; };
 const delivSum=r=>{ const D=r.deliveries||[]; return D.length?`${D.filter(d=>d.status==="received").length} of ${D.length} deliveries in`:""; };
 
 /* ================= list ================= */
