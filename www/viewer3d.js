@@ -96,7 +96,10 @@ function analyze(M){
   });
   // sheet thickness: biggest flat face to the nearest face that faces the other way
   const pl=M.faces.filter(F=>F.kind==="plane").sort((a,b)=>b.area-a.area); M.t=null;
-  for(const A of pl.slice(0,3)){ let best=null; pl.forEach(B=>{ if(dot(A.n,B.n)>-0.9998) return; const d=Math.abs(dot(sub(B.p,A.p),A.n)); if(d>0.1&&(best===null||d<best)) best=d; }); if(best!==null){ M.t=best; break; } }
+  { const votes={};   // most common nearest-opposite-face distance over the biggest flat faces (one odd face can't fool it)
+    for(const A of pl.slice(0,8)){ let best=null; pl.forEach(B=>{ if(dot(A.n,B.n)>-0.9998) return; const d=Math.abs(dot(sub(B.p,A.p),A.n)); if(d>0.1&&(best===null||d<best)) best=d; });
+      if(best!==null){ const k=best.toFixed(2); votes[k]=(votes[k]||0)+A.area; } }
+    const k=Object.keys(votes).sort((a,b)=>votes[b]-votes[a])[0]; if(k) M.t=+k; }
   // round faces: through the sheet (holes, cut corners) vs bends; Fusion splits a hole into two half faces - join them
   const cy=M.faces.filter(F=>F.kind==="cyl");
   cy.forEach(F=>{ F.cut=M.t!=null&&F.h<=M.t*1.08; F.full=F.arc>300; F.holeArc=F.arc; });
