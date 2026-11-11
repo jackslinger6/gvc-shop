@@ -39,6 +39,7 @@ async function editLines(jobIds,fn,why){
     catch(e){ say(`Couldn't update ${jobTag(jid)}: ${e.message||e}`); } }
   if(typeof render==="function") render();
 }
+let syncHold=false;
 async function nextNo(kind){ const r=await sb.rpc("gvc_next_no",{p_kind:kind}); if(r.error) throw new Error(r.error.message); return r.data; }
 
 const css=document.createElement("style");
@@ -78,6 +79,11 @@ const recColor=r=>r.kind==="rfq"?(r.status==="open"?(rfqIn(r).got&&rfqIn(r).got>
 const recStatus=r=>{ if(r.kind!=="rfq") return (PL[r.status]||{}).t||r.status;
   if(r.status==="open"){ const {got,n}=rfqIn(r); return !got?"Waiting on quote"+(n>1?"s":""):got>=n?(n>1?"Quotes in":"Quote in"):`${got} of ${n} quotes in`; }
   return ({ordered:"Ordered",closed:"Closed"})[r.status]||r.status; };
+/* what the order comes to: the totals typed on its job lines, else what the read quote adds up to (Nov 10) */
+const money=n=>"$"+n.toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
+const recTotal=r=>{ const L=linesOf(r).filter(o=>r.kind==="po"?o.x.po===r.no:o.x.status!=="declined"); let t=0,n=0;
+  L.forEach(o=>{ const v=parseFloat(String(o.x.total||"").replace(/[^0-9.]/g,"")); const q=!isNaN(v)&&v>0?v:(window.quoteTotal?window.quoteTotal(o.x):null); if(q){ t+=q; n++; } });
+  return n?(r.kind==="rfq"&&n>1?null:t):null; };
 const delivSum=r=>{ const D=r.deliveries||[]; return D.length?`${D.filter(d=>d.status==="received").length} of ${D.length} deliveries in`:""; };
 
 /* ================= list ================= */
@@ -86,7 +92,7 @@ function renderList(B){
   const L=tab==="open"?open:POS;
   const card=r=>`<button type="button" class="rc" data-no="${E(r.no)}" style="--c:${recColor(r)}"><span class="no">${E(r.no)}</span>
     <span class="t"><b>${E(r.kind==="po"?r.vendor||"":r.title||"")}${r.kind==="po"&&r.title?` <span style="font-weight:400">· ${E(r.title)}</span>`:""}</b>
-    <span>${(r.jobs||[]).map(id=>`<span class="chip">${E(jobTag(id))}</span>`).join("")}${r.kind==="rfq"?`asked ${E((r.vendors||[]).join(", ")||"-")}`:""}${r.rfq_no?` · from ${E(r.rfq_no)}`:""}${r.vendor_ref?` · ${E(r.vendor_ref)}`:""}${delivSum(r)?` · ${delivSum(r)}`:""}</span></span>
+    <span>${(r.jobs||[]).map(id=>`<span class="chip">${E(jobTag(id))}</span>`).join("")}${r.kind==="rfq"?`asked ${E((r.vendors||[]).join(", ")||"-")}`:""}${r.rfq_no?` · from ${E(r.rfq_no)}`:""}${r.vendor_ref?` · ${E(r.vendor_ref)}`:""}${recTotal(r)!=null?` · <b>${money(recTotal(r))}</b>`:""}${delivSum(r)?` · ${delivSum(r)}`:""}</span></span>
     <span class="st">${E(recStatus(r))}</span></button>`;
   const rf=L.filter(r=>r.kind==="rfq"), po=L.filter(r=>r.kind==="po");
   B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2>RFQs & POs</h2><span style="flex:1"></span>
@@ -110,7 +116,7 @@ function head(r){
       <span class="st" style="--c:${recColor(r)};background:${recColor(r)}">${E(recStatus(r))}</span></div>
     <div style="font-size:16px;font-weight:700;margin-top:2px">${E(r.kind==="po"?r.vendor:r.title||"")}${r.kind==="po"&&r.title?` <span style="font-weight:400;color:var(--muted)">· ${E(r.title)}</span>`:""}</div>
     <div class="lbl" style="margin-top:4px">${(r.jobs||[]).map(id=>`<span class="chip" style="cursor:pointer" data-oj="${E(id)}">${E(jobOf(id)?jobOf(id).name:id)}</span>`).join("")}</div>
-    <div class="lbl">${[r.rfq_no?"from "+r.rfq_no:"",r.vendor_ref?"vendor # "+r.vendor_ref:"","started "+day(r.created_at)].filter(Boolean).map(E).join(" · ")}</div>`;
+    <div class="lbl">${[r.rfq_no?"from "+r.rfq_no:"",r.vendor_ref?"vendor # "+r.vendor_ref:"","started "+day(r.created_at)].filter(Boolean).map(E).join(" · ")}${recTotal(r)!=null?` · <b style="color:var(--text)">Total ${money(recTotal(r))}</b>`:""}</div>`;
 }
 function renderRfq(B,r){
   const L=linesOf(r); const byV={}; L.forEach(({j,x})=>{ (byV[x.name]=byV[x.name]||[]).push({j,x}); });
@@ -123,7 +129,7 @@ function renderRfq(B,r){
         return `<tr><td><b>${E(v)}</b>${arr.length>1?`<div class="lg">${arr.length} jobs</div>`:""}</td>
           <td><span style="color:${st.c};font-weight:700">${E(st.t)}</span>${x.po?`<div class="lg">${E(x.po)}</div>`:""}</td>
           <td><input data-vq="${E(v)}" value="${E(x.quoteNo||"")}" placeholder="quote #" ${isKyle()?"":"disabled"}></td>
-          <td><input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="$" ${isKyle()?"":"disabled"}></td>
+          <td><input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${!x.total&&window.quoteTotal&&window.quoteTotal(x)?money(window.quoteTotal(x))+" on the quote":"$"}" ${isKyle()?"":"disabled"}></td>
           <td style="text-align:right">${isKyle()&&r.status==="open"&&!x.po?`<button class="btn sm primary" type="button" data-ord="${E(v)}">Order from ${E(String(v).split(/\s/)[0])} →</button>`:""}</td></tr>`; }).join("")}
       </tbody></table></div>
       ${isKyle()&&r.status==="open"?`<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" type="button" id="pAddV">+ Ask another vendor</button><button class="btn sm" type="button" id="pCmp">⚖ Compare their quotes</button><button class="btn sm" type="button" id="pClose">Close without ordering</button></div>`:""}
@@ -179,8 +185,11 @@ function wireCommon(B,r){
 }
 async function setPoStage(r,k){
   if(!isKyle()||k===r.status) return;
+  // hold the job→PO sync while this runs, or it logs the same move twice ("Ready for pickup (from the job)" + "Ready for pickup")
+  syncHold=true; try{
   await editLines(r.jobs,S=>{ let c=false; S.forEach(x=>{ if(x.po===r.no&&x.status!==k){ x.status=k; x.updated=new Date().toISOString(); if(k==="received") x.receivedAt=x.updated; c=true; } }); return c; },`${r.no} ${r.vendor}: ${PL[k].t}`);
   await saveRec(r,{status:k},PL[k].t);
+  }finally{ syncHold=false; }
 }
 
 /* ================= make RFQs / POs ================= */
@@ -246,7 +255,7 @@ async function orderFrom(r,v){
 /* a PO follows its job lines: the hourly email check (or anyone on a job card) moving a line forward moves the PO too */
 const ORD=PST.map(x=>x[0]); let syncing=false;
 async function syncPos(){
-  if(syncing||!isKyle()) return; syncing=true;
+  if(syncing||syncHold||!isKyle()) return; syncing=true;
   try{ for(const r of POS){ if(r.kind!=="po"||["received","cancelled"].includes(r.status)) continue;
     const L=linesOf(r).map(o=>o.x.status).filter(k=>ORD.includes(k)); if(!L.length) continue;
     const lo=L.reduce((a,k)=>ORD.indexOf(k)<ORD.indexOf(a)?k:a,L[0]);       // the PO is as far as its slowest line

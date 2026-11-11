@@ -479,7 +479,7 @@ const offStage=j=>!ORDER_STAGES.includes(j.stage)&&j.stage!=="paint";
    anyone can punch in any time; their orders still show on the Orders board as extra orders. (Kyle, Nov 10) */
 const ONGOING=j=>!!(j&&j.ongoing);
 /* a Shop floor job can sit in more than one Shop floor column at once, e.g. Fabrication + Bending (Kyle, Nov 10) */
-const alsoIn=j=>FAB_STAGES.includes(j.stage)?(j.alsoStages||[]).filter(k=>FAB_STAGES.includes(k)&&k!==j.stage):[];
+const alsoIn=j=>!ONGOING(j)&&FAB_STAGES.includes(j.stage)?(j.alsoStages||[]).filter(k=>FAB_STAGES.includes(k)&&k!==j.stage):[];
 const inCol=(j,k)=>!ONGOING(j)&&(j.stage===k||alsoIn(j).includes(k));
 const offOrders=j=>(offStage(j)||ONGOING(j))?(j.suppliers||[]).filter(x=>ACTIVE(x)&&SUP_COL[x.status]&&(x.status!=="received"||recvToday(x))):[];
 /* a job sitting in the Received stage drops off the board the day after everything came in */
@@ -738,8 +738,12 @@ function closeDlg(){
     deleteJob(j.id).then(()=>{ const i=undoStack.findIndex(u=>u.id===j.id&&!u.prev); if(i>=0) undoStack.splice(i,1); if(!undoStack.length){ $("#undoBtn").classList.remove("on"); $("#toast").classList.remove("on"); } }).catch(()=>{});
   }
 }
-$("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeDlg();});
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDlg();});
+/* Close on a job card keeps what was typed (Nov 10 check: a changed supplier total/status was lost on Close).
+   If the job changed somewhere else meanwhile (yellow note shown), Close still throws the edits away as the note says. */
+function closeJob(){ if(openId&&$("#fName")&&!$("#dlgStale")&&dlgDirty()){ save(); return; } closeDlg(); }
+window.closeJob=closeJob;
+$("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeJob();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeJob();});
 
 /* Job card layout (Kyle, Nov 4): title + stage with Back/Next, big Parts & drawings / Files buttons, tasks, NCRs,
    suppliers; notes and the edit fields fold away (Claude can change those when asked). Fold state survives redraws. */
@@ -761,7 +765,7 @@ function drawDlg(){
    ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div>`:""}
    ${(j.assemblies||[]).length?`<div class="atw"><table class="at"><thead><tr><th>Task</th><th>Who</th>${Object.entries(AST).map(([k,v])=>`<th class="sc" style="--c:${v.c}">${v.t}</th>`).join("")}<th></th></tr></thead><tbody>
    ${j.assemblies.map((a,k)=>{const keys=Object.keys(AST);const si=keys.indexOf(a.status);const locked=finalLocked(j,a);
-     return `<tr><td><div class="an2">${esc(a.name)}</div>${(a.meta||a.final)?`<div class="am2">${esc(a.meta||"")}${a.final?(a.meta?" · ":"")+"Final assembly":""}</div>`:""}</td>
+     return `<tr><td><div class="an2" data-ren="${k}" title="Tap to rename">${esc(a.name)}</div>${(a.meta||a.final)?`<div class="am2">${esc(a.meta||"")}${a.final?(a.meta?" · ":"")+"Final assembly":""}</div>`:""}</td>
      <td>${asmSel(j,k,a,"who")}</td>
      ${locked?`<td colspan="${keys.length}"><div class="waits">Waits until every other task is done</div></td>`:keys.map((key,ki)=>`<td><button type="button" class="sb ${ki<si?"past":ki===si?"now":""}" style="--c:${AST[key].c}" data-sj="${esc(j.id)}" data-si="${k}" data-ss="${key}" data-lab="${({bend:"Bend",ready:"Ready",prog:"Doing",qc:"Check",done:"Done"})[key]}" aria-label="${esc(a.name)}: ${AST[key].t}" aria-pressed="${ki===si}">${ki===si?"●":""}</button></td>`).join("")}
      <td><button type="button" class="rmb" data-rmasm="${k}" aria-label="Remove ${esc(a.name)}">×</button></td></tr>`;}).join("")}
@@ -776,7 +780,7 @@ function drawDlg(){
      <div class="row" style="margin-top:8px">
        <label>Status<select data-f="status" data-i="${k}">${stOpts(x)}</select></label>
        <label>Quote #<input data-f="quoteNo" data-i="${k}" value="${esc(x.quoteNo||"")}"></label>
-       <label>Total<input data-f="total" data-i="${k}" value="${esc(x.total||"")}" placeholder="$"></label>
+       <label>Total<input data-f="total" data-i="${k}" value="${esc(x.total||"")}" placeholder="${(()=>{ const t=!x.total&&window.quoteTotal(x); return t?"$"+t.toFixed(2)+" on the quote":"$"; })()}"></label>
        <label>Lead time<input data-f="lead" data-i="${k}" value="${esc(x.lead||"")}"></label></div>
      <label style="margin-top:8px">Latest<textarea data-f="note" data-i="${k}">${esc(x.note||"")}</textarea></label></div>`;})}
    <div id="newSup"></div>
@@ -794,7 +798,10 @@ function drawDlg(){
    <div class="err" id="err"></div>
    <div class="foot"><button class="btn danger" type="button" id="delJob">Delete job</button><button class="btn primary" type="button" id="save">Save</button></div>`;
   $("#dlg").querySelectorAll("details.jfold").forEach(d=>d.ontoggle=()=>{ dlgFold[d.dataset.fold]=d.open; });
-  $("#xBtn").onclick=closeDlg; $("#save").onclick=save; $("#addNote").onclick=addNote; $("#addSup").onclick=supForm; $("#delJob").onclick=delJob;
+  $("#xBtn").onclick=closeJob; $("#save").onclick=save;
+  // supplier lines save as soon as a field changes (status, quote #, total, lead, latest) - no Save tap needed
+  $("#dlg").querySelectorAll("[data-f]").forEach(el=>el.addEventListener("change",()=>{ const j=job(); const x=j&&(j.suppliers||[])[+el.dataset.i]; if(!x||(x[el.dataset.f]||"")===el.value) return;
+    put(collect(),`${x.name}: ${el.dataset.f==="quoteNo"?"quote #":el.dataset.f} on ${j.name}`); })); $("#addNote").onclick=addNote; $("#addSup").onclick=supForm; $("#delJob").onclick=delJob;
   $("#fNote").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addNote();}});
   $("#back").onclick=()=>move(-1); $("#next").onclick=()=>move(1);
   $("#dlg").querySelectorAll("[data-also]").forEach(b=>b.onclick=async()=>{ const j=collect(); const k=b.dataset.also; const l=(j.alsoStages||[]).filter(x=>x!==j.stage);
@@ -802,11 +809,20 @@ function drawDlg(){
     j.log=[...(j.log||[]),{at:new Date().toISOString(),text:`${on?"No longer":"Also"} in ${STAGES[SIDX[k]].t}`}];
     await put(j,`${j.name}: ${on?"out of":"also in"} ${STAGES[SIDX[k]].t}`); });
   { const og=$("#ongo"); if(og) og.onclick=async()=>{ const j=collect(); const was=!!j.ongoing;
-    if(was) delete j.ongoing; else { j.ongoing=true; delete j.alsoStages; }
+    if(was) delete j.ongoing; else j.ongoing=true;   // its "Also in" columns are kept (just ignored while ongoing) so turning it back restores them
     j.log=[...(j.log||[]),{at:new Date().toISOString(),text:was?"Back to a normal job with stages":"Made an ongoing job (no stages)"}];
     await put(j,was?`${j.name} is a normal job again`:`${j.name} is now ongoing`); }; }
   wireAsm($("#dlg"));
   $("#dlg").querySelectorAll("[data-ss]").forEach(b=>b.onclick=()=>{ if(b.classList.contains('now')) return; setAsm(b.dataset.sj,+b.dataset.si,'status',b.dataset.ss); });
+  // tap a task's name to rename it (Nov 10 check: tasks couldn't be renamed anywhere)
+  if(!(window.ME&&ME.role!=="admin")) $("#dlg").querySelectorAll("[data-ren]").forEach(el=>el.onclick=()=>{ if(el.querySelector("input")) return;
+    const k=+el.dataset.ren, old=el.textContent; el.innerHTML=`<input class="renin" value="${esc(old)}" style="width:100%;font:inherit;font-weight:600;background:var(--panel2);color:var(--text);border:1px solid var(--orange);border-radius:6px;padding:4px 6px">`;
+    const inp=el.querySelector("input"); inp.focus(); inp.select(); let done=false;
+    const fin=async ok=>{ if(done) return; done=true; const v=inp.value.trim(); if(!ok||!v||v===old){ el.textContent=old; return; }
+      const jj=structuredClone(job()); const a=jj.assemblies[k]; if(!a){ el.textContent=old; return; } a.name=v;
+      jj.log=[...(jj.log||[]),{at:new Date().toISOString(),text:`Renamed task "${old}" to "${v}"`}]; await put(jj,`Renamed ${old} to ${v}`); };
+    inp.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); fin(true); } else if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); fin(false); } };
+    inp.onblur=()=>fin(true); });
   $("#dlg").querySelectorAll("[data-rmasm]").forEach(b=>b.onclick=async()=>{const jj=structuredClone(job());const n=jj.assemblies[+b.dataset.rmasm].name;jj.assemblies.splice(+b.dataset.rmasm,1);await put(jj,`Removed ${n} from ${jj.name}`);});
   const aa=$("#addAsm"); if(aa) aa.onclick=()=>{
     const pick=new Set();
@@ -954,7 +970,7 @@ function starterTask(data){
   return true;
 }
 async function saveJob(id,data){
-  starterTask(data); paintPickupAdvance(data); allDoneAdvance(data);
+  starterTask(data); paintPickupAdvance(data); allDoneAdvance(data); fillQuoteTotals(id,data);
   if(data.stage==="done"){ if(!data.doneAt) data.doneAt=new Date().toISOString(); } else if(data.doneAt) delete data.doneAt;
   const ver=jobVer[id];
   if(ver){
@@ -979,7 +995,30 @@ async function deleteJob(id){
   delete jobVer[id];
   jobs=jobs.filter(x=>x.id!==id); archivedJobs=archivedJobs.filter(x=>x.id!==id); render(); widgetRefresh();
 }
+/* Totals of every quote / order ack read into Prices (gvc_prices), by document number. A supplier line with a quote #
+   but no total gets it filled from here when the job is saved (Kyle, Nov 10: RFQ-1004 had the quote in but no total).
+   Only when every number on the line was read, and no other line uses the same document (a quote split over two jobs). */
+let quoteTot=null, quoteAt=0;
+async function loadQuoteTotals(){
+  if(window.ME&&ME.role!=="admin") return; if(quoteTot&&Date.now()-quoteAt<5*60e3) return; quoteAt=Date.now();
+  const r=await sb.from("gvc_prices").select("doc_no,line_total").limit(10000); if(r.error) return;
+  const m={}; (r.data||[]).forEach(x=>{ if(!x.doc_no) return; const k=String(x.doc_no).trim().toUpperCase(); m[k]=(m[k]||0)+(Number(x.line_total)||0); }); quoteTot=m;
+}
+function qTotal(x,others){
+  if(!quoteTot||!x||!x.quoteNo) return null; const q=String(x.quoteNo).toUpperCase();
+  const has=(s,k)=>new RegExp("(^|[^A-Z0-9])"+k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"($|[^A-Z0-9])").test(s);
+  const ks=Object.keys(quoteTot).filter(k=>k.length>=4&&has(q,k)); if(!ks.length) return null;
+  if((q.match(/\d{6,}/g)||[]).some(t=>!ks.some(k=>k.includes(t)))) return null;        // a number on the line that was never read
+  if((others||[]).some(y=>y!==x&&ks.some(k=>has(String(y.quoteNo||"").toUpperCase(),k)))) return null;   // same document on another line
+  return Math.round(ks.reduce((a,k)=>a+quoteTot[k],0)*100)/100;
+}
+window.quoteTotal=(x)=>qTotal(x,[...jobs,...archivedJobs].flatMap(j=>j.suppliers||[]));
+function fillQuoteTotals(id,data){
+  const others=[...jobs,...archivedJobs].filter(j=>j.id!==id).flatMap(j=>j.suppliers||[]).concat(data.suppliers||[]);
+  (data.suppliers||[]).forEach(x=>{ if(String(x.total||"").trim()||x.status==="declined") return; const t=qTotal(x,others); if(t!=null&&t>0) x.total=t.toFixed(2); });
+}
 async function loadJobs(){
+  loadQuoteTotals().catch(()=>{});
   const { data, error } = await sb.from("gvc_jobs").select("id,data,updated_at");
   if(error){ $("#status").textContent="Couldn't load the board: "+error.message; return; }
   (data||[]).forEach(r=>{ jobVer[r.id]=r.updated_at; });
@@ -1191,7 +1230,10 @@ function autoTodos(){
   const un=items.filter(x=>!whoList(x.a).length&&!finalLocked(x.j,x.a));
   if(un.length) add(`Assign ${un.length} assembl${un.length>1?"ies":"y"} (${[...new Set(un.map(x=>x.j.name))].join(", ")})`,"var(--orange)",{view:"crew"});
   const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
-  return out.filter(x=>!hidden.has(x.text));
+  // "Review Russel's quote #N" is left out while an open to-do already talks about quote N (Nov 10: it showed twice)
+  const openTx=todos.filter(t=>t.source!=="auto"&&!t.done_at).map(t=>String(t.text||""));
+  const dupQ=x=>{ const m=/^Review .*quote #(\S+)/.exec(x.text); return !!(m&&openTx.some(t=>t.includes(m[1]))); };
+  return out.filter(x=>!hidden.has(x.text)&&!dupQ(x));
 }
 const SRC={sms:"💬",recording:"🎙",manual:"📋",email:"✉️",chat:"🗨"};
 /* suggestion card body: job + vendor as tags (like the job board), then one row per action with a clear label */

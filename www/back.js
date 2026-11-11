@@ -64,7 +64,7 @@ window.gvcDlgBack=()=>{
     const t=stack.pop();
     if(t.fn){ goingBack=true; replay=t.fn; try{ t.fn(); check(); return; }catch(e){ goingBack=false; replay=null; } }
   }
-  if(typeof closeDlg==="function") closeDlg();
+  if(typeof window.closeJob==="function") window.closeJob(); else if(typeof closeDlg==="function") closeDlg();
 };
 // tapping outside the pop-up and Esc step back instead of closing everything
 document.addEventListener("click",e=>{ const s=S(); if(s&&e.target===s){ e.stopImmediatePropagation(); window.gvcDlgBack(); } },true);

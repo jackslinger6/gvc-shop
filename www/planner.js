@@ -167,8 +167,11 @@ function spill(M){
   CREW.forEach(p=>{ const S=M.S[p]; const days=Object.keys(S).sort(); let n=0;
     for(let i=0;i<days.length;i++){ const d=days[i], l=S[d]; let used=0;
       for(let j=0;j<l.length;j++){ const k=l[j], t=M.T[k]; if(!t) continue;
-        if(t.at!=null||t.done){ used+=t.done?0:H(t); continue; }
+        // a task ticked done still took its time slot (compute() lays it out there), so it still fills the day -
+        // counting it as 0 h ran the next task past 4:00 instead of carrying it over (Colton's rack "12:00-8:00", Nov 10)
+        if(t.at!=null){ used+=H(t); continue; }
         if(t.who.length>1){ used+=H(t)/t.who.length; continue; }
+        if(t.done){ used+=H(t); continue; }
         const h=H(t); if(used+h<=DAYH+1e-6){ used+=h; continue; }
         const nd=nextWorkDay(p,d); if(!nd) { used+=h; continue; }
         const fit=Math.max(0,DAYH-used), rest=h-fit, base=t.base||k, od=t.od||d, vk=base+"#"+(++n);

@@ -270,9 +270,10 @@ function jobRowHtml(g){
   const num=window.jobNum?window.jobNum(j.name):""; const nm=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,""):j.name;
   const chips=g.rows.map(x=>{ const a=(j.assemblies||[]).find(y=>y.id===x.aid); const dn=x.t.done||(a&&a.status==="done"); const live=on&&open.task_id===x.aid;
     return `<button type="button" class="tchip ${dn?"dn":""} ${live?"live":""}" ${a&&!dn?`data-pdn="${esc(j.id)}|${esc(x.aid)}" title="Tap when it's finished"`:""}>${dn?"✓ ":""}${esc(x.t.name)}</button>`; }).join("");
-  return `<div class="row2 jrow ${on?"on":""}" style="--c:${c}"><span class="tm">${esc(g.time||"")}</span>
+  const allDn=g.rows.length&&g.rows.every(x=>{ const a=(j.assemblies||[]).find(y=>y.id===x.aid); return x.t.done||(a&&a.status==="done"); });
+  return `<div class="row2 jrow ${on?"on":""} ${allDn&&!on?"dn":""}" style="--c:${c}"><span class="tm">${esc(g.time||"")}</span>
     <div class="nm" data-oj="${esc(j.id)}"><b>${num?`<span class="jb" style="background:${c}">${esc(num)}</span>`:""}${esc(nm)}</b>${on?`<small style="color:#7ff0a8">On the clock${open.task_name?" · "+esc(open.task_name):""}</small>`:""}</div>
-    <div class="bt">${on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:`<button class="pin" type="button" data-pjob="${esc(j.id)}">▶ PUNCH IN</button>`}</div>
+    <div class="bt">${on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:allDn?`<span class="lbl" style="color:#7ff0a8;font-weight:700">✓ ALL DONE</span>`:`<button class="pin" type="button" data-pjob="${esc(j.id)}">▶ PUNCH IN</button>`}</div>
     <div class="tchips">${chips}</div></div>`;
 }
 window.myDayHtml=()=>{
