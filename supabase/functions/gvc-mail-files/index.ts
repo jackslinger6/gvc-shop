@@ -34,7 +34,8 @@ async function graph(db: any, path: string, raw = false): Promise<any> {
 }
 
 /* ---------- names, materials ---------- */
-const clean = (s: string) => s.replace(/[\\#%?*:|"<>{}^~`\[\]]+/g, "_").replace(/\s+/g, " ").trim().slice(0, 120) || "file";
+// storage keys reject non-ASCII (e.g. the "–" in "1086_7 W Truck – Inspection Notes") and apostrophes (Nov 10)
+const clean = (s: string) => s.normalize("NFKD").replace(/[\u2010-\u2015]/g, "-").replace(/[^\x20-\x7E]/g, "").replace(/['`]/g, "").replace(/[\\#%?*:|"<>{}^~\[\]]+/g, "_").replace(/\s+/g, " ").trim().slice(0, 120) || "file";
 const kindOf = (n: string) => { const e = (n.split(".").pop() || "").toLowerCase();
   return e === "dxf" ? "dxf" : e === "pdf" ? "pdf" : e === "zip" ? "zip" : ["xlsx", "xls", "csv"].includes(e) ? "sheet" : ["png", "jpg", "jpeg", "gif", "webp", "heic"].includes(e) ? "image" : ["step", "stp", "sldprt", "sldasm", "f3d", "f3z"].includes(e) ? "model" : "other"; };
 const CT: Record<string, string> = { dxf: "application/dxf", pdf: "application/pdf", zip: "application/zip", svg: "image/svg+xml", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv" };
