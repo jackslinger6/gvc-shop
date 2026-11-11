@@ -144,7 +144,7 @@ function draw(jobNo,jobName,rows){
   D.innerHTML=`<div class="jp">
     <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${esc(jobNo)} · Parts & drawings</h3><button class="btn ghost" type="button" id="jpBack">${origin?"Close":"Back to job"}</button></div>
     <div class="sum">${rows.length} parts · ${bent} bent · ${rows.length-bent} flat${rows.length?` · ${rows.reduce((a,p)=>a+(p.qty||0),0)} pcs`:""}</div>
-    <div class="top" style="margin-top:8px"><input id="jpQ" type="search" placeholder="Search part number, name, assembly, material…" value="${esc(q)}"><button class="btn sm" type="button" id="jpImp">Import zip</button><button class="btn sm" type="button" id="jpImp3">Add 3D models</button><button class="btn sm" type="button" id="jpRefresh">Refresh</button></div>
+    <div class="top" style="margin-top:8px"><input id="jpQ" type="search" placeholder="Search part number, name, assembly, material…" value="${esc(q)}"><button class="btn sm" type="button" id="jpImp">Import zip</button><button class="btn sm" type="button" id="jpImp3">Add 3D models</button><button class="btn sm" type="button" id="jpAsm" hidden>3D assembly</button><button class="btn sm" type="button" id="jpRefresh">Refresh</button></div>
     <div class="chips">${[["name","By name"],["asm","By assembly"],["none","All parts"]].map(([k,t])=>`<button class="btn sm ${grouped===k?"primary":""}" data-jg="${k}">${t}</button>`).join("")}${grouped!=="none"&&!narrowed?`<button class="btn sm ghost" type="button" data-jx="1">${openG.size?"Collapse all":"Expand all"}</button>`:""}</div>
     <div class="chips">${[["all","Bent + flat"],["bent","Bent"],["flat","Flat"]].map(([k,t])=>`<button class="btn sm ${flt===k?"primary":""}" data-jf="${k}">${t}</button>`).join("")}</div>
     ${mats.length>1?`<div class="chips"><button class="btn sm ${mat?"":"primary"}" data-jm="">Any material</button>${mats.map(m=>`<button class="btn sm ${mat===m?"primary":""}" data-jm="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}
@@ -168,26 +168,45 @@ function draw(jobNo,jobName,rows){
     if(r.data&&r.data.signedUrl) window.open(r.data.signedUrl,"_blank"); });
   $("#jpImp").onclick=()=>importBox(jobNo,jobName);
   $("#jpImp3").onclick=()=>import3dBox(jobNo,jobName,rows);
+  const openPart3D=async pn=>{ const p=rows.find(x=>x.part_no===pn); if(!p||!p.model_path){ alert("No 3D model for "+pn+" yet"); return; }
+    const r=await sb.storage.from("gvc-parts").createSignedUrl(p.model_path,60*60); if(r.data&&r.data.signedUrl) open3D(r.data.signedUrl,p.part_no+" · 3D",{part:p}); };
+  asmPath(jobNo).then(path=>{ const b=$("#jpAsm"); if(!b||!path) return; b.hidden=false;
+    b.onclick=async()=>{ b.disabled=true; const r=await sb.storage.from("gvc-parts").createSignedUrl(path,60*60); b.disabled=false;
+      if(r.data&&r.data.signedUrl) openAsm3D(r.data.signedUrl,jobNo+" · whole assembly",{up:"y",onPart:pn=>{ const p=rows.find(x=>x.part_no===pn); if(p&&p.model_path) openPart3D(pn); else alert("No 3D model for "+pn+" yet"); }}); }; });
   D.querySelectorAll("[data-j3]").forEach(el=>el.onclick=async()=>{ const p=rows.find(x=>x.id===el.dataset.j3); if(!p||!p.model_path) return;
     el.disabled=true; const r=await sb.storage.from("gvc-parts").createSignedUrl(p.model_path,60*60); el.disabled=false;
     if(!r.data||!r.data.signedUrl){ alert("Couldn't open the 3D model"); return; }
     open3D(r.data.signedUrl, p.part_no+" · 3D", {part:p}); });
 }
+/* whole-job assembly: jobs/<job>/model/_assembly.glb (Draco GLB made from the Fusion model) */
+const asmCache={};
+async function asmPath(jobNo){
+  if(jobNo in asmCache) return asmCache[jobNo];
+  try{ const r=await sb.storage.from("gvc-parts").list(`jobs/${jobNo}/model`,{search:"_assembly"}); const f=(r.data||[]).find(x=>/^_assembly.*\.glb$/i.test(x.name));
+    return asmCache[jobNo]=f?`jobs/${jobNo}/model/${f.name}`:null; }catch(e){ return null; }
+}
 /* ---- 3D models: STEP files named <part number>.step (folded, from Fusion) -> jobs/<job>/model/, sets model_path ---- */
 function import3dBox(jobNo,jobName,rows){
   const box=$("#jpImpBox");
-  box.innerHTML=`<div class="imp">Pick STEP files (folded parts from Fusion) named with the part number, e.g. <b>PULLOUTLIGHT.1.step</b>. Each one goes on the part with that number; a part that already has a model gets the new one.
-    <div class="row" style="margin-top:8px;align-items:center"><input type="file" id="jp3Files" multiple accept=".step,.stp,.STEP,.STP"><button class="btn primary sm" type="button" id="jp3Go">Upload to ${esc(jobNo)}</button><button class="btn sm" type="button" id="jp3Cancel">Cancel</button></div>
+  box.innerHTML=`<div class="imp">Pick STEP files (folded parts from Fusion) named with the part number, e.g. <b>PULLOUTLIGHT.1.step</b>, or a zip of them. Each one goes on the part with that number; a part that already has a model gets the new one. A <b>.glb</b> file becomes the job's whole-assembly 3D.
+    <div class="row" style="margin-top:8px;align-items:center"><input type="file" id="jp3Files" multiple accept=".step,.stp,.STEP,.STP,.zip,.glb"><button class="btn primary sm" type="button" id="jp3Go">Upload to ${esc(jobNo)}</button><button class="btn sm" type="button" id="jp3Cancel">Cancel</button></div>
     <div id="jp3Msg" class="tnote" style="margin-top:6px"></div></div>`;
   $("#jp3Cancel").onclick=()=>{ box.innerHTML=""; };
   $("#jp3Go").onclick=async()=>{
     const fs=[...$("#jp3Files").files], msg=$("#jp3Msg"); if(!fs.length){ msg.textContent="Choose STEP files first."; return; }
     $("#jp3Go").disabled=true; const safe=s=>String(s).replace(/[^A-Za-z0-9._-]+/g,"_").toLowerCase(); const done=[], miss=[];
     try{
+      const list=[];
       for(const f of fs){
-        const stem=f.name.replace(/\.(step|stp)$/i,""); const p=rows.find(r=>r.part_no===stem)||rows.find(r=>safe(r.part_no)===safe(stem));
+        if(/\.zip$/i.test(f.name)){ msg.textContent=`Reading ${f.name}…`; for(const e of await unzip(await f.arrayBuffer())) if(/\.(step|stp)$/i.test(e.name)) list.push(new File([await e.data()],e.name.split("/").pop())); }
+        else if(/\.glb$/i.test(f.name)){ msg.textContent="Uploading the assembly…"; const up=await sb.storage.from("gvc-parts").upload(`jobs/${jobNo}/model/_assembly.glb`,f,{upsert:true,contentType:"model/gltf-binary"}); if(up.error) throw up.error; delete asmCache[jobNo]; done.push("whole assembly"); }
+        else list.push(f);
+      }
+      let n=0;
+      for(const f of list){
+        n++; const stem=f.name.replace(/\.(step|stp)$/i,""); const p=rows.find(r=>r.part_no===stem)||rows.find(r=>safe(r.part_no)===safe(stem));
         if(!p){ miss.push(f.name); continue; }
-        msg.textContent=`Uploading ${p.part_no}…`;
+        msg.textContent=`Uploading ${n} of ${list.length}: ${p.part_no}…`;
         const path=`jobs/${jobNo}/model/${p.part_no.replace(/[^A-Za-z0-9._-]+/g,"_")}.step`;
         const up=await sb.storage.from("gvc-parts").upload(path,f,{upsert:true,contentType:"application/octet-stream"}); if(up.error) throw up.error;
         const r=await sb.from("gvc_job_parts").update({model_path:path,updated_at:new Date().toISOString()}).eq("id",p.id); if(r.error) throw r.error;

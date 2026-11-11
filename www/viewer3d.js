@@ -13,7 +13,10 @@ const CDN={
   /* Trackball, not Orbit: Orbit stops at straight-up/straight-down and fought the Z-up camera (Kyle, Nov 10: "sometimes it just stops").
      Trackball tumbles freely about the centre of the part in any direction. */
   orbit:"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/TrackballControls.js/+esm",
-  occt:"https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/" };
+  occt:"https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/",
+  gltf:"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/GLTFLoader.js/+esm",
+  draco:"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/DRACOLoader.js/+esm",
+  dracoDec:"https://www.gstatic.com/draco/versioned/decoders/1.5.7/" };
 
 /* ---------- math (no DOM, no three) - also used by the node tests ---------- */
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]], mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
@@ -188,6 +191,102 @@ css.textContent=`
 `;
 document.head.appendChild(css);
 
+
+/* ---------- whole assembly (Draco GLB made from the Fusion model) ----------
+   Each body is its own node; node.userData = {comp, body, path, mat, pn:[part numbers] or null}.
+   Tap a part to see what it is; if it's a laser part with its own STEP, "Open part" goes to the exact-measure viewer. */
+let asmLibsP=null, v3dDepth=0;   // stacked viewers (assembly -> part): Back closes only the top one
+function loadAsmLibs(){
+  if(!asmLibsP) asmLibsP=(async()=>{
+    const [THREE,orb,gl,dr]=await Promise.all([import(CDN.three),import(CDN.orbit),import(CDN.gltf),import(CDN.draco)]);
+    const loader=new gl.GLTFLoader(); const dl=new dr.DRACOLoader(); dl.setDecoderPath(CDN.dracoDec); loader.setDRACOLoader(dl);
+    return {THREE,Controls:orb.TrackballControls,loader};
+  })().catch(e=>{ asmLibsP=null; throw e; });
+  return asmLibsP;
+}
+window.openAsm3D=async function(url,title,opts){
+  opts=opts||{}; let unitMM=false, mode="part", picks=[], sel=null; const hidden=[];
+  const W=document.createElement("div"); W.id="v3d";
+  W.innerHTML=`<div class="hd"><b>${esc(title)}</b>
+     <button class="btn sm on" data-m="part" type="button">Parts</button><button class="btn sm" data-m="point" type="button">Measure</button>
+     <button class="btn sm" id="v3hide" type="button">Hide part</button><button class="btn sm" id="v3all" type="button">Show all</button>
+     <button class="btn sm" id="v3fit" type="button">Fit</button><button class="btn sm" id="v3u" type="button">in</button><button class="btn sm" id="v3x" type="button">Close</button></div>
+   <div class="cv"><div class="msg" id="v3msg">Loading 3D…</div></div>
+   <div class="ft"><div class="out" id="v3out"></div><div id="v3act" style="margin-top:4px"></div>
+   <div class="note">Model reference - drawings and the parts list are the boss. Measure here snaps to mesh points (close, not exact) - open a part for exact sizes.</div></div>`;
+  document.body.appendChild(W);
+  const box=W.querySelector(".cv"), out=W.querySelector("#v3out"), act=W.querySelector("#v3act"), msg=W.querySelector("#v3msg");
+  let disposed=false, renderer=null, onResize=null;
+  const myId=++v3dDepth; const onPop=()=>{ if(((history.state&&history.state.v3d)||0)<myId) close(); };
+  const close=()=>{ disposed=true; if(onResize) window.removeEventListener("resize",onResize); if(renderer){ renderer.dispose(); renderer.forceContextLoss&&renderer.forceContextLoss(); } W.remove(); window.removeEventListener("popstate",onPop); };
+  try{ history.pushState({v3d:myId},""); window.addEventListener("popstate",onPop); }catch(e){}
+  const back=()=>{ try{ if(history.state&&history.state.v3d) history.back(); else close(); }catch(e){ close(); } };
+  W.querySelector("#v3x").onclick=back;
+  let L, gltf;
+  try{
+    msg.textContent="Loading 3D tools…"; L=await loadAsmLibs(); if(disposed) return;
+    msg.textContent="Downloading model…";
+    gltf=await new Promise((ok,no)=>L.loader.load(url,ok,ev=>{ if(ev.total) msg.textContent=`Downloading model… ${Math.round(ev.loaded/ev.total*100)}%`; },no));
+    if(disposed) return;
+  }catch(e){ msg.textContent=(e.message||String(e))+" - check the connection and try again."; return; }
+  msg.remove();
+  const {THREE,Controls}=L;
+  renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1)); box.appendChild(renderer.domElement);
+  const scene=new THREE.Scene(); scene.background=new THREE.Color(0x1d2126);
+  const cam=new THREE.PerspectiveCamera(35,1,1,1e7);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x445566,1.5)); const dl=new THREE.DirectionalLight(0xffffff,1.7); cam.add(dl); dl.position.set(0.5,1,0.3); scene.add(cam);
+  const root=gltf.scene; scene.add(root);
+  const meshes=[]; root.traverse(o=>{ if(o.isMesh){ meshes.push(o); o.userData=Object.assign({},o.parent&&o.parent.userData,o.userData); } });
+  const bb=new THREE.Box3().setFromObject(root), ctr=bb.getCenter(new THREE.Vector3()), size=bb.getSize(new THREE.Vector3()).length();
+  const hl=new THREE.Group(); scene.add(hl);
+  const upY=(opts.up||"y")==="y"; cam.up.set(0,upY?1:0,upY?0:1);
+  const ctl=new Controls(cam,renderer.domElement); ctl.rotateSpeed=3.0; ctl.zoomSpeed=1.4; ctl.panSpeed=0.9; ctl.staticMoving=true;
+  let need=true; const draw=()=>{ need=true; }; ctl.addEventListener("change",draw);
+  const fit=()=>{ const dir=upY?new THREE.Vector3(1.2,0.8,1):new THREE.Vector3(1,1.2,0.8); cam.position.copy(ctr).add(dir.normalize().multiplyScalar(size*1.1)); cam.near=size/2000; cam.far=size*50; cam.updateProjectionMatrix(); cam.up.set(0,upY?1:0,upY?0:1); ctl.target.copy(ctr); cam.lookAt(ctr); ctl.update(); draw(); };
+  onResize=()=>{ const w=box.clientWidth, h=box.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); ctl.handleResize&&ctl.handleResize(); draw(); };
+  window.addEventListener("resize",onResize); onResize(); fit();
+  const loop=()=>{ if(disposed) return; ctl.update(); if(need){ need=false; renderer.render(scene,cam); } requestAnimationFrame(loop); }; loop();
+  const selMat=new THREE.MeshStandardMaterial({color:0x4ea1ff,emissive:0x0b3a73,metalness:0.2,roughness:0.5,side:THREE.DoubleSide});
+  const select=m=>{ if(sel){ sel.material=sel.userData._mat; } sel=m; if(m){ m.userData._mat=m.userData._mat||m.material; m.material=selMat; } draw(); };
+  W.querySelector("#v3fit").onclick=fit;
+  W.querySelector("#v3u").onclick=e=>{ unitMM=!unitMM; e.target.textContent=unitMM?"mm":"in"; show(); };
+  W.querySelector("#v3hide").onclick=()=>{ if(!sel) return; const m=sel; select(null); m.visible=false; hidden.push(m); act.innerHTML=""; show(); draw(); };
+  W.querySelector("#v3all").onclick=()=>{ hidden.splice(0).forEach(m=>m.visible=true); draw(); show(); };
+  W.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ mode=b.dataset.m; picks=[]; clearHl(); W.querySelectorAll("[data-m]").forEach(x=>x.classList.toggle("on",x===b)); show(); });
+  function clearHl(){ while(hl.children.length){ const c=hl.children.pop(); c.geometry&&c.geometry.dispose(); } draw(); }
+  function dot3(p,color){ const s=new THREE.Mesh(new THREE.SphereGeometry(size/400,12,8),new THREE.MeshBasicMaterial({color,depthTest:false})); s.position.copy(p); s.renderOrder=5; hl.add(s); draw(); }
+  function line3(a,b){ const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]),new THREE.LineBasicMaterial({color:0xffd400,depthTest:false})); l.renderOrder=6; hl.add(l); draw(); }
+  const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+  function hit(x,y){ const r=renderer.domElement.getBoundingClientRect(); ndc.set((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1); ray.setFromCamera(ndc,cam); return ray.intersectObjects(meshes.filter(m=>m.visible),false)[0]||null; }
+  function snapPt(h,x,y){   // nearest corner of the tapped triangle if it's close on screen
+    const r=renderer.domElement.getBoundingClientRect(), pos=h.object.geometry.getAttribute("position"); let best=h.point.clone(), bd=24*24;
+    [h.face.a,h.face.b,h.face.c].forEach(i=>{ const v=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(h.object.matrixWorld); const s=v.clone().project(cam); const d=(((s.x+1)/2*r.width+r.left)-x)**2+(((1-s.y)/2*r.height+r.top)-y)**2; if(d<bd){ bd=d; best=v; } });
+    return best; }
+  function show(){
+    act.innerHTML="";
+    if(mode==="point"){
+      if(picks.length<2){ out.textContent=picks.length?"Tap the second point.":"Tap two points to measure (snaps to the nearest mesh corner)."; return; }
+      const d=picks[1].clone().sub(picks[0]); out.textContent="Distance "+fmt(d.length(),unitMM); return; }
+    if(!sel){ out.textContent="Tap a part to see what it is. One finger spins, two fingers zoom and move."+(hidden.length?` (${hidden.length} hidden)`:""); return; }
+    const u=sel.userData, pns=u.pn||[];
+    out.textContent=(pns.length?pns.join(", ")+" · ":"")+u.comp+" "+u.body+(u.mat?" · "+u.mat:"");
+    if(pns.length&&opts.onPart) pns.forEach(pn=>{ const b=document.createElement("button"); b.className="btn sm"; b.type="button"; b.textContent="Open "+pn; b.style.marginRight="6px"; b.onclick=()=>opts.onPart(pn); act.appendChild(b); });
+    if(!pns.length) act.innerHTML=`<span style="font-size:12px;color:#9aa">Not a laser part on the parts list (bought part, tube, or not matched).</span>`;
+  }
+  show();
+  let down=null, moved=false, fingers=0;
+  renderer.domElement.addEventListener("pointerdown",e=>{ fingers++; if(fingers===1){ down={x:e.clientX,y:e.clientY,t:Date.now()}; moved=false; } else down=null; });
+  renderer.domElement.addEventListener("pointermove",e=>{ if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>8) moved=true; });
+  renderer.domElement.addEventListener("pointerup",()=>{ fingers=Math.max(0,fingers-1); if(!down||moved||Date.now()-down.t>600){ if(fingers===0) down=null; return; } const x=down.x,y=down.y; down=null; tap(x,y); });
+  renderer.domElement.addEventListener("pointercancel",()=>{ fingers=0; down=null; });
+  function tap(x,y){
+    const h=hit(x,y);
+    if(mode==="part"){ select(h?h.object:null); show(); return; }
+    if(!h) return; if(picks.length>=2){ picks=[]; clearHl(); }
+    const p=snapPt(h,x,y); picks.push(p); dot3(p,picks.length===1?0x4ea1ff:0xffa64e); if(picks.length===2) line3(picks[0],picks[1]); show();
+  }
+};
+
 window.open3D=async function(url,title,opts){
   opts=opts||{};
   let unitMM=false, mode="spin", picks=[];
@@ -202,8 +301,8 @@ window.open3D=async function(url,title,opts){
   const box=W.querySelector(".cv"), out=W.querySelector("#v3out"), msg=W.querySelector("#v3msg");
   let disposed=false, renderer=null, onResize=null;
   const close=()=>{ disposed=true; if(onResize) window.removeEventListener("resize",onResize); if(renderer){ renderer.dispose(); renderer.forceContextLoss&&renderer.forceContextLoss(); } W.remove(); window.removeEventListener("popstate",onPop); };
-  const onPop=()=>close();
-  try{ history.pushState({v3d:1},""); window.addEventListener("popstate",onPop); }catch(e){}
+  const myId=++v3dDepth; const onPop=()=>{ if(((history.state&&history.state.v3d)||0)<myId) close(); };
+  try{ history.pushState({v3d:myId},""); window.addEventListener("popstate",onPop); }catch(e){}
   W.querySelector("#v3x").onclick=()=>{ try{ if(history.state&&history.state.v3d) history.back(); else close(); }catch(e){ close(); } };
 
   let L, M;
