@@ -1,6 +1,6 @@
 /* ---------- 3D model viewer (Kyle, Nov 10 2026) ----------
    Opens a part's STEP (folded) from storage, spins it, and measures it - a help at the brake.
-   Loaded only when 3D is opened: three.js + OrbitControls (ES modules) and occt-import-js
+   Loaded only when 3D is opened: three.js + TrackballControls (ES modules) and occt-import-js
    (STEP reader, ~7 MB wasm) from jsdelivr. OCCT gives millimetres; shown in inches by default.
    Measure:
      Faces mode - tap a flat face: thickness there. Tap a round face: hole/pin diameter or bend radius.
@@ -9,8 +9,10 @@
    The bend drawing is the boss - this is a model reference only. */
 (()=>{
 const CDN={
-  three:"https://cdn.jsdelivr.net/npm/three@0.170.0/+esm",   // same URL OrbitControls/+esm imports, so one copy of three
-  orbit:"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/OrbitControls.js/+esm",
+  three:"https://cdn.jsdelivr.net/npm/three@0.170.0/+esm",   // same URL TrackballControls/+esm imports, so one copy of three
+  /* Trackball, not Orbit: Orbit stops at straight-up/straight-down and fought the Z-up camera (Kyle, Nov 10: "sometimes it just stops").
+     Trackball tumbles freely about the centre of the part in any direction. */
+  orbit:"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/TrackballControls.js/+esm",
   occt:"https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/" };
 
 /* ---------- math (no DOM, no three) - also used by the node tests ---------- */
@@ -164,7 +166,7 @@ function loadLibs(){
     const [THREE,orb]=await Promise.all([import(CDN.three), import(CDN.orbit)]);
     await new Promise((ok,no)=>{ if(window.occtimportjs) return ok(); const s=document.createElement("script"); s.src=CDN.occt+"occt-import-js.js"; s.onload=ok; s.onerror=()=>no(new Error("STEP reader didn't load")); document.head.appendChild(s); });
     const occt=await window.occtimportjs({locateFile:f=>CDN.occt+f});
-    return {THREE, OrbitControls:orb.OrbitControls, occt};
+    return {THREE, Controls:orb.TrackballControls, occt};
   })().catch(e=>{ libsP=null; throw e; });
   return libsP;
 }
@@ -219,7 +221,7 @@ window.open3D=async function(url,title,opts){
   }catch(e){ msg.textContent=(e.message||String(e))+" - check the connection and try again."; return; }
   msg.remove();
 
-  const {THREE,OrbitControls}=L;
+  const {THREE,Controls}=L;
   renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
   box.appendChild(renderer.domElement);
   const scene=new THREE.Scene(); scene.background=new THREE.Color(0x1d2126);
@@ -236,16 +238,16 @@ window.open3D=async function(url,title,opts){
   eg.setAttribute("position",new THREE.BufferAttribute(ep,3)); scene.add(new THREE.LineSegments(eg,new THREE.LineBasicMaterial({color:0x101010})));
   const hl=new THREE.Group(); scene.add(hl);
 
-  const ctl=new OrbitControls(cam,renderer.domElement); ctl.enableDamping=false; ctl.rotateSpeed=0.9; ctl.zoomSpeed=1.1;
-  ctl.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
+  cam.up.set(0,0,1);   // Z-up like Fusion, set before the controls are made
+  const ctl=new Controls(cam,renderer.domElement); ctl.rotateSpeed=3.0; ctl.zoomSpeed=1.4; ctl.panSpeed=0.9; ctl.staticMoving=true; ctl.dynamicDampingFactor=0.2;
   let need=true; const draw=()=>{ need=true; };
   ctl.addEventListener("change",draw);
-  const fit=()=>{ cam.position.copy(ctr).add(new THREE.Vector3(1,0.8,1.2).normalize().multiplyScalar(size*1.25)); cam.near=size/500; cam.far=size*50; cam.updateProjectionMatrix(); ctl.target.copy(ctr); ctl.update(); draw(); };
-  onResize=()=>{ const w=box.clientWidth, h=box.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); draw(); };
+  const fit=()=>{ cam.position.copy(ctr).add(new THREE.Vector3(1,0.8,1.2).normalize().multiplyScalar(size*1.25)); cam.near=size/500; cam.far=size*50; cam.updateProjectionMatrix(); cam.up.set(0,0,1); ctl.target.copy(ctr); cam.lookAt(ctr); ctl.update(); draw(); };
+  onResize=()=>{ const w=box.clientWidth, h=box.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); ctl&&ctl.handleResize&&ctl.handleResize(); draw(); };
   window.addEventListener("resize",onResize); onResize();
   // Z-up like Fusion
-  cam.up.set(0,0,1); fit();
-  const loop=()=>{ if(disposed) return; if(need){ need=false; renderer.render(scene,cam); } requestAnimationFrame(loop); }; loop();
+  fit();
+  const loop=()=>{ if(disposed) return; ctl.update(); if(need){ need=false; renderer.render(scene,cam); } requestAnimationFrame(loop); }; loop();
 
   W.querySelector("#v3fit").onclick=fit;
   W.querySelector("#v3u").onclick=e=>{ unitMM=!unitMM; e.target.textContent=unitMM?"mm":"in"; show(); };
