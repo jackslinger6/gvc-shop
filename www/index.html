@@ -1160,7 +1160,7 @@ function autoTodos(){
   });
   const items=crewItems().filter(x=>x.a.status!=="done");
   const idle=CREW.filter(c=>c!=="Kyle"&&!items.some(x=>whoList(x.a).includes(c)));
-  const fl=parts.filter(p=>p.stock_flat>0); if(fl.length) add(`${fl.reduce((a,p)=>a+p.stock_flat,0)} pcs sitting flat could be bent (${fl.length} part${fl.length>1?"s":""}) - see Bend list`,"var(--pink)",{view:"inv",low:true});
+  // "pcs sitting flat could be bent" left the To do (Kyle, Nov 10) - it's on Inventory > Bend list
   if(idle.length) add(`Give work to ${idle.join(", ")}`,"var(--orange)",{view:"crew"});
   const un=items.filter(x=>!whoList(x.a).length&&!finalLocked(x.j,x.a));
   if(un.length) add(`Assign ${un.length} assembl${un.length>1?"ies":"y"} (${[...new Set(un.map(x=>x.j.name))].join(", ")})`,"var(--orange)",{view:"crew"});

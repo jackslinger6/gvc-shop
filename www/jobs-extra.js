@@ -57,9 +57,24 @@ autoTodos=function(){ const out=_auto(); try{
   const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   const nn=jobs.filter(j=>!jobNum(j.name)&&!j.sample);
   if(nn.length){ const text=`Add job numbers: ${nn.map(j=>j.name).join(", ")}`; if(!hidden.has(text)) out.push({text,c:"#f5b041",low:true,job:nn[0].id}); }
-  const dn=jobs.filter(j=>j.stage==="done");
-  if(dn.length){ const text=`Archive finished job${dn.length>1?"s":""}: ${dn.map(j=>j.name).join(", ")}`; if(!hidden.has(text)) out.push({text,c:"#3ad06b",low:true,job:dn[0].id}); }
+  // no "Archive finished job" to-do any more: Done jobs archive themselves after 3 days (Kyle, Nov 10)
 }catch(e){} return out; };
+
+/* Done jobs move to Finished jobs on their own 3 days after they reached Done (Kyle, Nov 10: "I thought that was automatic").
+   Kyle's app only (crew/Robin can't save jobs that way). Restore from Finished jobs still works. */
+const AUTO_ARCH_DAYS=3; const archTried=new Set();
+async function autoArchive(){
+  if(window.ME&&ME.role&&ME.role!=="admin") return; if(window.ME&&ME.preview) return; if(!window.ME) return;
+  const cut=Date.now()-AUTO_ARCH_DAYS*864e5;
+  for(const j of jobs.filter(j=>j.stage==="done"&&!j.archived&&!archTried.has(j.id))){
+    const at=Date.parse(j.doneAt||""); if(!(at<cut)) continue; archTried.add(j.id);
+    const jj=structuredClone(j); const now=new Date().toISOString();
+    jj.archived=true; jj.archivedAt=now; jj.log=[...(jj.log||[]),{at:now,text:`Archived - ${AUTO_ARCH_DAYS} days after Done`}];
+    try{ await put(jj,"Archived "+jj.name); }catch(e){}
+  }
+}
+setInterval(()=>{ try{ autoArchive(); }catch(e){} },10*60e3);
+setTimeout(()=>{ try{ autoArchive(); }catch(e){} },15e3);
 
 /* Finished jobs view */
 function hay(j){ return [j.name,j.summary,j.folder,...(j.log||[]).map(l=>l.text),...(j.assemblies||[]).map(a=>a.name+" "+(a.who||"")),...(j.suppliers||[]).map(s=>s.name+" "+(s.quoteNo||"")),...(j.ncrs||[]).map(x=>x.what)].join(" ").toLowerCase(); }
