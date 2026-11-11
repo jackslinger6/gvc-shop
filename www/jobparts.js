@@ -100,7 +100,7 @@ function partRow(p){
       <div class="th" data-jv="${p.id}">${p.thumb_path&&urls[p.thumb_path]?`<img src="${urls[p.thumb_path]}" alt="" loading="lazy">`:(p.bends>0?"drawing":"flat part")}</div>
       <div><div class="nm">${esc(p.part_no)}${p.name&&p.name!==p.part_no?` <span style="font-weight:400;color:var(--muted)">· ${esc(p.name)}</span>`:""}</div>
         <div class="mt">${[grouped==="none"&&realAsm(p.assembly)?p.assembly:"",matText(p),p.flat_w?`flat ${n3(p.flat_w)} × ${n3(p.flat_h)}`:"",p.bends>0?`${p.bends} bend${p.bends>1?"s":""}`:"flat",p.qty?`qty ${p.qty}`:""].filter(Boolean).join(" · ")}${p.notes?`<div>${esc(p.notes)}</div>`:""}</div>
-        <div class="bt">${p.pdf_path?`<button class="btn sm" type="button" data-jv="${p.id}">Bend drawing</button><button class="btn sm" type="button" data-jo="${esc(p.pdf_path)}" data-jn="${esc(p.part_no)}.pdf">PDF</button>`:""}${p.dxf_path?`<button class="btn sm" type="button" data-jo="${esc(p.dxf_path)}" data-jn="${esc(p.part_no)}.dxf" data-dl="1">DXF</button>`:""}</div></div>
+        <div class="bt">${p.pdf_path?`<button class="btn sm" type="button" data-jv="${p.id}">Bend drawing</button><button class="btn sm" type="button" data-jo="${esc(p.pdf_path)}" data-jn="${esc(p.part_no)}.pdf">PDF</button>`:""}${p.dxf_path?`<button class="btn sm" type="button" data-jo="${esc(p.dxf_path)}" data-jn="${esc(p.part_no)}.dxf" data-dl="1">DXF</button>`:""}${p.model_path?`<button class="btn sm" type="button" data-j3="${p.id}">3D</button>`:""}</div></div>
     </div>`;
 }
 const realAsm=a=>!!a&&!/^\s*[\d.\/]+\s*"?\s*(?:\(|ga\b|alum|steel|ss\b|qt|stain)/i.test(a);   // flat parts come in with the material as their "assembly"
@@ -144,7 +144,7 @@ function draw(jobNo,jobName,rows){
   D.innerHTML=`<div class="jp">
     <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${esc(jobNo)} · Parts & drawings</h3><button class="btn ghost" type="button" id="jpBack">${origin?"Close":"Back to job"}</button></div>
     <div class="sum">${rows.length} parts · ${bent} bent · ${rows.length-bent} flat${rows.length?` · ${rows.reduce((a,p)=>a+(p.qty||0),0)} pcs`:""}</div>
-    <div class="top" style="margin-top:8px"><input id="jpQ" type="search" placeholder="Search part number, name, assembly, material…" value="${esc(q)}"><button class="btn sm" type="button" id="jpImp">Import zip</button><button class="btn sm" type="button" id="jpRefresh">Refresh</button></div>
+    <div class="top" style="margin-top:8px"><input id="jpQ" type="search" placeholder="Search part number, name, assembly, material…" value="${esc(q)}"><button class="btn sm" type="button" id="jpImp">Import zip</button><button class="btn sm" type="button" id="jpImp3">Add 3D models</button><button class="btn sm" type="button" id="jpRefresh">Refresh</button></div>
     <div class="chips">${[["name","By name"],["asm","By assembly"],["none","All parts"]].map(([k,t])=>`<button class="btn sm ${grouped===k?"primary":""}" data-jg="${k}">${t}</button>`).join("")}${grouped!=="none"&&!narrowed?`<button class="btn sm ghost" type="button" data-jx="1">${openG.size?"Collapse all":"Expand all"}</button>`:""}</div>
     <div class="chips">${[["all","Bent + flat"],["bent","Bent"],["flat","Flat"]].map(([k,t])=>`<button class="btn sm ${flt===k?"primary":""}" data-jf="${k}">${t}</button>`).join("")}</div>
     ${mats.length>1?`<div class="chips"><button class="btn sm ${mat?"":"primary"}" data-jm="">Any material</button>${mats.map(m=>`<button class="btn sm ${mat===m?"primary":""}" data-jm="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}
@@ -167,6 +167,37 @@ function draw(jobNo,jobName,rows){
     const r=await sb.storage.from("gvc-parts").createSignedUrl(el.dataset.jo,60*30,el.dataset.dl?{download:el.dataset.jn}:undefined); el.disabled=false;
     if(r.data&&r.data.signedUrl) window.open(r.data.signedUrl,"_blank"); });
   $("#jpImp").onclick=()=>importBox(jobNo,jobName);
+  $("#jpImp3").onclick=()=>import3dBox(jobNo,jobName,rows);
+  D.querySelectorAll("[data-j3]").forEach(el=>el.onclick=async()=>{ const p=rows.find(x=>x.id===el.dataset.j3); if(!p||!p.model_path) return;
+    el.disabled=true; const r=await sb.storage.from("gvc-parts").createSignedUrl(p.model_path,60*60); el.disabled=false;
+    if(!r.data||!r.data.signedUrl){ alert("Couldn't open the 3D model"); return; }
+    open3D(r.data.signedUrl, p.part_no+" · 3D", {part:p}); });
+}
+/* ---- 3D models: STEP files named <part number>.step (folded, from Fusion) -> jobs/<job>/model/, sets model_path ---- */
+function import3dBox(jobNo,jobName,rows){
+  const box=$("#jpImpBox");
+  box.innerHTML=`<div class="imp">Pick STEP files (folded parts from Fusion) named with the part number, e.g. <b>PULLOUTLIGHT.1.step</b>. Each one goes on the part with that number; a part that already has a model gets the new one.
+    <div class="row" style="margin-top:8px;align-items:center"><input type="file" id="jp3Files" multiple accept=".step,.stp,.STEP,.STP"><button class="btn primary sm" type="button" id="jp3Go">Upload to ${esc(jobNo)}</button><button class="btn sm" type="button" id="jp3Cancel">Cancel</button></div>
+    <div id="jp3Msg" class="tnote" style="margin-top:6px"></div></div>`;
+  $("#jp3Cancel").onclick=()=>{ box.innerHTML=""; };
+  $("#jp3Go").onclick=async()=>{
+    const fs=[...$("#jp3Files").files], msg=$("#jp3Msg"); if(!fs.length){ msg.textContent="Choose STEP files first."; return; }
+    $("#jp3Go").disabled=true; const safe=s=>String(s).replace(/[^A-Za-z0-9._-]+/g,"_").toLowerCase(); const done=[], miss=[];
+    try{
+      for(const f of fs){
+        const stem=f.name.replace(/\.(step|stp)$/i,""); const p=rows.find(r=>r.part_no===stem)||rows.find(r=>safe(r.part_no)===safe(stem));
+        if(!p){ miss.push(f.name); continue; }
+        msg.textContent=`Uploading ${p.part_no}…`;
+        const path=`jobs/${jobNo}/model/${p.part_no.replace(/[^A-Za-z0-9._-]+/g,"_")}.step`;
+        const up=await sb.storage.from("gvc-parts").upload(path,f,{upsert:true,contentType:"application/octet-stream"}); if(up.error) throw up.error;
+        const r=await sb.from("gvc_job_parts").update({model_path:path,updated_at:new Date().toISOString()}).eq("id",p.id); if(r.error) throw r.error;
+        done.push(p.part_no);
+      }
+      msg.textContent=`Done: ${done.length} model${done.length===1?"":"s"}${done.length?" ("+done.join(", ")+")":""}.${miss.length?" No part number match for: "+miss.join(", "):""}`;
+      const fresh=await load(jobNo,true); await sign(fresh.map(x=>x.thumb_path)); draw(jobNo,jobName,fresh);
+      const m=$("#jpImpBox"); if(m) m.innerHTML=`<div class="imp">${esc(msg.textContent)}</div>`;
+    }catch(e){ msg.textContent="Upload failed: "+(e.message||e); $("#jp3Go").disabled=false; }
+  };
 }
 try{ const g=localStorage.getItem("gvc_jp_grouped"); if(["name","asm","none"].includes(g)) grouped=g; }catch(e){}
 window.jpCount=async()=>{ if(typeof sb==="undefined") return {}; const r=await sb.from("gvc_job_parts").select("job_no,bends"); const o={};
