@@ -121,6 +121,7 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .cell{height:16px;border-radius:3px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
 .cell.past{opacity:.38;border-color:transparent}
 .cell.now{border-color:#fff;box-shadow:0 0 8px var(--cc)}
+.cells .obar{grid-column:1/-1;height:16px;border-radius:3px;background:color-mix(in srgb,var(--oc) 55%,transparent);border:1px solid var(--oc);font:600 10px Oswald,sans-serif;letter-spacing:.14em;color:#fff;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden}
 .jn .jc{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:8px;vertical-align:-1px;background:transparent;border:1px solid #33373e}.jn .jc[style]{border:none}
 .jn{background:none;border:0;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jn:hover{color:#ffb070}
@@ -474,10 +475,16 @@ const recvAt=x=>x.receivedAt||x.updated||"";
 const recvToday=x=>x.status==="received"&&!!recvAt(x)&&new Date(recvAt(x)).toDateString()===new Date().toDateString();
 const offStage=j=>!ORDER_STAGES.includes(j.stage)&&j.stage!=="paint";
 /* orders on a job that isn't in an Orders stage, that belong on the board */
-const offOrders=j=>offStage(j)?(j.suppliers||[]).filter(x=>ACTIVE(x)&&SUP_COL[x.status]&&(x.status!=="received"||recvToday(x))):[];
+/* Ongoing jobs (INV - Inventory, shop cleanup / shop improvements): no stages - not on the boards, a solid bar on All jobs,
+   anyone can punch in any time; their orders still show on the Orders board as extra orders. (Kyle, Nov 10) */
+const ONGOING=j=>!!(j&&j.ongoing);
+/* a Shop floor job can sit in more than one Shop floor column at once, e.g. Fabrication + Bending (Kyle, Nov 10) */
+const alsoIn=j=>FAB_STAGES.includes(j.stage)?(j.alsoStages||[]).filter(k=>FAB_STAGES.includes(k)&&k!==j.stage):[];
+const inCol=(j,k)=>!ONGOING(j)&&(j.stage===k||alsoIn(j).includes(k));
+const offOrders=j=>(offStage(j)||ONGOING(j))?(j.suppliers||[]).filter(x=>ACTIVE(x)&&SUP_COL[x.status]&&(x.status!=="received"||recvToday(x))):[];
 /* a job sitting in the Received stage drops off the board the day after everything came in */
 const recvStale=j=>j.stage==="recv"&&!(j.suppliers||[]).filter(ACTIVE).some(x=>x.status!=="received"||recvToday(x));
-const onOrdersBoard=j=>(ORDER_STAGES.includes(j.stage)&&!recvStale(j))||offOrders(j).length>0;
+const onOrdersBoard=j=>(!ONGOING(j)&&ORDER_STAGES.includes(j.stage)&&!recvStale(j))||offOrders(j).length>0;
 /* when the last open order on a job is counted / marked received, the job moves to the Shop floor (Fabrication).
    Not for the standing INV job. Returns true if it moved. (Kyle, 2026-11-04) */
 window.autoToShop=j=>{
@@ -580,16 +587,20 @@ function drawTrack(){
   // finished jobs stay on the All jobs table for 2 weeks after they're done, archived or not (Kyle, 2026-11-04)
   const finAt=j=>j.doneAt||j.archivedAt||([...(j.log||[])].reverse().find(l=>/\bDone\b|Archived/.test(l.text||""))||{}).at||null;
   const recentFin=archivedJobs.filter(j=>!jobs.some(x=>x.id===j.id)&&finAt(j)&&Date.now()-new Date(finAt(j)).getTime()<14*864e5);
-  const sorted=[...jobs,...recentFin].sort((a,b)=>(SIDX[a.stage]??0)-(SIDX[b.stage]??0)||(a.stage==="done"&&b.stage==="done"?String(finAt(b)||"").localeCompare(String(finAt(a)||"")):(a.order||0)-(b.order||0)));
+  const sorted=[...jobs,...recentFin].sort((a,b)=>(ONGOING(a)-ONGOING(b))||(SIDX[a.stage]??0)-(SIDX[b.stage]??0)||(a.stage==="done"&&b.stage==="done"?String(finAt(b)||"").localeCompare(String(finAt(a)||"")):(a.order||0)-(b.order||0)));
   $("#track").style.setProperty("--n",STAGES.length);
   $("#track").innerHTML=`<div class="hdr"></div><div class="cells lbl" style="--n:${STAGES.length}">${STAGES.map(s=>`<div title="${s.bt}: ${s.t}">${s.t.replace(" - To Count","").replace("Ready to Pick Up","Pick up").replace("Preparing Order","Preparing").replace("Quote Requested","Quote").replace("In Production","In prod.").replace("Released to Me","Released").replace("Check Drawings","Drawings").replace("Assembly / Install","Assembly")}</div>`).join("")}</div><div class="hdr"></div>`+
    sorted.map(j=>{const i=SIDX[j.stage]??0;const s=STAGES[i];
+    if(ONGOING(j)){ const oc=window.jobColor?window.jobColor(j.id):"#2fb5a8";
+      return `<button class="jn" type="button" data-id="${esc(j.id)}" title="${esc(j.name)}"><i class="jc" style="background:${oc};box-shadow:0 0 8px ${oc}"></i>${esc(j.name)}</button>
+       <div class="cells"><div class="obar" style="--oc:${oc}">ONGOING · PUNCH IN ANY TIME</div></div><div class="where">Ongoing</div>`; }
+    const also=alsoIn(j).map(k=>SIDX[k]);
     // same colour as the job's blocks on the week plan, for jobs people are working on (shop floor, or someone on a task) (Kyle, Nov 4)
     const worked=j.stage!=="done"&&!j.archived&&(stOf(j).board==="build"||(j.assemblies||[]).some(a=>a.status!=="done"&&String(a.who||"").trim()));
     const jc=worked&&window.jobColor?window.jobColor(j.id):"";
     return `<button class="jn" type="button" data-id="${esc(j.id)}" title="${esc(j.name)}">${jc?`<i class="jc" style="background:${jc};box-shadow:0 0 8px ${jc}"></i>`:`<i class="jc"></i>`}${esc(j.name)}${j.sample?' <span style="color:var(--dim)">(sample)</span>':""}</button>
-     <div class="cells" style="--n:${STAGES.length}">${STAGES.map((x,xi)=>`<div class="cell ${xi<i?"past":xi===i?"now":""}" title="${x.bt}: ${x.t}" style="${xi<=i?`background:${x.bc};--cc:${x.bc}`:""}"></div>`).join("")}</div>
-     <div class="where">${j.stage==="done"&&finAt(j)?`Done ${new Date(finAt(j)).toLocaleDateString("en-CA",{month:"short",day:"numeric"})}${j.archived?" · archived":""}`:`${s.bt} · ${s.t}`}</div>`;}).join("");
+     <div class="cells" style="--n:${STAGES.length}">${STAGES.map((x,xi)=>`<div class="cell ${xi<i&&!also.includes(xi)?"past":xi===i||also.includes(xi)?"now":""}" title="${x.bt}: ${x.t}" style="${xi<=i||also.includes(xi)?`background:${x.bc};--cc:${x.bc}`:""}"></div>`).join("")}</div>
+     <div class="where">${j.stage==="done"&&finAt(j)?`Done ${new Date(finAt(j)).toLocaleDateString("en-CA",{month:"short",day:"numeric"})}${j.archived?" · archived":""}`:`${s.bt} · ${[s,...also.map(k=>STAGES[k])].map(x=>x.t).join(" + ")}`}</div>`;}).join("");
   $("#track").querySelectorAll(".jn").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
 }
 window.drawTrack=drawTrack;
@@ -598,7 +609,7 @@ function render(){
   const crewAsm=crewItems();
   const tdCount=liveAuto().length+liveMine().length, sgNew=suggs.filter(x=>x.status==="new").length;
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
-    const js=b.k==="ordering"?jobs.filter(onOrdersBoard):jobs.filter(j=>stOf(j).board===b.k); const at=js.filter(needsAttention).length;
+    const js=b.k==="ordering"?jobs.filter(onOrdersBoard):jobs.filter(j=>!ONGOING(j)&&stOf(j).board===b.k); const at=js.filter(needsAttention).length;
     return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct">${js.length}</span>${at?`<span class="at">${at}</span>`:""}</button>`;
   }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${liveAuto().some(t=>/^Assign \d+ assembl/.test(t.text))&&crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+(window.timeTab?window.timeTab():"")+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)&&liveAuto().some(t=>/sitting flat/.test(t.text))?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
@@ -608,18 +619,19 @@ function render(){
   $("#board").className="board";
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
   $("#board").innerHTML=B.stages.map(s=>{
-    const list=jobs.filter(j=>j.stage===s.k&&!(s.k==="recv"&&recvStale(j))).sort((x,y)=>(x.order||0)-(y.order||0));
+    const list=jobs.filter(j=>inCol(j,s.k)&&!(s.k==="recv"&&recvStale(j))).sort((x,y)=>(x.order||0)-(y.order||0));
     const extra=B.k==="ordering"?jobs.filter(j=>offOrders(j).some(x=>SUP_COL[x.status]===s.k)).sort((x,y)=>(x.order||0)-(y.order||0)):[];
     return `<section class="col ${list.length+extra.length?"":"emptycol"}" style="--c:${s.c}"><div class="colhead"><h2>${s.t}</h2><span class="none">none</span><div class="n">${(list.length+extra.length)||""}</div></div>
       <div class="cards">${list.map(j=>`<button class="card" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
         ${cardTitle(j)}
+        ${FAB_STAGES.includes(s.k)&&(j.stage!==s.k||alsoIn(j).length)?`<div class="offtag">Also in ${[j.stage,...alsoIn(j)].filter(k=>k!==s.k).map(k=>STAGES[SIDX[k]].t).join(" + ")}</div>`:""}
         ${j.summary?`<div class="tx">${esc(j.summary)}</div>`:""}
         ${(j.assemblies||[]).length?`<div class="cprog"><div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div><span>${Math.round(asmDone(j)/j.assemblies.length*100)}% · ${asmDone(j)} of ${j.assemblies.length} tasks</span></div>`:""}
         ${B.k==="ordering"&&(j.suppliers||[]).length?`<div class="sups">${j.suppliers.map(x=>supLine(x,j.stage)).join("")}</div>`:""}
         ${B.k==="build"&&(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status!=="received").length?`<div class="sups">${j.suppliers.filter(x=>ACTIVE(x)&&x.status!=="received").map(x=>supLine(x,j.stage)).join("")}</div>`:""}
         ${B.k==="build"?etaStrip(j):""}
         ${flags(j).join("")}${s.k==="arrived"||s.k==="pickup"?(j.suppliers||[]).filter(x=>ACTIVE(x)&&(x.status==="arrived"||x.status==="ready")).map(x=>`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`).join("")||((j.suppliers||[]).filter(ACTIVE)[0]?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc((j.suppliers||[]).filter(ACTIVE)[0].id)}">☑ Count it</span>`:""):""}</button>`).join("")}${extra.map(j=>{const os=offOrders(j).filter(x=>SUP_COL[x.status]===s.k);return `<button class="card offo" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
-        ${cardTitle(j)}<div class="offtag">${esc(stOf(j).bt)} · ${esc(stOf(j).t)} - extra order</div>
+        ${cardTitle(j)}<div class="offtag">${ONGOING(j)?"Ongoing job · order":`${esc(stOf(j).bt)} · ${esc(stOf(j).t)} - extra order`}</div>
         <div class="sups">${os.map(x=>supLine(x,"quote")).join("")}</div>
         ${os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(x.sent)>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span><span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:x.status==="arrived"?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:"").join("")}</button>`;}).join("")}</div></section>`;
   }).join("");
@@ -657,7 +669,7 @@ function dlgStale(){
 function crewItems(){
   /* Shop-floor jobs show all their tasks; a job still in the office/orders stages shows the tasks someone is already
      put on (e.g. "Build headache rack" on 1086WT while it's at Quote Requested) so Lanes matches the week plan. (Kyle, 2026-11-04) */
-  const out=[]; jobs.forEach(j=>{ const fab=FAB_STAGES.includes(j.stage); if(!fab&&(j.stage==="done"||j.archived)) return;
+  const out=[]; jobs.forEach(j=>{ const fab=FAB_STAGES.includes(j.stage)||!!j.ongoing; if(!fab&&(j.stage==="done"||j.archived)) return;
     (j.assemblies||[]).forEach((a,i)=>{ if(fab||(whoList(a).length&&a.status!=="done")) out.push({j,a,i}); }); }); return out;
 }
 function asmSel(j,i,a,kind){
@@ -739,9 +751,12 @@ function drawDlg(){
   const stageOpts=BOARDS.map(b=>`<optgroup label="${b.t}">${b.stages.map(x=>`<option value="${x.k}" ${j.stage===x.k?"selected":""}>${x.t}</option>`).join("")}</optgroup>`).join("");
   $("#dlg").innerHTML=`
    <div class="row" style="justify-content:space-between;align-items:center"><h3 id="dlgTitle">${esc(j.name)}</h3><button class="btn ghost" type="button" id="xBtn">Close</button></div>
-   <div class="stagebar"><span style="color:var(--muted)">Stage:</span><span class="now">${s.bt} · ${s.t}</span><span style="flex:1"></span>
+   ${ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><span style="flex:1"></span>
+     <button class="btn sm" type="button" id="ongo">Make it a normal job</button><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span style="color:var(--muted)">Stage:</span><span class="now">${s.bt} · ${[s.t,...alsoIn(j).map(k=>STAGES[SIDX[k]].t)].join(" + ")}</span><span style="flex:1"></span>
      <button class="btn sm" type="button" id="back" ${i===0?"disabled":""}>← Back</button>
-     <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""}>Next: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div>
+     <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""}>Next: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button>
+     ${FAB_STAGES.includes(j.stage)?`<div style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);font-size:13px">Also in:</span>${FAB_STAGES.filter(k=>k!==j.stage).map(k=>`<button class="btn sm ${alsoIn(j).includes(k)?"primary":""}" type="button" data-also="${k}">${STAGES[SIDX[k]].t}</button>`).join("")}</div>`:""}
+     <div style="flex-basis:100%;text-align:right"><button class="btn sm ghost" type="button" id="ongo" title="For standing jobs like Inventory or shop cleanup">Make it ongoing (no stages)</button></div></div>`}
    ${true?`<div class="sec"><span>Tasks${(j.assemblies||[]).length?` · ${asmDone(j)} of ${j.assemblies.length} done (${Math.round(asmDone(j)/j.assemblies.length*100)}%)`:""}</span><button class="btn sm" type="button" id="addAsm">+ Add tasks</button></div>
    ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div>`:""}
    ${(j.assemblies||[]).length?`<div class="atw"><table class="at"><thead><tr><th>Task</th><th>Who</th>${Object.entries(AST).map(([k,v])=>`<th class="sc" style="--c:${v.c}">${v.t}</th>`).join("")}<th></th></tr></thead><tbody>
@@ -782,6 +797,14 @@ function drawDlg(){
   $("#xBtn").onclick=closeDlg; $("#save").onclick=save; $("#addNote").onclick=addNote; $("#addSup").onclick=supForm; $("#delJob").onclick=delJob;
   $("#fNote").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addNote();}});
   $("#back").onclick=()=>move(-1); $("#next").onclick=()=>move(1);
+  $("#dlg").querySelectorAll("[data-also]").forEach(b=>b.onclick=async()=>{ const j=collect(); const k=b.dataset.also; const l=(j.alsoStages||[]).filter(x=>x!==j.stage);
+    const on=l.includes(k); j.alsoStages=on?l.filter(x=>x!==k):[...l,k];
+    j.log=[...(j.log||[]),{at:new Date().toISOString(),text:`${on?"No longer":"Also"} in ${STAGES[SIDX[k]].t}`}];
+    await put(j,`${j.name}: ${on?"out of":"also in"} ${STAGES[SIDX[k]].t}`); });
+  { const og=$("#ongo"); if(og) og.onclick=async()=>{ const j=collect(); const was=!!j.ongoing;
+    if(was) delete j.ongoing; else { j.ongoing=true; delete j.alsoStages; }
+    j.log=[...(j.log||[]),{at:new Date().toISOString(),text:was?"Back to a normal job with stages":"Made an ongoing job (no stages)"}];
+    await put(j,was?`${j.name} is a normal job again`:`${j.name} is now ongoing`); }; }
   wireAsm($("#dlg"));
   $("#dlg").querySelectorAll("[data-ss]").forEach(b=>b.onclick=()=>{ if(b.classList.contains('now')) return; setAsm(b.dataset.sj,+b.dataset.si,'status',b.dataset.ss); });
   $("#dlg").querySelectorAll("[data-rmasm]").forEach(b=>b.onclick=async()=>{const jj=structuredClone(job());const n=jj.assemblies[+b.dataset.rmasm].name;jj.assemblies.splice(+b.dataset.rmasm,1);await put(jj,`Removed ${n} from ${jj.name}`);});
@@ -818,6 +841,7 @@ async function put(j,label){
 async function move(d){
   const j=collect(); const was=SIDX[j.stage]??0; const to=Math.max(0,Math.min(STAGES.length-1,was+d));
   j.stage=STAGES[to].k; j.log=[...(j.log||[]),{at:new Date().toISOString(),text:`Moved to ${STAGES[to].bt}: ${STAGES[to].t}`}];
+  if(FAB_STAGES.includes(j.stage)) j.alsoStages=(j.alsoStages||[]).filter(k=>k!==j.stage); else delete j.alsoStages;
   if(STAGES[to].board!==STAGES[was].board) cur=STAGES[to].board;
   await put(j,`Moved ${j.name} to ${STAGES[to].t}`);
 }
@@ -1140,6 +1164,7 @@ function autoTodos(){
   const live=jobs.filter(j=>!j.sample);
   live.forEach(j=>{
     const a=(j.suppliers||[]).filter(ACTIVE);
+    if(!ONGOING(j)){   // ongoing jobs have no stages - only their open orders make reminders (below)
     if(j.stage==="released") add(`Look over new job: ${j.name}`,"var(--pipe)",{job:j.id});
     if(j.stage==="drawings") add(`Check drawings: ${j.name}`,"var(--blue)",{job:j.id});
     if(j.stage==="dxfs") add(`Make DXFs: ${j.name}`,"var(--cyan)",{job:j.id});
@@ -1150,7 +1175,8 @@ function autoTodos(){
     }
     if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id});
     if(j.stage==="arrived"){ const cs=a.find(x=>x.status==="arrived")||a.find(x=>x.status!=="received")||a[0]; add(`Count & check: ${j.name}`,"var(--amber)",{job:j.id,count:cs?cs.id:null}); }
-    if(j.stage==="bending") add(`Bend parts: ${j.name}`,"var(--pink)",{job:j.id});
+    if(j.stage==="bending"||alsoIn(j).includes("bending")) add(`Bend parts: ${j.name}`,"var(--pink)",{job:j.id});
+    }
     offOrders(j).forEach(x=>{
       if(x.status==="quote") add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id});
       else if(x.status==="sent"&&days(x.sent)>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id});
