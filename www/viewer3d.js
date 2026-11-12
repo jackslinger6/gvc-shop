@@ -157,6 +157,26 @@ function twoFacesLine(M,A,B){
   if(C&&P&&C!==P){ const q=C.ends[0], d=dot(sub(q,P.p),P.n); return [q,sub(q,mul(P.n,d))]; }
   return null;
 }
+/* holes in a DXF (inches): CIRCLEs and 2-point bulge-1 polylines on the cut layers (not ENGRAVE/BEND/text) */
+function dxfHoles(ents){
+  const out=[]; const skip=/ENGRAV|BEND|ETCH|TEXT|MARK/i;
+  ents.forEach(e=>{ if(skip.test(e.ly||"")) return;
+    if(e.t==="CIRCLE"&&e.r>0) out.push(2*e.r);
+    else if(e.t==="LWPOLYLINE"&&e.v&&e.v.length===2&&Math.abs(Math.abs(e.v[0].b)-1)<0.01&&Math.abs(Math.abs(e.v[1].b)-1)<0.01) out.push(Math.hypot(e.v[0].x-e.v[1].x,e.v[0].y-e.v[1].y)); });
+  return out.sort((a,b)=>a-b);
+}
+/* through-holes in the model (inches) - round faces that go through the sheet and close all the way round */
+function modelHoles(M){
+  const seen=[]; M.faces.forEach(F=>{ if(!(F.kind==="cyl"&&F.cut&&F.full&&!F.convex)) return;
+    const c=F.ends[0]; if(seen.some(h=>Math.abs(h.r-F.r)<0.05&&len(sub(sub(h.c,c),mul(F.ax,dot(sub(h.c,c),F.ax))))<0.1)) return; seen.push({r:F.r,c}); });
+  return seen.map(h=>2*h.r/25.4).sort((a,b)=>a-b); }
+/* compare: returns {ok, dxf:[...], model:[...], missing:[d...], extra:[d...]} - sizes match within 0.04" */
+function holeCompare(dx,mo){
+  const m=[...mo], missing=[];
+  dx.forEach(d=>{ const i=m.findIndex(x=>Math.abs(x-d)<=0.04); if(i>=0) m.splice(i,1); else missing.push(d); });
+  return {ok:!missing.length&&!m.length, dxf:dx, model:mo, missing, extra:m};
+}
+const sizeList=a=>{ const g={}; a.forEach(d=>{ const k=frac32(d); g[k]=(g[k]||0)+1; }); return Object.entries(g).map(([k,n])=>n+" × Ø"+k).join(", "); };
 function twoFaces(M,A,B,unitMM){
   if(A.kind==="plane"&&B.kind==="plane"){
     const c=dot(A.n,B.n);
@@ -181,7 +201,7 @@ function twoFaces(M,A,B,unitMM){
 
 /* fine enough that a 1/32" inside bend radius still gets several segments (tested on the 1086WT parts) */
 const TESS={linearUnit:"millimeter",linearDeflectionType:"absolute_value",linearDeflection:0.1,angularDeflection:0.25};
-const core={TESS,merge,analyze,edges,faceInfo,twoFaces,twoFacesLine,gapNear,frac32,fmt,eig3};
+const core={TESS,merge,analyze,edges,faceInfo,twoFaces,dxfHoles,modelHoles,holeCompare,twoFacesLine,gapNear,frac32,fmt,eig3};
 window.GVC3D=core;
 if(typeof document==="undefined") return;   // node tests stop here
 
@@ -467,7 +487,7 @@ window.open3D=async function(url,title,opts){
      <button class="btn sm" id="v3fit" type="button">Fit</button><button class="btn sm" id="v3u" type="button">in</button><button class="btn sm" id="v3x" type="button">Close</button></div>
    <div class="cv"><div class="msg" id="v3msg">Loading 3D…</div></div>
    <div class="ft"><div class="out" id="v3out">One finger spins, two fingers zoom and move. Pick Faces or Points to measure.</div>
-   <div class="note">Model reference - the bend drawing is the boss.</div></div>`;
+   <div class="note" id="v3chk" style="font-size:12.5px;font-weight:600"></div><div class="note">Model reference - the bend drawing is the boss.</div></div>`;
   document.body.appendChild(W);
   const box=W.querySelector(".cv"), out=W.querySelector("#v3out"), msg=W.querySelector("#v3msg");
   let disposed=false, renderer=null, onResize=null;
@@ -490,6 +510,18 @@ window.open3D=async function(url,title,opts){
     M=modelCache[url]; if(disposed) return;
   }catch(e){ msg.textContent=(e.message||String(e))+" - check the connection and try again."; return; }
   msg.remove();
+  /* Kyle, Nov 11: some 3D models (the AI picker truck) are missing holes - check against the part's real DXF */
+  const chk=W.querySelector("#v3chk");
+  (async()=>{ try{
+    const p=opts.part; if(!p||!p.dxf_path||typeof sb==="undefined"||!window.gvcFlat||!chk) return;
+    chk.textContent="Checking holes against the DXF…";
+    const r=await sb.storage.from("gvc-parts").createSignedUrl(p.dxf_path,600); if(!r.data) { chk.textContent=""; return; }
+    const t=await (await fetch(r.data.signedUrl)).text(); if(disposed) return;
+    const c=holeCompare(dxfHoles(window.gvcFlat.parse(t)),modelHoles(M));
+    if(c.ok){ chk.style.color="#7be29b"; chk.textContent=c.dxf.length?`✓ Holes match the DXF (${sizeList(c.dxf)})`:"✓ No holes in the DXF or the model"; }
+    else { chk.style.color="#ffb070"; chk.textContent=`⚠ This 3D model doesn't match the DXF - the DXF has ${c.dxf.length} hole${c.dxf.length===1?"":"s"}${c.dxf.length?" ("+sizeList(c.dxf)+")":""}, the model has ${c.model.length}`+
+      (c.missing.length?` · missing ${sizeList(c.missing)}`:"")+(c.extra.length?` · extra ${sizeList(c.extra)}`:"")+". Use the flat pattern / bend drawing for holes."; }
+  }catch(e){ if(chk) chk.textContent=""; } })();
 
   const {THREE}=L;
   renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
