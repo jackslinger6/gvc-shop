@@ -1126,7 +1126,9 @@ function renderInv(){
      <div class="stats"><div><b>${parts.length}</b><span>parts</span></div><div><b>${money(value)}</b><span>in stock</span></div><div class="${flatPcs?"warn":""}"><b>${flatPcs}</b><span>pcs flat</span></div><div><b>${short}</b><span>short for a truck</span></div></div>
      <div class="row" style="gap:8px;flex-wrap:wrap;margin:10px 0">${chip("all","All")}${chip("flat",`Flat - to bend${flatParts?" ("+flatParts+")":""}`)}${chip("short","Short")}${chip("stock","In stock")}
        <input id="invQ" placeholder="Search parts, new or old numbers, material…" value="${esc(invQ)}" style="flex:1;min-width:180px">
-       <button class="btn" type="button" id="bendList">Bend list</button></div>
+       <button class="btn" type="button" id="bendList">Bend list</button>
+       ${parts.some(p=>p.model_path&&p.model_path.startsWith("inv/models/"))?`<button class="btn" type="button" id="invUp3d" title="Pick the 'GVC 3D export' folder from Documents">Upload 3D models</button><input type="file" id="invUp3dIn" webkitdirectory multiple hidden>`:""}</div>
+     <div id="invUpMsg" class="tnote" style="color:#7be29b"></div>
      <div class="tnote">Picker truck parts from Robin's spreadsheet (New_Shop_Master_Inventory.xlsx)${invMeta?.at?" · synced "+fmt(invMeta.at):""}. Counts are changed in the spreadsheet.</div></div>
    ${overview?tiles():crumb()+groups.map(g=>{const gl=list.filter(p=>asmName(p)===g); return `<section class="ig"><h3>${esc(g)} <span class="n">${gl.length}</span></h3>${gl.map(p=>{const o=invOpen.has(p.part_no);return `<div class="pr ${o?"open":""}" data-p="${esc(p.part_no)}">
       <div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${p.new_no?`<span class="nno">${esc(p.new_no)}</span>old ${esc(p.part_no)}`:esc(p.part_no)} · ${esc(p.description||"")}${p.qty_per_truck?` · ${p.qty_per_truck}/truck`:""}</div>
@@ -1146,6 +1148,20 @@ function renderInv(){
   B.querySelectorAll("[data-zoom]").forEach(el=>el.onclick=e=>{e.stopPropagation(); zoomImg(el.src,el.alt);});
   wireDraw(B);
   $("#bendList").onclick=showBendList;
+  /* 3D models for inventory (Kyle, Nov 11): Fusion exported each section of the AI picker truck to Documents\GVC 3D export\<section>\<part>.step.
+     Pick that folder; every file that a part points at (model_path inv/models/<section>/<file>) is uploaded under Kyle's login. */
+  const up=$("#invUp3d"), upIn=$("#invUp3dIn");
+  if(up&&upIn){ up.onclick=()=>upIn.click(); upIn.onchange=async()=>{
+    const slug=t=>t.replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^_+|_+$/g,"");
+    const want=new Set(parts.filter(p=>p.model_path&&p.model_path.startsWith("inv/models/")).map(p=>p.model_path));
+    const files=[...upIn.files].map(f=>{ const seg=(f.webkitRelativePath||f.name).split("/"); return {f, path:seg.length>=2?"inv/models/"+slug(seg[seg.length-2])+"/"+slug(seg[seg.length-1]):""}; }).filter(x=>want.has(x.path));
+    const msg=$("#invUpMsg"); if(!files.length){ msg.textContent="No matching part files in that folder - pick the 'GVC 3D export' folder in Documents."; return; }
+    let ok=0, bad=[]; up.disabled=true;
+    for(const x of files){ msg.textContent=`Uploading 3D models… ${ok+bad.length+1} of ${files.length}`;
+      const r=await sb.storage.from("gvc-parts").upload(x.path,x.f,{upsert:true,contentType:"application/octet-stream"}); if(r.error) bad.push(x.path.split("/").pop()+": "+r.error.message); else ok++; }
+    up.disabled=false; upIn.value="";
+    msg.textContent=`${ok} 3D models uploaded${bad.length?` · ${bad.length} failed (${bad.slice(0,3).join("; ")})`:""}. Open a part and tap 3D.`; };
+  }
   invOpen.forEach(k=>{ const p=parts.find(x=>x.part_no===k); if(p) needDrawUrls(p); });
 }
 /* drawings: bend drawing image, flat pattern from the DXF, PDF + DXF downloads (Supabase storage gvc-parts) */
