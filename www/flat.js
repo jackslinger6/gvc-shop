@@ -167,17 +167,14 @@ function view(o){
   drawC();
   const img=ov.querySelector("img"), bx=ov.querySelector(".bx"); let z=1;
   const ar=(o.vw&&o.vh)?o.vw/o.vh:(o.W&&o.H?o.W/o.H:1);
-  const set=n=>{ const cx=bx.scrollLeft+bx.clientWidth/2, cy=bx.scrollTop+bx.clientHeight/2, oldW=img.offsetWidth||1;
-    z=Math.max(1,Math.min(10,n)); const bw=bx.clientWidth-8, bh=bx.clientHeight-8; const fw=Math.min(bw,bh*ar);
-    img.style.width=Math.round(fw*z)+"px"; img.style.height=Math.round(fw*z/ar)+"px";
-    const k=(fw*z)/oldW; bx.scrollLeft=cx*k-bx.clientWidth/2; bx.scrollTop=cy*k-bx.clientHeight/2; };
+  const size=n=>{ z=Math.max(1,Math.min(10,n)); const bw=bx.clientWidth-8, bh=bx.clientHeight-8; const fw=Math.min(bw,bh*ar);
+    img.style.width=Math.round(fw*z)+"px"; img.style.height=Math.round(fw*z/ar)+"px"; };
+  // zoom about a point (default: the middle of the view) so the spot you're looking at stays put
+  const set=(n,fx,fy)=>{ if(typeof zoomKeep==="function"&&img.offsetWidth) zoomKeep(bx,()=>img,size,n,fx,fy); else size(n); };
   requestAnimationFrame(()=>set(1)); const onR=()=>set(z); window.addEventListener("resize",onR);
   ov.querySelectorAll("[data-z]").forEach(b=>b.onclick=()=>set(b.dataset.z==="+"?z*1.6:z/1.6));
-  img.ondblclick=()=>set(z>1?1:3);
-  let d0=null,z0=1;
-  bx.addEventListener("touchstart",e=>{ if(e.touches.length===2){ d0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); z0=z; } },{passive:true});
-  bx.addEventListener("touchmove",e=>{ if(e.touches.length===2&&d0){ e.preventDefault(); set(z0*Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)/d0); } },{passive:false});
-  bx.addEventListener("touchend",()=>{ d0=null; });
+  img.ondblclick=e=>set(z>1?1:3,e.clientX,e.clientY);
+  if(typeof gvcPinch==="function") gvcPinch(bx,()=>img,()=>z,size);
   let drag=null; const mm=e=>{ if(drag){ bx.scrollLeft=drag.l-(e.clientX-drag.x); bx.scrollTop=drag.t-(e.clientY-drag.y); } }, mu=()=>{ drag=null; };
   bx.addEventListener("mousedown",e=>{ drag={x:e.clientX,y:e.clientY,l:bx.scrollLeft,t:bx.scrollTop}; e.preventDefault(); });
   window.addEventListener("mousemove",mm); window.addEventListener("mouseup",mu);

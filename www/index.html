@@ -1161,10 +1161,24 @@ function loadPdfJs(){ if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib
     s.onload=()=>{ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js"; ok(window.pdfjsLib); }catch(e){ no(e); } };
     s.onerror=()=>{ _pdfjsP=null; no(new Error("pdf.js didn't load")); }; document.head.appendChild(s); });
   return _pdfjsP; }
+/* zoom a scrolled picture about a point on screen (Kyle, Nov 11: pinch always zoomed into the top-left corner).
+   box = the scrolling box, el() = the picture (it can be swapped, e.g. the sharp PDF canvas), resize(z) sets its size.
+   zoomAt keeps the spot under (fx,fy) where it is; gvcPinch also moves with your fingers while you pinch. */
+function zoomKeep(box,el,resize,z,fx,fy){ const r=box.getBoundingClientRect(); if(fx==null){ fx=r.left+box.clientWidth/2; fy=r.top+box.clientHeight/2; }
+  const e0=el(), u=(box.scrollLeft+fx-r.left-e0.offsetLeft)/(e0.offsetWidth||1), v=(box.scrollTop+fy-r.top-e0.offsetTop)/(e0.offsetHeight||1);
+  resize(z); const e1=el(); box.scrollLeft=u*e1.offsetWidth+e1.offsetLeft-(fx-r.left); box.scrollTop=v*e1.offsetHeight+e1.offsetTop-(fy-r.top); }
+function gvcPinch(box,el,getZ,resize){
+  let P=null; const mid=t=>({x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2}), dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  box.addEventListener("touchstart",e=>{ if(e.touches.length===2){ const r=box.getBoundingClientRect(), m=mid(e.touches), e0=el();
+    P={d0:dist(e.touches)||1,z0:getZ(),u:(box.scrollLeft+m.x-r.left-e0.offsetLeft)/(e0.offsetWidth||1),v:(box.scrollTop+m.y-r.top-e0.offsetTop)/(e0.offsetHeight||1)}; } },{passive:true});
+  box.addEventListener("touchmove",e=>{ if(e.touches.length===2&&P){ e.preventDefault(); const r=box.getBoundingClientRect(), m=mid(e.touches);
+    resize(P.z0*dist(e.touches)/P.d0); const e1=el(); box.scrollLeft=P.u*e1.offsetWidth+e1.offsetLeft-(m.x-r.left); box.scrollTop=P.v*e1.offsetHeight+e1.offsetTop-(m.y-r.top); } },{passive:false});
+  box.addEventListener("touchend",e=>{ if(e.touches.length<2) P=null; });
+}
 function viewDrawing(src,title,flat,pdfUrl){
   openId=null; let z=1; const D=$("#dlg");
   D.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center;gap:8px"><b style="font-size:14px">${esc(title)}</b><span style="flex:1"></span><button class="btn sm" type="button" id="zOut">−</button><button class="btn sm" type="button" id="zIn">+</button><button class="btn sm" type="button" onclick="closeDlg()">Close</button></div>
-    <div id="zBox" style="overflow:auto;max-height:78vh;margin-top:8px;background:#fff;border-radius:8px;touch-action:pan-x pan-y"><img id="zImg" src="${src}" alt="${esc(title)}" style="width:100%;display:block;${flat?"padding:10px;box-sizing:border-box":""}"></div>`;
+    <div id="zBox" style="position:relative;overflow:auto;max-height:78vh;margin-top:8px;background:#fff;border-radius:8px;touch-action:pan-x pan-y"><img id="zImg" src="${src}" alt="${esc(title)}" style="width:100%;display:block;${flat?"padding:10px;box-sizing:border-box":""}"></div>`;
   $("#scrim").classList.add("on");
   let page=null, rT=0, rN=0;
   // draw the PDF page into a canvas sized for the current zoom and screen, so lines stay crisp
@@ -1173,16 +1187,14 @@ function viewDrawing(src,title,flat,pdfUrl){
     const scale=Math.min(cssW*dpr, 7000)/base.width, vp=page.getViewport({scale});
     const cv=document.createElement("canvas"); cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
     await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise; if(my!==rN||!$("#zBox")) return;
-    cv.id="zImg"; cv.style.cssText="width:"+(z*100)+"%;display:block"; cv.ondblclick=()=>set(z>1?1:2.5);
+    cv.id="zImg"; cv.style.cssText="width:"+(z*100)+"%;display:block"; cv.ondblclick=e=>set(z>1?1:2.5,e.clientX,e.clientY);
     const old=$("#zImg"); if(old) old.replaceWith(cv); };
-  const set=n=>{ z=Math.max(1,Math.min(5,n)); $("#zImg").style.width=(z*100)+"%"; clearTimeout(rT); rT=setTimeout(render,250); };
+  const size=n=>{ z=Math.max(1,Math.min(5,n)); $("#zImg").style.width=(z*100)+"%"; clearTimeout(rT); rT=setTimeout(render,250); };
+  const set=(n,fx,fy)=>{ const b=$("#zBox"); if(b) zoomKeep(b,()=>$("#zImg"),size,n,fx,fy); else size(n); };
   if(pdfUrl) loadPdfJs().then(lib=>lib.getDocument(pdfUrl).promise).then(doc=>doc.getPage(1)).then(pg=>{ page=pg; render(); }).catch(()=>{});   // falls back to the picture
   $("#zIn").onclick=()=>set(z+0.75); $("#zOut").onclick=()=>set(z-0.75);
-  let d0=null,z0=1; const box=$("#zBox");
-  box.addEventListener("touchstart",e=>{ if(e.touches.length===2){ d0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); z0=z; } },{passive:true});
-  box.addEventListener("touchmove",e=>{ if(e.touches.length===2&&d0){ e.preventDefault(); const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); set(z0*d/d0); } },{passive:false});
-  box.addEventListener("touchend",()=>{ d0=null; });
-  $("#zImg").ondblclick=()=>set(z>1?1:2.5);
+  gvcPinch($("#zBox"),()=>$("#zImg"),()=>z,size);
+  $("#zImg").ondblclick=e=>set(z>1?1:2.5,e.clientX,e.clientY);
 }
 function zoomImg(src,alt){ openId=null; $("#dlg").innerHTML=`<img src="${src}" alt="${esc(alt)}" style="width:100%;border-radius:8px;background:#fff"><div class="row" style="margin-top:10px"><button class="btn" type="button" onclick="closeDlg()">Close</button></div>`; $("#scrim").classList.add("on"); }
 function bendText(list){ return "Flat parts to bend ("+list.reduce((a,p)=>a+p.stock_flat,0)+" pcs)\n"+list.map(p=>`- ${p.stock_flat} x ${p.name} (${p.part_no}) - ${p.description||p.material||""}`).join("\n"); }
