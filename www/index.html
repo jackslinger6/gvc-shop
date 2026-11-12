@@ -234,6 +234,13 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .invtop .stats .warn{border-color:rgba(224,79,160,.6)}.invtop .stats .warn b{color:#ff9fd2}
 .chip{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:999px;padding:6px 12px;cursor:pointer}
 .chip.on{background:#2a3340;border-color:#9fb3c8}
+.asmg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:6px}
+.asmc{display:block;text-align:left;font:inherit;color:var(--text);border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:10px 12px;cursor:pointer}
+.asmc b{font-size:15px;display:block}.asmc small{font-size:12px;color:var(--dim)}.asmc .subs{font-size:12px;color:#aab0b8;margin-top:6px;line-height:1.5}
+.asmc .subs span{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin:2px 3px 0 0;cursor:pointer}
+.asmc .subs span:hover,.asmc:hover{border-color:#9fb3c8}
+.crumb{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:10px 0 2px;font-size:13px}.crumb button{font:inherit;background:none;border:0;color:#8fc2ff;cursor:pointer;padding:2px}
+.nno{font-family:Oswald,sans-serif;letter-spacing:.03em;color:#7be29b;font-size:13px;margin-right:6px}
 .ig h3{font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:15px;margin:16px 0 6px}
 .ig h3 .n{color:var(--dim);font-family:Inter,sans-serif;font-size:12px}
 .pr{border:1px solid var(--line);border-radius:10px;background:linear-gradient(180deg,var(--panel2),var(--panel));margin-bottom:6px;overflow:hidden}
@@ -1074,15 +1081,15 @@ $("#lUp").onclick=async()=>{
   if(data.session) await startApp(); else showLogin("Check your email and tap the confirm link, then come back and sign in.");
 };
 /* ---------- Inventory (mirror of Robin's spreadsheet) ---------- */
-let parts=[], invMeta=null, invQ="", invF="all", invOpen=new Set(), imgUrls={};
+let parts=[], asms=[], invAsm=null, invMeta=null, invQ="", invF="all", invOpen=new Set(), imgUrls={};
 const MATC={Aluminum:"#9fb3c8",Steel:"#7d8590","Stainless Steel":"#c9d3dc",Birch:"#c9a46a",Plywood:"#c9a46a"};
 const money=n=>"$"+(Number(n)||0).toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
 const inStock=p=>(p.stock_bent||0)+(p.stock_flat||0);
 const isShort=p=>p.ordering==="Min-max"&&p.qty_per_truck>0&&inStock(p)<p.qty_per_truck&&!/no longer used/i.test(p.part_status||"");
 async function loadParts(){
   if(!db) return;
-  const [p,m]=await Promise.all([sb.from("gvc_parts").select("*").order("sort"), sb.from("gvc_meta").select("value").eq("key","inventory_sync").maybeSingle()]);
-  if(!p.error) parts=p.data||[]; if(m.data) invMeta=m.data.value;
+  const [p,m,a]=await Promise.all([sb.from("gvc_parts").select("*").order("sort"), sb.from("gvc_meta").select("value").eq("key","inventory_sync").maybeSingle(), sb.from("gvc_assemblies").select("*").order("ord")]);
+  if(!p.error) parts=p.data||[]; if(m.data) invMeta=m.data.value; if(!a.error) asms=a.data||[];
   const need=parts.filter(x=>x.img_path&&!imgUrls[x.img_path]).map(x=>x.img_path);
   if(need.length){ const r=await sb.storage.from("gvc-parts").createSignedUrls(need,60*60*12); (r.data||[]).forEach(u=>{ if(u.signedUrl) imgUrls[u.path]=u.signedUrl; }); }
   if(cur==="inv") render();
@@ -1095,31 +1102,45 @@ function partThumb(p,big){
 function renderInv(){
   const B=$("#board"); B.className="inv"; B.style.gridTemplateColumns="";
   const q=invQ.toLowerCase();
-  let list=parts.filter(p=>!q||[p.name,p.part_no,p.description,p.material,p.assembly].join(" ").toLowerCase().includes(q));
+  /* assemblies (Kyle, Nov 11): truck inventory -> tap an assembly (Rear apron, Big cabinet -> 48" drawer...) -> the parts it needs */
+  const A=id=>asms.find(a=>a.asm_no===id), kids=id=>asms.filter(a=>a.parent_no===id);
+  const under=id=>{ const out=new Set([id]); let grew=true; while(grew){ grew=false; asms.forEach(a=>{ if(a.parent_no&&out.has(a.parent_no)&&!out.has(a.asm_no)){ out.add(a.asm_no); grew=true; } }); } return out; };
+  const asmName=p=>{ const a=A(p.asm_no); return a?a.name:(p.assembly||"Other"); };
+  const top=asms.find(a=>!a.parent_no);
+  const overview=asms.length&&!invAsm&&!q&&invF==="all";
+  let list=parts.filter(p=>!q||[p.name,p.part_no,p.new_no,p.description,p.material,p.assembly,asmName(p)].join(" ").toLowerCase().includes(q));
+  if(invAsm){ const ids=under(invAsm); list=list.filter(p=>ids.has(p.asm_no)); }
   if(invF==="flat") list=list.filter(p=>p.stock_flat>0);
   if(invF==="short") list=list.filter(isShort);
   if(invF==="stock") list=list.filter(p=>inStock(p)>0);
   const flatPcs=parts.reduce((a,p)=>a+(p.stock_flat||0),0), flatParts=parts.filter(p=>p.stock_flat>0).length, value=parts.reduce((a,p)=>a+(Number(p.unit_price)||0)*inStock(p),0), short=parts.filter(isShort).length;
-  const groups=[...new Set(list.map(p=>p.assembly||"Other"))];
+  const groups=[...new Set(list.map(asmName))];
+  const cnt=id=>{ const ids=under(id); return parts.filter(p=>ids.has(p.asm_no)).length; };
+  const crumb=()=>{ if(!invAsm) return ""; const path=[]; let a=A(invAsm); while(a){ path.unshift(a); a=A(a.parent_no); }
+    return `<div class="crumb"><button type="button" data-asm="">‹ All assemblies</button>${path.filter(x=>x.parent_no).map(x=>` / <button type="button" data-asm="${esc(x.asm_no)}">${esc(x.name)}</button>`).join("")}<span style="color:var(--dim)">· ${list.length} parts</span></div>`
+      +(kids(invAsm).length?`<div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0">${kids(invAsm).map(k=>`<button class="chip" type="button" data-asm="${esc(k.asm_no)}">${esc(k.name)} · ${cnt(k.asm_no)}</button>`).join("")}</div>`:""); };
+  const tiles=()=>`<div class="tnote" style="margin-top:12px">${esc(top?top.name:"Truck")} - tap an assembly to see the parts it needs.</div><div class="asmg">${(top?kids(top.asm_no):[]).map(a=>`<button type="button" class="asmc" data-asm="${esc(a.asm_no)}"><b>${esc(a.name)}</b><small>${esc(a.asm_no)} · ${cnt(a.asm_no)} parts</small>
+      ${kids(a.asm_no).length?`<div class="subs">${kids(a.asm_no).map(k=>`<span data-asm="${esc(k.asm_no)}">${esc(k.name)}</span>`).join("")}</div>`:""}</button>`).join("")}</div>`;
   const chip=(k,t)=>`<button class="chip ${invF===k?"on":""}" type="button" data-f="${k}">${t}</button>`;
   B.innerHTML=`<div class="invtop">
      <div class="stats"><div><b>${parts.length}</b><span>parts</span></div><div><b>${money(value)}</b><span>in stock</span></div><div class="${flatPcs?"warn":""}"><b>${flatPcs}</b><span>pcs flat</span></div><div><b>${short}</b><span>short for a truck</span></div></div>
      <div class="row" style="gap:8px;flex-wrap:wrap;margin:10px 0">${chip("all","All")}${chip("flat",`Flat - to bend${flatParts?" ("+flatParts+")":""}`)}${chip("short","Short")}${chip("stock","In stock")}
-       <input id="invQ" placeholder="Search parts, numbers, material…" value="${esc(invQ)}" style="flex:1;min-width:180px">
+       <input id="invQ" placeholder="Search parts, new or old numbers, material…" value="${esc(invQ)}" style="flex:1;min-width:180px">
        <button class="btn" type="button" id="bendList">Bend list</button></div>
      <div class="tnote">Picker truck parts from Robin's spreadsheet (New_Shop_Master_Inventory.xlsx)${invMeta?.at?" · synced "+fmt(invMeta.at):""}. Counts are changed in the spreadsheet.</div></div>
-   ${groups.map(g=>{const gl=list.filter(p=>(p.assembly||"Other")===g); return `<section class="ig"><h3>${esc(g)} <span class="n">${gl.length}</span></h3>${gl.map(p=>{const o=invOpen.has(p.part_no);return `<div class="pr ${o?"open":""}" data-p="${esc(p.part_no)}">
-      <div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${esc(p.part_no)} · ${esc(p.description||"")}${p.qty_per_truck?` · ${p.qty_per_truck}/truck`:""}</div>
+   ${overview?tiles():crumb()+groups.map(g=>{const gl=list.filter(p=>asmName(p)===g); return `<section class="ig"><h3>${esc(g)} <span class="n">${gl.length}</span></h3>${gl.map(p=>{const o=invOpen.has(p.part_no);return `<div class="pr ${o?"open":""}" data-p="${esc(p.part_no)}">
+      <div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${p.new_no?`<span class="nno">${esc(p.new_no)}</span>old ${esc(p.part_no)}`:esc(p.part_no)} · ${esc(p.description||"")}${p.qty_per_truck?` · ${p.qty_per_truck}/truck`:""}</div>
         ${/no longer used|unknown|confirm/i.test((p.part_status||"")+(p.to_order||""))?`<div class="pm" style="color:#ffb070">${esc(p.part_status||p.to_order)}</div>`:""}</div>
         <div class="pq">${p.stock_flat?`<span class="qb flat">${p.stock_flat} flat</span>`:""}<span class="qb ${inStock(p)?"":"zero"}">${p.stock_bent||0}${p.stock_flat?" bent":""}</span>${isShort(p)?`<span class="qb short">short</span>`:""}</div></div>
       ${o?`<div class="prx">${partThumb(p,true)}<dl>
-        <dt>Part #</dt><dd>${esc(p.part_no)}</dd><dt>Material</dt><dd>${esc([p.description,p.material].filter(Boolean).join(" · "))}</dd>
+        ${p.new_no?`<dt>New part #</dt><dd>${esc(p.new_no)}</dd><dt>Old part #</dt><dd>${esc(p.part_no)}</dd><dt>Assembly</dt><dd>${esc(asmName(p))}</dd>`:`<dt>Part #</dt><dd>${esc(p.part_no)}</dd>`}<dt>Material</dt><dd>${esc([p.description,p.material].filter(Boolean).join(" · "))}</dd>
         <dt>Per truck</dt><dd>${p.qty_per_truck??"-"}</dd><dt>In stock</dt><dd>${p.stock_bent||0} bent · ${p.stock_flat||0} flat</dd>
         <dt>Unit price</dt><dd>${p.unit_price!=null?money(p.unit_price):"-"}</dd><dt>$ in stock</dt><dd>${money((Number(p.unit_price)||0)*inStock(p))}</dd>
         <dt>Ordering</dt><dd>${esc(p.ordering||"-")}${p.pending?` · pending ${p.pending}`:""}</dd>
         ${p.to_order||p.part_status?`<dt>Note</dt><dd>${esc([p.to_order,p.part_status].filter(Boolean).join(" · "))}</dd>`:""}
       </dl>${drawBlock(p)}</div>`:""}</div>`;}).join("")}</section>`;}).join("")||`<div class="tnote">${parts.length?"No parts match.":"Loading inventory…"}</div>`}`;
   B.querySelectorAll("[data-f]").forEach(el=>el.onclick=()=>{invF=el.dataset.f;render();});
+  B.querySelectorAll("[data-asm]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); invAsm=el.dataset.asm||null; render(); window.scrollTo&&window.scrollTo(0,0); });
   const qi=$("#invQ"); qi.oninput=()=>{invQ=qi.value; const pos=qi.selectionStart; render(); const n=$("#invQ"); n.focus(); n.setSelectionRange(pos,pos);};
   B.querySelectorAll(".prh").forEach(el=>el.onclick=e=>{ if(e.target.dataset.zoom) return; const k=el.parentElement.dataset.p; invOpen.has(k)?invOpen.delete(k):invOpen.add(k); render(); });
   B.querySelectorAll("[data-zoom]").forEach(el=>el.onclick=e=>{e.stopPropagation(); zoomImg(el.src,el.alt);});
@@ -1202,7 +1223,7 @@ function showBendList(){
   const list=parts.filter(p=>p.stock_flat>0).sort((a,b)=>(a.material||"").localeCompare(b.material||"")||(a.sort-b.sort));
   openId=null; const D=$("#dlg");
   D.innerHTML=`<h2 style="margin:0 0 4px">Bend list</h2><div class="tnote">${list.length?`${list.reduce((a,p)=>a+p.stock_flat,0)} pcs sitting flat across ${list.length} parts.`:"Nothing sitting flat right now."}</div>
-   ${list.map(p=>`<div class="pr"><div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${esc(p.part_no)} · ${esc(p.description||"")}</div>${p.draw_path?`<button class="btn sm" type="button" data-bl="${esc(p.part_no)}" style="margin-top:4px">Bend drawing</button>`:""}</div><div class="pq"><span class="qb flat">${p.stock_flat} flat</span></div></div></div>`).join("")}
+   ${list.map(p=>`<div class="pr"><div class="prh">${partThumb(p)}<div class="prm"><div class="pn">${esc(p.name)}</div><div class="pm">${p.new_no?`<span class="nno">${esc(p.new_no)}</span>old ${esc(p.part_no)}`:esc(p.part_no)} · ${esc(p.description||"")}</div>${p.draw_path?`<button class="btn sm" type="button" data-bl="${esc(p.part_no)}" style="margin-top:4px">Bend drawing</button>`:""}</div><div class="pq"><span class="qb flat">${p.stock_flat} flat</span></div></div></div>`).join("")}
    <div class="row" style="margin-top:12px;gap:8px">${list.length?`<button class="btn primary" type="button" id="blShare">${navigator.share?"Share list":"Copy list"}</button>`:""}<button class="btn" type="button" onclick="closeDlg()">Close</button></div>`;
   $("#scrim").classList.add("on");
   D.querySelectorAll("[data-bl]").forEach(el=>el.onclick=async()=>{ const p=parts.find(x=>x.part_no===el.dataset.bl); if(!fileUrls[p.draw_path]){ const r=await sb.storage.from("gvc-parts").createSignedUrl(p.draw_path,3600); if(r.data) fileUrls[p.draw_path]=r.data.signedUrl; } viewDrawing(fileUrls[p.draw_path],"Bend drawing - "+p.part_no+" "+p.name,false); });
