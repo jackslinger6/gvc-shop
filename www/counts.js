@@ -390,7 +390,7 @@ window.countPicker=function(){
   }));
   list.sort((a,b)=>(a.s.status==="arrived"?0:1)-(b.s.status==="arrived"?0:1));
   if(list.length===1) return window.openCount(list[0].j.id,list[0].s.id);
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>COUNT WHICH ORDER?</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>Count which order?</h3>
     ${list.length?`<div class="tnote" style="margin:-4px 0 10px">Tap the delivery that's in front of you.</div>`+list.map((x,i)=>`<button class="add" type="button" data-cp="${i}" style="text-align:left;border-style:solid;border-left:4px solid ${x.s.status==="arrived"?"#f5b041":"#22c3e6"};margin-bottom:6px;display:block">
       <b style="display:block">${esc(x.s.name||"Order")}${x.s.quoteNo?` · ${esc(x.s.quoteNo)}`:""}</b><small style="color:var(--muted)">${esc(x.j.name)} · ${x.s.status==="arrived"?"in the shop - not counted yet":"ready for pickup"}</small></button>`).join("")
       :`<div class="tnote">Nothing is waiting to be counted. When an order comes in and gets set to Arrived, it shows up here.</div>`}

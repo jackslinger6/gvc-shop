@@ -15,7 +15,7 @@ st.textContent=`
 .cw .p.onl .av{box-shadow:0 0 0 3px #17191d,0 0 0 5px #3ad06b,0 0 16px 4px rgba(58,208,107,.55);animation:onl 2.4s ease-in-out infinite}
 @keyframes onl{50%{box-shadow:0 0 0 3px #17191d,0 0 0 5px #3ad06b,0 0 6px 1px rgba(58,208,107,.3)}}
 .cw .p.never .av{opacity:.55;box-shadow:0 0 0 3px #17191d,0 0 0 4px #4a4f56}
-.cw .p .ost{display:block;font-size:10.5px;letter-spacing:.06em;color:var(--muted);margin-top:2px;text-transform:uppercase}
+.cw .p .ost{display:block;font-size:11px;letter-spacing:0;color:var(--muted);margin-top:2px;line-height:1.2;text-align:center}
 .cw .p.onl .ost{color:#7ff0a8}
 .cw .p .mbd{position:absolute;top:-6px;right:-8px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5483b;color:#fff;font:700 11px/18px system-ui;text-align:center;box-shadow:0 0 0 2px #17191d}
 .tmav{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font:600 28px var(--font-display);color:#111;flex:none}
@@ -73,10 +73,10 @@ let REAL=null, ONLINE=new Set(), TEAM={}, MSGS=[], started=false;
 
 /* ---- status of a person ---- */
 function status(n){
-  if(ONLINE.has(n)) return {cls:"onl",txt:"On the app now",short:"ONLINE"};
+  if(ONLINE.has(n)) return {cls:"onl",txt:"On the app now",short:"Online"};
   const t=TEAM[n];
-  if(!t) return {cls:"never",txt:"No app account yet",short:"NO APP"};
-  if(!t.first_seen) return {cls:"never",txt:"Hasn't signed in yet",short:"NOT SIGNED IN"};
+  if(!t) return {cls:"never",txt:"No app account yet",short:"No app"};
+  if(!t.first_seen) return {cls:"never",txt:"Hasn't signed in yet",short:"Not signed in"};
   return {cls:"",txt:"Last on "+ago(t.last_seen),short:ago(t.last_seen)};
 }
 const unreadFrom=n=>MSGS.filter(m=>m.to_name===me()&&m.from_name===n&&!m.read_at).length;
@@ -89,7 +89,8 @@ function decorate(){
     const n=b.dataset.cw, s=status(n);
     b.classList.toggle("onl",s.cls==="onl"); b.classList.toggle("never",s.cls==="never");
     let o=b.querySelector(".ost"); if(!o){ o=document.createElement("span"); o.className="ost"; const nm=b.querySelector(".n"); (nm||b).after(o); }
-    o.textContent=n===me()?(s.cls==="onl"?"YOU · ONLINE":"YOU"):s.short;
+    o.textContent=n===me()?(s.cls==="onl"?"You · online":"You"):s.short;
+    if(b.dataset.t0==null) b.dataset.t0=b.title||n; b.title=`${b.dataset.t0} · ${n===me()?"You":s.txt}`;
     const a=b.querySelector(".av"); let bd=a&&a.querySelector(".mbd"); const u=unreadFrom(n);
     if(a){ if(u){ if(!bd){ bd=document.createElement("span"); bd.className="mbd"; a.appendChild(bd); } bd.textContent=u; } else if(bd) bd.remove(); }
     b.onclick=()=>person(n);
@@ -123,7 +124,7 @@ function person(n){
   const s=status(n), self=n===me();
   const S=sheetOpen(`<div class="tmhd">${av(n,s.cls==="onl"?"onl":"")}<div><b>${E(n)}${self?" (you)":""}</b><small class="${s.cls==="onl"?"on":""}">${s.cls==="onl"?"● ":""}${E(s.txt)}</small></div></div>
     ${self?"":`<div class="mthr" id="tmT">${threadHtml(n)}</div>
-    <div class="msend"><textarea id="tmIn" rows="1" placeholder="Message ${E(n)}…"></textarea><button type="button" id="tmGo">SEND</button></div>
+    <div class="msend"><textarea id="tmIn" rows="1" placeholder="Message ${E(n)}…"></textarea><button type="button" id="tmGo">Send</button></div>
     ${s.cls==="never"?`<div class="tnote" style="margin-top:6px">${E(n)} will see it once ${TEAM[n]?"he signs in":"he's set up on the app"}.</div>`:""}`}
     <div class="tmbtns">${crew()?"":`<button class="btn" type="button" id="tmDay">See ${self?"my":E(n)+"'s"} day</button>`}<button class="btn" type="button" id="tmX">Close</button></div>`);
   S.el.querySelector("#tmX").onclick=S.close;
@@ -154,7 +155,7 @@ window.openInbox=()=>{
   const names=[...new Set([...people(),...MSGS.map(m=>m.from_name===me()?m.to_name:m.from_name)])].filter(n=>n!==me());
   const last=n=>MSGS.filter(m=>(m.from_name===me()&&m.to_name===n)||(m.from_name===n&&m.to_name===me())).slice(-1)[0];
   names.sort((a,b)=>(last(b)?+new Date(last(b).at):0)-(last(a)?+new Date(last(a).at):0));
-  const S=sheetOpen(`<h3>MESSAGES</h3><div class="mlist">${names.map(n=>{ const l=last(n), s=status(n), u=unreadFrom(n);
+  const S=sheetOpen(`<h3>Messages</h3><div class="mlist">${names.map(n=>{ const l=last(n), s=status(n), u=unreadFrom(n);
     return `<button type="button" data-tn="${E(n)}">${av(n,s.cls==="onl"?"onl":"")}<div><b>${E(n)}</b><span>${l?E((l.from_name===me()?"You: ":"")+l.text):E(s.txt)}</span></div>${u?`<em>${u}</em>`:l?`<small style="color:var(--muted);font-size:11px">${ago(l.at)}</small>`:""}</button>`; }).join("")}</div>`);
   S.el.querySelectorAll("[data-tn]").forEach(b=>b.onclick=()=>{ S.close(); setTimeout(()=>person(b.dataset.tn),120); });
 };

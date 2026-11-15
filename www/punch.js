@@ -88,7 +88,7 @@ function paint(){
   clearInterval(tick);
   if(!open||$("#app").hidden){ bar.hidden=true; return; }
   bar.hidden=false;
-  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||open.job_name||"On the clock")}</b><small>${open.task_name?esc(open.job_name||""):"whole job - split it over the tasks when you punch out"}</small></div><span class="clk" id="pClk" title="Fix the start time" style="cursor:pointer">${hm(paidMs(open.start_at))}</span><button type="button" id="pFix" title="Forgot to punch in on time? Fix the start" style="background:rgba(255,255,255,.1);color:#e9e6e1;padding:8px 9px">✎</button><button type="button" id="pOut">PUNCH OUT</button>`;
+  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||open.job_name||"On the clock")}</b><small>${open.task_name?esc(open.job_name||""):"whole job - split it over the tasks when you punch out"}</small></div><span class="clk" id="pClk" title="Fix the start time" style="cursor:pointer">${hm(paidMs(open.start_at))}</span><button type="button" id="pFix" title="Forgot to punch in on time? Fix the start" style="background:rgba(255,255,255,.1);color:#e9e6e1;padding:8px 9px">✎</button><button type="button" id="pOut">Punch out</button>`;
   bar.querySelector("#pFix").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pClk").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pOut").onclick=()=>punchOut();
@@ -156,7 +156,7 @@ function fixStartSheet(){
   if(preview()){ toast(PV); return; }
   if(!open) return;
   const st0=new Date(open.start_at); const opts=startOpts().filter(t=>new Date(t)<new Date());
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>WHEN DID YOU START?</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>When did you start?</h3>
     <div class="tnote" style="margin:-4px 0 10px">${esc(open.task_name||"")} · punched in at ${clk12(st0)}. Forgot to punch in on time? Pick when you really started.</div>
     <label>Started at<select id="fsT" style="font-size:16px;min-height:48px">${opts.map(t=>`<option value="${t}">${clk12(t)}</option>`).join("")}</select></label>
     <div class="tnote" id="fsMsg" style="margin:8px 0"></div>
@@ -184,7 +184,7 @@ function splitSheet(was,j){
   const end=new Date(), tot=paidMs(was.start_at,end), totH=Math.round(tot/36e5*4)/4;
   const T=(j.assemblies||[]).slice().sort((a,b)=>(a.status==="done")-(b.status==="done")||(whoList(b).includes(me()))-(whoList(a).includes(me())));
   const opts=h=>{ let o=""; for(let x=0;x<=Math.max(totH,0.25)+1e-9;x+=0.25) o+=`<option value="${x}" ${Math.abs(x-h)<1e-9?"selected":""}>${x?(x+"h").replace(/^0\./,"."):"-"}</option>`; return o; };
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>WHAT DID YOU DO?</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>What did you do?</h3>
     <div class="tnote" style="margin:-4px 0 10px"><b style="color:var(--text)">${esc(j.name)}</b> · on the clock ${totH}h (${clk12(was.start_at)}–${clk12(end)}). Put the hours on the tasks you worked on. Tick the ones you finished.</div>
     <div class="splt">${T.map(a=>`<div class="spr ${a.status==="done"?"dn":""}" style="--c:${window.jobColor?window.jobColor(j.id):"#8e96a3"}"><div class="sn"><b>${esc(a.name)}</b><small>${a.status==="done"?"done":esc(whoList(a).join(", ")||"nobody on it")}</small></div>
       <select data-sh="${esc(a.id)}">${opts(T.length===1?totH:0)}</select>
@@ -256,7 +256,7 @@ function rowHtml(x){
   const j=jobs.find(y=>y.id===x.jid); const a=j&&(j.assemblies||[]).find(y=>y.id===x.aid);
   return `<div class="row2 ${on?"on":""} ${dn?"dn":""}" style="--c:${x.color}"><span class="tm">${esc(x.time||"")}</span>
     <div class="nm" data-oj="${esc(x.jid)}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${a&&a.status==="prog"?" · in progress":""}</small></div>
-    <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ PUNCH IN</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ DONE</button>`}</div></div>`;
+    <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">Punch out</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ Punch in</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ Done</button>`}</div></div>`;
 }
 /* one row per JOB in its own colour (same as the week plan / All jobs), its tasks as chips under it (Kyle, Nov 8) */
 function jobRows(rows){
@@ -273,7 +273,7 @@ function jobRowHtml(g){
   const allDn=g.rows.length&&g.rows.every(x=>{ const a=(j.assemblies||[]).find(y=>y.id===x.aid); return x.t.done||(a&&a.status==="done"); });
   return `<div class="row2 jrow ${on?"on":""} ${allDn&&!on?"dn":""}" style="--c:${c}"><span class="tm">${esc(g.time||"")}</span>
     <div class="nm" data-oj="${esc(j.id)}"><b>${num?`<span class="jb" style="background:${c}">${esc(num)}</span>`:""}${esc(nm)}</b>${on?`<small style="color:#7ff0a8">On the clock${open.task_name?" · "+esc(open.task_name):""}</small>`:""}</div>
-    <div class="bt">${on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:allDn?`<span class="lbl" style="color:#7ff0a8;font-weight:700">✓ ALL DONE</span>`:`<button class="pin" type="button" data-pjob="${esc(j.id)}">▶ PUNCH IN</button>`}</div>
+    <div class="bt">${on?`<button class="pout" type="button" data-pout="1">Punch out</button>`:allDn?`<span class="lbl" style="color:#7ff0a8;font-weight:700">✓ All done</span>`:`<button class="pin" type="button" data-pjob="${esc(j.id)}">▶ Punch in</button>`}</div>
     <div class="tchips">${chips}</div></div>`;
 }
 window.myDayHtml=()=>{
@@ -355,7 +355,7 @@ GVC.on("drawDlg:after",()=>{
 function addMyWork(){
   if(preview()){ toast(PV); return; }
   const act=jobs.filter(j=>j.stage!=="done"&&!j.archived).sort((a,b)=>String(a.name).localeCompare(String(b.name),undefined,{numeric:true}));
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>I'M DOING SOMETHING ELSE</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>I'm doing something else</h3>
     <label>What are you doing<input id="mwWhat" placeholder="e.g. Grinding welds on the headache rack"></label>
     <label>Which job<select id="mwJob"><option value="">A new job (no job number yet)</option>${act.map(j=>`<option value="${esc(j.id)}">${esc(j.name)}</option>`).join("")}</select></label>
     <label>Who asked for it (optional)<input id="mwFrom" placeholder="e.g. Randy"></label>
@@ -388,8 +388,8 @@ window.addMyWork=addMyWork;
 /* crew: "we need more wire" - goes on Kyle's To do (and marks the consumable as out/low if it's on the list) */
 async function needSupplies(){
   let cons=[]; try{ const r=await sb.from("gvc_consumables").select("id,name,category,unit,qty,min_qty").order("category").order("name"); cons=r.data||[]; }catch(e){}
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>NEED SUPPLIES</h3>
-    <button class="btn primary" type="button" id="nsTalk" style="width:100%;min-height:52px;font:600 15px var(--font-display);letter-spacing:.1em;margin-bottom:10px">🎤 SAY IT TO CLAUDE</button>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>Need supplies</h3>
+    <button class="btn primary" type="button" id="nsTalk" style="width:100%;min-height:52px;font:600 15px var(--font-display);letter-spacing:.1em;margin-bottom:10px">🎤 Say it to Claude</button>
     <div class="tnote" style="margin:-4px 0 10px">e.g. ".035 wire is running low, last spool on the Miller"</div>
     <label>or type it - what do we need<input id="nsWhat" placeholder="e.g. 0.035 wire, 4.5&quot; flap discs, argon"></label>
     ${cons.length?`<div class="tnote" style="margin:4px 0 6px">or tap one</div><div class="chips" id="nsChips" style="margin-bottom:10px">${cons.map(c=>`<button type="button" data-ns="${esc(c.id)}">${esc(c.name)}</button>`).join("")}</div>`:""}
@@ -449,7 +449,7 @@ function pickTask(){
   const minej=act.filter(j=>(j.assemblies||[]).some(a=>a.status!=="done"&&whoList(a).includes(me()))), other=act.filter(j=>!minej.includes(j));
   const item=j=>{ const on=open&&open.job_id===j.id; const c=window.jobColor?window.jobColor(j.id):"#8e96a3"; const t=(j.assemblies||[]).filter(a=>a.status!=="done");
     return `<button class="pkt ${on?"on":""}" type="button" data-pj="${esc(j.id)}" style="--c:${c}"><b>${esc(j.name)}</b><small>${t.length?esc(t.slice(0,4).map(a=>a.name).join(" · "))+(t.length>4?` +${t.length-4} more`:""):"no open tasks"}${on?" · ON THE CLOCK":""}</small></button>`; };
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>PUNCH IN ON…</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>Punch in on…</h3>
     <div class="tnote" style="margin:-4px 0 10px">Pick the job. When you punch out you say how long you spent on each task.</div>
     <label style="display:flex;gap:10px;align-items:center;margin:0 0 10px">Started<select id="ptStart" style="flex:1;font-size:16px;min-height:44px"><option value="">Now</option>${startOpts().filter(t=>new Date(t)<Date.now()-5*60e3).map(t=>`<option value="${t}">${clk12(t)} - forgot to punch in</option>`).join("")}</select></label>
     ${minej.length?`<div class="pkh">YOUR JOBS</div>${minej.map(item).join("")}`:""}
@@ -465,7 +465,7 @@ function pickTask(){
 window.pickTask=pickTask;
 /* Kyle can look at the app the way Colton sees it (nothing saved while previewing) */
 const pvBar=document.createElement("div"); pvBar.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1200;background:#9085e9;color:#0b0b14;font:600 13px var(--font-display);letter-spacing:.08em;padding:6px 8px 6px 14px;border-radius:0 0 12px 12px;display:none;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.5)";
-pvBar.innerHTML=`👁 CREW PREVIEW · WHAT COLTON SEES <button type="button" style="border:none;border-radius:8px;background:#0b0b14;color:#fff;font:600 12px var(--font-display);letter-spacing:.08em;padding:5px 10px;cursor:pointer">EXIT</button>`;
+pvBar.innerHTML=`👁 CREW PREVIEW · WHAT COLTON SEES <button type="button" style="border:none;border-radius:8px;background:#0b0b14;color:#fff;font:600 12px var(--font-display);letter-spacing:.08em;padding:5px 10px;cursor:pointer">Exit</button>`;
 document.body.appendChild(pvBar);
 let realMe=null, realOpen=null;
 window.crewPreview=(on,who)=>{

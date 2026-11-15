@@ -350,11 +350,23 @@ button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
   .shnav .railcrew .rh{font-family:var(--font-ui);letter-spacing:.08em}
 }
 @media (max-width:899px){
-  /* selected item: orange icon + label with a bar on top */
-  .shnav .ni.on::before{content:"";position:absolute;top:0;left:22%;right:22%;height:3px;border-radius:0 0 3px 3px;background:var(--accent)}
+  /* selected item (stage 6): filled pill behind the icon + bold white label, so it can't be missed */
+  .shnav .ni svg{box-sizing:content-box;padding:3px 12px;border-radius:14px;transition:background .15s}
+  .shnav .ni.on{color:var(--text);font-weight:700}
+  .shnav .ni.on svg{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line);color:var(--accent-hi)}
+  body.nav7 .shnav .ni svg{padding:3px 9px}
 }
-.hereMic{background:var(--accent);box-shadow:var(--shadow-2)}
-.hereMic small{font-family:var(--font-ui);font-weight:700;letter-spacing:.04em;color:var(--accent-hi)}
+@media (min-width:900px){
+  /* stage 6: the + sits right under the buttons (never on top of them), the crew goes to the bottom of the rail, small */
+  .shnav .pluswrap{position:static!important;transform:none!important;margin:10px 0 0!important;order:50!important}
+  .shnav .railcrew{position:static!important;margin-top:auto!important;order:60!important;flex:0 1 auto;gap:2px!important;padding-top:10px!important;border-top:1px solid var(--line)}
+  .shnav .railcrew .p{padding:4px 2px!important}
+  .shnav .railcrew .av{width:28px!important;height:28px!important;font-size:12.5px!important;opacity:.85}
+  .shnav .railcrew .n{font-size:11px!important;color:var(--muted)}
+  .shnav .railcrew .ost,.shnav .railcrew .s,.shnav .railcrew .bar{display:none!important}
+  .shnav .railcrew .p.onl .av{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--green);opacity:1}
+  .shnav .railcrew .p.never .av{opacity:.45}
+}
 .talk{background:var(--accent);font-family:var(--font-ui);letter-spacing:0}
 .whl .ctr{background:var(--accent)}
 .whl .it{font-family:var(--font-ui);font-weight:600;letter-spacing:0}
@@ -385,3 +397,54 @@ button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
   .dlg h3{font-size:18px}
 }
 @media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important} }
+
+/* ---------- All jobs (stage 6): compact table on a computer, cards on a phone ---------- */
+#allJobs .listhead h3{text-transform:none;letter-spacing:0;font-family:var(--font-ui);font-size:16px;color:var(--text)}
+#allJobs .listhead .n{font-size:12.5px}
+.jlf{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.jlc{min-height:36px;padding:0 14px;border-radius:var(--r-pill);border:1px solid var(--line);background:var(--panel2);color:var(--muted);font:600 13px var(--font-ui);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.jlc span{font-weight:700;color:var(--text);opacity:.8}
+.jlc:hover{color:var(--text);border-color:var(--line2)}
+.jlc[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent-line);color:var(--text)}
+.jlc.warn span{color:#ffb070;opacity:1}
+.jlhd,.jlo{display:grid;grid-template-columns:74px minmax(0,1.5fr) minmax(0,1.25fr) 128px minmax(0,1.5fr);column-gap:14px;align-items:center}
+.jlhd{padding:0 92px 6px 12px;font:600 11px var(--font-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.jlhd span:last-child{display:none}
+.jlrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;border-top:1px solid var(--line)}
+.jlrow:hover{background:rgba(255,255,255,.025)}
+.jlo{background:none;border:0;color:var(--text);font:inherit;text-align:left;cursor:pointer;padding:10px 0 10px 12px;min-height:48px;border-radius:var(--r-md)}
+.jlo:focus-visible{outline:none;box-shadow:var(--focus)}
+.jlo .jnum{font:600 12.5px var(--font-ui);letter-spacing:.02em;color:#ffd0a8;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:5px;padding:2px 6px;white-space:nowrap}
+.jlo .jnum.none{color:var(--dim);background:none;border-color:var(--line)}
+.jlp{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jlp .jc{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px;vertical-align:0}
+.jls{display:flex;flex-direction:column;gap:2px;min-width:0}
+.jlst{align-self:flex-start;max-width:100%;font-size:12.5px;font-weight:600;padding:2px 8px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--c,#8e96a3) 16%,transparent);color:color-mix(in srgb,var(--c,#8e96a3) 55%,#fff);border:1px solid color-mix(in srgb,var(--c,#8e96a3) 45%,transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jlst.ong{--c:#2fb5a8}
+.jlsb{font-size:11.5px;color:var(--muted);font-weight:400}
+.jlt{font-size:13px;color:var(--muted)}
+.jlt b{color:var(--text);font-weight:600}
+.jlnd{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.jlnd .flag{margin:0;font-size:11.5px}
+.jlx,.jlx0{width:84px;margin-right:8px}
+.jlx{min-height:36px;border-radius:var(--r-md);border:1px solid var(--line);background:none;color:var(--muted);font:600 12px var(--font-ui);cursor:pointer}
+.jlx:hover{color:var(--text);border-color:var(--line2)}
+.jlx span{display:inline-block;transition:transform .15s}
+.jlx[aria-expanded="true"]{color:var(--text);background:var(--panel2)}
+.jlx[aria-expanded="true"] span{transform:rotate(180deg)}
+.jlgrid{grid-column:1/-1;display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:4px 12px 14px}
+.jlgrid .legend{font-size:11.5px}
+.jlall{margin:10px 0 2px}
+#allJobs .empty{padding:14px 12px}
+@media (max-width:899px){
+  .jlhd{display:none}
+  .jlrow{grid-template-columns:minmax(0,1fr);position:relative;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-bottom:8px}
+  .jlrow.att{border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  .jlo{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"n p" "s s" "t t" "d d";row-gap:6px;padding:12px 100px 12px 12px}
+  .jln{grid-area:n}.jlp{grid-area:p;font-size:15px;white-space:normal}.jls{grid-area:s;flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap}.jlt{grid-area:t}.jlnd{grid-area:d}.jlnd:empty{display:none}
+  .jlx,.jlx0{position:absolute;top:8px;right:0}
+  .jlx0{display:none}
+  .jlgrid{padding:0 12px 12px}
+  .jlgrid .cells.lbl div{font-size:9.5px}
+}
+body.girly .jlrow{background:transparent}

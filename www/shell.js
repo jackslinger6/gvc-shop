@@ -124,6 +124,17 @@ body.girly .trk .cell[style*="--cc"]{background:var(--cc)!important}body.girly .
 .shov.on .shsheet{transform:none}
 @media (min-width:900px){ .shov{align-items:center} .shsheet{border-radius:20px;transform:translateY(20px) scale(.96);opacity:0;transition:transform .22s,opacity .22s} .shov.on .shsheet{transform:none;opacity:1} }
 .shsheet h3{margin:0 0 12px;font:600 18px var(--font-display);letter-spacing:.06em}
+.mmsec{margin:0 0 16px}
+.mmsh{font:600 11.5px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 2px 8px}
+.mmlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (min-width:900px){ .mmlist{grid-template-columns:repeat(3,minmax(0,1fr))} }
+.mmi{display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:500 14.5px var(--font-ui);text-align:left;cursor:pointer}
+.mmi svg{flex:none;color:var(--muted)}
+.mmi .mmt{flex:1;min-width:0;line-height:1.2}
+.mmi .mmc{flex:none;min-width:22px;height:22px;border-radius:11px;background:var(--red);color:#fff;font:700 12px var(--font-ui);display:flex;align-items:center;justify-content:center;padding:0 6px}
+.mmi .mmc.grey{background:none;color:var(--muted);font-weight:600}
+.mmi:hover{border-color:var(--line2);background:var(--panel2)}
+.mmi.out,.mmi.out svg{color:#ff9b9b}
 .mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .mgrid button{min-height:86px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:500 13px var(--font-display);letter-spacing:.06em;cursor:pointer;position:relative;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s,border-color .15s}
 .shov.on .mgrid button{opacity:1;transform:none}
@@ -240,21 +251,28 @@ let lookSnap=null, lookAt=0;
 window.shellLook=()=>{ const live=lookNow(); if(lookSnap&&Date.now()-lookAt<15*60e3&&/^Tab:/.test(live)) return lookSnap; return live; };
 function talkHere(){ lookSnap=lookNow(); lookAt=Date.now(); talk(""); setTimeout(()=>{ const n=$("#lookNote"); if(n) n.textContent="Claude sees: "+lookSnap.replace(/\s*\[[^\]]*\]/g,"").slice(0,140); },400); }
 window.shellTalkHere=talkHere;
-{ const st=document.createElement("style"); st.textContent=`.hereMic{position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.45),0 0 0 3px rgba(255,138,42,.25);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s}
-.hereMic:active{transform:scale(.92)}.hereMic small{position:absolute;bottom:-17px;font:600 9.5px var(--font-display);letter-spacing:.06em;color:#ffb36b;white-space:nowrap}
-@media(min-width:900px){.hereMic{bottom:24px;right:24px}}
-body:has(.scrim.on) .hereMic{z-index:1001;bottom:24px}
-body:has(.chatp.on) .hereMic,body:has(.shov) .hereMic{display:none}
+/* The Talk mic no longer floats over the screen (it covered table rows, pop-up buttons and the phone nav - Kyle's
+   review, Nov 14). It sits in the top bar next to Ask Claude, and inside the job card / count sheet header. */
+{ const st=document.createElement("style"); st.textContent=`.shtop .ib.tk{width:auto;padding:0 12px 0 10px;gap:6px;color:var(--accent-hi);font:600 13px var(--font-ui)}
+@media (max-width:359px){ .shtop .ib.tk span{display:none} .shtop .ib.tk{width:44px;padding:0} }
+.dmic{display:inline-flex;align-items:center;gap:6px}
+.dmic svg{color:var(--accent-hi)}
+@media (max-width:520px){ .dmic span{display:none} }
 #lookNote{font-size:11.5px;color:#ffb36b;padding:4px 12px 0}`; document.head.appendChild(st); }
-const hereMic=document.createElement("button"); hereMic.type="button"; hereMic.className="hereMic"; hereMic.hidden=true;
-hereMic.title="Talk to Claude about what's on screen"; hereMic.innerHTML=svg("rec","#111",24,2)+"<small>Talk</small>";
-hereMic.onclick=talkHere; document.body.appendChild(hereMic);
+const hereMic=document.createElement("button"); hereMic.type="button"; hereMic.className="ib tk"; hereMic.id="shTalk";
+hereMic.title="Talk to Claude about what's on screen"; hereMic.setAttribute("aria-label","Talk to Claude about what's on screen");
+hereMic.innerHTML=svg("rec","currentColor",20,2)+"<span>Talk</span>";
+hereMic.onclick=talkHere; top.querySelector("#shChat").before(hereMic);
+const dmicBtn=()=>{ const b=document.createElement("button"); b.type="button"; b.className="btn ghost dmic"; b.title="Talk to Claude about this"; b.setAttribute("aria-label","Talk to Claude about this");
+  b.innerHTML=svg("rec","currentColor",18,2)+"<span>Talk</span>"; b.onclick=talkHere; return b; };
+{ const D=$("#dlg"); if(D) new MutationObserver(()=>{ if(D.querySelector(".dmic")) return;
+    const x=D.querySelector(".jhd #xBtn")||D.querySelector(".cnt .hd #cPrint"); if(x) x.before(dmicBtn()); }).observe(D,{childList:true,subtree:true}); }
 { const ci=$("#chatP .ci"); if(ci&&!$("#lookNote")){ const n=document.createElement("div"); n.id="lookNote"; ci.before(n); } }
 { const x=$("#chatX"); if(x) x.addEventListener("click",()=>{ lookSnap=null; const n=$("#lookNote"); if(n) n.textContent=""; }); }
 const TALKBTN=(id,label)=>`<button class="talk" type="button" id="${id}">${svg("rec","#111",20,2)}<span>${label}</span></button>`;
 function openChat(){ const f=$("#chatFab"); if(f&&f.onclick) f.onclick(); }
 // show the frame once signed in (the app section becomes visible)
-new MutationObserver(()=>{ const on=!$("#app").hidden; top.hidden=!on; nav.hidden=!on; hereMic.hidden=!on; }).observe($("#app"),{attributes:true,attributeFilter:["hidden"]});
+new MutationObserver(()=>{ const on=!$("#app").hidden; top.hidden=!on; nav.hidden=!on; }).observe($("#app"),{attributes:true,attributeFilter:["hidden"]});
 
 /* ---- home is the start screen ---- */
 if(!location.hash||location.hash==="#"||location.hash==="#home") cur="home";
@@ -314,16 +332,20 @@ function drawRailCrew(){
   if(window.teamDecorate) window.teamDecorate();
 }
 /* Next up cards - Kyle's Home, Robin's Home and anyone else's use the same swipe cards (Kyle, Nov 8) */
+/* button labels on the cards come in CAPS from several screens; show them in sentence case (stage 6 readability) */
+const NAMES=["Robin","Randy","Russel","Colton","Aaron","Cooper","Kyle","Claude","Grandview","Jessie","Jesse"];
+const sc=t=>{ t=String(t||""); if(t!==t.toUpperCase()) return t; let o=t.toLowerCase().replace(/^./,c=>c.toUpperCase());
+  o=o.replace(/\b(rfq|po|ncr|inv|dxf|pdf)(s?)\b/gi,(m,a,b)=>a.toUpperCase()+b); NAMES.forEach(n=>{ o=o.replace(new RegExp("\\b"+n+"\\b","gi"),n); }); return o; };
 function nuHTML(items,empty){ if(nuIdx>=items.length) nuIdx=0;
   return `<div class="nu">${items.length?`<div class="trk" id="nuTrk">${items.map((t,i)=>`<article class="cd" style="--c:${t.c}">
           <span class="ntg">${esc(t.tag)}</span><div class="ntt">${esc(t.text.replace(/^Get a job number: /,""))}</div><div class="nsub">${t.nonum?"No job number yet · ":""}${esc(t.sub||"")}</div>
-          <div class="nac">${t.act?`<button class="go" type="button" data-nu="${i}">${esc(t.act.t)}</button>`:""}${t.act2?`<button class="lt" type="button" data-nu2="${i}">${esc(t.act2.t)}</button>`:""}${t.later?`<button class="lt" type="button" data-nl="${i}">LATER</button>`:""}</div></article>`).join("")}</div>
+          <div class="nac">${t.act?`<button class="go" type="button" data-nu="${i}">${esc(sc(t.act.t))}</button>`:""}${t.act2?`<button class="lt" type="button" data-nu2="${i}">${esc(sc(t.act2.t))}</button>`:""}${t.later?`<button class="lt" type="button" data-nl="${i}">Later</button>`:""}</div></article>`).join("")}</div>
         <button class="arr l" type="button" aria-label="Previous" id="nuL">‹</button><button class="arr r" type="button" aria-label="Next" id="nuR">›</button>
-        <div class="dots" id="nuDots">${items.slice(0,12).map((_,i)=>`<i class="${i===nuIdx?"on":""}"></i>`).join("")}<span id="nuOf">${nuIdx+1} OF ${items.length}</span></div>`
+        <div class="dots" id="nuDots">${items.slice(0,12).map((_,i)=>`<i class="${i===nuIdx?"on":""}"></i>`).join("")}<span id="nuOf">${nuIdx+1} of ${items.length}</span></div>`
         :`<div class="empty">${svg("check","#3ad06b",28,2)}<div style="margin-top:6px;font:600 18px var(--font-display)">You're all caught up</div><div style="font-size:13px;margin-top:4px">${esc(empty||"Nothing needs you right now.")}</div></div>`}</div>`; }
 function nuWire(B,items){
   const trk=B.querySelector("#nuTrk"); if(!trk) return;
-  const dots=()=>{ const i=Math.round(trk.scrollLeft/Math.max(1,trk.clientWidth)); nuIdx=i; B.querySelectorAll("#nuDots i").forEach((d,k)=>d.classList.toggle("on",k===i)); const of=B.querySelector("#nuOf"); if(of) of.textContent=`${i+1} OF ${items.length}`; };
+  const dots=()=>{ const i=Math.round(trk.scrollLeft/Math.max(1,trk.clientWidth)); nuIdx=i; B.querySelectorAll("#nuDots i").forEach((d,k)=>d.classList.toggle("on",k===i)); const of=B.querySelector("#nuOf"); if(of) of.textContent=`${i+1} of ${items.length}`; };
   trk.scrollLeft=nuIdx*trk.clientWidth; trk.onscroll=()=>{ clearTimeout(trk._t); trk._t=setTimeout(dots,60); };
   B.querySelector("#nuL").onclick=()=>trk.scrollBy({left:-trk.clientWidth,behavior:"smooth"}); B.querySelector("#nuR").onclick=()=>trk.scrollBy({left:trk.clientWidth,behavior:"smooth"});
   B.querySelectorAll("[data-nu]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.nu]; t&&t.act&&t.act.fn(); });
@@ -417,13 +439,22 @@ function moreMenu(){
     ["theme",window.gvcTheme&&gvcTheme.get()==="girly"?"Girly mode ✓":"Girly mode","heart"],["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
   const CREWOK=["msgs","mytime","supplies","requests","count","inv","ncr","revs","archive","signout"];
   const PARTSOK=["porders","msgs","inv","staging","archive","theme","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
-  const items2=window.ME&&ME.role==="crew"?items.filter(x=>CREWOK.includes(x[0])):window.ME&&ME.role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging"].includes(x[0]));
-  // Kyle: the two preview buttons get their own highlighted row at the bottom (Nov 6)
-  const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0])); const grid=items2.filter(x=>!PVK.includes(x[0]));
-  const pvRow=pvItems.length?`<div class="mpv"><div class="mpvh">👁 SEE THE APP AS…</div><div class="mpvb">${pvItems.map(([k])=>{ const who=k==="partsview"?"Robin":"Colton";
-    return `<button type="button" data-m="${k}"><span class="av">${who[0]}</span><span><b>${who}'s view</b><small>${who==="Robin"?"Parts · ordering":"Shop crew"}</small></span></button>`; }).join("")}</div></div>`:"";
-  sheet(`<h3>Menu</h3>${TALKBTN("mTalk","Talk to Claude")}${pvRow}<div class="mgrid">${grid.map(([k,t,i,c,grey],x)=>`<button type="button" data-m="${k}" style="transition-delay:${x*25}ms">${svg(i,k==="signout"?"#ff9b9b":"#e9ebee",26)}${t}${c?`<span class="bd" style="${grey?"background:#4a4f56":""}">${c}</span>`:""}</button>`).join("")}</div>`,(el,close)=>{
-    el.querySelector("#mTalk").onclick=()=>talk("",close);
+  const role=window.ME&&ME.role;
+  const items2=role==="crew"?items.filter(x=>CREWOK.includes(x[0])):role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging"].includes(x[0]));
+  /* grouped (redesign stage 6, Kyle Nov 14): everyday work first, then purchasing, then tools & settings.
+     The "see the app as" previews and Girly mode sit at the bottom instead of the top. Same items and same roles as before. */
+  const GRP={todo:"day",msgs:"day",time:"day",mytime:"day",count:"day",supplies:"day",ncr:"day",revs:"day",inv:"day",newjob:"day",archive:"day",talks:"day",
+    pos:"buy",porders:"buy",requests:"buy",prices:"buy",staging:"buy",
+    ideas:"set",undo:"set",theme:"set",signout:"set"};
+  if(role==="parts"){ GRP.porders="day"; GRP.staging="day"; }
+  const ORD=["todo","msgs","time","mytime","count","supplies","newjob","ncr","revs","inv","staging","talks","archive","pos","porders","requests","prices","ideas","undo","theme","signout"];
+  const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0]));
+  const rest=items2.filter(x=>!PVK.includes(x[0])).sort((a,b)=>{ const ix=k=>role==="parts"&&k==="porders"?-1:ORD.indexOf(k); return ix(a[0])-ix(b[0]); });
+  const GT={day:role==="parts"?"Your work":"Everyday",buy:"Purchasing",set:"Tools & settings"};
+  const tile=([k,t,i,c,grey])=>`<button type="button" class="mmi${k==="signout"?" out":""}" data-m="${k}">${svg(i,"currentColor",22)}<span class="mmt">${t}</span>${c?`<span class="mmc${grey?" grey":""}">${c}</span>`:""}</button>`;
+  const sec=g=>{ const L=rest.filter(x=>(GRP[x[0]]||"set")===g); if(g==="set"&&pvItems.length) L.splice(L.findIndex(x=>x[0]==="signout")>=0?L.findIndex(x=>x[0]==="signout"):L.length,0,...pvItems.map(([k])=>[k,`See the app as ${k==="partsview"?"Robin":"Colton"}`,"crew"]));
+    return L.length?`<div class="mmsec"><div class="mmsh">${GT[g]}</div><div class="mmlist">${L.map(tile).join("")}</div></div>`:""; };
+  sheet(`<h3>Menu</h3>${sec("day")}${sec("buy")}${sec("set")}`,(el,close)=>{
     el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ const k=b.dataset.m; close();
       if(k==="msgs"){ window.openInbox&&window.openInbox(); }
       else if(k==="mytime"){ window.openMyTime&&window.openMyTime(); }
@@ -442,11 +473,11 @@ function moreMenu(){
 }
 
 /* ---- quick-action wheel ---- */
-const ACTS=[["punch","PUNCH IN","clock","#3ad06b"],["rec","RECORD","rec","#e5483b"],["count","COUNT","count","#f5b041"],["quick","QUICK JOB","bolt","#22c3e6"],["time","LOG TIME","clock","#3ad06b"],["todo","ADD TO-DO","check","#5aa7f3"],["chat","ASK CLAUDE","chat","#ff8a2a"]];
+const ACTS=[["punch","Punch in","clock","#3ad06b"],["rec","Record","rec","#e5483b"],["count","Count","count","#f5b041"],["quick","Quick job","bolt","#22c3e6"],["time","Log time","clock","#3ad06b"],["todo","Add to-do","check","#5aa7f3"],["chat","Ask Claude","chat","#ff8a2a"]];
 // phone app only: Check texts on the wheel too (it also stays on the To do tab) (Kyle, 2026-11-04)
-const CREW_ACTS=[["punch","PUNCH IN","clock","#3ad06b"],["mywork","ADD MY WORK","bolt","#22c3e6"],["supplies","NEED SUPPLIES","box","#9fb3c8"],["count","COUNT","count","#f5b041"],["ncr","PROBLEM / NCR","warn","#e5483b"],["rev","REVISION","rev","#a374ff"],["chat","TALK","chat","#ff8a2a"]];
-const PARTS_ACTS=[["orders","MY ORDERS","list","#ff8a2a"],["inv","INVENTORY","box","#9fb3c8"],["msgs","MESSAGES","chat","#2f8ff0"],["chat","TALK","chat","#ff8a2a"]];
-const ACTL=()=>window.ME&&ME.role==="parts"?PARTS_ACTS:window.ME&&ME.role==="crew"?CREW_ACTS:ACTS.concat(typeof Native!=="undefined"&&Native?[["sms","CHECK TEXTS","chat","#9b7bff"]]:[]);
+const CREW_ACTS=[["punch","Punch in","clock","#3ad06b"],["mywork","Add my work","bolt","#22c3e6"],["supplies","Need supplies","box","#9fb3c8"],["count","Count","count","#f5b041"],["ncr","Problem / NCR","warn","#e5483b"],["rev","Revision","rev","#a374ff"],["chat","Talk","chat","#ff8a2a"]];
+const PARTS_ACTS=[["orders","My orders","list","#ff8a2a"],["inv","Inventory","box","#9fb3c8"],["msgs","Messages","chat","#2f8ff0"],["chat","Talk","chat","#ff8a2a"]];
+const ACTL=()=>window.ME&&ME.role==="parts"?PARTS_ACTS:window.ME&&ME.role==="crew"?CREW_ACTS:ACTS.concat(typeof Native!=="undefined"&&Native?[["sms","Check texts","chat","#9b7bff"]]:[]);
 const plus=$("#shPlus"); let whl=null, hot=null;
 function wheelOpen(){
   if(whl) return; const r=plus.getBoundingClientRect(); const phone=innerWidth<900;
