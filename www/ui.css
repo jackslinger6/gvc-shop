@@ -485,3 +485,17 @@ body.girly .ti .tjb{color:#4a1430}
 .jlife select{font:inherit;font-size:13px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 .jlife .jlsb{font-size:12.5px;color:var(--muted)}
 #board.todo>.tbox{min-width:0}
+
+/* To do grouped by job (stage 10): job heading > action heading > rows */
+.tgj{border-top:1px solid var(--line);padding:4px 0 6px}
+.tgj:first-of-type{border-top:0}
+.tgjh{display:flex;align-items:baseline;gap:10px;width:100%;background:none;border:0;color:var(--text);font:inherit;text-align:left;cursor:pointer;padding:12px 2px 4px;min-height:44px}
+.tgjh .tgjt{font:700 17px var(--font-ui);flex:1;min-width:0;padding-left:10px;border-left:4px solid var(--jc,#6c727a);line-height:1.2}
+.tgjh .tgjn{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.tgjh .tgjn b{color:#ff9b91;font-weight:700}
+.tgjh .tch{color:var(--dim);font-size:13px}
+.tgah{font:600 11.5px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:10px 0 0 14px}
+.tgj .ti.tx{border-top:0;padding-top:2px;padding-bottom:2px}
+.ti .tlate{flex:none;font:700 11px var(--font-ui);color:#ff9b91;background:rgba(229,72,59,.14);border:1px solid rgba(229,72,59,.45);border-radius:6px;padding:3px 6px}
+@media (max-width:600px){ .tgjh{flex-wrap:wrap;row-gap:2px} .tgjh .tgjt{flex-basis:calc(100% - 24px)} .tgjh .tgjn{order:3;padding-left:14px} }
+@media (max-width:600px){ .tgj .ti .txh{flex-wrap:nowrap} .tgj .ti .txh .tt{order:0;flex-basis:auto} .tgj .ti .tch,.tgj .ti .tlate{order:0;margin-left:0} }
