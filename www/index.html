@@ -818,7 +818,7 @@ function renderCrewCore(items){
     return `<section class="col lane" style="--c:${c?"var(--orange)":"#6c727a"}"><div class="colhead"><h2>${c||"Unassigned"}</h2><div class="n">${mine.length||""}</div></div>
      <div class="cards">${mine.map(x=>{const st=AST[x.a.status]||AST.ready;return `<div class="card" style="--c:${st.c}">
        <div class="nm"><span class="dot" style="background:${st.c};margin-top:5px"></span><span>${esc(x.a.name)}</span></div>
-       <button class="jl" type="button" data-open="${esc(x.j.id)}">${esc(x.j.name)}</button>
+       <button class="jl" type="button" data-open="${esc(x.j.id)}">${esc(x.j.name)}${taskGroupName(x.j,x.a)?" · "+esc(taskGroupName(x.j,x.a)):""}</button>
        ${asmSel(x.j,x.i,x.a,"status")}${asmSel(x.j,x.i,x.a,"who")}</div>`;}).join("")||`<div class="empty">${c?"Nothing assigned":"All assigned"}</div>`}</div></section>`;
   }).join("");
   $("#board").querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>openJob(el.dataset.open));
@@ -903,6 +903,113 @@ function jobOverviewHTML(j){
     <div class="jquick" id="jQuick"></div>
     ${last?`<button type="button" class="jlast" data-jgo="notes"><span class="lbl">Latest · ${fmt(last.at)}</span><span>${esc(last.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:""}`;
 }
+/* ---------- Tasks with optional assembly groups (redesign stage 5, Kyle Nov 14) ----------
+   A job can group its tasks under assemblies (Headache rack, Belly boxes, Rear apron...). Groups are a list on the job
+   (j.groups = [{id, name, asm?}] - asm = an inventory assembly number, optional), in display order; a task's j.assemblies[k].group
+   is a group id or nothing. A job with no groups shows a plain list; with groups, tasks without one show under "General".
+   Moving a task only changes its .group - the task keeps its id, people, status, NCR link, and the week plan's estimate,
+   links and placement (keyed by task id). Removing a group puts its tasks back in General. Only Kyle edits groups. */
+let taskF={mine:false,done:false}, grpAdd=false, grpEdit=null, taskHi=null;
+const grpShut=new Set(), taskMore=new Set(), whoOpen=new Set();
+const isAdminRole=()=>!(window.ME&&(ME.role==="crew"||ME.role==="parts"));
+const taskGroupName=(j,a)=>{ const g=a&&a.group&&(j.groups||[]).find(x=>x.id===a.group); return g?g.name:""; };
+window.taskGroupName=taskGroupName;
+function taskRow(j,a,k){
+  const me=window.ME&&ME.name, admin=isAdminRole(), mine=whoList(a).includes(me), st=AST[a.status]||AST.ready;
+  const canStatus=admin||mine, more=taskMore.has(a.id), who=whoList(a);
+  const G=j.groups||[];
+  return `<div class="trow ${a.status==="done"?"tdone":""} ${taskHi===a.id?"thi":""}" data-task-i="${k}" data-task-id="${esc(a.id)}">
+    <div class="tmain"><div class="an2" data-ren="${k}" ${admin?`title="Tap to rename"`:""}>${esc(a.name)}</div>${a.meta?`<div class="am2">${esc(a.meta)}</div>`:""}${a.final?`<div class="am2">Last task - waits for the rest</div>`:""}</div>
+    <div class="twho">${admin?`<button type="button" class="twb ${who.length?"":"none"}" data-whot="${esc(a.id)}" aria-expanded="${whoOpen.has(a.id)}" aria-label="Who's on ${esc(a.name)}: ${who.length?esc(who.join(", ")):"nobody"} - change">${who.length?esc(who.join(", ")):"Assign"}</button>`
+      :`<span class="twn ${who.length?"":"none"}">${who.length?esc(who.join(", ")):"Unassigned"}</span>`}</div>
+    <div class="tst" style="--c:${st.c}">${canStatus?asmSel(j,k,a,"status"):`<span class="ostat" style="--c:${st.c}">${esc(st.t)}</span>`}</div>
+    <div class="tpunch"></div>
+    <button type="button" class="tmore" data-tmore="${esc(a.id)}" aria-expanded="${more}" aria-label="More for ${esc(a.name)}">⋯</button>
+    ${admin&&whoOpen.has(a.id)?`<div class="tsub">${whoChips(j,k,a)}</div>`:""}
+    ${more?`<div class="tsub tmorep">
+      ${a.ncr?`<button type="button" class="btn sm" data-jgo="ncr">Rework for NCR-${String(a.ncr).padStart(3,"0")} ›</button>`:""}
+      ${admin&&G.length?`<label class="tml">Group<select data-tmove="${k}" aria-label="Group for ${esc(a.name)}"><option value="">General</option>${G.map(g=>`<option value="${esc(g.id)}" ${a.group===g.id?"selected":""}>${esc(g.name)}</option>`).join("")}</select></label>`:""}
+      ${admin?`<span class="tnote" style="margin:0">Tap the task name to rename it.</span><span style="flex:1"></span><button type="button" class="btn sm danger" data-rmasm="${k}" aria-label="Remove task ${esc(a.name)}">Remove task</button>`:`<span class="tnote" style="margin:0">${mine?"You can change the status of your own tasks.":"Ask Kyle to change who's on this task."}</span>`}
+    </div>`:""}
+  </div>`;
+}
+function tasksHTML(j){
+  const A=j.assemblies||[], G=j.groups||[], admin=isAdminRole(), me=window.ME&&ME.name;
+  const done=A.filter(a=>a.status==="done").length;
+  const show=a=>(taskF.done||a.status!=="done")&&(!taskF.mine||whoList(a).includes(me));
+  const all=A.map((a,k)=>({a,k}));
+  const shown=all.filter(o=>show(o.a)).length;
+  const known=new Set(G.map(g=>g.id));
+  const head=`<div class="sec"><span>Tasks${A.length?` · ${done} of ${A.length} done`:""}</span><span>${admin?`<button class="btn sm adminonly" type="button" id="addGrp">+ Group</button>`:""}<button class="btn sm" type="button" id="addAsm">+ Add tasks</button></span></div>
+    ${A.length?`<div class="prog"><div style="width:${Math.round(done/A.length*100)}%"></div></div>`:""}
+    ${admin&&grpAdd?`<div class="tgadd"><label>New group (assembly)<input id="ngName" placeholder="e.g. Headache rack" autocomplete="off"></label>
+      ${(typeof asms!=="undefined"&&asms.length)?`<label>Inventory assembly (optional)<select id="ngAsm"><option value="">None</option>${asms.map(x=>`<option value="${esc(x.asm_no)}">${esc(x.asm_no)} · ${esc(x.name)}${x.product?" ("+esc(x.product)+")":""}</option>`).join("")}</select></label>`:""}
+      <div class="row" style="gap:8px"><button class="btn sm" type="button" id="ngX">Cancel</button><button class="btn sm primary" type="button" id="ngGo">Add group</button></div></div>`:""}
+    ${A.length?`<div class="tfilt" role="group" aria-label="Filter tasks">
+      <button type="button" class="tf ${taskF.mine?"on":""}" data-tf="mine" aria-pressed="${taskF.mine}">${taskF.mine?"✓ ":""}My tasks</button>
+      <button type="button" class="tf ${taskF.done?"on":""}" data-tf="done" aria-pressed="${taskF.done}">${taskF.done?"✓ ":""}Show completed${done?` (${done})`:""}</button>
+      <span class="tfsum">${shown===A.length?`All ${A.length} tasks`:`Showing ${shown} of ${A.length}`}${!taskF.done&&done?` · ${done} done hidden`:""}</span></div>`:""}`;
+  const empty=(L)=>{ const n=L.length; if(!n) return `<div class="tempty">No tasks here yet.</div>`;
+    if(taskF.mine&&!L.some(o=>whoList(o.a).includes(me))) return `<div class="tempty">None of these are yours.</div>`;
+    return `<div class="tempty">All ${n} done${!taskF.done?` - <button type="button" class="linkb" data-tf="done">show completed</button>`:""}.</div>`; };
+  const list=L=>{ const V=L.filter(o=>show(o.a)); return V.length?V.map(o=>taskRow(j,o.a,o.k)).join(""):empty(L); };
+  if(!A.length&&!G.length) return head+`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.${admin?" Group them by assembly with + Group if it helps.":""}</div><div id="newAsm"></div>`;
+  let body;
+  if(!G.length) body=`<div class="tlist">${list(all)}</div>`;
+  else {
+    const secs=G.map((g,gi)=>({g,gi,L:all.filter(o=>o.a.group===g.id)}));
+    const gen=all.filter(o=>!o.a.group||!known.has(o.a.group));
+    const sec=(id,name,L,g,gi)=>{ const d=L.filter(o=>o.a.status==="done").length; const key=j.id+":"+id; const ed=g&&grpEdit===g.id;
+      const asm=g&&g.asm?(typeof asms!=="undefined"?asms.find(x=>x.asm_no===g.asm):null):null;
+      return `<details class="tgrp" data-grp="${esc(id)}" ${grpShut.has(key)?"":"open"}>
+        <summary><span class="tgn">${esc(name)}</span>${g&&g.asm?`<span class="tga" title="Inventory assembly">${esc(g.asm)}${asm?" · "+esc(asm.name):""}</span>`:""}<span class="tgc">${d}/${L.length} done</span>
+          ${admin&&g?`<button type="button" class="tgm adminonly" data-gedit="${esc(g.id)}" aria-label="Edit group ${esc(name)}" aria-expanded="${ed}">Edit</button>`:""}</summary>
+        ${ed?`<div class="tgedit"><label>Group name<input id="geName" value="${esc(g.name)}"></label>
+          ${(typeof asms!=="undefined"&&asms.length)?`<label>Inventory assembly (optional)<select id="geAsm"><option value="">None</option>${asms.map(x=>`<option value="${esc(x.asm_no)}" ${g.asm===x.asm_no?"selected":""}>${esc(x.asm_no)} · ${esc(x.name)}</option>`).join("")}</select></label>`:""}
+          <div class="row" style="gap:6px;align-items:center"><button class="btn sm" type="button" data-gup="${gi}" ${gi===0?"disabled":""} aria-label="Move group up">↑ Up</button><button class="btn sm" type="button" data-gdn="${gi}" ${gi===G.length-1?"disabled":""} aria-label="Move group down">↓ Down</button>
+            <span style="flex:1"></span><button class="btn sm danger" type="button" data-grm="${esc(g.id)}">Remove group</button><button class="btn sm" type="button" id="geX">Cancel</button><button class="btn sm primary" type="button" id="geGo">Save</button></div>
+          <div class="tnote" style="margin:4px 0 0">Removing a group keeps its tasks - they move to General.</div></div>`:""}
+        <div class="tlist">${list(L)}</div></details>`; };
+    body=secs.map(x=>sec(x.g.id,x.g.name,x.L,x.g,x.gi)).join("")+(gen.length?sec("_general","General",gen,null,-1):"");
+  }
+  return head+body+`<div id="newAsm"></div>`;
+}
+/* jump to one task (week plan, punch clock): Tasks section, its group open, filters that would hide it turned off */
+window.openJobTask=(jid,aid)=>{
+  const j=jobs.find(x=>x.id===jid)||archivedJobs.find(x=>x.id===jid); const a=j&&(j.assemblies||[]).find(x=>x.id===aid);
+  if(a){ if(a.status==="done") taskF.done=true; if(taskF.mine&&!whoList(a).includes(window.ME&&ME.name)) taskF.mine=false; grpShut.delete(jid+":"+(a.group&&(j.groups||[]).some(g=>g.id===a.group)?a.group:"_general")); taskHi=aid; }
+  openJob(jid,"tasks");
+  if(a) setTimeout(()=>{ const r=document.querySelector(`#dlg [data-task-id="${CSS.escape(aid)}"]`); if(r) try{ r.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} setTimeout(()=>{ if(taskHi===aid){ taskHi=null; const x=document.querySelector(`#dlg .thi`); if(x) x.classList.remove("thi"); } },2500); },80);
+};
+function wireTasks(D){
+  const j=job(); if(!j) return; const admin=isAdminRole();
+  const save=async(label,fn)=>{ const jj=structuredClone(job()); if(fn(jj)===false) return; jj.log=[...(jj.log||[]),{at:new Date().toISOString(),text:label}]; await put(jj,label); };
+  D.querySelectorAll("[data-tf]").forEach(b=>b.onclick=e=>{ e.preventDefault(); const k=b.dataset.tf; taskF[k]=!taskF[k]; drawDlg(); });
+  D.querySelectorAll("details.tgrp").forEach(d=>d.addEventListener("toggle",()=>{ const key=j.id+":"+d.dataset.grp; d.open?grpShut.delete(key):grpShut.add(key); }));
+  D.querySelectorAll("[data-tmore]").forEach(b=>b.onclick=()=>{ const id=b.dataset.tmore; taskMore.has(id)?taskMore.delete(id):taskMore.add(id); drawDlg(); });
+  D.querySelectorAll("[data-whot]").forEach(b=>b.onclick=()=>{ const id=b.dataset.whot; whoOpen.has(id)?whoOpen.delete(id):whoOpen.add(id); drawDlg(); });
+  if(!admin) return;
+  const ag=D.querySelector("#addGrp"); if(ag) ag.onclick=()=>{ grpAdd=!grpAdd; drawDlg(); setTimeout(()=>{ const n=document.getElementById("ngName"); if(n) n.focus(); },30); };
+  const nx=D.querySelector("#ngX"); if(nx) nx.onclick=()=>{ grpAdd=false; drawDlg(); };
+  const ng=D.querySelector("#ngGo"); if(ng){ const go=()=>{ const name=D.querySelector("#ngName").value.trim(); if(!name){ D.querySelector("#ngName").focus(); return; }
+      const asm=(D.querySelector("#ngAsm")||{}).value||""; grpAdd=false;
+      save(`Added task group "${name}"`,jj=>{ jj.groups=[...(jj.groups||[]),{id:uid(),name,...(asm?{asm}:{})}]; }); };
+    ng.onclick=go; D.querySelector("#ngName").onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); go(); } }; }
+  D.querySelectorAll("[data-gedit]").forEach(b=>b.onclick=e=>{ e.preventDefault(); e.stopPropagation(); grpEdit=grpEdit===b.dataset.gedit?null:b.dataset.gedit; grpShut.delete(j.id+":"+b.dataset.gedit); drawDlg(); });
+  const gx=D.querySelector("#geX"); if(gx) gx.onclick=()=>{ grpEdit=null; drawDlg(); };
+  const gg=D.querySelector("#geGo"); if(gg) gg.onclick=()=>{ const id=grpEdit, name=D.querySelector("#geName").value.trim(); if(!name) return; const asm=(D.querySelector("#geAsm")||{}).value; grpEdit=null;
+    save(`Task group "${name}" updated`,jj=>{ const g=(jj.groups||[]).find(x=>x.id===id); if(!g) return false; g.name=name; if(asm!==undefined){ if(asm) g.asm=asm; else delete g.asm; } }); };
+  const mv=(gi,d)=>save("Reordered task groups",jj=>{ const G=jj.groups||[]; const t=gi+d; if(t<0||t>=G.length) return false; [G[gi],G[t]]=[G[t],G[gi]]; });
+  D.querySelectorAll("[data-gup]").forEach(b=>b.onclick=()=>mv(+b.dataset.gup,-1));
+  D.querySelectorAll("[data-gdn]").forEach(b=>b.onclick=()=>mv(+b.dataset.gdn,1));
+  D.querySelectorAll("[data-grm]").forEach(b=>b.onclick=()=>{ const id=b.dataset.grm; const g=(j.groups||[]).find(x=>x.id===id); if(!g) return;
+    const n=(j.assemblies||[]).filter(a=>a.group===id).length;
+    if(!confirm(`Remove the group "${g.name}"?${n?`\n\nIts ${n} task${n>1?"s":""} move to General - nothing about them changes.`:""}`)) return; grpEdit=null;
+    save(`Removed task group "${g.name}"${n?` (${n} task${n>1?"s":""} back to General)`:""}`,jj=>{ jj.groups=(jj.groups||[]).filter(x=>x.id!==id); (jj.assemblies||[]).forEach(a=>{ if(a.group===id) delete a.group; }); }); });
+  D.querySelectorAll("[data-tmove]").forEach(sel=>sel.onchange=()=>{ const k=+sel.dataset.tmove; const a=(j.assemblies||[])[k]; if(!a) return; const to=sel.value;
+    const gname=to?((j.groups||[]).find(g=>g.id===to)||{}).name:"General";
+    save(`Moved "${a.name}" to ${gname}`,jj=>{ const t=jj.assemblies[k]; if(!t||t.id!==a.id) return false; if(to) t.group=to; else delete t.group; }); });
+}
 function closeDlg(){
   const j=openId&&jobs.find(x=>x.id===openId);
   openId=null; dlgTabJob=null; $("#scrim").classList.remove("on");
@@ -941,16 +1048,7 @@ function drawDlgCore(){
    ${jobOverviewHTML(j)}
    </section>
    <section class="jsec" data-jsec="tasks">
-   ${true?`<div class="sec"><span>Tasks${(j.assemblies||[]).length?` · ${asmDone(j)} of ${j.assemblies.length} done (${Math.round(asmDone(j)/j.assemblies.length*100)}%)`:""}</span><button class="btn sm" type="button" id="addAsm">+ Add tasks</button></div>
-   ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div>`:""}
-   ${(j.assemblies||[]).length?`<div class="atw"><table class="at"><thead><tr><th>Task</th><th>Who</th>${Object.entries(AST).map(([k,v])=>`<th class="sc" style="--c:${v.c}">${v.t}</th>`).join("")}<th></th></tr></thead><tbody>
-   ${j.assemblies.map((a,k)=>{const keys=Object.keys(AST);const si=keys.indexOf(a.status);const locked=finalLocked(j,a);
-     return `<tr><td><div class="an2" data-ren="${k}" title="Tap to rename">${esc(a.name)}</div>${(a.meta||a.final)?`<div class="am2">${esc(a.meta||"")}${a.final?(a.meta?" · ":"")+"Final assembly":""}</div>`:""}</td>
-     <td>${asmSel(j,k,a,"who")}</td>
-     ${locked?`<td colspan="${keys.length}"><div class="waits">Waits until every other task is done</div></td>`:keys.map((key,ki)=>`<td><button type="button" class="sb ${ki<si?"past":ki===si?"now":""}" style="--c:${AST[key].c}" data-sj="${esc(j.id)}" data-si="${k}" data-ss="${key}" data-lab="${({bend:"Bend",ready:"Ready",prog:"Doing",qc:"Check",done:"Done"})[key]}" aria-label="${esc(a.name)}: ${AST[key].t}" aria-pressed="${ki===si}">${ki===si?"●":""}</button></td>`).join("")}
-     <td><button type="button" class="rmb" data-rmasm="${k}" aria-label="Remove ${esc(a.name)}">×</button></td></tr>`;}).join("")}
-   </tbody></table></div>`:`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.</div>`}
-   <div id="newAsm"></div>`:""}
+   ${tasksHTML(j)}
    </section>
    <section class="jsec jsupsec" data-jsec="orders">
    <div class="sec"><span>Orders & suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm adminonly" type="button" onclick="window.newRfqFor&&window.newRfqFor(openId)" title="Send out for quotes - gets an RFQ number">+ RFQ</button><button class="btn sm adminonly" type="button" onclick="window.newPoFor&&window.newPoFor(openId)" title="Order straight - gets a PO number">+ PO</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
@@ -1007,7 +1105,7 @@ function drawDlgCore(){
     if(was) delete j.ongoing; else j.ongoing=true;   // its "Also in" columns are kept (just ignored while ongoing) so turning it back restores them
     j.log=[...(j.log||[]),{at:new Date().toISOString(),text:was?"Back to a normal job with stages":"Made an ongoing job (no stages)"}];
     await put(j,was?`${j.name} is a normal job again`:`${j.name} is now ongoing`); }; }
-  wireAsm($("#dlg"));
+  wireAsm($("#dlg")); wireTasks($("#dlg"));
   $("#dlg").querySelectorAll("[data-ss]").forEach(b=>b.onclick=()=>{ if(b.classList.contains('now')) return; setAsm(b.dataset.sj,+b.dataset.si,'status',b.dataset.ss); });
   // tap a task's name to rename it (Nov 10 check: tasks couldn't be renamed anywhere)
   if(!(window.ME&&ME.role!=="admin")) $("#dlg").querySelectorAll("[data-ren]").forEach(el=>el.onclick=()=>{ if(el.querySelector("input")) return;
@@ -1023,12 +1121,13 @@ function drawDlgCore(){
     const pick=new Set();
     $("#newAsm").innerHTML=`<label style="margin-top:8px">Tasks - one per line<textarea id="naList" rows="5" placeholder="Strip the walls off&#10;Cut the existing frame out&#10;Rebuild the frame structure"></textarea></label>
       <div class="row" style="margin-top:6px;align-items:center;gap:8px"><span class="tnote" style="margin:0">Who:</span><div class="wchips" id="naWho">${CREW.map(c=>`<button type="button" class="wc" data-pc="${c}">${c}</button>`).join("")}</div>
-      <label style="flex:0 0 auto;min-width:0;flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="naFinal" style="width:auto">Last one waits for the rest</label><span style="flex:1"></span><button class="btn primary" type="button" id="naAdd">Add tasks</button></div>`;
+      <label style="flex:0 0 auto;min-width:0;flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="naFinal" style="width:auto">Last one waits for the rest</label>
+      ${(job().groups||[]).length?`<label style="flex:0 1 220px;min-width:160px">Group<select id="naGrp"><option value="">General</option>${job().groups.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join("")}</select></label>`:""}<span style="flex:1"></span><button class="btn primary" type="button" id="naAdd">Add tasks</button></div>`;
     $("#naWho").querySelectorAll("[data-pc]").forEach(b=>b.onclick=()=>{ const c=b.dataset.pc; pick.has(c)?pick.delete(c):pick.add(c); b.classList.toggle("on",pick.has(c)); });
     $("#naList").focus();
     $("#naAdd").onclick=async()=>{const lines=$("#naList").value.split(/\n/).map(x=>x.replace(/^[-*•\d.)\s]+/,"").trim()).filter(Boolean); if(!lines.length){$("#err").textContent="Type at least one task.";return;}
-      const fin=$("#naFinal").checked; const who=[...pick].join(", ");
-      const jj=collect(); jj.assemblies=[...(jj.assemblies||[]),...lines.map((n,ix)=>({id:uid(),name:n,meta:"",status:"ready",who,final:fin&&ix===lines.length-1}))]; await put(jj,`Added ${lines.length} task${lines.length>1?"s":""} to ${jj.name}`);};
+      const fin=$("#naFinal").checked; const who=[...pick].join(", "); const grp=($("#naGrp")||{}).value||"";
+      const jj=collect(); jj.assemblies=[...(jj.assemblies||[]),...lines.map((n,ix)=>({id:uid(),name:n,meta:"",status:"ready",who,final:fin&&ix===lines.length-1,...(grp?{group:grp}:{})}))]; await put(jj,`Added ${lines.length} task${lines.length>1?"s":""} to ${jj.name}`);};
   };
   $("#dlg").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeSup(+b.dataset.del));
   $("#dlg").querySelectorAll("details[data-sgk]").forEach(d=>d.addEventListener("toggle",()=>{ d.open?supOpen.add(d.dataset.sgk):supOpen.delete(d.dataset.sgk); }));

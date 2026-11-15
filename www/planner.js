@@ -448,7 +448,7 @@ function panel(M){
   const el=$("#pPanel"); const t=M.T[sel];
   if(!t){ el.innerHTML=`<div class="pph">Assignment</div><span class="lbl">Tap a task - in Not scheduled, or inside a job block on someone's day - to set who's on it, how long it takes and what it waits for. Tap a job block to open its task list; tick tasks off there.<br><br>🔗 shared (crew-hours split so everyone finishes together) · 🔒 waits on another task · dashed = fixed-time errand · "?" = no estimate yet (counted as 2h).</span>`; return; }
   const others=Object.values(M.T).filter(x=>x.key!==t.key&&!x.done).sort((a,b)=>a.job.localeCompare(b.job));
-  el.innerHTML=`<div class="pph">Assignment</div><div><span style="color:${t.color}">${esc(t.job)}</span> · <b style="font-weight:600">${esc(t.name)}</b>${t.jid?` <button class="btn sm ghost" id="pOpen">Open job</button>`:""}</div>
+  el.innerHTML=`<div class="pph">Assignment</div><div><span style="color:${t.color}">${esc(t.job)}${(()=>{ const gj=(typeof jobs!=='undefined'?jobs:[]).find(y=>y.id===t.jid); const ga=gj&&(gj.assemblies||[]).find(y=>y.id===t.aid); const n=gj&&ga&&window.taskGroupName?window.taskGroupName(gj,ga):''; return n?' · '+esc(n):''; })()}</span> · <b style="font-weight:600">${esc(t.name)}</b>${t.jid?` <button class="btn sm ghost" id="pOpen">Open job</button>`:""}</div>
    <div class="row"><span class="lbl">${t.who.length>1?"Crew-hours":"Hours"}</span><button class="btn sm" data-ph="-0.5">−</button><b>${t.h==null?"?":(t.full??t.h)}</b><button class="btn sm" data-ph="0.5">+</button>${[1,2,4,8].map(x=>`<button class="btn sm ${(t.full??t.h)===x?"primary":""}" data-phs="${x}">${x}h</button>`).join("")}</div>
    <div class="row"><span class="lbl">On it</span>${CREW.map(c=>`<button class="wc ${t.who.includes(c)?"on":""}" data-pw="${c}">${c}</button>`).join("")}</div>
    <div class="row"><span class="lbl">Has to wait for</span><select id="pNd"><option value="">Nothing</option>${others.map(o=>`<option value="${esc(o.key)}" ${t.needs.includes(o.key)?"selected":""}>${esc(o.job)} · ${esc(o.name)}</option>`).join("")}</select></div>
@@ -465,7 +465,7 @@ function panel(M){
   $("#pDone").onclick=()=>edit((M2,t2)=>{ t2.done=!t2.done; },`${t.name}: ${t.done?"not done":"done"}`);
   const bp=$("#pPool"); if(bp) bp.onclick=()=>edit((M2,t2)=>{ t2.who.forEach(w=>rmK(M2,w,dayOf(M2,w,t2.key),t2.key)); t2.who=[]; t2.at=null; },`${t.name} back to the pool`);
   const bd=$("#pDel"); if(bd) bd.onclick=()=>{ edit((M2,t2)=>{ CREW.forEach(w=>rmK(M2,w,dayOf(M2,w,t2.key),t2.key)); delete M2.T[t2.key]; },`Deleted ${t.name}`); sel=null; };
-  const bo=$("#pOpen"); if(bo) bo.onclick=()=>openJob(t.jid,"tasks");
+  const bo=$("#pOpen"); if(bo) bo.onclick=()=>window.openJobTask?window.openJobTask(t.jid,t.aid):openJob(t.jid,"tasks");
   $("#pX").onclick=()=>{ sel=null; render(); };
 }
 

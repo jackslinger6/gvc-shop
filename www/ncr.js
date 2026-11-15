@@ -114,7 +114,7 @@ GVC.on("drawDlg:after",()=>{
   const home=D.querySelector("#secNcr");   // the job card's NCRs section (stage 4)
   if(home) home.append(...wrap.childNodes); else { const supSec=[...D.querySelectorAll(".sec")].find(s=>/Suppliers/.test(s.textContent)); if(supSec) supSec.before(...wrap.childNodes); else D.querySelector(".foot").before(...wrap.childNodes); }
   // tag rework tasks in the task table, and let any task be tagged
-  const rows=D.querySelectorAll(".at tbody tr"); (j.assemblies||[]).forEach((a,k)=>{ const nm=rows[k]&&rows[k].querySelector(".an2"); if(!nm) return;
+  (j.assemblies||[]).forEach((a,k)=>{ const row=D.querySelector(`[data-task-i="${k}"]`); const nm=row&&row.querySelector(".an2"); if(!nm) return;
     if(a.ncr) nm.insertAdjacentHTML("beforeend",`<span class="ntag">${tag(a.ncr)}</span>`);
   });
   $("#ncrAdd").onclick=()=>{ form={jid:j.id,what:"",type:TYPES[0],fix:"Rework",steps:"",mat:""}; drawDlg(); setTimeout(()=>{ const w=$("#nfWhat"); if(w) w.focus(); },30); };

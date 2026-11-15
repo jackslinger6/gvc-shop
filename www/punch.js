@@ -92,7 +92,7 @@ function paint(){
   bar.querySelector("#pFix").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pClk").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pOut").onclick=()=>punchOut();
-  bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)) openJob(open.job_id,"tasks"); };
+  bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)){ if(open.task_id&&window.openJobTask) window.openJobTask(open.job_id,open.task_id); else openJob(open.job_id,"tasks"); } };
   tick=setInterval(()=>{ const c=$("#pClk"); if(c&&open) c.textContent=hm(paidMs(open.start_at)); },1000);
 }
 async function load(){
@@ -255,7 +255,7 @@ function rowHtml(x){
   const on=open&&open.job_id===x.jid&&open.task_id===x.aid; const dn=x.t.done;
   const j=jobs.find(y=>y.id===x.jid); const a=j&&(j.assemblies||[]).find(y=>y.id===x.aid);
   return `<div class="row2 ${on?"on":""} ${dn?"dn":""}" style="--c:${x.color}"><span class="tm">${esc(x.time||"")}</span>
-    <div class="nm" data-oj="${esc(x.jid)}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${a&&a.status==="prog"?" · in progress":""}</small></div>
+    <div class="nm" data-oj="${esc(x.jid)}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${a&&a.status==="prog"?" · in progress":""}</small></div>
     <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ PUNCH IN</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ DONE</button>`}</div></div>`;
 }
 /* one row per JOB in its own colour (same as the week plan / All jobs), its tasks as chips under it (Kyle, Nov 8) */
@@ -301,7 +301,7 @@ window.myTodoHtml=()=>{
     const dn=x.t.done||(a&&a.status==="done"); if(!dn) open++;
     const num=j&&window.jobNum?window.jobNum(j.name):""; const c=x.color||"#8e96a3";
     return `<div class="ti ctd ${dn?"dn":""}" style="--c:${c}"><button class="ck" type="button" ${a&&!dn?`data-pdn="${esc(x.jid)}|${esc(x.aid)}"`:"disabled"} title="${dn?"Done":"Mark done"}">${dn?"✓":""}</button><span class="bar"></span>
-      <div class="body" ${j?`data-oj="${esc(j.id)}"`:""}><div class="tt">${esc(x.t.name)}</div><div class="meta">${num?`<span class="jb" style="background:${c}">${esc(num)}</span> `:""}${esc(j?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,""):(x.t.job||""))}${x.time?" · "+esc(x.time):""}${a&&a.status==="prog"?" · in progress":""}</div></div></div>`; };
+      <div class="body" ${j?`data-oj="${esc(j.id)}"`:""}><div class="tt">${esc(x.t.name)}</div><div class="meta">${num?`<span class="jb" style="background:${c}">${esc(num)}</span> `:""}${esc(j?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,""):(x.t.job||""))}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${x.time?" · "+esc(x.time):""}${a&&a.status==="prog"?" · in progress":""}</div></div></div>`; };
   const days=T.days.map(d=>{ const r=d.rows.map(row).join(""); return `<div class="dh">${d.label}</div>${r||`<div class="none">Nothing planned${d.label==="TODAY"?" for you today":""}.</div>`}`; }).join("");
   const other=T.other.map(row).join("");
   return `<section class="tbox mday ctodo" aria-label="To do"><h3>To do <span class="n">${open}</span></h3>${days}${other?`<div class="dh">ALSO ON YOU</div>${other}`:""}
@@ -327,10 +327,11 @@ GVC.on("drawDlg:after",()=>{
   const D=$("#dlg"); const j=typeof job==="function"?job():null; if(!j||!D) return;
   // supplier block marked so crew mode can hide it (prices)
   D.querySelectorAll(".sec").forEach(s=>{ if(/^Suppliers/.test((s.textContent||"").trim())){ s.classList.add("supsec"); let n=s.nextElementSibling; while(n&&!n.classList.contains("sec")&&n.tagName!=="DETAILS"){ n.classList.add("supsec"); n=n.nextElementSibling; } } });
-  const rows=[...D.querySelectorAll("table.at tbody tr")];
-  rows.forEach((tr,k)=>{ const a=(j.assemblies||[])[k]; if(!a||a.status==="done") return; const td=tr.querySelector("td"); if(!td) return;
+  // task rows carry their index in j.assemblies (they're shown in groups, so screen order isn't array order - stage 5)
+  const rows=[...D.querySelectorAll("[data-task-i]")];
+  rows.forEach(tr=>{ const k=+tr.dataset.taskI; const a=(j.assemblies||[])[k]; if(!a||a.status==="done") return; const td=tr.querySelector(".tpunch")||tr.querySelector("td"); if(!td) return;
     const on=open&&open.job_id===j.id&&open.task_id===a.id;
-    const b=document.createElement("button"); b.type="button"; b.className="pnb"+(on?" on":""); b.textContent=on?"■ PUNCH OUT":"▶ PUNCH IN";
+    const b=document.createElement("button"); b.type="button"; b.className="pnb"+(on?" on":""); b.textContent=on?"■ Punch out":"▶ Punch in";
     b.onclick=e=>{ e.stopPropagation(); on?punchOut():punchIn(j.id,a.id); }; td.appendChild(b); });
   const tasks=D.querySelector("table.at")||D.querySelector("#newAsm");
   const box=document.createElement("div"); box.className="jtime"; box.innerHTML=`<div class="sec"><span>Time on this job</span></div><div class="tnote">Loading…</div>`;
@@ -341,7 +342,7 @@ GVC.on("drawDlg:after",()=>{
     P.forEach(p=>{ const k=p.task_id||"-"; const o=by[k]=by[k]||{name:p.task_name,ms:0,who:{}}; const ms=paidMs(p.start_at,p.end_at||now); o.ms+=ms; o.who[p.who]=(o.who[p.who]||0)+ms; });
     const plan=(window.gvcPlan&&gvcPlan.get&&gvcPlan.get())||{}; const H=plan.hours||{};
     const ks=Object.keys(by);
-    if(!ks.length){ box.innerHTML=`<div class="sec"><span>Time on this job</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ PUNCH IN on a task to start the clock.</div>`; return; }
+    if(!ks.length){ box.innerHTML=`<div class="sec"><span>Time on this job</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ Punch in on a task to start the clock.</div>`; return; }
     let tot=0;
     box.innerHTML=`<div class="sec"><span>Time on this job</span></div><table><thead><tr><th>Task</th><th>Who</th><th>Actual</th><th>Planned</th></tr></thead><tbody>${ks.map(k=>{ const o=by[k]; tot+=o.ms;
       const a=(j.assemblies||[]).find(x=>x.id===k); const est=H[`j:${j.id}:${k}`]; const act=o.ms/36e5;

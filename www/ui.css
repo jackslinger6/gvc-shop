@@ -240,6 +240,60 @@ button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
 #dlg .jsec>.sec{flex-wrap:wrap;gap:8px}
 #dlg .jsec>.sec>span:last-child:not(:first-child){display:flex;gap:6px;flex-wrap:wrap}
 @media (max-width:600px){ #dlg .jsec[data-jsec="orders"]>.sec>span:first-child{flex-basis:100%} }
+/* ---------- Tasks (stage 5): optional assembly groups, one row per task, one status control ---------- */
+.tfilt{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:10px 0 4px}
+.tf{min-height:36px;padding:0 12px;border-radius:var(--r-pill);border:1px solid var(--line2);background:var(--panel2);color:var(--muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.tf:hover{color:var(--text)}
+.tf.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--text)}
+.tfsum{font-size:12.5px;color:var(--muted);margin-left:4px}
+.tgadd,.tgedit{display:grid;gap:8px;margin:10px 0;padding:12px;border:1px solid var(--line2);border-radius:var(--r-lg);background:var(--panel2)}
+.tgadd label,.tgedit label{margin:0}
+.tgrp{margin-top:10px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel)}
+.tgrp>summary{list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:48px;padding:8px 12px;cursor:pointer;border-radius:var(--r-lg)}
+.tgrp>summary::-webkit-details-marker{display:none}
+.tgrp>summary::before{content:"▸";color:var(--muted);transition:transform .15s;flex:none}
+.tgrp[open]>summary::before{transform:rotate(90deg)}
+.tgrp>summary:hover{background:var(--panel2)}
+.tgn{font-weight:650;font-size:14.5px}
+.tga{font-size:11.5px;color:var(--muted);border:1px solid var(--line2);border-radius:var(--r-sm);padding:1px 6px}
+.tgc{font-size:12.5px;color:var(--muted);margin-left:auto}
+.tgm{min-height:32px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--line2);background:var(--panel2);color:var(--text);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.tgrp .tgedit{margin:0 12px 8px}
+.tgrp .tlist{padding:0 8px 8px}
+.tlist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.tgrp .tlist{margin-top:0}
+.trow{display:grid;grid-template-columns:minmax(0,1fr) minmax(96px,auto) minmax(150px,190px) auto 44px;grid-template-areas:"main who st punch more";align-items:center;gap:6px 10px;
+  padding:8px 8px 8px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel2)}
+.trow.tdone{opacity:.7}
+.trow.tdone .an2{text-decoration:line-through;text-decoration-color:var(--dim)}
+.trow.thi{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.tmain{grid-area:main;min-width:0}.tmain .an2{font-weight:600;font-size:14px;line-height:1.35;overflow-wrap:anywhere}.tmain .am2{font-size:12px;color:var(--muted);margin-top:2px}
+.twho{grid-area:who;min-width:0}
+.twb{max-width:100%;min-height:36px;padding:0 10px;border-radius:var(--r-pill);border:1px solid var(--line2);background:var(--panel3);color:var(--text);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.twb.none,.twn.none{color:var(--muted);border-style:dashed;background:transparent}
+.twn{display:inline-block;font-size:12.5px;font-weight:600;padding:4px 10px;border-radius:var(--r-pill);border:1px solid var(--line2)}
+.tst{grid-area:st;display:flex;align-items:center;gap:6px;min-width:0}
+.tst::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.tst select{width:100%;min-width:0;min-height:36px;padding:4px 8px;font-size:13px;font-weight:600}
+.tst .lock{font-size:12px;color:var(--muted);margin:0}
+.tst .ostat::before{display:none}
+.tst:has(.ostat)::before{display:none}
+.tpunch{grid-area:punch}.tpunch:empty{display:none}
+.tpunch .pnb{min-height:36px;white-space:nowrap;margin:0;letter-spacing:0;font-size:12.5px;padding:0 12px;font-family:var(--font-ui)}
+.tmore{grid-area:more;width:40px;height:40px;border-radius:var(--r-md);border:1px solid transparent;background:none;color:var(--muted);font-size:18px;cursor:pointer;justify-self:end}
+.tmore:hover,.tmore[aria-expanded="true"]{background:var(--panel3);color:var(--text)}
+.tsub{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:6px;border-top:1px dashed var(--line)}
+.tsub .wchips{gap:6px}
+.tml{flex-direction:row!important;align-items:center;gap:6px!important;flex:0 1 260px!important;min-width:0!important;margin:0!important}
+.tempty{font-size:13px;color:var(--muted);padding:8px 4px}
+.linkb{background:none;border:0;padding:0;color:var(--text);text-decoration:underline;font:inherit;cursor:pointer}
+@media (max-width:700px){
+  .trow{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) 40px;grid-template-areas:"main main more" "who st st" "punch punch punch";padding:10px}
+  .tpunch .pnb{width:100%;min-height:var(--hit)}
+  .twb,.tst select{min-height:var(--hit)}
+  .tgc{margin-left:0}
+}
+
 /* NCRs on the job card: issue, decision, next + who first; editing folds away */
 .ncrsec .ncard{background:var(--panel2);border-color:var(--line);border-radius:var(--r-lg);padding:12px 12px 10px;margin-top:8px}
 .ncrsec .nwhat{font-size:14.5px;font-weight:600;margin-top:6px;line-height:1.4}.ncrsec .nwhat .nm{display:block;font-weight:400}
