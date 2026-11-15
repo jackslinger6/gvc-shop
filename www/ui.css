@@ -563,3 +563,6 @@ body.ovwv #allJobs{margin-top:8px}
 #board.todo>.tbox.intake h3{margin:0;font-size:15px;flex:1 1 auto;display:flex;gap:10px;align-items:baseline}
 #board.todo>.tbox.intake .tools{flex-direction:row!important;flex-wrap:wrap;gap:8px;margin:0}
 #board.todo>.tbox.intake .tools .btn,#board.todo>.tbox.intake .tools button{min-height:40px;width:auto}
+#board.todo>.tbox.intake details.autobox>summary.tnote{display:flex!important;margin:0}
+#board.todo>.tbox.intake>.paste{flex:1 1 100%}
+#board.todo>.tbox.intake .autobox .tnote{display:block}
