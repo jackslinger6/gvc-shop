@@ -234,14 +234,15 @@ const modelCache={};
    opts (all optional; the single-part viewer uses the defaults):
      tapPx (8), sens() rotation multiplier, viewportRot (true: a drag across the short side of the view turns ~200 deg;
      false: fixed 0.0085 rad/px as before), upright() true = keep the model upright (tilt stops just short of
-     straight up/down - View menu Top/Bottom still go all the way), pivot() -> Vector3|null spin centre,
+     straight up/down - View menu Top/Bottom still go all the way), pivot() -> Vector3|null spin centre, asked ONCE
+     when a one-finger spin starts and kept for that spin + its coast (null = the controls' target),
      inertia() -> bool.
    pick(x,y) -> THREE.Vector3 on the model or null (used to aim the zoom). */
 function makeControls(THREE,cam,el,worldUp,pick,opts){
   opts=opts||{}; const target=new THREE.Vector3(); const up0=worldUp.clone().normalize();
   const C={target, enabled:true, listeners:[], addEventListener(t,f){ if(t==="change") this.listeners.push(f); }, handleResize(){}, TAP_PX:opts.tapPx||8};
   const changed=()=>C.listeners.forEach(f=>f());
-  const ptrs=new Map(); let mode=null, prev=null, start=null, spin=null, samples=[], pinch=null;
+  const ptrs=new Map(); let mode=null, prev=null, start=null, spin=null, samples=[], pinch=null, gp=null;   // gp: spin centre, fixed for one gesture
   const radPerPx=()=>opts.viewportRot?(1.1*Math.PI/Math.max(120,Math.min(el.clientWidth,el.clientHeight)))*(opts.sens?opts.sens():1):0.0085;
   const V=()=>new THREE.Vector3();
   function rotate(dx,dy){
@@ -254,7 +255,7 @@ function makeControls(THREE,cam,el,worldUp,pick,opts){
       const probe=f.clone().applyAxisAngle(right,1e-3), c=Math.sign(Math.asin(Math.max(-1,Math.min(1,probe.dot(up0))))-el0)||1;
       const L=Math.max(89.5*Math.PI/180,Math.abs(el0)), want=Math.max(-L,Math.min(L,el0+c*a2)); a2=(want-el0)/c; }
     const q=new THREE.Quaternion().setFromAxisAngle(up0.clone().multiplyScalar(s),-dx*k).multiply(new THREE.Quaternion().setFromAxisAngle(right,a2));
-    let P=opts.pivot&&opts.pivot(); if(!P) P=target;
+    const P=gp||target;
     cam.position.sub(P).applyQuaternion(q).add(P);
     if(P!==target) target.sub(P).applyQuaternion(q).add(P);
     cam.quaternion.premultiply(q); cam.up.applyQuaternion(q).normalize(); cam.updateMatrixWorld(); changed(); }
@@ -275,7 +276,7 @@ function makeControls(THREE,cam,el,worldUp,pick,opts){
   function startPinch(){ const a=pts(), m=mid(a); const P=pick&&pick(m.x,m.y); pinch={d0:dist(a),locked:true,depth:P?depthOf(P):Math.max(1,depthOf(target))}; prev={m,d:dist(a)}; }
   el.addEventListener("contextmenu",e=>e.preventDefault());
   el.addEventListener("pointerdown",e=>{ if(!C.enabled) return; el.setPointerCapture&&el.setPointerCapture(e.pointerId);
-    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); spin=null; samples=[];
+    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); spin=null; samples=[]; if(ptrs.size===1) gp=null;
     const a=pts();
     if(a.length===1&&mode===null){ mode=(e.pointerType==="mouse"&&(e.button===1||e.button===2||e.shiftKey))?"panP":"rotP"; start={x:e.clientX,y:e.clientY}; prev={m:{...start}}; }
     else if(a.length>=2){ mode="pinch"; startPinch(); } });
@@ -283,7 +284,9 @@ function makeControls(THREE,cam,el,worldUp,pick,opts){
     if(mode==="pinch"&&a.length>=2){ pinch.dirty=true; return; }   // handled once per frame in update(): the two fingers' moves arrive
                                                                        // as separate events, and half-updated spreads looked like a pinch
     if(a.length!==1||!prev) return;
-    if(mode==="rotP"||mode==="panP"){ if(Math.hypot(e.clientX-start.x,e.clientY-start.y)<=C.TAP_PX) return; mode=mode==="rotP"?"rot":"pan"; prev={m:{x:e.clientX,y:e.clientY}}; return; }
+    if(mode==="rotP"||mode==="panP"){ if(Math.hypot(e.clientX-start.x,e.clientY-start.y)<=C.TAP_PX) return; mode=mode==="rotP"?"rot":"pan"; prev={m:{x:e.clientX,y:e.clientY}};
+      if(mode==="rot"){ const p=opts.pivot&&opts.pivot(); gp=p&&isFinite(p.x+p.y+p.z)?p.clone():null; }   // picked once, at the start of the spin - never mid-drag
+      return; }
     const dx=e.clientX-prev.m.x, dy=e.clientY-prev.m.y; prev={m:{x:e.clientX,y:e.clientY}};
     if(mode==="pan"){ pan(dx,dy); return; }
     if(mode==="rot"){ rotate(dx,dy); const t=e.timeStamp; samples.push({t,dx,dy}); while(samples.length&&t-samples[0].t>80) samples.shift(); } });
@@ -304,7 +307,7 @@ function makeControls(THREE,cam,el,worldUp,pick,opts){
   C.update=()=>{ if(pinch&&pinch.dirty&&mode==="pinch") pinchStep(); if(!spin) return; if(opts.inertia&&!opts.inertia()){ spin=null; return; }
     const now=performance.now(), dt=Math.min(50,now-spin.t); spin.t=now; const k=Math.exp(-dt/80);   // 80 ms time constant: a short, restrained coast
     spin.vx*=k; spin.vy*=k; if(Math.hypot(spin.vx,spin.vy)<0.03){ spin=null; return; } rotate(spin.vx*dt,spin.vy*dt); };
-  C.stop=()=>{ spin=null; };
+  C.stop=()=>{ spin=null; gp=null; };
   C.isGesture=()=>ptrs.size>1;
   C.spinning=()=>!!spin;
   return C;

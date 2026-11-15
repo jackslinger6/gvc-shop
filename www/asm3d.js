@@ -358,13 +358,18 @@ window.openAsm3D=async function(url,title,opts){
   function hit(x,y){ const r=renderer.domElement.getBoundingClientRect(); ndc.set((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1); ray.setFromCamera(ndc,cam); return ray.intersectObjects(visibleMeshes(),false)[0]||null; }
   /* viewer preferences (View menu, remembered on this device): Keep upright (default) or Free orbit; spin speed;
      spin around the selected part. Inertia is off while measuring. */
-  const PREF=(()=>{ try{ return Object.assign({upright:true,speed:1,selPivot:true},JSON.parse(localStorage.getItem("gvc_a3_prefs")||"{}")); }catch(e){ return {upright:true,speed:1,selPivot:true}; } })();
+  const PREF=(()=>{ const d={upright:true,speed:1,selOrbit:false}; try{ const o=JSON.parse(localStorage.getItem("gvc_a3_prefs")||"{}"); delete o.selPivot; return Object.assign(d,o); }catch(e){ return d; } })();
   const savePref=()=>{ try{ localStorage.setItem("gvc_a3_prefs",JSON.stringify(PREF)); }catch(e){} };
-  let selCentre=null;   // centre of the selection's box, set by setSel
-  const pivotFn=()=>{ if(!PREF.selPivot||!selCentre||mode==="measure") return null;   // only when the selection is on screen
-    const p=selCentre.clone().project(cam); return Math.abs(p.x)<0.95&&Math.abs(p.y)<0.95&&p.z<1?selCentre:null; };
+  /* Orbit centre (Nov 15, 2nd review). It used to be the controls' target, which zooming pulled onto the surface under
+     the fingers/cursor and panning dragged sideways, and (last round) the selected part by default - so it could sit
+     on an edge. Now: the middle of the box round every VISIBLE part (meshes only - no outlines, measure graphics or
+     helpers), worked out again whenever parts are hidden / shown / isolated / restored. The controls ask for it once
+     at the start of each spin, and turning about a point that isn't mid-screen needs no camera re-aim, so a new centre
+     never makes the view jump. "Orbit around selection" (View menu, off by default) uses the selection instead. */
+  let selCentre=null, visCentre=null;   // set by setSel / applyVis
+  const pivotFn=()=>{ if(PREF.selOrbit&&selCentre&&mode!=="measure") return selCentre; return visCentre; };   // null (nothing showing) -> controls keep their own target
   const ctl=window.GVC3DControls?window.GVC3DControls(THREE,cam,renderer.domElement,UP.clone(),(x,y)=>{ const h=hit(x,y); return h?h.point.clone():null; },
-    {tapPx:8, viewportRot:true, sens:()=>PREF.speed, upright:()=>PREF.upright, pivot:pivotFn, inertia:()=>mode!=="measure"}):null;
+    {tapPx:8, viewportRot:true, sens:()=>PREF.speed, upright:()=>PREF.upright, pivot:()=>pivotFn(), inertia:()=>mode!=="measure"}):null;
   let need=true; const draw=()=>{ need=true; }; if(ctl) ctl.addEventListener("change",draw);
   const labels=[];   // HTML labels pinned to 3D points
   const loop=()=>{ if(disposed) return; ctl&&ctl.update(); if(need){ need=false; renderer.render(scene,cam); labels.forEach(l=>{ const p=l.p.clone().project(cam); const r=cv.getBoundingClientRect(); l.el.style.left=((p.x+1)/2*r.width)+"px"; l.el.style.top=((1-p.y)/2*r.height)+"px"; l.el.style.display=p.z>1?"none":""; }); } raf=requestAnimationFrame(loop); };
@@ -393,7 +398,7 @@ window.openAsm3D=async function(url,title,opts){
     const t1=performance.now(), dur=220; const step=()=>{ if(my!==anim) return; const k=Math.min(1,(performance.now()-t1)/dur), e=1-Math.pow(1-k,3);
       cam.position.lerpVectors(from,to,e); if(ctl) ctl.target.lerpVectors(t0,c,e); setUp(); cam.lookAt(ctl?ctl.target:c); cam.updateMatrixWorld(); draw(); if(k<1&&!disposed&&my===anim) requestAnimationFrame(step); }; step(); }
   const ISO=upY?new THREE.Vector3(1.2,0.8,1):new THREE.Vector3(1,1.2,0.8);
-  const fitVisible=()=>frame(boxOf(visibleMeshes()),null,true);
+  const fitVisible=()=>{ const v=visibleMeshes(); if(!v.length){ renderFoot(); return; } updCentre(); frame(boxOf(v),null,true); };   // nothing showing: leave the camera alone (footer offers Show all)
   const resetView=()=>frame(bbAll.clone(),ISO.clone(),true);   // camera only - hidden parts stay hidden
   /* Fusion's ViewCube names for a Y-up model: Front looks along -Z, Right along -X, Top down -Y */
   const VIEWS=upY?{Front:[0,0,1],Back:[0,0,-1],Left:[-1,0,0],Right:[1,0,0],Top:[0,1,0],Bottom:[0,-1,0],Isometric:[1.2,0.8,1]}:{Front:[0,-1,0],Back:[0,1,0],Left:[-1,0,0],Right:[1,0,0],Top:[0,0,1],Bottom:[0,0,-1],Isometric:[1,-1.2,0.8]};
@@ -409,7 +414,8 @@ window.openAsm3D=async function(url,title,opts){
   const topoOf=m=>{ let t=topos.get(m); if(!t){ const g=worldGeo(m); t=topo(g.pos,g.idx); topos.set(m,t); } return t; };
 
   /* ---- visibility ---- */
-  function applyVis(){ meshes.forEach((m,i)=>{ m.visible=VIS.leafVisible(i); }); rebuildEdges(); if(sel&&!T.nodes.get(sel).meshes.some(i=>meshes[i].visible)){ setSel(null); } draw(); renderPanel(); renderFoot(); }
+  function updCentre(){ const v=visibleMeshes(); visCentre=v.length?boxOf(v).getCenter(new THREE.Vector3()):null; }
+  function applyVis(){ meshes.forEach((m,i)=>{ m.visible=VIS.leafVisible(i); }); rebuildEdges(); updCentre(); if(sel&&!T.nodes.get(sel).meshes.some(i=>meshes[i].visible)){ setSel(null); } draw(); renderPanel(); renderFoot(); }
   /* ---- selection ---- */
   const selOutline=new THREE.Group(); scene.add(selOutline);
   function paint(){ const ids=new Set(sel?T.nodes.get(sel).meshes:[]);
@@ -494,7 +500,9 @@ window.openAsm3D=async function(url,title,opts){
     if(mode==="measure") return renderMeasure();
     const segSel=`<div class="a3line"><span class="a3lab" id="a3sml">Tap selects a</span><div class="a3seg" role="group" aria-labelledby="a3sml"><button type="button" data-sm="part" aria-pressed="${selMode==="part"}">Part</button><button type="button" data-sm="asm" aria-pressed="${selMode==="asm"}">Assembly</button></div></div>`;
     if(!sel){ const hn=VIS.hiddenLeaves();
-      foot.innerHTML=`${segSel}<div class="a3note">Tap the model to select. One finger spins, two fingers zoom and move (mouse: drag to spin, right-drag to move, wheel to zoom).${hn?` ${hn} part${hn===1?" is":"s are"} hidden - Assemblies shows them.`:""}</div><div class="a3note">Model reference - the drawings and parts list are the boss.</div>`; }
+      foot.innerHTML=`${segSel}<div class="a3note">Tap the model to select. One finger spins, two fingers zoom and move (mouse: drag to spin, right-drag to move, wheel to zoom).${hn?` ${hn} part${hn===1?" is":"s are"} hidden - Assemblies shows them.`:""}</div><div class="a3note">Model reference - the drawings and parts list are the boss.</div>`;
+      if(!visibleMeshes().length){ foot.innerHTML=`<div class="a3warn">Nothing is showing - every part is hidden.</div><div class="a3acts"><button class="a3b pri" type="button" data-fa="showall">Show all</button></div>`;
+        foot.querySelector('[data-fa="showall"]').onclick=()=>{ VIS.showAll(); applyVis(); fitVisible(); }; } }
     else { const n=T.nodes.get(sel), cr=ancestors(T,sel), mi=n.meshes[0], u=mi!=null?meshes[mi].userData:{};
       const isAsm=n.kind==="asm"||(n.kind==="part"&&n.kids.length), pns=n.meshes.length===1?(u.pn||[]):[];
       const asmId=n.kind==="body"?n.parent:(n.parent||null);
@@ -589,7 +597,7 @@ window.openAsm3D=async function(url,title,opts){
        <div class="a3mh">Spinning</div>
        <div class="a3seg wide" role="group" aria-label="Spinning"><button type="button" data-up="1" aria-pressed="${PREF.upright}">Keep upright</button><button type="button" data-up="0" aria-pressed="${!PREF.upright}">Free orbit</button></div>
        <div class="a3seg wide" role="group" aria-label="Spin speed"><button type="button" data-sp="0.6" aria-pressed="${PREF.speed===0.6}">Slow</button><button type="button" data-sp="1" aria-pressed="${PREF.speed===1}">Normal</button><button type="button" data-sp="1.6" aria-pressed="${PREF.speed===1.6}">Fast</button></div>
-       <label><input type="checkbox" id="a3sp" ${PREF.selPivot?"checked":""}> Spin around the selected part</label>`;
+       <label><input type="checkbox" id="a3sp" ${PREF.selOrbit?"checked":""}> Orbit around selection</label>`;
     const r=bView.getBoundingClientRect(), wr=W.getBoundingClientRect(); menu.style.top=(r.bottom-wr.top+6)+"px"; menu.style.left=Math.max(8,Math.min(r.left-wr.left,wr.width-270))+"px"; W.appendChild(menu); bView.setAttribute("aria-expanded","true");
     menu.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{ const v=b.dataset.v; closeMenu(); if(v==="reset") resetView(); else frame(boxOf(visibleMeshes()),new THREE.Vector3(...VIEWS[v]),true); });
     menu.querySelector("#a3cb").onchange=e=>{ colourBy=e.target.checked; paint(); };
@@ -597,7 +605,7 @@ window.openAsm3D=async function(url,title,opts){
       if(PREF.upright&&cam.up.dot(UP)<0.2){ frame(boxOf(visibleMeshes()),cam.getWorldDirection(new THREE.Vector3()).negate().setComponent(upY?1:2,0).normalize().addScaledVector(UP,0.6).normalize(),true); }   // was upside down: stand it back up
       menu.querySelectorAll("[data-up]").forEach(x=>x.setAttribute("aria-pressed",x===b)); });
     menu.querySelectorAll("[data-sp]").forEach(b=>b.onclick=()=>{ PREF.speed=+b.dataset.sp; savePref(); menu.querySelectorAll("[data-sp]").forEach(x=>x.setAttribute("aria-pressed",x===b)); });
-    menu.querySelector("#a3sp").onchange=e=>{ PREF.selPivot=e.target.checked; savePref(); };
+    menu.querySelector("#a3sp").onchange=e=>{ PREF.selOrbit=e.target.checked; savePref(); };
     menu.querySelector("#a3ed").onchange=e=>{ edgesOn=e.target.checked; rebuildEdges(); draw(); };
     setTimeout(()=>{ const f=menu&&menu.querySelector("button"); if(f) f.focus(); },20); };
   W.addEventListener("pointerdown",e=>{ if(menu&&!menu.contains(e.target)&&e.target!==bView&&!bView.contains(e.target)) closeMenu(); },true);
@@ -612,7 +620,7 @@ window.openAsm3D=async function(url,title,opts){
   ov.hidden=true; W.querySelectorAll(".a3top .a3b").forEach(b=>b.disabled=false);
   if(window.innerWidth>1000){ panel.hidden=false; bAsm.setAttribute("aria-expanded","true"); W.classList.add("sheet"); }
   onResize(); resetView(); applyVis(); loop();
-  window.__a3=window.__a3test?{ctl,PREF,UP,T,VIS,meshes,setSel:id=>setSel(id),tap,cam,frame,fitVisible,hitAt:hit,state:()=>({sel,mode,mType,mA:!!mA,mB:!!mB,units}),measure:()=>mA&&mB?faceToFace(mA.F,mB.F):null,renderer,boxOf,visibleMeshes}:undefined;
+  window.__a3=window.__a3test?{ctl,PREF,UP,pivot:()=>pivotFn(),applyVis:()=>applyVis(),T,VIS,meshes,setSel:id=>setSel(id),tap,cam,frame,fitVisible,hitAt:hit,state:()=>({sel,mode,mType,mA:!!mA,mB:!!mB,units}),measure:()=>mA&&mB?faceToFace(mA.F,mB.F):null,renderer,boxOf,visibleMeshes}:undefined;
 };
 /* EXPORT NOTE - exact CAD faces in the whole-assembly view
    The assembly GLB comes from the Fusion mesh export (asm_mesh.json/bin -> glTF-Transform -> Draco) and has no
