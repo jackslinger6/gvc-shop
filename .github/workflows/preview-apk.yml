@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: preview-apk
@@ -61,3 +62,8 @@ jobs:
           gh release create preview gvc-vault-preview.apk --prerelease --latest=false --target "${GITHUB_SHA}" \
             --title "GVC Vault Preview (redesign) build ${{ github.run_number }}" \
             --notes "Preview of the redesign branch. Installs as a separate app (GVC Preview) next to the regular GVC Vault - it does not replace it. Same live data as the regular app."
+
+      - name: Refresh the web preview (jackslinger6.github.io/gvc-shop/preview/)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run pages.yml --ref main --repo "${{ github.repository }}"
