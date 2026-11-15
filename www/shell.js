@@ -440,7 +440,7 @@ function moreMenu(){
   const n=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
   const items=[["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["count","Count an order","count"],["talks","Talks","rec"],["prices","Prices","count"],["requests","Supply requests","box",(window.reqCount?window.reqCount():0)],["pos","RFQs & POs","list",(window.posOpen?window.posOpen():0)],["porders",window.ME&&ME.role==="parts"?"My orders":"Robin's orders","box",(window.pordersOpen?window.pordersOpen():0)],["staging","Staging kits","box"],["crewview","Colton's view","crew"],["partsview","Robin's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
-    ["theme",window.gvcTheme&&gvcTheme.get()==="girly"?"Girly mode ✓":"Girly mode","heart"],["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
+    ["theme","Appearance","heart"],["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
   const CREWOK=["msgs","mytime","supplies","requests","count","inv","ncr","revs","archive","signout"];
   const PARTSOK=["porders","msgs","inv","staging","archive","theme","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
   const role=window.ME&&ME.role;
@@ -470,11 +470,32 @@ function moreMenu(){
       else if(k==="partsview"){ window.crewPreview&&window.crewPreview(true,"Robin"); }
       else if(k==="newjob"){ go(lastJobs()); setTimeout(()=>$("#addJob").click(),60); }
       else if(k==="undo") $("#undoBtn").click();
-      else if(k==="theme"){ window.gvcTheme&&gvcTheme.toggle(); }
+      else if(k==="theme"){ appearanceSheet(); }
       else if(k==="signout") $("#signOut").click();
       else go(k); });
   });
 }
+
+/* ---- Appearance (stage 9): Dark / Light / Match phone, and Girly (pastel) on its own ---- */
+function appearanceSheet(){ if(!window.gvcTheme) return;
+  const T=window.gvcTheme, cur=T.get()==="girly"?"girly":T.appear();
+  const opt=(k,t,d,sw)=>`<button type="button" class="apo${cur===k?" on":""}" data-ap="${k}" aria-pressed="${cur===k}"><span class="aps">${sw}</span><span><b>${t}</b><small>${d}</small></span>${cur===k?"<i>✓</i>":""}</button>`;
+  const sw=(a,b,c)=>`<i style="background:${a}"></i><i style="background:${b}"></i><i style="background:${c}"></i>`;
+  sheet(`<h3>Appearance</h3><div class="apl">
+    ${opt("dark","Dark","Charcoal and orange - the default",sw("#111315","#181a1e","#ff8a2a"))}
+    ${opt("light","Light","Soft gray page, white cards, burnt orange",sw("#f3f5f7","#ffffff","#b84d00"))}
+    ${opt("system","Match phone","Light or dark, same as the phone / computer",sw("#111315","#f3f5f7","#ff8a2a"))}
+    ${opt("girly","Girly","Pastel pink theme",sw("#fff4fa","#ffb3d1","#cbb6f3"))}</div>
+    <div class="tnote" style="margin-top:8px">Saved on this phone / computer only.</div>`,(el,close)=>{
+    el.querySelectorAll("[data-ap]").forEach(b=>b.onclick=()=>{ const k=b.dataset.ap; if(k==="girly") T.set("girly"); else { T.set(""); T.setAppear(k); } close(); });
+  });
+}
+{ const st=document.createElement("style"); st.textContent=`.apl{display:flex;flex-direction:column;gap:8px}
+.apo{display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);text-align:left;cursor:pointer;font:inherit}
+.apo.on{border-color:var(--accent-line);background:var(--accent-soft)}
+.apo b{display:block;font-size:15px}.apo small{display:block;font-size:12.5px;color:var(--muted)}
+.apo>i{margin-left:auto;font-style:normal;color:var(--accent-hi);font-weight:700}
+.aps{display:flex;flex:none;border-radius:8px;overflow:hidden;border:1px solid var(--line2)}.aps i{width:14px;height:32px;display:block}`; document.head.appendChild(st); }
 
 /* ---- quick-action wheel ---- */
 const ACTS=[["punch","Punch in","clock","#3ad06b"],["rec","Record","rec","#e5483b"],["count","Count","count","#f5b041"],["quick","Quick job","bolt","#22c3e6"],["time","Log time","clock","#3ad06b"],["todo","Add to-do","check","#5aa7f3"],["chat","Ask Claude","chat","#ff8a2a"]];

@@ -682,10 +682,10 @@ function ajRow(j){
 /* Job lifecycle (stage 8, Kyle Nov 14) - separate from a job's stages, tasks and orders:
    Active = being built / worked on · Planned = upcoming (can be quoted / ordered for without being active) ·
    Shop = ongoing shop jobs (Inventory, Shop cleanup - a purpose, not "unbillable") · Completed = done / archived.
-   `j.life` ("planned" / "active") is set by Kyle; without it: on the Shop floor or a task started = Active, else Planned. */
+   `j.life` ("planned" / "active") is set by Kyle and always wins; without it: on the Shop floor = Active, else Planned. */
 const PLAN_ST=["Upcoming","Waiting on release","Released to me","Getting quotes","Ready to start"];
 const lifeOf=j=>j.archived||j.stage==="done"?"done":ONGOING(j)?"shop":j.life==="active"||j.life==="planned"?j.life
-  :(stOf(j).board==="build"||(j.assemblies||[]).some(a=>["prog","qc","done"].includes(a.status)))?"active":"planned";
+  :stOf(j).board==="build"?"active":"planned";   // stage 8 review: started tasks (drawings, quoting, early purchasing) don't make a job Active - only the Shop floor or Kyle's choice
 const planStatus=j=>j.planStatus||(j.stage==="released"?"Upcoming":j.stage==="drawings"?"Checking drawings":j.stage==="dxfs"?"Making DXFs":stOf(j).board==="ordering"?"Getting quotes / ordering":"Upcoming");
 window.lifeOf=lifeOf; window.planStatus=planStatus;
 /* the job card says whether a job is Planned or Active; Kyle switches it (stage 8) */

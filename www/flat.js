@@ -144,12 +144,12 @@ document.head.appendChild(css);
 let closeView=null;
 const matCls=m=>/alum|\bal\b|5052|6061/i.test(m)?"al":/stainless|\bss\b|304|316/i.test(m)?"ss":"";
 function view(o){
-  if(closeView) closeView();
+  if(closeView) closeView("replace",true);
   const url=URL.createObjectURL(new Blob([o.svg],{type:"image/svg+xml"}));
   const eng=/<path d="M[^"]*" fill="none" stroke="#1f6fd1"/.test(o.svg), bend=/<path d="M[^"]*" fill="none" stroke="#d0342c"/.test(o.svg);
   const ov=document.createElement("div"); ov.id="gFlat"; if(o.z) ov.style.zIndex=o.z;
   ov.innerHTML=`<div class="hd"><div class="pn">${esc(o.title||"Flat pattern")}</div><button type="button" id="gfX">Close</button>
-      <div class="mt">${o.mat?`<span class="mat ${matCls(o.mat)}">${esc(o.mat)}</span>`:""}<span class="dm">${inch(Math.max(o.W,o.H))} × ${inch(Math.min(o.W,o.H))}</span></div>
+      <div class="mt">${o.mat?`<span class="mat ${matCls(o.mat)}">${esc(o.mat)}</span>`:""}${o.W>0&&o.H>0?`<span class="dm">${inch(Math.max(o.W,o.H))} × ${inch(Math.min(o.W,o.H))}</span>`:""}</div>
       ${o.sub?`<div class="sb">${esc(o.sub)}</div>`:""}${o.warn?`<div class="wn">⚠ ${esc(o.warn)}</div>`:""}</div>
     <div class="stage"><div class="bx"><img alt="Flat pattern" src="${url}"></div>
       <div class="zm"><button type="button" data-z="+" aria-label="Zoom in">+</button><button type="button" data-z="-" aria-label="Zoom out">−</button></div>
@@ -178,7 +178,11 @@ function view(o){
   let drag=null; const mm=e=>{ if(drag){ bx.scrollLeft=drag.l-(e.clientX-drag.x); bx.scrollTop=drag.t-(e.clientY-drag.y); } }, mu=()=>{ drag=null; };
   bx.addEventListener("mousedown",e=>{ drag={x:e.clientX,y:e.clientY,l:bx.scrollLeft,t:bx.scrollTop}; e.preventDefault(); });
   window.addEventListener("mousemove",mm); window.addEventListener("mouseup",mu);
-  closeView=(why)=>{ ov.remove(); URL.revokeObjectURL(url); window.removeEventListener("resize",onR); window.removeEventListener("mousemove",mm); window.removeEventListener("mouseup",mu); closeView=null; o.onClose&&o.onClose(why||"close"); };
+  /* o.beforeClose(why, go) (stage 9 per-part confirm): can hold the close (e.g. unconfirmed count) and call go() when it's OK */
+  let shut=false;
+  const reallyClose=(why)=>{ if(shut) return; shut=true; ov.remove(); URL.revokeObjectURL(url); window.removeEventListener("resize",onR); window.removeEventListener("mousemove",mm); window.removeEventListener("mouseup",mu); closeView=null; o.onClose&&o.onClose(why||"close"); };
+  closeView=(why,force)=>{ if(o.beforeClose&&!force) o.beforeClose(why||"close",()=>reallyClose(why),ov); else reallyClose(why); };
+  if(o.redrawCount) o.redrawCount(drawC);
   ov.querySelector("#gfX").onclick=()=>closeView("close");
   ov.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>closeView(o.actions[+b.dataset.act].why));
   if(!window.__gfBack){ window.__gfBack=1; GVC.on("back",()=>{ if(closeView){ closeView("close"); return true; } return false; },{order:10}); }

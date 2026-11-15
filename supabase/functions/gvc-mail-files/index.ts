@@ -52,6 +52,9 @@ function parseName(file: string, folder: string): { part: string; mat: string; q
   const n = file.replace(/\.dxf$/i, "").trim();
   let m = n.match(/^(.*?)\s*_{3,}\s*(.*?)\s*-\s*QTY\s*(\d+)/i);
   if (m) return { part: m[1].trim(), mat: m[2].trim(), qty: +m[3] };
+  // "<job> - <part> - QTY n <material>" (Jessie, Nov 13: "1086WT - RECUT.1 - QTY 1 11 GA MS") - the material comes after the qty
+  m = n.match(/^(.*?)\s+-\s+(.*?)\s+-\s+QTY\s*(\d+)\s+(.+)$/i);
+  if (m && /^(?:\d+\s*GA|\d*\.\d+"?|\d+\/\d+"?)\s+\S/i.test(m[4].trim())) return { part: m[2].trim(), mat: m[4].trim(), qty: +m[3] };
   m = n.match(/^(.*?)\s+-\s+(.*?)\s+-\s+QTY\s*(\d+)/i);
   if (m) return { part: m[1].trim(), mat: m[2].trim(), qty: +m[3] };
   m = n.match(/^(.*?)\s*\(\s*QTY\s*(\d+)\s*\)/i);

@@ -79,7 +79,9 @@ function matKind(m){ m=String(m||"");
   if(/alum/i.test(m)) return "Aluminum";
   if(/\bss\b|stainless|\b30[34]\b|\b316\b/i.test(m)) return /316/.test(m)?"316 SS":"304 SS";
   if(/steel|\bms\b|p&o|\bhr\b|\bcr\b/i.test(m)) return "Mild steel";
-  return m.replace(/^[\s\d.\/"()ga-]+/i,"").trim(); }
+  if(/galv/i.test(m)) return "Galvanized";
+  if(/hrpo|p\s*&\s*o/i.test(m)) return "Mild steel";
+  return "Other / not recognized"; }   // stage 8 review: never show a part number (e.g. RECUT.1) as a material
 function matText(p){ return [thick(+p.thickness,p.material),matKind(p.material)].filter(Boolean).join(" "); }
 function matSort(a,b){ const ka=a.split(" ").slice(-1)[0], kb=b.split(" ").slice(-1)[0]; return ka.localeCompare(kb)||thVal(a)-thVal(b); }
 function thVal(l){ const g=l.match(/^(\d+) ga/); if(g) return [0,0,0,0,0,0,0,0,.1644,.1495,.1345,.1196,.1046,.0897,.0747,.0673,.0598,.0538,.0478][+g[1]]||0;

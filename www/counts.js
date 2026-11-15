@@ -39,6 +39,15 @@ css.textContent=`
 .cnt .lnk{font:inherit;font-size:11.5px;color:var(--dim);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
 .cnt .cnol{margin:10px 0 4px;padding:10px 12px;border:1px solid rgba(245,176,65,.5);background:rgba(245,176,65,.08);border-radius:10px;font-size:13px;color:#ffd28a}
 .cnt .cnol b{color:#ffd28a}
+.cnt .q.cf{color:#7ff0a8;font-weight:700}
+.cnt .cnfb{margin:6px 0 2px}
+.cnt .boxes .bx{pointer-events:auto}
+#gFlat .cfp{position:absolute;inset:0;background:rgba(5,6,8,.6);display:flex;align-items:flex-end;justify-content:center;z-index:5}
+#gFlat .cfpb{width:min(520px,100%);background:#17191d;border:1px solid #2a2e35;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));color:#e9ebee;font-size:14px}
+#gFlat .cfpb b{display:block;font-size:16px;margin-bottom:4px}
+#gFlat .cfpa{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+#gFlat .cfpa button{min-height:48px;border-radius:12px;border:1px solid #3a3e45;background:rgba(255,255,255,.06);color:#e9ebee;font:600 15px var(--font-ui,inherit);cursor:pointer}
+#gFlat .cfpa .go{background:#ff8a2a;border-color:#ff8a2a;color:#1b0f05}
 .cnt .addbox{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px}
 .cnt .addrow{display:flex;gap:6px;flex-wrap:wrap}
 .cnt .pick{display:grid;gap:4px;margin-top:6px;max-height:260px;overflow:auto}
@@ -136,16 +145,43 @@ function hydrateFlat(){
   if(!flatIO&&"IntersectionObserver" in window) flatIO=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ flatIO.unobserve(e.target); FL[e.target.dataset.fl]?fillFlat(e.target):drawFlat(e.target.dataset.fl); } }),{rootMargin:"300px"});
   els.forEach(el=>{ if(FL[el.dataset.fl]) fillFlat(el); else if(flatIO) flatIO.observe(el); else drawFlat(el.dataset.fl); });
 }
-async function openFlat(ix,scan){
-  const it=st.items[ix], pn=it.part_no; if(!FL[pn]) await drawFlat(pn); const F=FL[pn];
-  if(!F&&scan) return false;
-  if(!F){ const im=url(it.thumb||it.img); if(im) zoomImg(im,pn); return; }
-  window.gvcFlat.view({title:pn||it.name,mat:matLabel(it.mat),sub:it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)&&!String(it.mat||"").includes(it.name)?it.name:"",
-    svg:F.x.svg,W:F.x.W,H:F.x.H,vw:F.x.vw,vh:F.x.vh,warn:F.warn,
-    count:{qty:it.qty||0,got:()=>got(it),set:n=>{ it.got=n; changed(it.g); }},
-    ...(scan?{z:9500,actions:[{label:"↺ Rescan",cls:"re",why:"rescan"},{label:"Scan next part ›",cls:"go",why:"next"}],onClose:why=>scan(why)}
-      :{onClose:()=>{ const D=$("#dlg"), sc=D.scrollTop; draw(); D.scrollTop=sc; }})});
+/* Per-part confirm (stage 9, Kyle Nov 14): a part's count is only saved when you tap Confirm count on its screen.
+   Ticking boxes on the part screen is a draft; leaving with unconfirmed changes asks Confirm / Discard / Keep counting
+   (from the scanner: Confirm & scan next / Discard & scan next / Keep counting). A confirmed part shows "Confirmed n of q"
+   on the list; changing it later needs another confirm. Finishing the whole order stays a separate step (Done counting). */
+const confirmedOk=it=>!!it.conf&&it.conf.n===got(it);
+function holdPrompt(ov,why,{confirm,discard,keep}){
+  const nx=why==="next";
+  const box=document.createElement("div"); box.className="cfp";
+  box.innerHTML=`<div class="cfpb" role="alertdialog" aria-label="Unconfirmed count"><b>This count isn't confirmed yet.</b><div>Save it before you ${nx?"scan the next part":"leave this part"}?</div>
+    <div class="cfpa"><button type="button" class="go" data-c="1">${nx?"Confirm & scan next":"Confirm count"}</button><button type="button" data-d="1">${nx?"Discard & scan next":"Discard changes"}</button><button type="button" data-k="1">Keep counting</button></div></div>`;
+  ov.appendChild(box);
+  box.querySelector("[data-c]").onclick=()=>{ box.remove(); confirm(); };
+  box.querySelector("[data-d]").onclick=()=>{ box.remove(); discard(); };
+  box.querySelector("[data-k]").onclick=()=>{ box.remove(); keep&&keep(); };
 }
+async function openPart(ix,scan){
+  const it=st.items[ix], pn=it.part_no; if(pn&&!FL[pn]) await drawFlat(pn); const F=pn&&FL[pn];
+  const orig=got(it); let pend=orig;
+  const commit=()=>{ it.got=pend; it.conf={n:pend,by:(window.ME&&ME.name)||"",at:new Date().toISOString()}; changed(it.g); };
+  const svg=F?F.x.svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#fff"/><text x="200" y="104" font-family="sans-serif" font-size="18" text-anchor="middle" fill="#666">No drawing for this part</text><text x="200" y="132" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#999">${esc(pn||it.name||"")}</text></svg>`;
+  window.gvcFlat.view({title:pn||it.name,mat:matLabel(it.mat),sub:it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)&&!String(it.mat||"").includes(it.name)?it.name:"",
+    svg,W:F?F.x.W:0,H:F?F.x.H:0,vw:F?F.x.vw:400,vh:F?F.x.vh:220,warn:F?F.warn:"",
+    count:{qty:it.qty||0,got:()=>pend,set:n=>{ pend=n; }},
+    actions:scan?[{label:"↺ Rescan",cls:"re",why:"rescan"},{label:"Confirm count",cls:"go",why:"confirm"},{label:"Scan next part ›",cls:"re",why:"next"}]
+      :[{label:"Confirm count",cls:"go",why:"confirm"}],
+    ...(scan?{z:9500}:{}),
+    beforeClose:(why,go,ov)=>{
+      if(why==="replace") return go();
+      if(why==="confirm"){ commit(); return go(); }
+      const dirty=pend!==orig||(!it.conf&&pend>0&&why!=="rescan"&&false);
+      if(!dirty) return go();
+      holdPrompt(ov,why,{confirm:()=>{ commit(); go(); },discard:()=>{ pend=orig; go(); }});
+    },
+    onClose:why=>{ if(scan){ scan(why==="confirm"?"next":why==="close"?"next":why); return; } const D=$("#dlg"), sc=D.scrollTop; draw(); D.scrollTop=sc; }});
+  return true;
+}
+async function openFlat(ix,scan){ return openPart(ix,scan); }
 // '0.125" 0.125 ALUMINUM' -> '0.125" ALUMINUM' (the material name repeats the thickness)
 function matLabel(m){ m=String(m||"").trim(); const x=m.match(/^([\d.]+)"\s+([\d.]+)\s+(.*)$/); return x&&Math.abs(+x[1]-+x[2])<1e-6?`${x[1]}" ${x[3]}`:m; }
 window.gvcCountFlatThumb=pn=>FL[pn]?"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(FL[pn].x.thumb):"";
@@ -157,17 +193,17 @@ function head(){
     <div class="csub">${esc(sup.name||"")}${sup.quoteNo?" · #"+esc(sup.quoteNo):""}${sup.scope?" · "+esc(sup.scope):""} · ${(ST[sup.status]||ST.sent).t}</div></div>
     <span style="display:flex;gap:6px"><button class="btn" type="button" id="cPrint" title="Print a paper checklist (or save it as a PDF)">🖨 Print</button><button class="btn ghost" type="button" id="cBack">Back to job</button></span></div>
     ${!st.items.some(i=>!i.skip)?`<div class="cnol"><b>No checklist - nothing counted yet.</b> There's no parts list for this order. Add what was ordered below to count it, or receive it without a checklist.</div>`:`<div class="bar"><div style="width:${t.pcs?Math.round(t.got/t.pcs*100):0}%"></div></div>
-    <div class="csub"><b style="color:var(--text)">${t.got} of ${t.pcs} pcs</b> · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`}`;
+    <div class="csub"><b style="color:var(--text)">Confirmed: ${live().filter(confirmedOk).length} of ${live().length} parts</b> · ${t.got} of ${t.pcs} pcs · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`}`;
 }
 function itemRow(it,ix){
-  const g=got(it), q=it.qty||0, cls=g>=q&&q>0?"full":g>0?"part":"";
+  const g=got(it), q=it.qty||0, cls=confirmedOk(it)&&g>=q&&q>0?"full":g>0?"part":"";
   const im=url(it.thumb||it.img); const fl=st.flat&&it.part_no&&st.flat[it.part_no];
-  const boxes=q<=24?`<div class="boxes">${Array.from({length:q},(_,b)=>`<button class="bx ${b<g?"on":""}" type="button" data-bx="${ix}" data-b="${b}" aria-label="piece ${b+1}">✓</button>`).join("")}</div>`
-    :`<div class="step"><button class="btn" type="button" data-dn="${ix}">−</button><b>${g} / ${q}</b><button class="btn" type="button" data-up="${ix}">+</button><button class="btn sm" type="button" data-all="${ix}">All here</button></div>`;
+  const boxes=`<button type="button" class="btn sm${confirmedOk(it)?"":" primary"} cnfb" data-cnf="${ix}">${confirmedOk(it)?"Change count":g?"Check & confirm":"Count this part"}</button>`+(q<=24?`<div class="boxes">${Array.from({length:q},(_,b)=>`<button class="bx ${b<g?"on":""}" type="button" data-bx="${ix}" data-b="${b}" aria-label="piece ${b+1}">✓</button>`).join("")}</div>`
+    :`<div class="step"><button class="btn" type="button" data-dn="${ix}">−</button><b>${g} / ${q}</b><button class="btn" type="button" data-up="${ix}">+</button><button class="btn sm" type="button" data-all="${ix}">All here</button></div>`);
   const th=fl?`<div class="th fl" data-fl="${esc(it.part_no)}" data-fv="${ix}" role="button" aria-label="Enlarge the flat pattern">${FL[it.part_no]?FL[it.part_no].x.thumb:`<span>…</span>`}</div>`
     :`<div class="th" ${im?`data-fv="${ix}" role="button"`:""}>${im?`<img src="${esc(im)}" alt="" loading="lazy">`:esc(it.part_no||"")}</div>`;
   return `<div class="it ${cls}">${th}
-    <div><div class="nm"><span>${esc(it.part_no||it.name)}</span><span class="q">${g} / ${q}</span></div>
+    <div><div class="nm"><span>${esc(it.part_no||it.name)}</span><span class="q ${confirmedOk(it)?"cf":""}">${confirmedOk(it)?`✓ Confirmed ${g} of ${q}`:g?`${g} / ${q} · not confirmed`:`0 / ${q}`}</span></div>
     <div class="mt">${it.mat?`<span class="mchip ${/alum|\bal\b/i.test(it.mat)?"al":/stainless|\bss\b/i.test(it.mat)?"ss":""}">${esc(matLabel(it.mat))}</span>`:""}${it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)&&!String(it.mat||"").includes(it.name)?" "+esc(it.name):""}</div>
     ${fl?`<div class="mt" data-dm>${flatDims(it.part_no)}</div>`:""}
     ${boxes}
@@ -263,17 +299,15 @@ function wire(){
     window.gvcScan({title:"Scan a part number",
       items:L.map(({it,ix})=>({id:String(ix),keys:[it.part_no,it.part_no?"":it.name],label:it.part_no||it.name})),
       info:id=>{ const it=st.items[+id]; return {label:it.part_no||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat].filter(Boolean).join(" · "),got:got(it),qty:it.qty||0,img:window.gvcCountFlatThumb(it.part_no)||url(it.thumb||it.img)}; },
-      open:(id,done)=>{ const it=st.items[+id]; if(!st.flat[it.part_no]) return false; openFlat(+id,done).then(r=>{ if(r===false) done("next"); }); return true; },
-      act:(id,op)=>{ const it=st.items[+id]; it.got=op==="all"?(it.qty||0):op==="+1"?Math.min(it.qty||0,got(it)+1):Math.max(0,got(it)-1); changed(it.g); },
+      open:(id,done)=>{ openPart(+id,done); return true; },
+      act:()=>{},
       onClose:()=>draw()});
   };
   const q=$("#cQ"); if(q) q.oninput=()=>{ st.q=q.value; const pos=q.selectionStart; draw(); const n=$("#cQ"); n.focus(); n.setSelectionRange(pos,pos); };
   D.querySelectorAll("[data-cf]").forEach(b=>b.onclick=()=>{ st.f=b.dataset.cf; draw(); });
   D.querySelectorAll("[data-cq]").forEach(b=>b.onclick=()=>{ st.q=st.q===b.dataset.cq?"":b.dataset.cq; draw(); });
-  D.querySelectorAll("[data-bx]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.bx], k=+b.dataset.b; it.got=got(it)>=k+1?k:k+1; changed(it.g); refresh(+b.dataset.bx); });
-  D.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.up]; it.got=Math.min(it.qty,got(it)+1); changed(it.g); refresh(+b.dataset.up); });
-  D.querySelectorAll("[data-dn]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.dn]; it.got=Math.max(0,got(it)-1); changed(it.g); refresh(+b.dataset.dn); });
-  D.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.all]; it.got=it.qty; changed(it.g); refresh(+b.dataset.all); });
+  // stage 9: nothing on the list changes a count - every box / button opens the part, where the count is confirmed
+  D.querySelectorAll("[data-bx],[data-up],[data-dn],[data-all],[data-cnf]").forEach(b=>b.onclick=()=>openPart(+(b.dataset.bx??b.dataset.up??b.dataset.dn??b.dataset.all??b.dataset.cnf)));
   D.querySelectorAll("[data-skip]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.skip]; it.skip=true; changed(it.g); draw(); });
   D.querySelectorAll("[data-later]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.later]; it.later=true; changed(it.g); draw(); });
   D.querySelectorAll("[data-unlater]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.unlater]; it.later=false; changed(it.g); draw(); });
