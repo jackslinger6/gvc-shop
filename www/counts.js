@@ -57,6 +57,7 @@ css.textContent=`
 .cnt .pkgh{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .cnt .pkgh label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;min-width:0}
 .cnt .pkgh label span{overflow:hidden;text-overflow:ellipsis}
+.cnt .pkw{margin:8px 0;padding:8px 10px;border:1px solid rgba(245,176,65,.5);background:rgba(245,176,65,.1);border-radius:8px;font-size:12.5px;color:#ffd28a}
 .cnt .pkq{width:100%;box-sizing:border-box;margin:2px 0 6px}
 .cnt .addbox{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px}
 .cnt .addrow{display:flex;gap:6px;flex-wrap:wrap}
@@ -320,8 +321,9 @@ function pickHtml(){
     const by={}; P.parts.filter(p=>!q||[p.part_no,p.name,p.mat,p.source].join(" ").toLowerCase().includes(q)).forEach(p=>{ (by[p.source]=by[p.source]||[]).push(p); });
     const n=P.sel.size;
     return `<div class="addbox opick"><b style="font-size:14px">Which parts are on this order?${st.sets.length>1?" - "+esc(jobOf(S.jobId).name):""}</b>
-      <div class="tnote">The checklist only has what you pick here. ${sug.length?"Parts the order names are ticked already.":"The order doesn't name any parts from the job's list - pick them, or add items by hand below."}</div>
-      ${sug.length?`<div class="pkh">Named on the order</div>${sug.map(row).join("")}`:""}
+      <div class="tnote">The checklist only has what you pick here. ${sug.length?"Parts the order's wording mentions are ticked as a suggestion.":"The order doesn't name any parts from the job's list - pick them, or add items by hand below."} Email packages can include revised or superseded drawings - don't tick both versions of a part.</div>
+      ${sug.length?`<div class="pkh">Suggested from the order's wording</div><div class="tnote" style="margin-top:-2px">Found in the order description - not a verified order list. Check them against the order or packing slip.</div>${sug.map(row).join("")}`:""}
+      ${dupWarn(P)}
       <div class="pkh">From the job's parts list (${P.parts.length})</div>
       <input type="search" class="pkq" data-pkq="${g}" placeholder="Find a part" value="${esc(P.q)}">
       ${Object.entries(by).map(([src,L])=>{ const all=L.every(p=>has(p.k)), some=L.some(p=>has(p.k)), op=P.open.has(src)||!!q;
@@ -329,6 +331,11 @@ function pickHtml(){
           ${op?L.map(row).join(""):""}</div>`; }).join("")}
       <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn primary" type="button" data-pkgo="${g}" ${n?"":"disabled"}>Add ${n} part${n===1?"":"s"} to the checklist</button></div></div>`; }).join("");
 }
+/* two versions of the same part ticked (e.g. HEADACHE.5 and HEADACHE.5-R2, or "Body2" and "_1_ Body2") - warn, don't guess which is current */
+const partBase=pn=>String(pn||"").toUpperCase().replace(/\s*\(\d+\)$/,"").replace(/[-_ ]*(R|REV)\s*\d+$/,"").replace(/_\d+_\s*/g,"").replace(/\s+/g," ").trim();
+function dupWarn(P){ const by={}; P.parts.filter(p=>P.sel.has(p.k)).forEach(p=>{ const b=partBase(p.part_no); (by[b]=by[b]||[]).push(p); });
+  const d=Object.values(by).filter(L=>L.length>1); if(!d.length) return "";
+  return `<div class="pkw">⚠ ${d.length} part${d.length>1?"s look":" looks"} ticked twice in different versions: ${d.slice(0,4).map(L=>L.map(p=>esc(p.part_no)+" ("+esc(String(p.source).replace(/^Order email /,"").slice(0,24))+")").join(" / ")).join("; ")}${d.length>4?"…":""}. Untick the version that isn't on this order.</div>`; }
 function wirePick(D){
   const S=g=>st.sets[+g].pick;
   D.querySelectorAll("[data-pk]").forEach(b=>b.onchange=()=>{ const [g,k]=b.dataset.pk.split(/\|(.*)/s); const P=S(g); b.checked?P.sel.add(k):P.sel.delete(k); draw(); });
