@@ -776,7 +776,7 @@ function dlgStale(){
   const D=$("#dlg"); if(!D||D.querySelector("#dlgStale")) return;
   const n=document.createElement("div"); n.id="dlgStale"; n.className="tnote"; n.style.cssText="color:#ffd28a;margin:8px 0 0";
   n.textContent="This job changed somewhere else while you were editing. Save puts your edits on top of that change; Close throws them away.";
-  const sb=D.querySelector(".stagebar"); if(sb) sb.after(n); else D.prepend(n);
+  const sb=D.querySelector(".jtop")||D.querySelector(".stagebar"); if(sb) sb.after(n); else D.prepend(n);
 }
 
 function crewItems(){
@@ -843,10 +843,63 @@ $("#undoBtn").onclick=undo; $("#toastUndo").onclick=()=>{ if(todoUndoFn){ const 
 document.addEventListener("keydown",e=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); undo(); }});
 const raw=id=>{const j=jobs.find(x=>x.id===id); if(!j) return null; const {id:_,...d}=j; return d;};
 function job(){return jobs.find(j=>j.id===openId)||archivedJobs.find(j=>j.id===openId);}
-function openJob(id){openId=id;drawDlg();$("#scrim").classList.add("on");}
+/* Job card sections (redesign stage 4): Overview · Tasks · Orders · NCRs · Notes & details. A job opens on Overview,
+   or on the section you came for (openJob(id,"orders") from an order, "ncr" from the NCR log, "tasks" from the week plan).
+   Coming back to the same job from Parts & drawings / Files / a count keeps the section you were on. */
+let dlgTab="overview", dlgTabJob=null;
+const JOB_TABS=["overview","tasks","orders","ncr","notes"];
+function openJob(id,sec){ if(JOB_TABS.includes(sec)) dlgTab=sec; else if(id!==dlgTabJob) dlgTab="overview"; dlgTabJob=id; openId=id; drawDlg(); $("#scrim").classList.add("on"); }
+const isCrewish=()=>!!(window.ME&&ME.role==="crew");   // the shop crew (Colton, Aaron) - not Robin (parts), who needs the orders
+function setJobTab(k){
+  if(!JOB_TABS.includes(k)) return; if(k==="orders"&&isCrewish()) k="overview";
+  dlgTab=k; const D=$("#dlg"); if(!D) return; D.dataset.tab=k;
+  D.querySelectorAll("[data-jtab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.jtab===k));
+  const sc=$("#scrim"); if(sc) sc.scrollTop=0;
+}
+window.setJobTab=setJobTab;
+function jobTabs(j){
+  const A=j.assemblies||[], done=A.filter(a=>a.status==="done").length;
+  const ord=(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status!=="received").length;
+  const ncr=window.ncrOpenN?window.ncrOpenN(j):(j.ncrs||[]).filter(x=>!x.closed).length;
+  return [{k:"overview",t:"Overview"},{k:"tasks",t:"Tasks",n:A.length?`${done}/${A.length}`:""},{k:"orders",t:"Orders",n:ord||""},{k:"ncr",t:"NCRs",n:ncr||""},{k:"notes",t:"Notes & details",n:""}];
+}
+function jobTitleHTML(j){
+  const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
+  return `${num?`<span class="jnum">${esc(num)}</span>`:""}<span>${esc(rest)}</span>`;
+}
+const stagePills=j=>{ const s=stOf(j); return `<span class="jbt">${esc(s.bt)}</span>`+[s,...alsoIn(j).map(k=>STAGES[SIDX[k]])].map(x=>`<span class="ostat" style="--c:${x.c}">${esc(x.t)}</span>`).join(""); };
+/* the Overview: where the job is, what's done, what's next - details live in the other sections */
+function jobOverviewHTML(j){
+  const A=j.assemblies||[], done=A.filter(a=>a.status==="done").length, pct=A.length?Math.round(done/A.length*100):0;
+  const act=(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status!=="received");
+  const ncrN=window.ncrOpenN?window.ncrOpenN(j):(j.ncrs||[]).filter(x=>!x.closed).length;
+  const tiles=`<div class="jtiles">
+    <button type="button" class="jtile" data-jgo="tasks"><b>${A.length?`${done} of ${A.length}`:"No tasks"}</b><span>${A.length?"tasks done":"yet - add some in Tasks"}</span>${A.length?`<div class="prog"><div style="width:${pct}%"></div></div>`:""}</button>
+    <button type="button" class="jtile jsupsec" data-jgo="orders"><b>${act.length}</b><span>open order${act.length===1?"":"s"}</span></button>
+    <button type="button" class="jtile" data-jgo="ncr"><b>${ncrN}</b><span>open NCR${ncrN===1?"":"s"}</span></button></div>`;
+  let next=[];
+  if(isCrewish()){
+    const me=window.ME&&ME.name; A.forEach(a=>{ if(a.status!=="done"&&whoList(a).includes(me)) next.push(`<button type="button" class="jnext" data-jgo="tasks"><span class="ostat" style="--c:${(AST[a.status]||AST.ready).c}">${esc((AST[a.status]||AST.ready).t)}</span><span>${esc(a.name)}</span></button>`); });
+  } else {
+    // inside the job card the job's own name in a to-do is noise: "Pick up at Russel - 1086WT - Avalanche Winch Tractor" -> "Pick up at Russel"
+    const nm=String(j.name||""), short=t=>String(t).split(nm).join("").replace(/\s*\(\s*\)/g,"").replace(/\s*[-–:·]\s*(?=\(|$)/g," ").replace(/:\s*$/,"").replace(/\s{2,}/g," ").trim()||t;
+    const items=[...liveAuto().filter(t=>t.job===j.id).map(t=>({text:short(t.text),go:t.ncr?"ncr":/quote|order|pick up|count|reply|supplier|russel|grandview|PO-|RFQ-/i.test(t.text)?"orders":/assign|task|bend|weld|build/i.test(t.text)?"tasks":""})),
+                 ...liveMine().filter(t=>t.job_id===j.id).map(t=>({text:short(t.text),go:""}))];
+    next=items.slice(0,4).map(t=>t.go?`<button type="button" class="jnext" data-jgo="${t.go}"><span>${esc(t.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:`<div class="jnext"><span>${esc(t.text)}</span></div>`);
+    if(items.length>4) next.push(`<div class="jnext jmore">+ ${items.length-4} more on your To do list</div>`);
+  }
+  const cnt=window.openCount?act.filter(x=>x.status==="arrived"||x.status==="ready").map(x=>`<button class="btn${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">☑ Count ${esc(first(x.name))}${x.po||x.rfq?" · "+esc(x.po||x.rfq):""}</button>`).join(""):"";
+  const last=(j.log||[]).length?j.log[j.log.length-1]:null;
+  return `${j.summary?`<div class="jsum">${esc(j.summary)}</div>`:""}${tiles}
+    <div class="sec"><span>${isCrewish()?"Your tasks on this job":"Next up"}</span></div>
+    <div class="jnexts">${next.join("")||`<div class="jnext jnone">${isCrewish()?"Nothing on you for this job.":"Nothing waiting on you for this job."}</div>`}</div>
+    ${cnt?`<div class="jcnt">${cnt}</div>`:""}
+    <div class="jquick" id="jQuick"></div>
+    ${last?`<button type="button" class="jlast" data-jgo="notes"><span class="lbl">Latest · ${fmt(last.at)}</span><span>${esc(last.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:""}`;
+}
 function closeDlg(){
   const j=openId&&jobs.find(x=>x.id===openId);
-  openId=null;$("#scrim").classList.remove("on");
+  openId=null; dlgTabJob=null; $("#scrim").classList.remove("on");
   // "+ New job" saves a placeholder right away; if it was never filled in, don't leave it on the board
   if(j&&j.name==="New job"&&!j.summary&&!j.folder&&!(j.suppliers||[]).length&&!(j.assemblies||[]).length&&!(j.log||[]).length&&db){
     deleteJob(j.id).then(()=>{ const i=undoStack.findIndex(u=>u.id===j.id&&!u.prev); if(i>=0) undoStack.splice(i,1); if(!undoStack.length){ $("#undoBtn").classList.remove("on"); $("#toast").classList.remove("on"); } }).catch(()=>{});
@@ -868,14 +921,20 @@ function drawDlgCore(){
   const i=SIDX[j.stage]??0, s=STAGES[i];
   const stOpts=x=>Object.entries(ST).map(([k,v])=>`<option value="${k}" ${x.status===k?"selected":""}>${v.t}</option>`).join("");
   const stageOpts=BOARDS.map(b=>`<optgroup label="${b.t}">${b.stages.map(x=>`<option value="${x.k}" ${j.stage===x.k?"selected":""}>${x.t}</option>`).join("")}</optgroup>`).join("");
+  const jt=jobTabs(j);
   $("#dlg").innerHTML=`
-   <div class="row" style="justify-content:space-between;align-items:center"><h3 id="dlgTitle">${esc(j.name)}</h3><button class="btn ghost" type="button" id="xBtn">Close</button></div>
-   ${ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><span style="flex:1"></span>
-     <button class="btn sm" type="button" id="ongo">Make it a normal job</button><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span style="color:var(--muted)">Stage:</span><span class="now">${s.bt} · ${[s.t,...alsoIn(j).map(k=>STAGES[SIDX[k]].t)].join(" + ")}</span><span style="flex:1"></span>
-     <button class="btn sm" type="button" id="back" ${i===0?"disabled":""}>← Back</button>
-     <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""}>Next: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button>
-     ${FAB_STAGES.includes(j.stage)?`<div style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);font-size:13px">Also in:</span>${FAB_STAGES.filter(k=>k!==j.stage).map(k=>`<button class="btn sm ${alsoIn(j).includes(k)?"primary":""}" type="button" data-also="${k}">${STAGES[SIDX[k]].t}</button>`).join("")}</div>`:""}
-     <div style="flex-basis:100%;text-align:right"><button class="btn sm ghost" type="button" id="ongo" title="For standing jobs like Inventory or shop cleanup">Make it ongoing (no stages)</button></div></div>`}
+   <div class="jtop">
+    <div class="jhd"><h3 id="dlgTitle">${jobTitleHTML(j)}</h3><button class="btn ghost" type="button" id="xBtn">Close</button></div>
+    <nav class="jtabs" role="tablist" aria-label="Job sections">${jt.map(t=>`<button type="button" role="tab" class="jtab ${t.k==="orders"?"jsupsec":""}" data-jtab="${t.k}" aria-selected="${dlgTab===t.k}">${t.t}${t.n!==""&&t.n!=null?`<span class="jtn">${t.n}</span>`:""}</button>`).join("")}</nav>
+   </div>
+   <div class="err" id="err"></div>
+   <section class="jsec" data-jsec="overview">
+   ${ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span class="jstg">${stagePills(j)}</span><span style="flex:1"></span>
+     <button class="btn sm ghost" type="button" id="back" ${i===0?"disabled":""}>← Back</button>
+     <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""}>Next: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div>`}
+   ${jobOverviewHTML(j)}
+   </section>
+   <section class="jsec" data-jsec="tasks">
    ${true?`<div class="sec"><span>Tasks${(j.assemblies||[]).length?` · ${asmDone(j)} of ${j.assemblies.length} done (${Math.round(asmDone(j)/j.assemblies.length*100)}%)`:""}</span><button class="btn sm" type="button" id="addAsm">+ Add tasks</button></div>
    ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div>`:""}
    ${(j.assemblies||[]).length?`<div class="atw"><table class="at"><thead><tr><th>Task</th><th>Who</th>${Object.entries(AST).map(([k,v])=>`<th class="sc" style="--c:${v.c}">${v.t}</th>`).join("")}<th></th></tr></thead><tbody>
@@ -886,7 +945,9 @@ function drawDlgCore(){
      <td><button type="button" class="rmb" data-rmasm="${k}" aria-label="Remove ${esc(a.name)}">×</button></td></tr>`;}).join("")}
    </tbody></table></div>`:`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.</div>`}
    <div id="newAsm"></div>`:""}
-   <div class="sec"><span>Suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm" type="button" onclick="window.newRfqFor&&window.newRfqFor(openId)" title="Send out for quotes - gets an RFQ number">+ RFQ</button><button class="btn sm" type="button" onclick="window.newPoFor&&window.newPoFor(openId)" title="Order straight - gets a PO number">+ PO</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
+   </section>
+   <section class="jsec jsupsec" data-jsec="orders">
+   <div class="sec"><span>Orders & suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm adminonly" type="button" onclick="window.newRfqFor&&window.newRfqFor(openId)" title="Send out for quotes - gets an RFQ number">+ RFQ</button><button class="btn sm adminonly" type="button" onclick="window.newPoFor&&window.newPoFor(openId)" title="Order straight - gets a PO number">+ PO</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
    ${supGroupsHTML(j,stOpts,(x,k)=>{const st=ST[x.status]||ST.sent;return `<div class="supbox" style="--c:${st.c}">
      <div class="top"><div><b>${esc(x.name)}</b>${x.contact?` <span style="color:var(--muted)">· ${esc(x.contact)}</span>`:""}
        <div class="meta">${x.scope?esc(x.scope)+" · ":""}${x.sent?"Sent "+fmt(x.sent):"Not sent yet"}${x.updated?" · last update "+fmt(x.updated):""}</div>
@@ -899,9 +960,16 @@ function drawDlgCore(){
        <label>Lead time<input data-f="lead" data-i="${k}" value="${esc(x.lead||"")}"></label></div>
      <label style="margin-top:8px">Latest<textarea data-f="note" data-i="${k}">${esc(x.note||"")}</textarea></label></div>`;})}
    <div id="newSup"></div>
-   <details class="jfold" data-fold="notes" ${dlgFold.notes?"open":""}><summary><span>Notes · ${(j.log||[]).length}</span>${(j.log||[]).length?`<em>${esc(String((j.log||[])[(j.log||[]).length-1].text).slice(0,70))}</em>`:""}</summary>
+   </section>
+   <section class="jsec" data-jsec="ncr" id="secNcr"></section>
+   <section class="jsec" data-jsec="notes">
+   <div class="sec"><span>Notes</span></div>
    <div class="row" style="margin-top:8px"><label style="flex:4">Add a note<input id="fNote" placeholder="Cooper picked it up"></label><button class="btn" type="button" id="addNote">Add</button></div>
-   <div class="log" style="margin-top:8px">${(j.log||[]).slice().reverse().map(l=>`<div><small>${fmt(l.at)}</small>${esc(l.text)}</div>`).join("")||`<div style="color:var(--dim)">No notes yet.</div>`}</div></details>
+   <div class="log" style="margin-top:8px">${(j.log||[]).slice().reverse().map(l=>`<div><small>${fmt(l.at)}</small>${esc(l.text)}</div>`).join("")||`<div style="color:var(--dim)">No notes yet.</div>`}</div>
+   <div class="sec"><span>Stage settings</span></div>
+   <div class="jset">${ONGOING(j)?`<button class="btn sm" type="button" id="ongo">Make it a normal job (with stages)</button>`:`
+     ${FAB_STAGES.includes(j.stage)?`<div style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);font-size:13px">Also in:</span>${FAB_STAGES.filter(k=>k!==j.stage).map(k=>`<button class="btn sm ${alsoIn(j).includes(k)?"primary":""}" type="button" data-also="${k}">${STAGES[SIDX[k]].t}</button>`).join("")}</div>`:""}
+     <div><button class="btn sm ghost" type="button" id="ongo" title="For standing jobs like Inventory or shop cleanup">Make it ongoing (no stages)</button></div>`}</div>
    <details class="jfold" data-fold="edit" ${dlgFold.edit?"open":""}><summary><span>Edit job details</span><em>number, name, stage, folder, card note</em></summary>
    <div class="row" style="margin-top:10px">
      <label>Job name<input id="fName" value="${esc(j.name)}"></label>
@@ -910,10 +978,14 @@ function drawDlgCore(){
    </div>
    <label style="margin-top:8px">Card note<input id="fSum" value="${esc(j.summary||"")}" placeholder="One line shown on the card"></label>
    </details>
-   <div class="err" id="err"></div>
-   <div class="foot"><button class="btn danger" type="button" id="delJob">Delete job</button><button class="btn primary" type="button" id="save">Save</button></div>`;
+   <div class="foot"><button class="btn danger" type="button" id="delJob">Delete job</button><button class="btn primary" type="button" id="save">Save</button></div>
+   </section>`;
   $("#dlg").querySelectorAll("details.jfold").forEach(d=>d.ontoggle=()=>{ dlgFold[d.dataset.fold]=d.open; });
   $("#xBtn").onclick=closeJob; $("#save").onclick=save;
+  if(dlgTab==="orders"&&isCrewish()) dlgTab="overview";
+  $("#dlg").dataset.tab=dlgTab;
+  $("#dlg").querySelectorAll("[data-jtab]").forEach(b=>b.onclick=()=>setJobTab(b.dataset.jtab));
+  $("#dlg").querySelectorAll("[data-jgo]").forEach(b=>b.onclick=()=>setJobTab(b.dataset.jgo));
   // supplier lines save as soon as a field changes (status, quote #, total, lead, latest) - no Save tap needed
   $("#dlg").querySelectorAll("[data-f]").forEach(el=>el.addEventListener("change",()=>{ const j=job(); const x=j&&(j.suppliers||[])[+el.dataset.i]; if(!x||(x[el.dataset.f]||"")===el.value) return;
     put(collect(),`${x.name}: ${el.dataset.f==="quoteNo"?"quote #":el.dataset.f} on ${j.name}`); })); $("#addNote").onclick=addNote; $("#addSup").onclick=supForm; $("#delJob").onclick=delJob;

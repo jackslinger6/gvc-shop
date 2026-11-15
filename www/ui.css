@@ -190,6 +190,76 @@ span.at.soft{background:var(--accent-soft);color:#ffc89a;border-color:var(--acce
   .oempty{padding:14px 4px}
 }
 
+/* ---------- Job card (stage 4): sticky title + section tabs, one section at a time ---------- */
+#dlg .jsec{display:none}
+#dlg[data-tab="overview"] .jsec[data-jsec="overview"],#dlg[data-tab="tasks"] .jsec[data-jsec="tasks"],#dlg[data-tab="orders"] .jsec[data-jsec="orders"],
+#dlg[data-tab="ncr"] .jsec[data-jsec="ncr"],#dlg[data-tab="notes"] .jsec[data-jsec="notes"]{display:block}
+.jtop{position:sticky;top:0;z-index:5;background:var(--panel);margin:-20px -20px 0;padding:16px 20px 0;border-bottom:1px solid var(--line);border-radius:var(--r-xl) var(--r-xl) 0 0}
+.jhd{display:flex;align-items:center;gap:10px}
+.jhd h3{flex:1;min-width:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0}
+.jhd .jnum{font-size:13px;font-weight:600;color:#ffd0a8;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:var(--r-sm);padding:2px 7px;letter-spacing:.02em}
+.jtabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin:10px -6px 0}
+.jtabs::-webkit-scrollbar{display:none}
+.jtab{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:var(--hit);padding:0 12px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font:inherit;font-size:14px;font-weight:600;cursor:pointer;border-radius:var(--r-sm) var(--r-sm) 0 0}
+.jtab:hover{color:var(--text);background:var(--panel2)}
+.jtab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.jtn{min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--panel3);color:var(--text);font-size:11.5px;display:inline-flex;align-items:center;justify-content:center}
+.jsec{padding-top:14px}
+.jsec>.sec:first-child{margin-top:0}
+#dlg .stagebar{margin-top:0;align-items:center}
+.jstg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.jbt{color:var(--muted);font-size:13px;font-weight:500}
+.jsum{color:var(--muted);margin:10px 2px 0;font-size:13.5px;line-height:1.45}
+.jtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+/* the shop crew don't see orders / prices on a job (that was the intent of punch.js .supsec; it had stopped hiding the
+   supplier blocks after they became fold-outs on Nov 8). Robin (parts) keeps them. They keep the Count buttons on Overview. */
+body.crew:not(.parts) #dlg .jsupsec{display:none!important}
+body.crew #dlg .adminonly{display:none!important}   /* + RFQ / + PO are Kyle's (they do nothing for anyone else) */
+body.crew:not(.parts) .jtiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+.jtile{text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-lg);padding:10px 12px;color:var(--text);font:inherit;cursor:pointer;min-height:68px;min-width:0}
+.jtile:hover{border-color:var(--line2);background:var(--panel3)}
+.jtile b{display:block;font-size:20px;font-weight:650;line-height:1.2}.jtile span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}.jtile .prog{margin-top:8px}
+.jnexts{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;margin-top:6px}
+.jnext{display:flex;align-items:center;gap:10px;width:100%;min-height:var(--hit);padding:10px 12px;background:var(--panel2);border:0;border-bottom:1px solid var(--line);color:var(--text);font:inherit;font-size:13.5px;line-height:1.4;text-align:left}
+.jnext>span:not(.ostat):not(.ochev){flex:1;min-width:0}
+button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
+.jnext:last-child{border-bottom:0}
+.jnone,.jmore{color:var(--muted)}
+.jcnt{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.jquick{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#dlg .jquick #jpBtn,#dlg .jquick #jfBtn{flex:1 1 180px;min-height:48px;border-radius:var(--r-lg);font:600 14px var(--font-ui);letter-spacing:0;text-transform:none;box-shadow:none;border:1px solid var(--line2);background:var(--panel2);color:var(--text)}
+#dlg .jquick #jpBtn:hover,#dlg .jquick #jfBtn:hover{background:var(--panel3)}
+.jlast{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;width:100%;margin-top:12px;padding:10px 12px;background:none;border:1px dashed var(--line2);border-radius:var(--r-lg);color:var(--text);font:inherit;font-size:13.5px;text-align:left;cursor:pointer}
+.jlast .lbl{font-size:11.5px;color:var(--muted);grid-column:1}.jlast span:nth-child(2){grid-column:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.jlast .ochev{grid-column:2;grid-row:1/3}
+.jset{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+#dlg .jset>div{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#dlg .foot{border-top:1px solid var(--line);padding-top:14px}
+#dlg .jfold[data-fold="edit"]{margin-top:16px}
+.jfold>summary{font:600 14px var(--font-ui)!important;letter-spacing:0!important;text-transform:none!important;color:var(--text)!important;min-height:44px;align-items:center!important}
+.jfold>summary em{font-size:12.5px!important}
+#dlg .jsec>.sec{flex-wrap:wrap;gap:8px}
+#dlg .jsec>.sec>span:last-child:not(:first-child){display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:600px){ #dlg .jsec[data-jsec="orders"]>.sec>span:first-child{flex-basis:100%} }
+/* NCRs on the job card: issue, decision, next + who first; editing folds away */
+.ncrsec .ncard{background:var(--panel2);border-color:var(--line);border-radius:var(--r-lg);padding:12px 12px 10px;margin-top:8px}
+.ncrsec .nwhat{font-size:14.5px;font-weight:600;margin-top:6px;line-height:1.4}.ncrsec .nwhat .nm{display:block;font-weight:400}
+.nkv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:8px 0 0;font-size:13.5px}.nkv dt{color:var(--muted);font-size:12px;font-weight:600;padding-top:1px}.nkv dd{margin:0;min-width:0}
+.ncrsec details[data-ndetails]{margin-top:8px}
+.ncrsec details[data-ndetails]>summary{cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:600;min-height:32px;display:flex;align-items:center}
+.ncrsec details[data-ndetails]>summary:hover{color:var(--text)}
+.ncrsec .nedit{border-top:1px solid var(--line);padding-top:8px;display:grid;gap:8px}
+.ncrsec .nedit .nrow{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.ncrsec .nlab{display:flex!important;flex-direction:column;gap:4px;flex:1;min-width:140px;margin:0!important}
+.ncrsec .nrw{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ncrsec .nrt{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;background:var(--panel3);border-radius:var(--r-pill);padding:2px 4px 2px 10px}
+.ncrsec .nrt .rmb{font-size:15px;padding:0 6px;min-height:0}
+.ncrsec .nacts{border-top:1px solid var(--line);padding-top:8px}
+.nclosed{margin-top:10px}.nclosed>summary{cursor:pointer;color:var(--muted);font-weight:600;font-size:13px;min-height:36px;display:flex;align-items:center}
+@media (max-width:600px){
+  .jtop{margin:-16px -14px 0;padding:12px 14px 0;border-radius:var(--r-xl) var(--r-xl) 0 0}
+  .jhd h3{font-size:17px}
+  .jtiles{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px} .jtile{padding:8px 10px} .jtile b{font-size:17px}
+  #dlg .stagebar{flex-wrap:wrap} #dlg .stagebar .jstg{flex-basis:100%;margin-bottom:4px}
+}
+
 /* ---------- To do ---------- */
 .ti{border-top-color:var(--line)}
 .ti .ck{border-color:#5a616b;border-radius:var(--r-sm)}

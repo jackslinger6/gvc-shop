@@ -92,7 +92,7 @@ function paint(){
   bar.querySelector("#pFix").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pClk").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pOut").onclick=()=>punchOut();
-  bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)) openJob(open.job_id); };
+  bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)) openJob(open.job_id,"tasks"); };
   tick=setInterval(()=>{ const c=$("#pClk"); if(c&&open) c.textContent=hm(paidMs(open.start_at)); },1000);
 }
 async function load(){

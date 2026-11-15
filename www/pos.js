@@ -72,6 +72,7 @@ css.textContent=`
 .posv .chip{border:0;cursor:pointer;font:inherit;font-size:12px;font-weight:600;color:var(--text);background:var(--panel3);border-radius:6px;padding:3px 8px}
 .ojl{padding:10px 0;border-bottom:1px solid var(--line)}.ojl:last-child{border-bottom:0}
 .ojlh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ojls{font-size:13.5px;margin:6px 0 2px;line-height:1.4}
+.omore{margin-top:10px;border-top:1px solid var(--line);padding-top:6px}.omore>summary{cursor:pointer;color:var(--muted);font-weight:600;font-size:13px;min-height:40px;display:flex;align-items:center}.omore>summary:hover{color:var(--text)}
 .vrow{padding:12px 0;border-bottom:1px solid var(--line);display:grid;gap:10px}.vrow:first-of-type{padding-top:4px}
 .vrh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.vrh b{font-size:15px}
 .vrf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}.vrf label{margin:0;min-width:0}.vrf input{width:100%}
@@ -166,7 +167,9 @@ function renderRfq(B,r){
           <div class="vrf"><label>Their quote #<input data-vq="${E(v)}" value="${E(x.quoteNo||"")}" placeholder="quote #" ${isKyle()?"":"disabled"}></label>
             <label>Total<input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${qt?money(qt)+" on the quote":"$"}" ${isKyle()?"":"disabled"}></label></div>
           ${acts.length?`<div class="oacts">${acts.join("")}</div>`:""}</div>`; }).join("")}
-      ${isKyle()&&r.status==="open"?`<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" type="button" id="pAddV">+ Ask another vendor</button><button class="btn sm" type="button" id="pCmp">⚖ Compare their quotes</button><button class="btn sm" type="button" id="pClose">Close without ordering</button></div>`:""}
+      ${isKyle()&&r.status==="open"?(()=>{ const btns=`<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm ghost" type="button" id="pAddV">+ Ask another vendor</button><button class="btn sm ghost" type="button" id="pCmp">⚖ Compare their quotes</button><button class="btn sm ghost" type="button" id="pClose">Close without ordering</button></div>`;
+        // a vendor already confirmed this order: shopping around is unusual now, so those actions fold away (Kyle's review, Nov 14)
+        const a=rfqAhead(r); return a?`<details class="omore"><summary>More for this RFQ</summary><div class="lbl" style="margin-top:6px">${E(String(a.x.name).split(/\s/)[0])} already confirmed this order. These only matter if you still want other prices. Closing without ordering marks the vendors that haven't confirmed as Declined - ${E(String(a.x.name).split(/\s/)[0])}'s order stays as it is.</div>${btns}</details>`:btns; })():""}
     </div>
     ${notesLog(r)}</div>`;
   wireCommon(B,r);
@@ -177,8 +180,8 @@ function renderRfq(B,r){
   B.querySelectorAll("[data-rcnt]").forEach(b=>b.onclick=()=>{ const [jid,sid]=b.dataset.rcnt.split("|"); window.openCount(jid,sid); });
   const av=B.querySelector("#pAddV"); if(av) av.onclick=()=>addVendor(r);
   const cm=B.querySelector("#pCmp"); if(cm) cm.onclick=()=>{ const jid=(r.jobs||[])[0]; if(jid&&window.compareQuotes) window.compareQuotes(jid); };
-  const cl=B.querySelector("#pClose"); if(cl) cl.onclick=async()=>{ if(!confirm(`Close ${r.no} without ordering? The vendors' lines on the jobs are marked Declined.`)) return;
-    await editLines(r.jobs,S=>{ let c=false; S.forEach(x=>{ if(x.rfq===r.no&&!x.po&&x.status!=="declined"){ x.status="declined"; x.updated=new Date().toISOString(); c=true; } }); return c; },`${r.no} closed - nothing ordered`);
+  const cl=B.querySelector("#pClose"); if(cl) cl.onclick=async()=>{ if(!confirm(`Close ${r.no} without ordering? The vendors' lines on the jobs are marked Declined${rfqAhead(r)?" (except a vendor that already confirmed - that order stays as it is)":""}.`)) return;
+    await editLines(r.jobs,S=>{ let c=false; S.forEach(x=>{ if(x.rfq===r.no&&!x.po&&x.status!=="declined"&&!PAST.includes(x.status)){ x.status="declined"; x.updated=new Date().toISOString(); c=true; } }); return c; },`${r.no} closed - nothing ordered`);
     saveRec(r,{status:"closed"},"closed without ordering"); };
 }
 function renderPo(B,r){
@@ -351,7 +354,7 @@ window.openOrderLine=(jid,sid)=>{ const j=jobOf(jid); const x=j&&(j.suppliers||[
   leaveJobCard(); panel.no=null; panel.line={jid,sid}; showPanel(); };
 /* open a job card at its Suppliers block for one order (and optionally the line's edit fields) */
 window.openJobAt=(jid,o={})=>{
-  if(typeof openJob!=="function") return; openJob(jid); const D=document.getElementById("dlg"); if(!D) return;
+  if(typeof openJob!=="function") return; openJob(jid,"orders"); const D=document.getElementById("dlg"); if(!D) return;
   const j=jobOf(jid); const S=(j&&j.suppliers)||[];
   const k=o.sid!=null?S.findIndex(x=>x.id===o.sid):S.findIndex(x=>o.no&&(x.po===o.no||x.rfq===o.no));
   const eb=k>=0?D.querySelector(`[data-sged="${k}"]`):null; let det=eb?eb.closest("details"):null;

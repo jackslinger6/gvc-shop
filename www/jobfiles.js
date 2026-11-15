@@ -52,8 +52,8 @@ GVC.on("drawDlg:after",()=>{
   const b=document.createElement("button"); b.className="btn sm"; b.type="button"; b.id="jfBtn"; b.textContent="Files";
   b.onclick=()=>openFiles({...j,id:openId||j.id});
   const jid=openId; sb.from("gvc_job_files").select("id",{count:"exact",head:true}).eq("job_id",jid).then(r=>{ if(r.count) b.textContent=`Files (${r.count})`; });
-  const pb=D.querySelector("#jpBtn");
-  if(pb) pb.after(b);
+  const pb=D.querySelector("#jpBtn"), q2=D.querySelector("#jQuick");
+  if(pb) pb.after(b); else if(q2) q2.appendChild(b);
   else { const bar=D.querySelector(".stagebar"); if(!bar) return; const row=document.createElement("div"); row.className="row"; row.style.marginTop="8px"; row.appendChild(b); bar.after(row); }
 });
 })();

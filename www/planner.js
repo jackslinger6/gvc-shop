@@ -465,7 +465,7 @@ function panel(M){
   $("#pDone").onclick=()=>edit((M2,t2)=>{ t2.done=!t2.done; },`${t.name}: ${t.done?"not done":"done"}`);
   const bp=$("#pPool"); if(bp) bp.onclick=()=>edit((M2,t2)=>{ t2.who.forEach(w=>rmK(M2,w,dayOf(M2,w,t2.key),t2.key)); t2.who=[]; t2.at=null; },`${t.name} back to the pool`);
   const bd=$("#pDel"); if(bd) bd.onclick=()=>{ edit((M2,t2)=>{ CREW.forEach(w=>rmK(M2,w,dayOf(M2,w,t2.key),t2.key)); delete M2.T[t2.key]; },`Deleted ${t.name}`); sel=null; };
-  const bo=$("#pOpen"); if(bo) bo.onclick=()=>openJob(t.jid);
+  const bo=$("#pOpen"); if(bo) bo.onclick=()=>openJob(t.jid,"tasks");
   $("#pX").onclick=()=>{ sel=null; render(); };
 }
 

@@ -293,6 +293,7 @@ GVC.on("drawDlg:after",()=>{
   const cnt=cache[no]; if(cnt) b.textContent=`Parts & drawings (${cnt.length})`;
   else if(typeof sb!=="undefined") sb.from("gvc_job_parts").select("id",{count:"exact",head:true}).eq("job_no",no).then(r=>{ if(r.count) b.textContent=`Parts & drawings (${r.count})`; });
   b.onclick=()=>{ q=""; flt="all"; mat=""; openG.clear(); scrollTo=null; openJobParts(no,j.name); };
+  const q2=D.querySelector("#jQuick"); if(q2){ q2.appendChild(b); return; }   // job card Overview (stage 4)
   const row=document.createElement("div"); row.className="row"; row.style.marginTop="8px"; row.appendChild(b); bar.after(row);
 });
 })();

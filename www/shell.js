@@ -274,7 +274,7 @@ function nextUp(){
     else if(/^Pick up/i.test(t.text)&&t.job){ const j=jobs.find(x=>x.id===t.job); const s=j&&(j.suppliers||[]).find(x=>ACTIVE(x)&&(x.status==="ready"||x.status==="arrived")); act=s&&window.openCount?{t:"PICKED UP - COUNT IT",fn:()=>window.openCount(j.id,s.id)}:{t:"OPEN JOB",fn:()=>openJob(t.job)}; }
     else if(/^Log your time/i.test(t.text)) act={t:"LOG TIME",fn:()=>go("time")};
     else if(t.view) act={t:"OPEN "+String(t.view).toUpperCase(),fn:()=>go(t.view)};
-    else if(t.job) act={t:"OPEN JOB",fn:()=>openJob(t.job)};
+    else if(t.job) act={t:"OPEN JOB",fn:()=>openJob(t.job,t.ncr?"ncr":undefined)};
     const jn0=t.job?jname(t.job):""; const title=jn0&&t.text.endsWith(" - "+jn0)?t.text.slice(0,-(jn0.length+3)):t.text;
     out.push({...t,text:title||t.text,tag:k[1],c:t.c&&!/^var/.test(t.c)?t.c:k[2],act,sub:t.job?jname(t.job):"From the board",later:{text:t.text,job:t.job}}); });
   // orders ready for pickup that no reminder covers yet (e.g. on INV or a received job)
