@@ -47,14 +47,13 @@ async function openFiles(j){
 window.openJobFiles=openFiles;
 
 /* ---- button in the job dialog, beside Parts & drawings ---- */
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw(); const j=job(); if(!j||typeof sb==="undefined") return; const D=$("#dlg");
+GVC.on("drawDlg:after",()=>{
+  const j=job(); if(!j||typeof sb==="undefined") return; const D=$("#dlg");
   const b=document.createElement("button"); b.className="btn sm"; b.type="button"; b.id="jfBtn"; b.textContent="Files";
   b.onclick=()=>openFiles({...j,id:openId||j.id});
   const jid=openId; sb.from("gvc_job_files").select("id",{count:"exact",head:true}).eq("job_id",jid).then(r=>{ if(r.count) b.textContent=`Files (${r.count})`; });
   const pb=D.querySelector("#jpBtn");
   if(pb) pb.after(b);
   else { const bar=D.querySelector(".stagebar"); if(!bar) return; const row=document.createElement("div"); row.className="row"; row.style.marginTop="8px"; row.appendChild(b); bar.after(row); }
-};
+});
 })();

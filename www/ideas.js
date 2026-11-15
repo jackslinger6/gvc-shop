@@ -69,6 +69,5 @@ function askChat(prefill){ const fab=$("#chatFab"); if(!$("#chatP").classList.co
 const b=document.createElement("button"); b.className="btn"; b.type="button"; b.id="ideasBtn"; b.textContent="💡 App ideas";
 const anchor=document.getElementById("ncrBtn")||document.getElementById("addJob"); anchor.parentNode.insertBefore(b,anchor);
 b.onclick=()=>{ cur="ideas"; try{history.replaceState(null,"","#ideas")}catch(e){} render(); };
-const _render=render;
-render=function(){ _render(); const n=openCount(); b.textContent=n?`💡 App ideas (${n})`:"💡 App ideas"; b.classList.toggle("primary",cur==="ideas"); };
+GVC.on("render:after",()=>{ const n=openCount(); b.textContent=n?`💡 App ideas (${n})`:"💡 App ideas"; b.classList.toggle("primary",cur==="ideas"); },{core:true});
 })();

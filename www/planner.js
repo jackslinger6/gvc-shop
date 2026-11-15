@@ -514,19 +514,17 @@ const bar=document.createElement("div"); bar.id="crewBar"; bar.style.display="no
 bar.innerHTML=`<button class="btn sm" data-cv="week">Week plan</button><button class="btn sm" data-cv="lanes">Lanes</button>`;
 const board=document.getElementById("board"); board.parentNode.insertBefore(bar,board);
 bar.querySelectorAll("[data-cv]").forEach(b=>b.onclick=()=>{ view=b.dataset.cv; lsSet("gvc_crew_view",view); render(); });
-const _renderCrew=renderCrew;
-renderCrew=function(items){ if(view==="week") renderWeek(); else _renderCrew(items); };
-const _render=render;
-render=function(){ mc=null; _render(); try{ syncAssign(); }catch(e){ console.warn("auto-place",e); } bar.style.display=cur==="crew"?"":"none"; bar.querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===view)); };
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); if(!planLoaded) return out;
+GVC.on("renderCrew",()=>{ if(view==="week"){ renderWeek(); return true; } return false; });
+GVC.on("render:before",()=>{ mc=null; });
+GVC.on("render:after",()=>{ try{ syncAssign(); }catch(e){ console.warn("auto-place",e); } bar.style.display=cur==="crew"?"":"none"; bar.querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===view)); },{core:true});
+GVC.on("autoTodos",out=>{ if(!planLoaded) return out;
   try{ const {M,R}=MC(),today=iso(new Date()),lim=iso(new Date(Date.now()+2*86400000));
     const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
     conflicts(M,R).forEach(c=>{ const t=M.T[c.id],p=M.T[c.pid]; const d=dayOf(M,t.who[0],c.id); if(!d||d<today||d>lim) return;
       const text=`Schedule clash ${dlabel(d)}: ${t.name} (${t.who.join(", ")} ${clock(c.ds)}) needs ${p.name} first`;
       if(!hidden.has(text)) out.unshift({text,c:"var(--red)",view:"crew"}); });
   }catch(e){}
-  return out; };
+  return out; });
 window.planLines=function(){ if(!planLoaded) return [];
   try{ const {M,R}=MC(),today=iso(new Date()),out=[];
     weekDays().filter(d=>d>=today).forEach(d=>CREW.forEach(p=>{ if(isOff(p,d)){ out.push(`[crew schedule] ${dlabel(d)} · ${p}: day off`); return; }

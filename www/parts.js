@@ -225,11 +225,10 @@ window.needSupplies=async function(){
 };
 
 /* Kyle's To do: requests waiting for him */
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{ if(isAdmin()){ const w=by("review"); if(w.length){
+GVC.on("autoTodos",out=>{ try{ if(isAdmin()){ const w=by("review"); if(w.length){
   const hidden=new Set((typeof todos!=="undefined"?todos:[]).filter(t=>t.source==="auto").map(t=>t.text));
   const text=`Approve ${w.length} supply request${w.length>1?"s":""} (${[...new Set(w.map(r=>r.who))].join(", ")}): ${w.slice(0,3).map(r=>r.what).join(", ")}${w.length>3?"…":""}`;
-  if(!hidden.has(text)) out.unshift({text,c:"#9b7bff",view:"requests"}); } } }catch(e){} return out; };
+  if(!hidden.has(text)) out.unshift({text,c:"#9b7bff",view:"requests"}); } } }catch(e){} return out; });
 
 /* ================= hardware inventory (Inventory -> Hardware) ================= */
 let HW=[], hwLoaded=false, hwQ="", hwKind="", hwVendor="", hwLow=false, hwMax=150, hwMeta=null;
@@ -343,6 +342,5 @@ window.partsHome=B=>{
 
 /* ================= views ================= */
 window.extraViews=Object.assign(window.extraViews||{},{requests:renderRequests,staging:renderStaging});
-const _render=render;
-render=function(){ _render(); const L=document.querySelector("section.list"); if(L&&["requests","staging"].includes(cur)) L.style.display="none"; };
+GVC.on("render:after",()=>{ const L=document.querySelector("section.list"); if(L&&["requests","staging"].includes(cur)) L.style.display="none"; });
 })();

@@ -69,13 +69,12 @@ window.invModeBar=()=>modeBar(); window.invModeWire=()=>wireMode();
 function wireMode(){ document.querySelectorAll("[data-im]").forEach(b=>b.onclick=()=>{ mode=b.dataset.im; try{localStorage.setItem("gvc_inv_mode",mode)}catch(e){} render(); }); }
 try{ mode=localStorage.getItem("gvc_inv_mode")||"parts"; }catch(e){}
 window.invMode={get:()=>mode,set:m=>{ mode=m; try{localStorage.setItem("gvc_inv_mode",m)}catch(e){} render(); },low:()=>items.filter(low).length};
-const _inv=renderInv;
-renderInv=function(){ if(mode==="hw"&&window.renderHw) return window.renderHw(); if(mode==="cons") return renderCons(); _inv(); const B=$("#board"); B.insertAdjacentHTML("afterbegin",modeBar()); wireMode(); };
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{ if(!loaded||!items.length) return out; const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
+GVC.on("renderInv",()=>{ if(mode==="hw"&&window.renderHw){ window.renderHw(); return true; } if(mode==="cons"){ renderCons(); return true; } return false; });
+GVC.on("renderInv:after",()=>{ const B=$("#board"); B.insertAdjacentHTML("afterbegin",modeBar()); wireMode(); });
+GVC.on("autoTodos",out=>{ try{ if(!loaded||!items.length) return out; const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   const lows=items.filter(low); if(lows.length){ const text=`Low on consumables: ${lows.map(i=>`${i.name} (${+i.qty}${i.unit?" "+i.unit:""}, keep ${+i.min_qty})`).join(", ")}`; if(!hidden.has(text)) out.unshift({text,c:"#e5483b",view:"inv"}); }
   const lc=lastCount(); const stale=items.some(i=>!i.counted_at||Date.now()-new Date(i.counted_at).getTime()>COUNT_DAYS*864e5);
   if(stale){ const text=`Do the consumables count (oldest count ${ago(lc)})`; if(!hidden.has(text)) out.push({text,c:"#f5b041",view:"inv",low:true}); }
-}catch(e){} return out; };
+}catch(e){} return out; });
 window.consLines=()=>items.map(i=>`[consumable] ${i.name} (${i.category||"Other"}): ${i.qty??"?"} ${i.unit||""}${i.min_qty!=null?`, keep at least ${+i.min_qty}`:""}, counted ${ago(i.counted_at)}${low(i)?" - LOW":""}`);
 })();

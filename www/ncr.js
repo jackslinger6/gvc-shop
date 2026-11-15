@@ -92,9 +92,8 @@ function section(j){
   return h+`</div>`;
 }
 const mut=async(label,fn)=>{ const j=structuredClone(job()); j.ncrs=j.ncrs||[]; if(fn(j)===false) return; j.log=[...(j.log||[]),{at:new Date().toISOString(),text:label}]; await put(j,label); const P=window.gvcPlan; if(P&&P.loaded()) await P.save(); };
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw(); const j=job(); if(!j) return; const D=$("#dlg");
+GVC.on("drawDlg:after",()=>{
+  const j=job(); if(!j) return; const D=$("#dlg");
   const supSec=[...D.querySelectorAll(".sec")].find(s=>/Suppliers/.test(s.textContent));
   const wrap=document.createElement("div"); wrap.innerHTML=section(j);
   if(supSec) supSec.before(...wrap.childNodes); else D.querySelector(".foot").before(...wrap.childNodes);
@@ -125,7 +124,7 @@ drawDlg=function(){
   D.querySelectorAll("[data-nrev]").forEach(b=>b.onclick=()=>{ const x=j.ncrs.find(y=>y.n===+b.dataset.nrev); if(window.newRevision) window.newRevision({job:j.id,ncr:x.n,kind:"fix",part:x.what,what:x.decision||""}); });
   D.querySelectorAll("[data-nclose]").forEach(b=>b.onclick=()=>mut(`${tag(+b.dataset.nclose)} ${b.textContent==="Close"?"closed":"reopened"}`,jj=>{ const x=jj.ncrs.find(y=>y.n===+b.dataset.nclose); x.closed=!x.closed; }));
   D.querySelectorAll("[data-ndel]").forEach(b=>b.onclick=()=>mut(`${tag(+b.dataset.ndel)} deleted`,jj=>{ const n=+b.dataset.ndel; jj.ncrs=jj.ncrs.filter(x=>x.n!==n); (jj.assemblies||[]).forEach(a=>{ if(a.ncr===n) delete a.ncr; }); }));
-};
+});
 
 /* used by the To do "what was decided?" box: set the fix, keep the decision, add rework steps */
 window.ncrDecide=async(jid,n,{fix,note,steps})=>{
@@ -189,10 +188,8 @@ window.renderNcr=function(){
 const nb=document.createElement("button"); nb.className="btn"; nb.type="button"; nb.id="ncrBtn"; nb.textContent="NCRs";
 const addJ=document.getElementById("addJob"); addJ.parentNode.insertBefore(nb,addJ);
 nb.onclick=()=>{ cur="ncr"; try{history.replaceState(null,"","#ncr")}catch(e){} render(); };
-const _render=render;
-render=function(){ _render(); const n=all().filter(r=>!["Closed","Fixed"].includes(r.s.st)).length; nb.textContent=n?`NCRs (${n} open)`:"NCRs"; nb.classList.toggle("primary",cur==="ncr"); };
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
-  all().filter(r=>r.s.st==="Deciding").forEach(r=>{ const text=`Decide the fix for ${tag(r.x.n)} (${r.j.name}): ${r.x.what}`; if(!hidden.has(text)) out.push({text,c:"#e5483b",job:r.j.id,ncr:r.x.n}); }); }catch(e){} return out; };
+GVC.on("render:after",()=>{ const n=all().filter(r=>!["Closed","Fixed"].includes(r.s.st)).length; nb.textContent=n?`NCRs (${n} open)`:"NCRs"; nb.classList.toggle("primary",cur==="ncr"); },{core:true});
+GVC.on("autoTodos",out=>{ try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
+  all().filter(r=>r.s.st==="Deciding").forEach(r=>{ const text=`Decide the fix for ${tag(r.x.n)} (${r.j.name}): ${r.x.what}`; if(!hidden.has(text)) out.push({text,c:"#e5483b",job:r.j.id,ncr:r.x.n}); }); }catch(e){} return out; });
 window.ncrLines=()=>{ try{ return all().filter(r=>r.s.st!=="Closed").map(r=>`[NCR] ${tag(r.x.n)} ${r.j.name}: ${r.x.what}${r.x.part?" ["+r.x.part+"]":""} (${r.x.type}, fix: ${r.x.fix}, ${r.s.st}, ${+r.s.h.toFixed(1)}h rework${r.x.mat?", $"+r.x.mat+" material":""})`); }catch(e){ return []; } };
 })();

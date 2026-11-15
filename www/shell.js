@@ -373,20 +373,20 @@ function renderHome(){
 }
 
 /* ---- render: home is ours, everything else is the existing app inside the frame ---- */
-const _render=render; let lastView=null;
-render=function(){
-  if(cur==="home"){
-    try{ if(typeof autoTodos==="function"&&autoTodos.reset) autoTodos.reset(); }catch(e){}
-    try{ if(typeof drawTrack==="function") drawTrack(); }catch(e){}
-    try{ if(typeof publishTodo==="function") publishTodo(); }catch(e){}
-    const sub=$("#subnav"); if(sub) sub.hidden=true;
-    const bar=document.querySelector("#app .bar"); if(bar) bar.style.display="none";
-    renderHome();
-  } else {
-    const bar=document.querySelector("#app .bar"); if(bar) bar.style.display=SECT(cur)==="jobs"?"":"none";
-    _render();
-    if(lastView!==cur){ const B=$("#board"); if(B){ B.classList.remove("shanim"); void B.offsetWidth; B.classList.add("shanim"); } }
-  }
+let lastView=null;
+// Home (the parts role's Home - Kyle's and the crew's Home is their To do, see tabs.js) is drawn here instead of the boards
+GVC.on("render:view",()=>{
+  if(cur!=="home") return false;
+  try{ if(typeof autoTodos==="function"&&autoTodos.reset) autoTodos.reset(); }catch(e){}
+  try{ if(typeof drawTrack==="function") drawTrack(); }catch(e){}
+  try{ if(typeof publishTodo==="function") publishTodo(); }catch(e){}
+  const sub=$("#subnav"); if(sub) sub.hidden=true;
+  const bar=document.querySelector("#app .bar"); if(bar) bar.style.display="none";
+  renderHome(); return true;
+});
+GVC.on("render:before",()=>{ if(cur==="home") return; const bar=document.querySelector("#app .bar"); if(bar) bar.style.display=SECT(cur)==="jobs"?"":"none"; });
+GVC.on("render:after",()=>{ if(lastView!==cur){ const B=$("#board"); if(B){ B.classList.remove("shanim"); void B.offsetWidth; B.classList.add("shanim"); } } },{core:true});
+GVC.on("render:after",()=>{
   lastView=cur;
   const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",!["jobs","home"].includes(SECT(cur)));  // All jobs stage track also on Home (Kyle, 2026-11-04)
   // nav state + badges
@@ -399,7 +399,7 @@ render=function(){
   const ce=$("#shCrewN"); ce.hidden=!un; ce.textContent=un;
   { const on=window.pordersAttn?window.pordersAttn():0; const oe=$("#shOrdN"); if(oe){ oe.hidden=!on; oe.textContent=on; } }
   drawRailCrew();
-};
+});
 
 /* ---- More menu ---- */
 function sheet(html,onReady){

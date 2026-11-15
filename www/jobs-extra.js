@@ -25,9 +25,8 @@ css.textContent=`
 document.head.appendChild(css);
 
 /* job dialog: Job # field + Archive/Restore */
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw(); const j=job(); if(!j) return; const D=$("#dlg");
+GVC.on("drawDlg:after",()=>{
+  const j=job(); if(!j) return; const D=$("#dlg");
   const nameIn=$("#fName"); if(nameIn){ const lab=nameIn.closest("label");
     const box=document.createElement("label"); box.style.maxWidth="130px"; box.innerHTML=`Job #<input id="fNum" value="${esc(jobNum(j.name))}" placeholder="e.g. 2015G" style="${jobNum(j.name)?"":"border-color:#f5b041"}">`;
     lab.before(box);
@@ -43,22 +42,19 @@ drawDlg=function(){
       else { jj.archived=true; jj.archivedAt=now; jj.log=[...(jj.log||[]),{at:now,text:"Archived - job finished"}]; }
       const ok=await put(jj,(jj.archived?"Archived ":"Restored ")+jj.name); if(ok&&jj.archived) closeDlg(); };
   }
-};
+});
 
 /* cards: flag missing job numbers */
-const _render=render;
-render=function(){
-  _render();
+GVC.on("render:after",()=>{
   document.querySelectorAll("#board .card[data-id]").forEach(c=>{ const j=jobs.find(x=>x.id===c.dataset.id); if(j&&!jobNum(j.name)&&!c.querySelector(".nonum")) c.insertAdjacentHTML("beforeend",`<span class="flag nonum">No job #</span>`); });
   ab.textContent=archivedJobs.length?`Finished jobs (${archivedJobs.length})`:"Finished jobs"; ab.classList.toggle("primary",cur==="archive");
-};
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{
+},{core:true});
+GVC.on("autoTodos",out=>{ try{
   const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   const nn=jobs.filter(j=>!jobNum(j.name)&&!j.sample);
   if(nn.length){ const text=`Add job numbers: ${nn.map(j=>j.name).join(", ")}`; if(!hidden.has(text)) out.push({text,c:"#f5b041",low:true,job:nn[0].id}); }
   // no "Archive finished job" to-do any more: Done jobs archive themselves after 3 days (Kyle, Nov 10)
-}catch(e){} return out; };
+}catch(e){} return out; });
 
 /* Done jobs move to Finished jobs on their own 3 days after they reached Done (Kyle, Nov 10: "I thought that was automatic").
    Kyle's app only (crew/Robin can't save jobs that way). Restore from Finished jobs still works. */

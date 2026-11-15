@@ -286,14 +286,13 @@ async function unzip(buf){
 }
 
 /* ---- button in the job dialog ---- */
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw(); const j=job(); if(!j) return; const D=$("#dlg"); const no=jobNum(j.name); if(!no) return;
+GVC.on("drawDlg:after",()=>{
+  const j=job(); if(!j) return; const D=$("#dlg"); const no=jobNum(j.name); if(!no) return;
   const bar=D.querySelector(".stagebar"); if(!bar) return;
   const b=document.createElement("button"); b.className="btn sm"; b.type="button"; b.id="jpBtn"; b.textContent="Parts & drawings";
   const cnt=cache[no]; if(cnt) b.textContent=`Parts & drawings (${cnt.length})`;
   else if(typeof sb!=="undefined") sb.from("gvc_job_parts").select("id",{count:"exact",head:true}).eq("job_no",no).then(r=>{ if(r.count) b.textContent=`Parts & drawings (${r.count})`; });
   b.onclick=()=>{ q=""; flt="all"; mat=""; openG.clear(); scrollTo=null; openJobParts(no,j.name); };
   const row=document.createElement("div"); row.className="row"; row.style.marginTop="8px"; row.appendChild(b); bar.after(row);
-};
+});
 })();

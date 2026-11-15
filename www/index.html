@@ -438,6 +438,23 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 <div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"><div class="dlg" id="dlg"></div></div>
 
 <script>
+/* ---------- Hooks (redesign stage 3, Nov 14) ----------
+   The screens add to the core here instead of overwriting core functions with wrappers (the old
+   "const _render=render; render=function(){...}" chain). The lists run in the order the scripts load - the same order
+   the wrappers used to run - so nothing behaves differently:
+     render:before   newest script first (the outside of the old chain): screen redirects, cache resets
+     render:view     a screen that draws the whole page itself (Robin's Home); returning true skips the normal render
+     render:after    oldest script first. {core:true} = only after the normal render, not after a render:view screen
+     autoTodos       fn(list) -> list, oldest first; worked out once per render
+     drawDlg:after   oldest first, after the job card is drawn
+     renderInv / renderCrew   fn(...) -> true when the screen drew it instead
+     renderInv:after          after the normal inventory screen
+     back            phone Back / Esc chain, lowest {order} first; fn() -> true when it handled it (see back.js)
+   GVC.debug() lists what's registered. */
+const GVC=window.GVC={H:{},
+  on(name,fn,opt={}){ const L=this.H[name]=this.H[name]||[]; L.push({fn,core:false,order:50,...opt,src:(document.currentScript&&document.currentScript.src||"index.html").split("/").pop()}); return fn; },
+  list(name){ return this.H[name]||[]; },
+  debug(){ return Object.fromEntries(Object.entries(this.H).map(([k,L])=>[k,L.map(h=>h.src+(h.core?" (core)":"")+(k==="back"?" @"+h.order:""))])); }};
 const BOARDS=[
  {k:"pipeline",t:"Pipeline",c:"var(--pipe)",stages:[
    {k:"released",t:"Released to Me",c:"var(--pipe)"},
@@ -684,7 +701,15 @@ function wireOrdBoard(){
   // tapping the card itself: its one order, or the job when it has several
   B.querySelectorAll(".ocard").forEach(c=>c.onclick=e=>{ if(e.target.closest("button,a,input,select")) return; if(c.dataset.one) openRow(c.dataset.one); else openJob(c.dataset.id); });
 }
+/* render = hooks around the core render (see GVC above) */
 function render(){
+  const BF=GVC.list("render:before"); for(let i=BF.length-1;i>=0;i--) BF[i].fn();
+  autoTodos.reset();                       // to-dos are worked out once per render
+  let custom=false; for(const h of GVC.list("render:view")) if(h.fn()){ custom=true; break; }
+  if(!custom) renderCore();
+  for(const h of GVC.list("render:after")) if(!(custom&&h.core)) h.fn();
+}
+function renderCore(){
   publishTodo();
   const crewAsm=crewItems();
   const tdCount=liveAuto().length+liveMine().length, sgNew=suggs.filter(x=>x.status==="new").length;
@@ -779,7 +804,8 @@ async function setAsm(jid,i,k,v){
   j.log=[...(j.log||[]),{at:new Date().toISOString(),text:label}];
   await put(j,label);
 }
-function renderCrew(items){
+function renderCrew(items){ for(const h of GVC.list("renderCrew")) if(h.fn(items)) return; renderCrewCore(items); }
+function renderCrewCore(items){
   $("#board").className="lanes"; $("#board").style.gridTemplateColumns="";
   const live=items.filter(x=>x.a.status!=="done");
   $("#board").innerHTML=[...CREW,""].map(c=>{
@@ -836,7 +862,8 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeJob();});
 /* Job card layout (Kyle, Nov 4): title + stage with Back/Next, big Parts & drawings / Files buttons, tasks, NCRs,
    suppliers; notes and the edit fields fold away (Claude can change those when asked). Fold state survives redraws. */
 const dlgFold={notes:false,edit:false};
-function drawDlg(){
+function drawDlg(){ drawDlgCore(); for(const h of GVC.list("drawDlg:after")) h.fn(); }
+function drawDlgCore(){
   const j=job(); if(!j){closeDlg();return;}
   const i=SIDX[j.stage]??0, s=STAGES[i];
   const stOpts=x=>Object.entries(ST).map(([k,v])=>`<option value="${k}" ${x.status===k?"selected":""}>${v.t}</option>`).join("");
@@ -1180,7 +1207,8 @@ function partThumb(p,big){
   if(u) return `<img class="pth${big?" big":""}" src="${u}" alt="${esc(p.name)}" loading="lazy" data-zoom="${esc(p.part_no)}">`;
   return `<div class="pth ph${big?" big":""}" style="--m:${MATC[p.material]||"#555"}"><span>${esc((p.description||p.material||"").replace(/"/g,"″"))}</span></div>`;
 }
-function renderInv(){
+function renderInv(){ for(const h of GVC.list("renderInv")) if(h.fn()) return; renderInvCore(); for(const h of GVC.list("renderInv:after")) h.fn(); }
+function renderInvCore(){
   const B=$("#board"); B.className="inv"; B.style.gridTemplateColumns="";
   const q=invQ.toLowerCase();
   /* assemblies (Kyle, Nov 11): truck inventory -> tap an assembly (Rear apron, Big cabinet -> 48" drawer...) -> the parts it needs */
@@ -1330,7 +1358,11 @@ function showBendList(){
 /* ---------- To do + AI inbox ---------- */
 const Native = (window.capacitorExports && Widget) ? window.capacitorExports.registerPlugin("ShopNative") : null;
 const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
-function autoTodos(){
+/* the To do suggestions: the core list, then each screen's additions (hooks), worked out once per render */
+let autoCache=null;
+function autoTodos(){ if(!autoCache){ let out=autoTodosCore(); for(const h of GVC.list("autoTodos")) out=h.fn(out)||out; autoCache=out; } return autoCache; }
+autoTodos.reset=()=>{ autoCache=null; };
+function autoTodosCore(){
   const out=[]; const add=(text,c,o={})=>out.push({text,c,...o});
   const live=jobs.filter(j=>!j.sample);
   live.forEach(j=>{

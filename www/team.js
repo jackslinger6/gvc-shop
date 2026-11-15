@@ -199,8 +199,7 @@ function start(){
 setInterval(()=>{ if(!started&&typeof db!=="undefined"&&db&&window.ME){ started=true; start(); } },1000);
 
 /* ---- re-decorate after every render; crew home gets the team row + My time card ---- */
-const _render=render;
-render=function(){ _render(); decorate(); };
+GVC.on("render:after",()=>decorate());
 const _ch=window.crewHome;
 window.crewHome=B=>{
   _ch(B);

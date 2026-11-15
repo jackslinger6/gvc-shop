@@ -487,8 +487,8 @@ function renderPorders(){
 }
 window.extraViews=Object.assign(window.extraViews||{},{porders:renderPorders});
 window.pordersGo=k=>{ tab=k||"active"; poId=null; shellGo("porders"); };
-const _back=window.gvcBack;
-window.gvcBack=()=>{ try{ const sh=[...document.querySelectorAll(".shov.on")].length; if(!sh&&typeof cur!=="undefined"&&cur==="porders"&&poId&&!document.querySelector("#scrim.on")){ poId=null; render(); return true; } }catch(e){} return _back?_back():false; };
+// Back on one of Robin's orders goes to her order list (a "back" hook - see back.js)
+GVC.on("back",()=>{ try{ const sh=[...document.querySelectorAll(".shov.on")].length; if(!sh&&typeof cur!=="undefined"&&cur==="porders"&&poId&&!document.querySelector("#scrim.on")){ poId=null; render(); return true; } }catch(e){} return false; },{order:70});
 
 /* Robin's Home: only what needs her right now, as Next up cards like Kyle's (Kyle, Nov 8).
    Stock numbers live on the Inventory tab, order counts on the Orders tab - not repeated here. */

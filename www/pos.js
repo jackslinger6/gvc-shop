@@ -319,8 +319,9 @@ window.newRfqFor=jid=>{ if(typeof closeDlg==="function") closeDlg(); newSheet("r
 window.newPoFor=jid=>{ if(typeof closeDlg==="function") closeDlg(); newSheet("po",{jobs:[jid]}); };
 window.posOpen=()=>POS.filter(r=>r.kind==="rfq"?r.status==="open":!["received","cancelled"].includes(r.status)).length;
 document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-opo]"); if(b){ e.preventDefault(); e.stopPropagation(); window.openOrder(b.dataset.opo); } },true);
-const _back=window.gvcBack;
-window.gvcBack=()=>{ try{ if(panel.on){ closePanel(); return true; } if(typeof cur!=="undefined"&&cur==="pos"&&selNo&&!document.querySelector(".shov.on")&&!document.querySelector("#scrim.on")){ selNo=null; render(); return true; } }catch(e){} return _back?_back():false; };
+// Back: the order panel closes first, then an open RFQ / PO page goes back to the RFQs & POs list ("back" hooks - see back.js)
+GVC.on("back",()=>{ if(panel.on){ closePanel(); return true; } return false; },{order:60});
+GVC.on("back",()=>{ try{ if(typeof cur!=="undefined"&&cur==="pos"&&selNo&&!document.querySelector(".shov.on")&&!document.querySelector("#scrim.on")){ selNo=null; render(); return true; } }catch(e){} return false; },{order:70});
 /* ================= order panel (redesign stage 2, Nov 14) =================
    Tapping an order on the Orders board (or a PO / RFQ chip anywhere) opens THAT order on top of the screen - a side
    panel on a computer, the full screen on a phone - instead of the whole job card. PO / RFQ = the same page as
@@ -388,12 +389,12 @@ function drawLine(B){
   const rq=B.querySelector("#lRfq"); if(rq) rq.onclick=()=>{ closePanel(); newSheet("rfq",{jobs:[jid],vendor:x.name,title:x.scope||""}); };
 }
 // keep an open panel up to date when the data changes (not while you're typing in it)
-{ const _r=render; render=function(){ const out=_r.apply(this,arguments); try{ if(panel.on&&typeof cur!=="undefined"&&panel.view&&cur!==panel.view){ closePanel(); } if(panel.on){ const a=document.activeElement; if(!(a&&PEL&&PEL.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) drawPanel(); } }catch(e){} return out; }; }
+GVC.on("render:after",()=>{ try{ if(panel.on&&typeof cur!=="undefined"&&panel.view&&cur!==panel.view){ closePanel(); } if(panel.on){ const a=document.activeElement; if(!(a&&PEL&&PEL.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) drawPanel(); } }catch(e){} });
 document.addEventListener("keydown",e=>{ if(e.key!=="Escape"||!panel.on) return; const sc=document.getElementById("scrim"); if((sc&&sc.classList.contains("on"))||document.querySelector(".shov")) return; e.stopImmediatePropagation(); closePanel(); },true);
 // keep Tab inside the panel while it's open (keyboard users)
 document.addEventListener("keydown",e=>{ if(e.key!=="Tab"||!panel.on||!PEL) return; const sc=document.getElementById("scrim"); if((sc&&sc.classList.contains("on"))||document.querySelector(".shov")) return;
   const F=[...PEL.querySelectorAll("button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex='-1'])")].filter(x=>x.offsetParent!==null);
   if(!F.length) return; const i=F.indexOf(document.activeElement);
   if(e.shiftKey&&(i<=0)){ e.preventDefault(); F[F.length-1].focus(); } else if(!e.shiftKey&&(i===-1||i===F.length-1)){ e.preventDefault(); F[0].focus(); } },true);
-window.gvcPanelBack=()=>{ if(!panel.on) return false; closePanel(); return true; };
+
 })();

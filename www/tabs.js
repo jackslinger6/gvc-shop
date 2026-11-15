@@ -136,16 +136,16 @@ window.extraViews=Object.assign(window.extraViews||{},{punch:renderPunch,drawing
 const _ojp=window.openJobParts; if(_ojp) window.openJobParts=function(...a){ countsAt=0; return _ojp.apply(this,a); };
 
 /* ---- render: Kyle's Home is the To do list ---- */
-const _render=render;
-render=function(){
+GVC.on("render:before",()=>{
   if(cur==="home") cur=homeView();              // "todo" is Home for Kyle, "mytodo" for the crew; everything that refreshes To do keeps working
   if(cur==="mytodo"&&!isCrewM()) cur=homeView();
   if(cur==="punch"&&!(isAdmin()||isCrewM())) cur=homeView();
   if(cur==="drawings"&&!showDrawings()) cur=homeView();
   if(isCrewM()&&["pipeline","ordering","build"].includes(cur)) cur="crewjobs";   // crew Jobs = the All jobs list, no boards
-  _render();
+});
+GVC.on("render:after",()=>{
   if(cur===homeView()||["punch","drawings","mytodo","crewjobs","crew"].includes(cur)){ const sub=$("#subnav"); if(sub) sub.hidden=true; }
   if(!(window.ME&&ME.role==="parts")){ const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",!(cur==="crewjobs"||["pipeline","ordering","build","archive"].includes(cur))); }
   navState();
-};
+});
 })();

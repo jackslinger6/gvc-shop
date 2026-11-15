@@ -221,7 +221,7 @@ window.gvcScan=async function(o){
   let ev=new Map(), shown=[], shownAt=0, hold=false, holdT=0;
   const GUESS_KEEP=8000;   // a guess stays up this long after it was last read
   const close=()=>{ alive=false; try{ stream&&stream.getTracks().forEach(t=>t.stop()); }catch(e){} ov.remove(); window.gvcScanClose=null; o.onClose&&o.onClose(); };
-  if(!window.__gsBack){ window.__gsBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(window.gvcScanClose&&!document.getElementById("gFlat")){ window.gvcScanClose(); return true; } return ob?ob():false; }; }
+  if(!window.__gsBack){ window.__gsBack=1; GVC.on("back",()=>{ if(window.gvcScanClose&&!document.getElementById("gFlat")){ window.gvcScanClose(); return true; } return false; },{order:10}); }
   ov.querySelector("#gsX").onclick=close;
   window.gvcScanClose=close;
   try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false}); }

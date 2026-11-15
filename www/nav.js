@@ -28,14 +28,8 @@ const bar=document.querySelector("#app .bar");
 const sub=document.createElement("div"); sub.className="subnav"; sub.id="subnav"; bar.after(sub);
 const num=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
 function go(v){ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0}); }
-// autoTodos() is asked for several times per render (tab counts, the To do list, My time); answer once per render.
-const _auto=autoTodos; let autoCache=null;
-autoTodos=function(){ if(!autoCache) autoCache=_auto(); return autoCache; };
-autoTodos.reset=()=>{ autoCache=null; };
-const _render=render;
-render=function(){
-  autoCache=null;
-  _render();
+// autoTodos() is worked out once per render - that cache lives in index.html now (hooks, stage 3).
+GVC.on("render:after",()=>{
   const T=$("#tabs"); const info={};
   T.querySelectorAll(".tab").forEach(b=>{ info[b.dataset.b]={ct:(b.querySelector(".ct")||{}).textContent||"",at:(b.querySelector(".at")||{}).outerHTML||"",atN:parseInt(((b.querySelector(".at")||{}).textContent||"0"))||0}; });
   const sec=SECT[cur]||"jobs"; if(sec==="jobs"&&lastJobs!==cur){ lastJobs=cur; ls.set("gvc_last_jobs",cur); }
@@ -70,5 +64,5 @@ render=function(){
   sub.innerHTML=h; sub.hidden=!h;
   sub.querySelectorAll("[data-sv]").forEach(b=>b.onclick=()=>go(b.dataset.sv));
   sub.querySelectorAll("[data-im2]").forEach(b=>b.onclick=()=>window.invMode.set(b.dataset.im2));
-};
+},{core:true});
 })();

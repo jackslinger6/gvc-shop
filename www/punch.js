@@ -323,9 +323,7 @@ async function punchesFor(jid){
   const r=await sb.from("gvc_punches").select("who,task_id,task_name,start_at,end_at").eq("job_id",jid).order("start_at");
   return (jobPunches[jid]=r.data||[]);
 }
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw();
+GVC.on("drawDlg:after",()=>{
   const D=$("#dlg"); const j=typeof job==="function"?job():null; if(!j||!D) return;
   // supplier block marked so crew mode can hide it (prices)
   D.querySelectorAll(".sec").forEach(s=>{ if(/^Suppliers/.test((s.textContent||"").trim())){ s.classList.add("supsec"); let n=s.nextElementSibling; while(n&&!n.classList.contains("sec")&&n.tagName!=="DETAILS"){ n.classList.add("supsec"); n=n.nextElementSibling; } } });
@@ -350,7 +348,7 @@ drawDlg=function(){
       return `<tr><td>${esc(a?a.name:o.name||"")}</td><td>${Object.entries(o.who).map(([w,ms])=>`${esc(w)} ${hrs(ms)}`).join(", ")}</td><td>${hrs(o.ms)}</td><td class="${est?act>est*1.15?"over":act<est*0.85&&a&&a.status==="done"?"under":"":""}">${est?est+"h":"-"}</td></tr>`; }).join("")}
       <tr><td><b>Total</b></td><td></td><td><b>${hrs(tot)}</b></td><td></td></tr></tbody></table>`;
   });
-};
+});
 
 /* ---- crew: add my own work ---- */
 function addMyWork(){
@@ -496,13 +494,11 @@ window.crewAct=k=>{
 
 /* ---- crew mode guard: only the views a crew member uses ---- */
 const CREW_VIEWS=["home","drawings","mytodo","punch","crewjobs","archive","crew","ncr","revs","inv","requests","staging","porders"];
-const _render=render;
-render=function(){
-  if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home";
-  _render();
+GVC.on("render:before",()=>{ if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home"; });
+GVC.on("render:after",()=>{
   { const cb=document.getElementById("crewBar"); if(cb) cb.style.display=cur==="crew"?"":"none"; }
   if(!bar.hidden&&open){ const c=$("#pClk"); if(c) c.textContent=hm(paidMs(open.start_at)); }
-};
+});
 // pick up the clock once signed in, and when another device punches
 let started=false;
 setInterval(()=>{ if(!started&&typeof db!=="undefined"&&db){ started=true; load();

@@ -165,17 +165,15 @@ function showSheet(list){
 const b=document.createElement("button"); b.className="btn"; b.type="button"; b.id="revBtn"; b.textContent="Revisions";
 const anchor=document.getElementById("ncrBtn")||document.getElementById("addJob"); anchor.parentNode.insertBefore(b,anchor);
 b.onclick=()=>{ cur="revs"; try{history.replaceState(null,"","#revs")}catch(e){} render(); };
-const _render=render;
-render=function(){ _render(); const n=revs.filter(r=>["review","open","done","question"].includes(r.status)).length; b.textContent=n?`Revisions (${n})`:"Revisions"; b.classList.toggle("primary",cur==="revs"); };
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
+GVC.on("render:after",()=>{ const n=revs.filter(r=>["review","open","done","question"].includes(r.status)).length; b.textContent=n?`Revisions (${n})`:"Revisions"; b.classList.toggle("primary",cur==="revs"); },{core:true});
+GVC.on("autoTodos",out=>{ try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   const rv=revs.filter(r=>r.status==="review");
   if(rv.length){ const text=`Look over ${rv.length} model revision${rv.length>1?"s":""} from the crew before they go to Jessie`; if(!hidden.has(text)) out.push({text,c:"#9b7bff",view:"revs"}); }
   revs.filter(r=>r.status==="question").forEach(r=>{ const text=`Jessie has a question on ${tag(r.n)}: ${(r.jesse_note||"").slice(0,80)}`; if(!hidden.has(text)) out.push({text,c:"#f5b041",view:"revs"}); });
   const un=revs.filter(r=>r.status==="open"&&Date.now()-new Date(r.created_at).getTime()>12*3600e3);
   if(un.length){ const text=`Send ${un.length} model revision${un.length>1?"s":""} to Jessie (${[...new Set(un.map(r=>jobName(r.job_id)))].join(", ")})`; if(!hidden.has(text)) out.push({text,c:"#ff8a2a",view:"revs"}); }
   revs.filter(r=>r.status==="done").forEach(r=>{ const text=`Check Jessie's revision ${tag(r.n)} (${jobName(r.job_id)}): ${r.what.slice(0,80)}`; if(!hidden.has(text)) out.push({text,c:"#2f8ff0",view:"revs"}); });
-}catch(e){} return out; };
+}catch(e){} return out; });
 window.newRevision=pre=>{ form={job:pre.job||"",part:pre.part||"",what:pre.what||"",files:[],kind:pre.kind||(pre.ncr?"fix":"improvement"),ncr:pre.ncr||null}; jf=pre.job||jf; filt="active"; cur="revs"; try{history.replaceState(null,"","#revs")}catch(e){} closeDlg(); render(); };
 window.addRevisionQuick=async row=>{ const {data,error}=await sb.from("gvc_revisions").insert(row).select().single(); if(!error){ await load(); return data; } };
 window.revsFor=(jid,n)=>revs.filter(r=>r.job_id===jid&&r.ncr===n);

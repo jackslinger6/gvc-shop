@@ -209,12 +209,11 @@ function pending(){ if(!P()||!P().loaded()) return [];
   return out; }
 window.timeTab=()=>{ const n=pending().length; return `<button class="tab ${cur==="time"?"on":""}" style="--c:#7fe3a0" role="tab" aria-selected="${cur==="time"}" data-b="time">My time${n?`<span class="at">${n} to log</span>`:""}</button>`; };
 window.renderTime=renderTime;
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto();
+GVC.on("autoTodos",out=>{
   try{ pending().forEach(x=>{ const text=`Log your time for ${P().dlabel(x.d)} (${x.draft&&x.tot?"plan says "+P().fh(x.tot)+", confirm it":(x.tot?P().fh(x.tot)+" so far, not confirmed":"nothing logged")})`; out.push({text,c:"#7fe3a0",view:"time"}); });
     const G=P(); if(G&&G.loaded()){ const lastMon=iso(G.monday(-1)), thisMon=iso(G.monday(0)); const unsent=Object.entries(T()).filter(([d,r])=>d>=lastMon&&d<thisMon&&r.ok&&(!r.sent||r.changed));
       if(unsent.length) out.push({text:`Send last week's time to the time invoice app (${unsent.length} day${unsent.length===1?"":"s"} confirmed)`,c:"#7fe3a0",view:"time"}); }
   }catch(e){}
-  return out; };
+  return out; });
 setInterval(()=>{ const G=P(); if(db&&G&&G.loaded()){ const p=plan(); if(!p.timeStart){ p.timeStart=todayIso(); G.save(); } } },1500);
 })();

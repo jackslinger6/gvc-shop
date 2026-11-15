@@ -181,7 +181,7 @@ function view(o){
   closeView=(why)=>{ ov.remove(); URL.revokeObjectURL(url); window.removeEventListener("resize",onR); window.removeEventListener("mousemove",mm); window.removeEventListener("mouseup",mu); closeView=null; o.onClose&&o.onClose(why||"close"); };
   ov.querySelector("#gfX").onclick=()=>closeView("close");
   ov.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>closeView(o.actions[+b.dataset.act].why));
-  if(!window.__gfBack){ window.__gfBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(closeView){ closeView("close"); return true; } return ob?ob():false; }; }
+  if(!window.__gfBack){ window.__gfBack=1; GVC.on("back",()=>{ if(closeView){ closeView("close"); return true; } return false; },{order:10}); }
 }
 // the drawing's flat size vs what's in the DXF (either orientation). Returns a warning or "".
 function check(x,w,h){ if(!x||!(+w>0)||!(+h>0)) return ""; const a=[x.W0??x.W,x.H0??x.H].sort((m,n)=>m-n), b=[+w,+h].sort((m,n)=>m-n);
