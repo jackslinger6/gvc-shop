@@ -1133,8 +1133,8 @@ function drawDlgCore(){
    <section class="jsec" data-jsec="overview">
    ${lifeRow(j)}
    ${ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span class="jstg">${stagePills(j)}</span><span style="flex:1"></span>
-     <button class="btn sm ghost" type="button" id="back" ${i===0?"disabled":""} title="Move the job back one stage">← Previous stage</button>
-     <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""} title="Move the job to the next stage">Next stage: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div>`}
+     <button class="btn sm ghost" type="button" id="back" aria-expanded="false" aria-controls="stgPanel" title="Pick any stage - you see the change before it's saved">Change stage</button>
+     <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""} title="Review moving the job to the next stage">Next stage: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div><div id="stgPanel" hidden></div>`}
    ${jobOverviewHTML(j)}
    </section>
    <section class="jsec" data-jsec="tasks">
@@ -1186,7 +1186,7 @@ function drawDlgCore(){
   $("#dlg").querySelectorAll("[data-f]").forEach(el=>el.addEventListener("change",()=>{ const j=job(); const x=j&&(j.suppliers||[])[+el.dataset.i]; if(!x||(x[el.dataset.f]||"")===el.value) return;
     put(collect(),`${x.name}: ${el.dataset.f==="quoteNo"?"quote #":el.dataset.f} on ${j.name}`); })); $("#addNote").onclick=addNote; $("#addSup").onclick=supForm; $("#delJob").onclick=delJob;
   $("#fNote").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addNote();}});
-  $("#back").onclick=()=>move(-1); $("#next").onclick=()=>move(1);
+  $("#back").onclick=()=>stagePanel(null); $("#next").onclick=()=>stagePanel((SIDX[raw(openId).stage]??0)+1);
   $("#dlg").querySelectorAll("[data-also]").forEach(b=>b.onclick=async()=>{ const j=collect(); const k=b.dataset.also; const l=(j.alsoStages||[]).filter(x=>x!==j.stage);
     const on=l.includes(k); j.alsoStages=on?l.filter(x=>x!==k):[...l,k];
     j.log=[...(j.log||[]),{at:new Date().toISOString(),text:`${on?"No longer":"Also"} in ${STAGES[SIDX[k]].t}`}];
@@ -1238,6 +1238,50 @@ async function put(j,label){
   if(!db){ jobs=jobs.map(x=>x.id===id?j:x); render(); pushUndo(id,prev,label||("Edited "+j.name)); return true; }
   try{ await saveJob(id,data); pushUndo(id,prev,label||("Edited "+j.name)); return true; }
   catch(e){ const m="Couldn't save: "+(e&&e.message||e); const el=$("#err"); if(el) el.textContent=m; $("#toastUndo").style.display="none"; $("#toastTx").textContent=m; $("#toast").classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>$("#toast").classList.remove("on"),9000); return false; }
+}
+/* Change stage (UX audit 05, Kyle Nov 15): nothing moves until the current and new stage are shown side by side with
+   what else changes (board, stages running alongside), then "Move to X". "Change stage" picks any stage;
+   "Next stage: X →" opens the same review with the next stage filled in. */
+function stageName(s){ return `${s.bt} · ${s.t}`; }
+function stagePanel(to){
+  const P=$("#stgPanel"), B=$("#back"); if(!P) return;
+  const j=raw(openId); const was=SIDX[j.stage]??0, W=STAGES[was];
+  if(to===false){ P.hidden=true; P.innerHTML=""; B&&B.setAttribute("aria-expanded","false"); return; }
+  P.hidden=false; B&&B.setAttribute("aria-expanded","true");
+  if(to==null||to===was){
+    P.innerHTML=`<div class="stgp" role="group" aria-label="Change stage"><div class="stgnow">Now: <b>${esc(stageName(W))}</b></div>
+      <div class="lbl" style="margin:6px 0 4px">Move to…</div>
+      ${BOARDS.map(b=>`<div class="stgb"><span class="stgbt">${esc(b.t)}</span>${b.stages.map(s=>{ const k=SIDX[s.k];
+        return `<button type="button" class="chip ${k===was?"on":""}" data-stg="${k}" ${k===was?'disabled aria-current="step"':""}>${esc(s.t)}${k===was?" (now)":""}</button>`; }).join("")}</div>`).join("")}
+      <div class="row" style="margin-top:8px"><button class="btn sm ghost" type="button" data-stgx>Cancel</button></div></div>`;
+  } else {
+    const T=STAGES[to]; const also=alsoIn(j).map(k=>STAGES[SIDX[k]]).filter(Boolean);
+    const keep=FAB_STAGES.includes(T.k)?also.filter(s=>s.k!==T.k):[];
+    const notes=[];
+    if(T.board!==W.board) notes.push(`The job moves from the ${esc(W.bt)} board to the ${esc(T.bt)} board.`);
+    if(to<was) notes.push("This moves the job back to an earlier stage.");
+    const drop=also.filter(s=>!keep.includes(s)); if(drop.length) notes.push(`${drop.map(s=>esc(s.t)).join(", ")} ${drop.length>1?"stop":"stops"} running alongside.`);
+    if(keep.length) notes.push(`${keep.map(s=>esc(s.t)).join(", ")} keep${keep.length>1?"":"s"} running alongside.`);
+    if(T.k==="done") notes.push(`Marks the job finished: it leaves the crew's task lists and the planner, and moves to Finished jobs on its own in ${typeof AUTO_ARCH_DAYS!=="undefined"?AUTO_ARCH_DAYS:3} days.`);
+    if(W.k==="done") notes.push("Takes the job out of Done, so it won't be archived automatically.");
+    notes.push("Logged on the job. Tasks, orders and NCRs aren't changed.");
+    P.innerHTML=`<div class="stgp" role="group" aria-label="Review stage change"><div class="stgcmp">
+        <div><span class="lbl">Now</span><b>${esc(stageName(W))}</b></div><span class="stgarr" aria-hidden="true">→</span><div><span class="lbl">New</span><b>${esc(stageName(T))}</b></div></div>
+      <ul class="stgn">${notes.map(n=>`<li>${n}</li>`).join("")}</ul>
+      <div class="row" style="gap:6px;margin-top:8px"><button class="btn sm primary" type="button" data-stggo="${to}">Move to ${esc(T.t)}</button><button class="btn sm" type="button" data-stgpick>Pick a different stage</button><button class="btn sm ghost" type="button" data-stgx>Cancel</button></div></div>`;
+  }
+  P.querySelectorAll("[data-stg]").forEach(b=>b.onclick=()=>stagePanel(+b.dataset.stg));
+  P.querySelectorAll("[data-stgpick]").forEach(b=>b.onclick=()=>stagePanel(null));
+  P.querySelectorAll("[data-stgx]").forEach(b=>b.onclick=()=>stagePanel(false));
+  P.querySelectorAll("[data-stggo]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; b.disabled=true; b.textContent="Moving…"; await moveTo(+b.dataset.stggo); });
+  const f=P.querySelector("[data-stggo],[data-stg]:not([disabled])"); if(f) f.focus();
+}
+async function moveTo(to){
+  const j=collect(); const was=SIDX[j.stage]??0; to=Math.max(0,Math.min(STAGES.length-1,to)); if(to===was) return;
+  j.stage=STAGES[to].k; j.log=[...(j.log||[]),{at:new Date().toISOString(),text:`Moved to ${STAGES[to].bt}: ${STAGES[to].t} (from ${STAGES[was].t})`}];
+  if(FAB_STAGES.includes(j.stage)) j.alsoStages=(j.alsoStages||[]).filter(k=>k!==j.stage); else delete j.alsoStages;
+  if(STAGES[to].board!==STAGES[was].board) cur=STAGES[to].board;
+  await put(j,`Moved ${j.name} to ${STAGES[to].t}`);
 }
 async function move(d){
   const j=collect(); const was=SIDX[j.stage]??0; const to=Math.max(0,Math.min(STAGES.length-1,was+d));

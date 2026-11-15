@@ -80,13 +80,13 @@ window.renderArchive=function(){
   const words=aq.toLowerCase().split(/\s+/).filter(Boolean);
   const list=archivedJobs.filter(j=>(!atype||jtype(j.name)===atype)&&words.every(w=>hay(j).includes(w))).sort((a,b)=>String(b.archivedAt||"").localeCompare(String(a.archivedAt||"")));
   B.innerHTML=`<h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">Finished jobs</h2>
-   <div class="lbl" style="margin-top:4px">Archived jobs with everything that happened: tasks and who did them, suppliers and quotes, NCRs, notes. Tap one to open it (you can restore it to the board from there).</div>
+   <div class="lbl" style="margin-top:4px">Archived jobs with everything that happened: tasks and who did them, suppliers and quotes, NCRs, notes. Done jobs move here automatically ${AUTO_ARCH_DAYS} days after they're marked Done. Tap one to open it - Restore puts it back on the board with everything it had.</div>
    <div class="row"><input id="aQ" type="search" placeholder="Search number, name, person, supplier, quote #, note…" value="${esc(aq)}"></div>
    ${types.length?`<div class="row"><span class="lbl">Type</span><button class="btn sm ${atype?"":"primary"}" data-at="">All</button>${types.map(t=>`<button class="btn sm ${atype===t?"primary":""}" data-at="${t}">${t}</button>`).join("")}</div>`:""}
    ${list.map(j=>{ const who=[...new Set((j.assemblies||[]).flatMap(a=>whoList(a)))]; const done=(j.assemblies||[]).filter(a=>a.status==="done").length;
      return `<div class="aj" data-aj="${esc(j.id)}"><div class="num">${esc(jobNum(j.name)||"No #")}</div><div><b>${esc(rest(j.name)||j.name)}</b>
        <div class="meta">${(j.assemblies||[]).length?`${done}/${j.assemblies.length} tasks`:"No tasks"}${who.length?" · "+who.join(", "):""}${(j.suppliers||[]).length?" · "+j.suppliers.map(s=>s.name).join(", "):""}${(j.ncrs||[]).length?` · ${j.ncrs.length} NCR${j.ncrs.length>1?"s":""}`:""}</div>
-       ${j.summary?`<div class="meta">${esc(j.summary)}</div>`:""}</div><div class="lbl">${j.archivedAt?fmt(j.archivedAt).split(" ").slice(0,2).join(" "):""}</div></div>`; }).join("")||`<div class="empty" style="text-align:left">${archivedJobs.length?"Nothing matches.":"No finished jobs yet. Open a job and tap \"Archive job (finished)\" when it's done."}</div>`}`;
+       ${j.summary?`<div class="meta">${esc(j.summary)}</div>`:""}</div><div class="lbl">${j.archivedAt?fmt(j.archivedAt).split(" ").slice(0,2).join(" "):""}</div></div>`; }).join("")||`<div class="empty" style="text-align:left">${archivedJobs.length?"Nothing matches.":`No finished jobs yet. Jobs move here on their own ${AUTO_ARCH_DAYS} days after they're marked Done (or right away with \"Archive job (finished)\" on the job). Restore puts a job back on the board with everything it had.`}</div>`}`;
   const q=$("#aQ"); q.oninput=()=>{ aq=q.value; const pos=q.selectionStart; render(); const n=$("#aQ"); if(n){ n.focus(); n.setSelectionRange(pos,pos); } };
   B.querySelectorAll("[data-at]").forEach(b=>b.onclick=()=>{ atype=b.dataset.at; render(); });
   B.querySelectorAll("[data-aj]").forEach(el=>el.onclick=()=>openJob(el.dataset.aj));

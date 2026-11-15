@@ -90,7 +90,7 @@ const rest=n=>{ const num=window.jobNum?window.jobNum(n):""; return num?String(n
 function card(no,name,jid,c){
   const col=jid&&window.jobColor?window.jobColor(jid):"#6c727a";
   return `<button class="dj ${c?"":"none"}" type="button" style="--c:${col}" data-dj="${esc(no)}" data-dn="${esc(name||no)}"><span class="dn">${esc(no)}</span>
-    <span style="min-width:0"><div class="dt">${esc(rest(name||no))}</div><div class="ds">${c?`${c.bent} bent · ${c.n-c.bent} flat`:"No drawings loaded yet"}</div></span>
+    <span style="min-width:0"><div class="dt">${esc(rest(name||no))}</div><div class="ds">${c?`${c.n} parts · ${c.bent} with bends · ${c.n-c.bent} flat parts`:"No drawings loaded yet"}</div></span>
     <span class="dc">${c?`${c.n}<small>PARTS</small>`:""}</span></button>`;
 }
 function renderDrawings(){

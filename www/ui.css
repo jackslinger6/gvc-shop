@@ -512,3 +512,18 @@ body.ovwv #allJobs{margin-top:8px}
 .cw .p .ost{font-size:12px}
 @media (min-width:900px){ .shnav .railcrew .n{font-size:12px!important} }
 .jtn,.tgjh .tgjn,.jlsb{font-size:12.5px}
+
+/* Change stage review (UX audit 05) */
+#stgPanel{margin-top:8px}
+.stgp{padding:12px;border:1px solid var(--line2,var(--line));border-radius:10px;background:var(--panel2)}
+.stgnow{font-size:14px}
+.stgb{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}
+.stgbt{font-size:12px;color:var(--muted);min-width:84px}
+.stgb .chip{min-height:40px}
+.stgcmp{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.stgcmp>div{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;min-width:140px}
+.stgcmp>div:last-child{border-color:var(--accent)}
+.stgcmp b{font-size:15px}
+.stgarr{font-size:20px;color:var(--accent)}
+.stgn{margin:10px 0 0;padding-left:18px;font-size:13px;color:var(--muted)}
+.stgn li{margin:2px 0}

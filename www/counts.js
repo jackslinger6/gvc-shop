@@ -66,6 +66,12 @@ css.textContent=`
 .cnt .pick img{width:40px;height:28px;object-fit:contain;background:#fff;border-radius:4px}
 .cnt .foot{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(20,22,25,0),#141619 30%);padding-top:14px;margin-top:10px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .cnt .saved{font-size:12px;color:var(--dim);align-self:center;margin-right:auto}
+.cnt .cserr{color:#ff8a7a;font-weight:600}
+.cnt .ccf{margin:10px 0 4px;padding:10px 12px;border:1px solid rgba(255,107,90,.55);background:rgba(255,107,90,.08);border-radius:10px;font-size:13px}
+.cnt .ccr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 0;border-top:1px solid var(--line);margin-top:8px}
+.cnt .ccn{font-weight:700;flex:1 1 100%}
+.cnt .ccr .btn{display:flex;flex-direction:column;align-items:flex-start;min-height:44px;text-align:left}
+.cnt .ccr .btn span{font-size:12px;color:var(--muted);font-weight:400}
 .cnt .grp{font-family:var(--font-display);letter-spacing:.04em;font-size:15px;margin:16px 0 2px;padding-bottom:4px;border-bottom:2px solid var(--c,#555);display:flex;justify-content:space-between;gap:8px}
 .cnt .grp span{font-family:Inter,sans-serif;font-size:12px;color:var(--muted);letter-spacing:0}
 .cnt .addrow select{font:inherit;font-size:13px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px}
@@ -135,7 +141,13 @@ window.openCount=async function(jobId,supId){
       const parts=await jobParts(jj); if(parts.length){ const sg=suggest(parts,ss,rec); S.pick={parts,sug:sg,sel:new Set(Object.keys(sg)),q:"",open:new Set()}; } }
     its.forEach(i=>{ i.g=g; items.push(i); });
   }
-  st={jobId, supId:sup.id, sets, items, q:"", f:"all", seeded, dirty:new Set(), timer:null, addQ:"", addG:0, flat:{}};
+  st={jobId, supId:sup.id, sets, items, q:"", f:"all", seeded, dirty:new Set(), timer:null, addQ:"", addG:0, flat:{},
+      base:{}, conflicts:[], saveErr:"", flushing:null, restore:[]};
+  items.forEach(i=>{ if(st.sets[i.g].row) st.base[bk(i.g,i.k)]=snap(i); });
+  sets.forEach((S,g)=>{ const b=bkRead(S); if(!(b&&b.items&&b.items.length)) return;
+    const cur=Object.fromEntries(items.filter(i=>i.g===g).map(i=>[i.k,i]));
+    const differs=b.items.some(i=>!cur[i.k]||!same(snap(i),snap(cur[i.k])));
+    if(differs) st.restore.push({g,b}); else { try{ localStorage.removeItem(bkKey(S)); }catch(e){} } });
   await loadFlat(items);
   await sign(items.filter(i=>!st.flat[i.part_no]).map(i=>i.thumb||i.img));
   draw();
@@ -277,7 +289,7 @@ function draw(){
   const mats=[...new Set(live().map(i=>matLabel(i.mat)).filter(Boolean))];
   const allMats=[...new Set(st.items.filter(i=>!i.skip).map(MK))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const lat=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&it.later);
-  D.innerHTML=`<div class="cnt">${head()}
+  D.innerHTML=`<div class="cnt">${head()}<div id="cAlerts">${alertsHtml()}</div>
     ${st.items.length?`<div class="tools">${window.gvcScan?`<button class="btn primary" type="button" id="cScan" style="min-height:40px">📷 Scan</button>`:""}<input type="search" id="cQ" placeholder="Find a part (number, name, material)" value="${esc(st.q)}">
       ${[["all","All"],["missing","Missing"],["done","Counted"]].map(([k,t])=>`<button class="chip ${st.f===k?"on":""}" type="button" data-cf="${k}" style="${st.f===k?"border-color:#3ad06b;color:#3ad06b":""}">${t}</button>`).join("")}</div>
       ${mats.length>1?`<div class="tools">${mats.map(m=>`<button class="chip" type="button" data-cq="${esc(m)}">${esc(matLabel(m))}</button>`).join("")}</div>`:""}`:""}
@@ -294,7 +306,7 @@ function draw(){
     <div class="addbox"><b style="font-size:13px">Add an item to this order</b>
       <div class="addrow" style="margin-top:6px"><input id="cAddQ" placeholder="Search inventory or type a name" value="${esc(st.addQ)}" style="flex:1;min-width:160px"><input id="cAddN" type="number" min="1" value="1" style="width:70px" aria-label="Quantity">${st.sets.length>1?`<select id="cAddG" aria-label="Which job">${st.sets.map((S,g)=>`<option value="${g}" ${st.addG===g?"selected":""}>${esc(jobOf(S.jobId).name)}</option>`).join("")}</select>`:""}<button class="btn" type="button" id="cAdd">Add</button></div>
       <div class="pick" id="cPick"></div></div>
-    <div class="foot"><span class="saved" id="cSaved">${st.sets.some(S=>S.row)?"Saved":""}</span><button class="btn ${st.items.some(i=>!i.skip)?"primary":""}" type="button" id="cDone">${st.items.some(i=>!i.skip)?"Done counting":"Receive without a checklist…"}</button></div></div>`;
+    <div class="foot"><span class="saved" id="cSaved">${saveHtml()}</span><button class="btn ${st.items.some(i=>!i.skip)?"primary":""}" type="button" id="cDone">${st.items.some(i=>!i.skip)?"Done counting":"Receive without a checklist…"}</button></div></div>`;
   wire(); drawPick();
 }
 function listHtml(vis){
@@ -354,7 +366,11 @@ function addItem(base){
 }
 function wire(){
   const D=$("#dlg");
-  $("#cBack").onclick=async()=>{ await flush(); openJob(st.jobId); };
+  $("#cBack").onclick=async()=>{ const b=$("#cBack"); if(b.disabled) return; b.disabled=true;
+    const ok=await flush(); b.disabled=false;
+    if(ok&&!st.conflicts.length){ openJob(st.jobId); return; }
+    blockBox(ok?"conflict":"unsaved","leave"); };
+  wireSaved(); wireAlerts();
   $("#cPrint").onclick=printSheet;
   D.querySelectorAll("[data-fv]").forEach(b=>b.onclick=()=>openFlat(+b.dataset.fv));
   hydrateFlat();
@@ -393,31 +409,149 @@ function refresh(ix){
   const row=btn&&btn.closest(".it");
   if(row&&!(st.f!=="all")){ const tmp=document.createElement("div"); tmp.innerHTML=itemRow(st.items[ix],ix); row.replaceWith(tmp.firstElementChild); }
   else { draw(); D.scrollTop=sc; return; }
-  const hd=D.querySelector(".cnt"); const old=[...hd.children].slice(0,3); const tmp=document.createElement("div"); tmp.innerHTML=head();
+  const hd=D.querySelector(".cnt"); const tmp=document.createElement("div"); tmp.innerHTML=head(); const old=[...hd.children].slice(0,tmp.children.length);
   old.forEach(e=>e.remove()); hd.prepend(...tmp.children); wire(); D.scrollTop=sc;
 }
-function changed(g){ if(g==null) return; st.dirty.add(g); const s=$("#cSaved"); if(s) s.textContent="Saving…"; clearTimeout(st.timer); st.timer=setTimeout(flush,700); }
-async function flush(){
-  if(!st||!st.dirty.size) return; clearTimeout(st.timer); const todo=[...st.dirty]; st.dirty.clear();
-  const now=new Date().toISOString(); const s=$("#cSaved");
-  for(const g of todo){
-    const S=st.sets[g]; let mine=st.items.filter(i=>i.g===g);
-    // someone else counting the same order on another phone: keep the higher count per item
-    const cur=await sb.from("gvc_counts").select("items,updated_at").eq("job_id",S.jobId).eq("sup_id",S.supId).maybeSingle();
-    if(cur.data&&S.row&&cur.data.updated_at>S.row.updated_at){
-      const theirs=Object.fromEntries((cur.data.items||[]).map(i=>[i.k,i]));
-      mine.forEach(i=>{ const t=theirs[i.k]; if(t) i.got=Math.max(got(i),t.got||0); });
-      (cur.data.items||[]).forEach(t=>{ if(!mine.some(i=>i.k===t.k)){ t.g=g; st.items.push(t); } });
-      mine=st.items.filter(i=>i.g===g);
-    }
-    const r=await sb.from("gvc_counts").upsert({job_id:S.jobId, sup_id:S.supId, items:mine.map(({g,...i})=>i), updated_at:now},{onConflict:"job_id,sup_id"}).select().maybeSingle();
-    if(r.error){ st.dirty.add(g); if(s) s.textContent="Couldn't save: "+r.error.message; return; }
-    S.row=r.data||{updated_at:now};
+/* ---------- Saving (UX audit 06/07, Nov 15) ----------
+   Every save is conditional on the row's updated_at we last saw (optimistic lock). If another phone saved in between,
+   the row is re-read and merged per part against what both sides started from (st.base):
+   only they changed it -> take theirs; only we changed it -> keep ours; both changed it to different numbers -> a
+   CONFLICT shown with both counts, who and when - nothing is picked silently (no more "keep the higher count", which
+   lost corrections downward). Conflicted parts keep the saved value until someone picks.
+   A failed save stays pending: "Not saved" + Retry, a copy is kept on this phone (localStorage) and offered again
+   when the count is reopened, and Done counting / Back to job are blocked until everything is saved. */
+const ME_=()=>(window.ME&&ME.name)||"";
+function bk(g,k){ return g+"|"+k; }
+function snap(i){ return {got:i.got||0, skip:!!i.skip, later:!!i.later}; }
+const same=(a,b)=>a.got===b.got&&a.skip===b.skip&&a.later===b.later;
+function bkKey(S){ return "gvc_cnt_bk:"+S.jobId+":"+S.supId; }
+function bkRead(S){ try{ return JSON.parse(localStorage.getItem(bkKey(S))||"null"); }catch(e){ return null; } }
+function bkWrite(g){ try{ const S=st.sets[g]; const base={}; st.items.filter(i=>i.g===g).forEach(i=>{ const b=st.base[bk(g,i.k)]; if(b) base[i.k]=b; });
+  localStorage.setItem(bkKey(S),JSON.stringify({at:new Date().toISOString(),by:ME_(),baseAt:S.row?S.row.updated_at:null,base,items:st.items.filter(i=>i.g===g).map(({g,...i})=>i)})); }catch(e){} }
+function bkDrop(g){ try{ localStorage.removeItem(bkKey(st.sets[g])); }catch(e){} }
+const hm=t=>{ try{ return new Date(t).toLocaleString([], {weekday:"short",hour:"numeric",minute:"2-digit"}); }catch(e){ return ""; } };
+function who(c,fallbackAt){ const by=c&&c.by||"", at=c&&c.at||fallbackAt; return (by||"another phone")+(at?" · "+hm(at):""); }
+function saveHtml(){
+  if(st.saveErr) return `<span class="cserr" role="alert">Not saved - ${esc(st.saveErr)}. Kept on this phone.</span> <button class="btn sm" type="button" id="cRetry">Retry</button>`;
+  if(st.dirty.size||st.flushing) return "Saving…";
+  return st.sets.some(S=>S.row)?"Saved":"";
+}
+function setSaved(){ const s=$("#cSaved"); if(s){ s.innerHTML=saveHtml(); wireSaved(); } }
+function wireSaved(){ const r=$("#cRetry"); if(r) r.onclick=async()=>{ r.disabled=true; r.textContent="Retrying…"; await flush(); }; }
+function alertsHtml(){
+  let h="";
+  if(st.restore.length){ const b=st.restore[0].b;
+    h+=`<div class="ccf"><b>Unsaved counts on this phone</b><div class="tnote">From ${esc(who(b,b.at))} - they never reached the server. Restore them to finish saving, or discard them.</div>
+      <div class="row" style="gap:6px;margin-top:6px"><button class="btn primary sm" type="button" data-rst="1">Restore and save</button><button class="btn ghost sm" type="button" data-rst="0">Discard</button></div></div>`; }
+  if(st.conflicts.length){
+    h+=`<div class="ccf" role="alert"><b>${st.conflicts.length} part${st.conflicts.length>1?"s were":" was"} counted differently on another phone</b><div class="tnote">Nothing was overwritten. Pick the right count for each, or recount it. Done counting waits until these are settled.</div>
+      ${st.conflicts.map((c,n)=>{ const i=st.items.find(x=>x.g===c.g&&x.k===c.k)||{}; const d=x=>x.skip?"not on this order":x.later?"still to come":`${x.got} of ${i.qty||0}`;
+        return `<div class="ccr"><div class="ccn">${esc(i.part_no||i.name||c.k)}</div>
+        <button class="btn sm" type="button" data-ccu="${n}" data-w="m">Yours: ${esc(d(c.mine))}<span>${esc(who(c.mine.conf&&c.mine.conf.by?c.mine.conf:{by:"You"}))}</span></button>
+        <button class="btn sm" type="button" data-ccu="${n}" data-w="t">Saved: ${esc(d(c.theirs))}<span>${esc(who(c.theirs.conf,c.at))}</span></button>
+        <button class="lnk" type="button" data-ccr="${n}">Recount</button></div>`; }).join("")}</div>`;
   }
-  st.seeded=false; if(s) s.textContent="Saved";
+  return h;
+}
+function updAlerts(){ const a=$("#cAlerts"); if(a){ a.innerHTML=alertsHtml(); wireAlerts(); } }
+function wireAlerts(){
+  const D=$("#dlg");
+  D.querySelectorAll("[data-rst]").forEach(b=>b.onclick=async()=>{ const {g,b:bk_}=st.restore.shift();
+    if(b.dataset.rst==="1") await restoreBk(g,bk_); else bkDrop(g);
+    draw(); });
+  D.querySelectorAll("[data-ccu]").forEach(b=>b.onclick=()=>{ const c=st.conflicts[+b.dataset.ccu]; if(!c) return;
+    const i=st.items.find(x=>x.g===c.g&&x.k===c.k); const v=b.dataset.w==="m"?c.mine:c.theirs;
+    if(i){ i.got=v.got; i.skip=v.skip; i.later=v.later; i.conf={n:v.got,by:ME_(),at:new Date().toISOString(),picked:b.dataset.w==="m"?"own":"saved"}; }
+    st.conflicts.splice(st.conflicts.indexOf(c),1); changed(c.g); draw(); });
+  D.querySelectorAll("[data-ccr]").forEach(b=>b.onclick=()=>{ const c=st.conflicts[+b.dataset.ccr]; if(!c) return;
+    const ix=st.items.findIndex(x=>x.g===c.g&&x.k===c.k); st.conflicts.splice(st.conflicts.indexOf(c),1); updAlerts(); if(ix>=0) openPart(ix); });
+}
+async function restoreBk(g,b){
+  const cur={}; st.items.filter(i=>i.g===g).forEach(i=>cur[i.k]=i);
+  // what the server had when the copy was made; if it moved on since, merge like any other concurrent save
+  const server=st.sets[g].row?(st.sets[g].row.items||[]):[];
+  st.items=st.items.filter(i=>i.g!==g); Object.keys(st.base).forEach(k=>{ if(k.startsWith(g+"|")) delete st.base[k]; });
+  (b.items||[]).forEach(i=>{ i.g=g; st.items.push(i); }); Object.entries(b.base||{}).forEach(([k,v])=>st.base[bk(g,k)]=v);
+  const S=st.sets[g]; if(S.row&&b.baseAt!==S.row.updated_at) merge(g,server,S.row.updated_at);
+  st.dirty.add(g); bkDrop(g); await flush();
+}
+function merge(g,theirsList,at){
+  const theirs=Object.fromEntries((theirsList||[]).map(t=>[t.k,t]));
+  for(const t of theirsList||[]){
+    const i=st.items.find(x=>x.g===g&&x.k===t.k), K=bk(g,t.k), b=st.base[K], ts=snap(t);
+    if(!i){ st.items.push({...t,g}); st.base[K]=ts; st.remote=true; continue; }
+    const ms=snap(i), mc=!b||!same(ms,b), tc=!b||!same(ts,b);
+    if(same(ms,ts)){ st.base[K]=ts; continue; }
+    st.remote=true;
+    if(tc&&!mc){ i.got=t.got; i.skip=t.skip; i.later=t.later; i.conf=t.conf; }
+    else if(mc&&tc){ const old=st.conflicts.find(c=>c.g===g&&c.k===t.k); if(old) st.conflicts.splice(st.conflicts.indexOf(old),1);
+      st.conflicts.push({g,k:t.k,at,mine:{...ms,conf:i.conf},theirs:{...ts,conf:t.conf}});
+      i.got=t.got; i.skip=t.skip; i.later=t.later; i.conf=t.conf; }  // keep the saved value until someone picks
+    st.base[K]=ts;
+  }
+  return theirs;
+}
+function changed(g){ if(g==null) return; st.dirty.add(g); bkWrite(g); setSaved(); clearTimeout(st.timer); st.timer=setTimeout(flush,700); }
+/* returns true only when every change is on the server */
+async function flush(){
+  if(!st) return true;
+  if(st.flushing){ await st.flushing; if(!st.dirty.size) return !st.saveErr; }
+  if(!st.dirty.size) return !st.saveErr;
+  clearTimeout(st.timer);
+  const run=(async()=>{
+    const todo=[...st.dirty]; st.dirty.clear(); let ok=true;
+    for(const g of todo){ if(!(await saveSet(g))){ st.dirty.add(g); bkWrite(g); ok=false; } else if(!st.dirty.has(g)) bkDrop(g); }
+    if(ok){ st.saveErr=""; st.seeded=false; }
+    return ok;
+  })();
+  st.flushing=run; setSaved();
+  let ok=false; try{ ok=await run; }catch(e){ st.saveErr=String(e&&e.message||e); ok=false; todoFail(); }
+  st.flushing=null;
+  // another phone's counts were merged in: redraw the list (unless a part is open on top), keeping the scroll position
+  if(st.remote){ st.remote=false; const ae=document.activeElement; if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName)) st.remote=true; else if(!document.getElementById("gFlat")){ const D=$("#dlg"), sc=D.scrollTop; draw(); D.scrollTop=sc; } }
+  setSaved(); updAlerts();
+  return ok&&!st.dirty.size;
+}
+function todoFail(){ st.sets.forEach((S,g)=>st.dirty.add(g)); }
+async function saveSet(g){
+  const S=st.sets[g];
+  for(let attempt=0;attempt<4;attempt++){
+    const now=new Date().toISOString(); const items=st.items.filter(i=>i.g===g).map(({g,...i})=>i);
+    let r;
+    if(S.row&&S.row.updated_at) r=await sb.from("gvc_counts").update({items,updated_at:now}).eq("job_id",S.jobId).eq("sup_id",S.supId).eq("updated_at",S.row.updated_at).select().maybeSingle();
+    else r=await sb.from("gvc_counts").insert({job_id:S.jobId,sup_id:S.supId,items,updated_at:now}).select().maybeSingle();
+    const dup=r.error&&(r.error.code==="23505"||/duplicate key/i.test(r.error.message||""));
+    if(r.error&&!dup){ st.saveErr=r.error.message||"save failed"; return false; }
+    if(!r.error&&r.data){ S.row=r.data; st.items.filter(i=>i.g===g).forEach(i=>st.base[bk(g,i.k)]=snap(i)); return true; }
+    // nothing updated (someone saved after we loaded) or the row was created meanwhile: re-read, merge, try again
+    const cur=await sb.from("gvc_counts").select("*").eq("job_id",S.jobId).eq("sup_id",S.supId).maybeSingle();
+    if(cur.error){ st.saveErr=cur.error.message||"couldn't re-read the count"; return false; }
+    if(!cur.data){ S.row=null; continue; }
+    merge(g,cur.data.items||[],cur.data.updated_at); S.row=cur.data;
+  }
+  st.saveErr="another phone keeps saving this count - try again"; return false;
+}
+/* Done counting / Back to job while something isn't saved or a conflict is open */
+function blockBox(kind,what){
+  const D=$("#dlg"); D.querySelectorAll(".cfin").forEach(e=>e.remove());
+  const box=document.createElement("div"); box.className="addbox cfin"; box.style.borderColor="#ff6b5a"; box.setAttribute("role","alert");
+  const n=st.dirty.size;
+  box.innerHTML=kind==="conflict"
+    ?`<b>Settle the ${st.conflicts.length} count conflict${st.conflicts.length>1?"s":""} first.</b><div class="tnote">They're at the top of this count. ${what==="leave"?"You can leave - nothing is lost, the saved counts stay as they are.":"Done counting stays off until each one has a count."}</div>
+      <div class="row" style="gap:6px;margin-top:8px"><button class="btn primary" type="button" data-bx="top">Show them</button>${what==="leave"?`<button class="btn ghost" type="button" data-bx="go">Leave anyway</button>`:""}</div>`
+    :`<b>Not saved yet${st.saveErr?" - "+esc(st.saveErr):""}.</b><div class="tnote">${n>1?n+" sections":"This count"} didn't reach the server. Your counts are kept on this phone and will be offered again when you reopen this count. ${what==="leave"?"":"Done counting waits until everything is saved."}</div>
+      <div class="row" style="gap:6px;margin-top:8px"><button class="btn primary" type="button" data-bx="retry">Retry saving</button>${what==="leave"?`<button class="btn ghost" type="button" data-bx="go">Leave anyway</button>`:""}</div>`;
+  D.querySelector(".cnt .foot").before(box); box.scrollIntoView({block:"center"});
+  box.querySelectorAll("[data-bx]").forEach(b=>b.onclick=async()=>{ const a=b.dataset.bx;
+    if(a==="top"){ box.remove(); const al=$("#cAlerts"); if(al) al.scrollIntoView({behavior:"smooth",block:"start"}); return; }
+    if(a==="go"){ openJob(st.jobId); return; }
+    b.disabled=true; b.textContent="Retrying…"; const ok=await flush();
+    if(ok&&!st.conflicts.length){ box.remove(); if(what==="leave") openJob(st.jobId); else finish(); } else blockBox(ok?"conflict":"unsaved",what); });
 }
 async function finish(){
-  await flush();
+  const db=$("#cDone"); if(db&&db.dataset.busy) return; if(db){ db.dataset.busy="1"; db.disabled=true; }
+  const saved=await flush(); if(db){ delete db.dataset.busy; db.disabled=false; }
+  if(!saved||st.conflicts.length){ blockBox(saved?"conflict":"unsaved","finish"); return; }
   const t=totals();
   const miss=live().filter(i=>got(i)<(i.qty||0));
   const nm=i=>(st.sets.length>1?(window.jobNum?window.jobNum(jobOf(st.sets[i.g].jobId).name)+" ":""):"")+(i.part_no||i.name);

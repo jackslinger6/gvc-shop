@@ -159,12 +159,12 @@ function draw(jobNo,jobName,rows){
   else body=groups(list,rows).map(g=>{ const open=narrowed||openG.has(g.k); const pcs=g.parts.reduce((a,p)=>a+(p.qty||0),0), gb=g.parts.filter(p=>p.bends>0).length;
     const th0=g.parts.find(p=>p.thumb_path&&urls[p.thumb_path]);
     return `<div class="grp ${open?"open":""}"><button class="gh" type="button" data-g="${esc(g.k)}" aria-expanded="${open}"><span class="ar">▶</span><span class="gt">${th0?`<img src="${urls[th0.thumb_path]}" alt="" loading="lazy">`:""}</span>
-      <span><div class="gn">${esc(g.name)}</div><div class="gs">${g.parts.length} part${g.parts.length>1?"s":""}${pcs?` · ${pcs} pcs`:""} · ${gb?`${gb} bent`:"all flat"}</div></span><span class="gc">${g.parts.length}</span></button>
+      <span><div class="gn">${esc(g.name)}</div><div class="gs">${g.parts.length} part${g.parts.length>1?"s":""}${pcs?` · ${pcs} pcs`:""} · ${gb?`${gb} with bends`:"all flat parts"}</div></span><span class="gc">${g.parts.length}</span></button>
       <div class="gb">${open?g.parts.map(partRow).join(""):""}</div></div>`; }).join("");
   const fsum=[mk,th,flt==="bent"?"Needs bending":flt==="flat"?"Flat":""].filter(Boolean);
   D.innerHTML=`<div class="jp">
     <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${esc(jobNo)} · Parts & drawings</h3><button class="btn ghost" type="button" id="jpBack">${origin?"Close":"Back to job"}</button></div>
-    <div class="sum">${rows.length} parts · ${bent} bent · ${rows.length-bent} flat${rows.length?` · ${rows.reduce((a,p)=>a+(p.qty||0),0)} pcs`:""}</div>
+    <div class="sum">${rows.length} parts · ${bent} with bends · ${rows.length-bent} flat parts${rows.length?` · ${rows.reduce((a,p)=>a+(p.qty||0),0)} pcs`:""}</div>
     <div class="jpbar"><input id="jpQ" type="search" placeholder="Search part number, name, assembly, material…" value="${esc(q)}">
       <button class="btn sm${nF?" primary":""}" type="button" id="jpF" aria-haspopup="dialog">Filter${nF?` · ${nF}`:""}</button>
       <label class="jpgb">Group by<select id="jpG">${[["asm","Assembly"],["mat","Material"],["name","Name"]].map(([k,t])=>`<option value="${k}" ${grouped===k?"selected":""}>${t}</option>`).join("")}</select></label>

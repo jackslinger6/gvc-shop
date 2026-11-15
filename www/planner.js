@@ -53,6 +53,7 @@ css.textContent=`
 .wkv table.pg td.hot,.wkv .ppool.hot{outline:2px dashed var(--orange)}
 .wkv .ld{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);margin-bottom:3px}
 .wkv .ld.over{color:#ff9b91}
+.wkv .pest{display:inline-block;font-size:10.5px;font-weight:600;color:#f5b041;border:1px dashed rgba(245,176,65,.6);border-radius:5px;padding:0 4px;margin-left:4px;line-height:1.5;vertical-align:1px}
 .wkv .ld button{background:none;border:0;color:var(--dim);cursor:pointer;font-size:11px;padding:0 2px}
 .wkv .ld button:hover{color:var(--text)}
 .wkv .pblk{background:rgba(255,255,255,.06);border-radius:5px;padding:3px 6px;margin-bottom:3px;line-height:1.25;overflow:hidden;font-size:11.5px;cursor:grab;touch-action:none;background:color-mix(in srgb,var(--c) 18%,transparent);border-left:3px solid var(--c);color:var(--text)}
@@ -365,10 +366,10 @@ function blk(M,t,p,d,r,bad){
   const after=t.needs.map(n=>M.T[n]&&M.T[n].name).filter(Boolean);
   const today=iso(new Date()); const past=r&&(d<today||(d===today&&r.e<=nowH()+1e-6));
   const pauses=r&&t.at==null&&(r.e-r.s)>r.w+1e-6;
-  if(!p&&t.why) return `<div class="pblk nr ${sel===(t.base||t.key)?"sel":""}" style="--c:${t.color}" data-k="${esc(t.key)}">${esc(t.name)} · ${fh(H(t))}${t.h==null?"?":""}<small>${esc(t.why)}${t.who.length?" · "+t.who.join(", "):""}</small></div>`;
+  if(!p&&t.why) return `<div class="pblk nr ${sel===(t.base||t.key)?"sel":""}" style="--c:${t.color}" data-k="${esc(t.key)}">${esc(t.name)} · ${t.h==null?"~":""}${fh(H(t))}${t.h==null?`<span class="pest" title="No time estimate - counted as 2h for now">estimate needed</span>`:""}<small>${esc(t.why)}${t.who.length?" · "+t.who.join(", "):""}</small></div>`;
   if(r&&p&&others.length&&r.w<0.05) return `<div class="pblk ${sel===(t.base||t.key)?"sel":""}" style="--c:${t.color};opacity:.5" data-k="${esc(t.key)}" data-p="${p}" data-d="${d}">🔗 ${esc(t.name)} <small>${others.join(", ")} finish${others.length>1?"":"es"} it before ${p} gets there</small></div>`;
   return `<div class="pblk ${sel===(t.base||t.key)?"sel":""} ${bad?"bad":""} ${t.done?"done":""} ${t.at!=null?"fx":""}" style="--c:${t.color};${p?`min-height:${Math.max(24,share*9)}px`:""}${past&&!t.done?";opacity:.65":""}" data-k="${esc(t.key)}" ${p?`data-p="${p}" data-d="${d}"`:""}>
-   ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${t.cont?"↳ ":""}${esc(t.name)} · ${fh(share)}${t.h==null&&!t.cont?"?":""}${t.split?` <span style="opacity:.7">of ${fh(t.full)} →</span>`:t.cont?` <span style="opacity:.7">(${fh(t.full)} total, cont'd)</span>`:""}
+   ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${t.cont?"↳ ":""}${esc(t.name)} · ${t.h==null&&!t.cont?"~":""}${fh(share)}${t.h==null&&!t.cont?`<span class="pest" title="No time estimate - counted as 2h for now">estimate needed</span>`:""}${t.split?` <span style="opacity:.7">of ${fh(t.full)} →</span>`:t.cont?` <span style="opacity:.7">(${fh(t.full)} total, cont'd)</span>`:""}
    <small>${t.ncr?`<b style="color:#ff9b91">NCR-${String(t.ncr).padStart(3,"0")}</b> · `:""}${r?`${clock(r.s)}–${clock(r.e)}${pauses?" (paused)":""} · `:""}${p?esc(t.job):""}${solo?(p?" · ":"")+solo:""}${others.length?(p?" · with ":"")+others.join(", "):""}${after.length?" · after "+esc(after.join(", ")):""}</small></div>`;
 }
 /* A person's day shows one block per JOB (height = hours), not every task. Tap it to see and tick off the tasks.
@@ -393,7 +394,7 @@ function dayCell(M,R,p,d,ids,bad){
       <div class="pjh"><span>${num?`<b class="pjn">${esc(num)}</b> `:""}${esc(nm)}</span><span class="pjc">${open?"▾":"▸"}</span></div>
       <small>${allDay?"All day":`${clock(s0)}–${clock(e0)}`} · ${fh(hrs)} · ${done?`${done} of ${G.keys.length} done`:`${G.keys.length} tasks`}${anyBad?" · ⚠ clash":""}</small></div>`
       +(open?`<div class="pjsub">${G.keys.map(k=>{ const t=M.T[k], r=R[p][k]; const oth=t.who.filter(w=>w!==p);
-        return `<div class="pjrow"><button class="pck ${t.done?"on":""}" type="button" data-pck="${esc(k)}" title="${t.done?"Not done":"Done"}">✓</button><div class="pblk psub ${sel===baseK(k)?"sel":""} ${bad.has(k)?"bad":""} ${t.done?"done":""}" style="--c:${t.color}" data-k="${esc(k)}" data-p="${p}" data-d="${d}">${oth.length?"🔗 ":""}${t.needs.length?"🔒 ":""}${esc(t.name)} · ${fh(r?r.w:H(t))}${t.h==null?"?":""}${oth.length?`<small>with ${esc(oth.join(", "))}</small>`:""}</div></div>`; }).join("")}</div>`:"");
+        return `<div class="pjrow"><button class="pck ${t.done?"on":""}" type="button" data-pck="${esc(k)}" title="${t.done?"Not done":"Done"}">✓</button><div class="pblk psub ${sel===baseK(k)?"sel":""} ${bad.has(k)?"bad":""} ${t.done?"done":""}" style="--c:${t.color}" data-k="${esc(k)}" data-p="${p}" data-d="${d}">${oth.length?"🔗 ":""}${t.needs.length?"🔒 ":""}${esc(t.name)} · ${t.h==null?"~":""}${fh(r?r.w:H(t))}${t.h==null?`<span class="pest" title="No time estimate - counted as 2h for now">estimate needed</span>`:""}${oth.length?`<small>with ${esc(oth.join(", "))}</small>`:""}</div></div>`; }).join("")}</div>`:"");
   }).join("");
 }
 function renderWeek(){
@@ -427,7 +428,9 @@ function renderWeek(){
   D.forEach(d=>{ h+=`<tr><th class="day ${d===today?"today":""}">${dlabel(d).replace(", ","<br>")}${d===today?"<br>today":""}</th>`+CREW.map(p=>{
     if(isOff(p,d)) return `<td class="off" data-p="${p}" data-d="${d}"><div class="ld"><span>Day off</span><button data-off="${p}|${d}" title="Working this day">undo</button></div></td>`;
     const ids=M.S[p][d]||[]; const used=ids.reduce((a,k)=>a+(R[p][k]?R[p][k].w:0),0);
-    return `<td data-p="${p}" data-d="${d}"><div class="ld ${used>8.01?"over":""}"><span>${used?fh(used)+" / 8h":"Open"}</span><button data-off="${p}|${d}" title="Mark ${p} off ${dlabel(d)}">off</button></div>${dayCell(M,R,p,d,ids,bad)}</td>`; }).join("")+`</tr>`; });
+    // UX audit 20: hours from tasks with no estimate are assumed (2h each) - say so instead of a firm total
+    const guess=ids.filter(k=>{ const t=M.T[k]; return t&&t.h==null&&!t.cont; }).length;
+    return `<td data-p="${p}" data-d="${d}"><div class="ld ${used>8.01?"over":""}"><span>${used?(guess?"~":"")+fh(used)+" / 8h"+(guess?` <span class="pest" title="${guess} task${guess>1?"s have":" has"} no estimate - counted as 2h each">${guess} assumed</span>`:""):"Open"}</span><button data-off="${p}|${d}" title="Mark ${p} off ${dlabel(d)}">off</button></div>${dayCell(M,R,p,d,ids,bad)}</td>`; }).join("")+`</tr>`; });
   h+=`</tbody></table></div><div class="ppanel" id="pPanel"></div></div>`;
   B.innerHTML=h;
   panel(M);

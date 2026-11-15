@@ -23,6 +23,9 @@ async function openFiles(j){
   D.innerHTML=`<div class="jf">${head}<div class="tnote">Loading…</div></div>`;
   $("#jfBack").onclick=()=>openJob(j.id);
   const r=await sb.from("gvc_job_files").select("*").eq("job_id",j.id).order("mail_at",{ascending:false}).order("path");
+  if(r.error){ // UX audit 08: a failed load is an error with Retry, never "no files"
+    D.innerHTML=`<div class="jf">${head}<div class="addbox" role="alert" style="border-color:#ff6b5a;margin-top:10px"><b>Couldn't load the files from email.</b><div class="tnote">${esc(r.error.message||"Network or server error")}. Nothing was changed.</div><div class="row" style="gap:6px;margin-top:8px"><button class="btn primary" type="button" id="jfRetry">Retry</button></div></div></div>`;
+    $("#jfBack").onclick=()=>openJob(j.id); $("#jfRetry").onclick=()=>openFiles(j); return; }
   const rows=r.data||[];
   const byMail=new Map(); rows.forEach(f=>{ const k=f.source_ref||f.subject; if(!byMail.has(k)) byMail.set(k,{f,list:[]}); byMail.get(k).list.push(f); });
   const fileRow=f=>`<div class="f"><span class="n">${esc(f.name)}<span class="k">${esc(f.kind||"")} · ${kb(f.size||0)}</span></span><span style="display:flex;gap:6px"><button class="btn sm" type="button" data-fo="${esc(f.path)}">Open</button><button class="btn sm ghost" type="button" data-fo="${esc(f.path)}" data-fd="${esc(f.name)}">Download</button></span></div>`;
@@ -42,7 +45,8 @@ async function openFiles(j){
     const d=r.data||{}; el.textContent=r.error||d.error?"Failed: "+(d.error||r.error.message):`Done - ${d.parts||0} parts in the count list`; });
   D.querySelectorAll("[data-fo]").forEach(el=>el.onclick=async()=>{ el.disabled=true;
     const s=await sb.storage.from("gvc-parts").createSignedUrl(el.dataset.fo,60*30,el.dataset.fd?{download:el.dataset.fd}:undefined); el.disabled=false;
-    if(s.data&&s.data.signedUrl) window.open(s.data.signedUrl,"_blank"); });
+    if(s.data&&s.data.signedUrl){ window.open(s.data.signedUrl,"_blank"); el.title=""; return; }
+    const was=el.dataset.lbl||el.textContent; el.dataset.lbl=was; el.textContent="Couldn't open - Retry"; el.title=(s.error&&s.error.message)||"Couldn't get the file"; });
 }
 window.openJobFiles=openFiles;
 
