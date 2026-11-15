@@ -1798,7 +1798,7 @@ const tdShort=(text,js)=>{ let s=String(text||"");
   return s||String(text||""); };
 /* To do grouped (stage 10, Kyle Nov 15): Job → action type → short task → expand. Active jobs first, then planned,
    Inventory, Shop, General. A to-do about several jobs shows once under a shared heading ("1083G + 1084G · Tote Truck"). */
-const todoShut=new Set();
+const todoOpenG=new Set();   // job sections start folded (Kyle, Nov 15) - tap a heading to open it; remembered while the app is open
 const TD_HEAD={"Review quote":"Quotes","Follow up":"Follow up","Reply":"Replies","Discuss":"Discuss","Order":"Ordering","Pickup":"Pickup","Count":"Receiving",
   "NCR decision":"NCRs","NCR review":"NCRs","Bend":"Production","Drawings":"Drawings & revisions","Assign":"Planning","New job":"Planning","Time":"Time","To do":"Other"};
 const TD_ORDER=["Quotes","Follow up","Replies","Discuss","Ordering","Pickup","Receiving","NCRs","Production","Drawings & revisions","Planning","Time","Other"];
@@ -1820,7 +1820,7 @@ function todoGroupsHTML(items){
     if(late) g.late++;
     g.rows.push({...o,grouped:true,late,head:TD_HEAD[act]||"Other"}); });
   return Object.values(G).sort((a,b)=>a.rank-b.rank||b.late-a.late||a.title.localeCompare(b.title,undefined,{numeric:true})).map(g=>{
-    const shut=todoShut.has(g.key), heads=TD_ORDER.filter(h=>g.rows.some(r=>r.head===h));
+    const shut=!todoOpenG.has(g.key), heads=TD_ORDER.filter(h=>g.rows.some(r=>r.head===h));
     return `<div class="tgj${shut?" shut":""}" style="--jc:${g.jc}"><button type="button" class="tgjh" data-tgj="${esc(g.key)}" aria-expanded="${!shut}">
         <span class="tgjt">${esc(g.title)}</span><span class="tgjn">${g.rows.length} to-do${g.rows.length===1?"":"s"}${g.late?` · <b>${g.late} overdue</b>`:""}</span><span class="tch" aria-hidden="true">${shut?"▸":"▾"}</span></button>
       ${shut?"":heads.map(h=>`<div class="tgah">${esc(h)}</div>${g.rows.filter(r=>r.head===h).sort((a,b)=>b.late-a.late).map(todoRow).join("")}`).join("")}</div>`; }).join("");
@@ -1896,7 +1896,7 @@ function renderTodo(){
   B.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const [jid,sid]=el.dataset.cnt.split("|"); window.openCount(jid,sid); });
   B.querySelectorAll("[data-unsnz]").forEach(el=>el.onclick=()=>unsnooze({id:el.dataset.unsnz}));
   B.querySelectorAll("[data-job]").forEach(el=>el.onclick=()=>openJob(el.dataset.job));
-  B.querySelectorAll("[data-tgj]").forEach(el=>el.onclick=()=>{ const k=el.dataset.tgj; todoShut.has(k)?todoShut.delete(k):todoShut.add(k); renderTodo(); });
+  B.querySelectorAll("[data-tgj]").forEach(el=>el.onclick=()=>{ const k=el.dataset.tgj; todoOpenG.has(k)?todoOpenG.delete(k):todoOpenG.add(k); renderTodo(); });
   B.querySelectorAll("[data-tdk]").forEach(el=>el.onclick=()=>{ const k=el.dataset.tdk; todoOpen.has(k)?todoOpen.delete(k):todoOpen.add(k); renderTodo(); });
   B.querySelectorAll("[data-tdo]").forEach(el=>el.onclick=()=>{ const [j,sid]=el.dataset.tdo.split("|"); window.openOrderLine(j,sid); });
   B.querySelectorAll("[data-tdn]").forEach(el=>el.onclick=()=>openJob(el.dataset.tdn,"ncr"));
