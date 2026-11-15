@@ -498,6 +498,8 @@ function renderPorders(){
 }
 window.extraViews=Object.assign(window.extraViews||{},{porders:renderPorders});
 window.pordersGo=k=>{ tab=k||"active"; poId=null; shellGo("porders"); };
+window.pordersAll=()=>({list:PO,loaded,isPractice,SL});   // Purchasing view - read only
+window.pordersOpenId=id=>{ tab="active"; poId=id; shellGo("porders"); };
 // Back on one of Robin's orders goes to her order list (a "back" hook - see back.js)
 GVC.on("back",()=>{ try{ const sh=[...document.querySelectorAll(".shov.on")].length; if(!sh&&typeof cur!=="undefined"&&cur==="porders"&&poId&&!document.querySelector("#scrim.on")){ poId=null; render(); return true; } }catch(e){} return false; },{order:70});
 

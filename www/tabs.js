@@ -10,7 +10,7 @@
 (()=>{
 const isAdmin=()=>!(window.ME&&(ME.role==="crew"||ME.role==="parts"));
 const isCrewM=()=>!!(window.ME&&ME.role==="crew");
-const homeView=()=>isAdmin()?"todo":isCrewM()?"mytodo":"home";
+const homeView=()=>isAdmin()?"todo":isCrewM()?"today":"home";
 const showDrawings=()=>!(window.ME&&ME.role==="parts");
 window.gvcHomeIsTodo=()=>isAdmin();
 window.gvcHomeView=homeView;
@@ -34,6 +34,7 @@ css.textContent=`
 .dw .fold.open span:last-child{transform:rotate(90deg)}
 .dw .empty2{font-size:13px;color:var(--muted);padding:8px 2px}
 .shnav .ni.nx{font-size:12px}
+@media (max-width:899px){ body.nav5 .shnav .ni{font-size:12px;letter-spacing:.02em} body.nav5 .shnav .ni svg{width:24px;height:24px} body.nav5 .shnav{height:calc(72px + env(safe-area-inset-bottom))} }
 body.crew:not(.parts) .shnav [data-n="jobs"]{display:flex!important}
 .ctodo .ti .body{cursor:pointer;min-width:0}
 .ctodo .ti.dn .tt{text-decoration:line-through;opacity:.55}
@@ -48,27 +49,49 @@ document.head.appendChild(css);
 const I={
   draw:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
   punch:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+  today:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 15l2.5 2.5L16 13"/>',
+  cart:'<path d="M3 4h2l2.4 11h10.2L20 7H6.2"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17" cy="19.5" r="1.5"/>',
 };
 const svg=k=>`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]}</svg>`;
 const nav=document.querySelector(".shnav");
-let bD=null, bP=null;
+let bD=null, bP=null, bPu=null, bT=null;
 if(nav){
   bD=document.createElement("button"); bD.className="ni nx"; bD.type="button"; bD.dataset.n="drawings"; bD.innerHTML=svg("draw")+"Drawings";
-  bP=document.createElement("button"); bP.className="ni nx"; bP.type="button"; bP.dataset.n="punch"; bP.innerHTML=svg("punch")+"Punch";
-  const pw=nav.querySelector(".pluswrap"); nav.insertBefore(bD,pw); pw.after(bP);
+  bP=document.createElement("button"); bP.className="ni nx"; bP.type="button"; bP.dataset.n="today"; bP.innerHTML=svg("today")+"<span>Today</span>";
+  bPu=document.createElement("button"); bPu.className="ni nx"; bPu.type="button"; bPu.dataset.n="purchasing"; bPu.innerHTML=svg("cart")+"<span>Purchasing</span><span class=\"bd\" id=\"shPurN\" hidden></span>";
+  bT=document.createElement("button"); bT.className="ni nx"; bT.type="button"; bT.dataset.n="time"; bT.innerHTML=svg("punch")+"<span>Time</span>";
+  const pw=nav.querySelector(".pluswrap"); nav.insertBefore(bD,pw); pw.after(bP); nav.append(bPu,bT);
   bD.onclick=()=>{ dwQ=""; showFin=false; shellGo("drawings"); };
-  bP.onclick=()=>shellGo("punch");
+  bP.onclick=()=>shellGo("today");
+  bPu.onclick=()=>shellGo("purchasing");
+  bT.onclick=()=>{ if(isCrewM()&&window.openMyTime) window.openMyTime(); else shellGo("time"); };
 }
+/* five buttons on a phone, per role (usability pass, Nov 15 - Kyle OK'd the mockup):
+     Kyle  Home · Jobs · Purchasing · Crew · More      (+ in the top bar, timer bar on every screen, Today in More)
+     crew  Today · Jobs · Drawings · Time · More
+     Robin Today · Purchasing · Inventory · Jobs · More
+   The desktop rail keeps more (Drawings, Today and the + wheel for Kyle). Old links (#punch, #mytodo, #porders) still work. */
+const NAVS={
+  admin:{phone:["home","jobs","purchasing","crew","more"], desk:["home","jobs","purchasing","drawings","today","crew","more","plus"]},
+  crew: {phone:["home","jobs","drawings","time","more"],   desk:["home","jobs","drawings","time","crew","more","plus"]},
+  parts:{phone:["home","purchasing","inv","jobs","more"],  desk:["home","purchasing","inv","jobs","more","plus"]},
+};
 function navState(){
   if(!nav) return;
-  bD.style.display=showDrawings()?"":"none";
-  bP.style.display=isAdmin()||isCrewM()?"":"none";
-  const on=cur===homeView()?"home":cur==="crewjobs"?"jobs":cur;
-  if(["home","drawings","punch","jobs"].includes(on)) nav.querySelectorAll("[data-n]").forEach(b=>b.classList.toggle("on",b.dataset.n===on));
-  const n=[...nav.children].filter(el=>!el.classList.contains("railcrew")&&getComputedStyle(el).display!=="none").length;
-  const phone=window.innerWidth<900;
-  if(phone) nav.style.setProperty("grid-template-columns",`repeat(${n},minmax(0,1fr))`,"important"); else nav.style.removeProperty("grid-template-columns");
-  document.body.classList.toggle("nav7",n>=7);
+  const role=isAdmin()?"admin":isCrewM()?"crew":"parts", phone=window.innerWidth<900;
+  const want=NAVS[role][phone?"phone":"desk"];
+  const el=k=>k==="plus"?nav.querySelector(".pluswrap"):nav.querySelector(`[data-n="${k}"]`);
+  const all=["home","jobs","orders","purchasing","drawings","today","punch","inv","time","crew","more","plus"];
+  all.forEach(k=>{ const e=el(k); if(e&&!want.includes(k)) e.style.setProperty("display","none","important"); });
+  want.forEach(k=>{ const e=el(k); if(!e) return; e.style.setProperty("display","flex","important"); nav.insertBefore(e,nav.querySelector(".railcrew")); });
+  const hl=nav.querySelector('[data-n="home"]'); if(hl){ const t=role==="admin"?"Home":"Today"; const tn=[...hl.childNodes].find(n=>n.nodeType===3&&n.textContent.trim()); if(tn&&tn.textContent.trim()!==t) tn.textContent=t; }
+  // which button is lit
+  const on=cur===homeView()?"home":cur==="today"?"today":["crewjobs","overview","pipeline","ordering","build","archive"].includes(cur)?"jobs":
+    ["purchasing","pos","porders","requests"].includes(cur)?"purchasing":cur;
+  nav.querySelectorAll("[data-n]").forEach(b=>{ const lit=b.dataset.n===on; b.classList.toggle("on",lit); if(lit) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
+  if(phone) nav.style.setProperty("grid-template-columns",`repeat(${want.length},minmax(0,1fr))`,"important"); else nav.style.removeProperty("grid-template-columns");
+  document.body.classList.toggle("nav7",false);
+  document.body.classList.toggle("nav5",phone);
 }
 window.addEventListener("resize",navState);
 
@@ -145,14 +168,17 @@ const _ojp=window.openJobParts; if(_ojp) window.openJobParts=function(...a){ cou
 /* ---- render: Kyle's Home is the To do list ---- */
 GVC.on("render:before",()=>{
   if(cur==="home") cur=homeView();              // "todo" is Home for Kyle, "mytodo" for the crew; everything that refreshes To do keeps working
-  if(cur==="mytodo"&&!isCrewM()) cur=homeView();
-  if(cur==="punch"&&!(isAdmin()||isCrewM())) cur=homeView();
+  if(cur==="mytodo") cur=isCrewM()?"today":homeView();          // old crew Home link
+  if(cur==="punch") cur=(isAdmin()||isCrewM())?"today":homeView(); // old Punch tab link
+  if(cur==="today"&&!(isAdmin()||isCrewM())) cur=homeView();
+  if(cur==="purchasing"&&isCrewM()) cur=homeView();               // crew don't see orders (same as the job card)
   if(cur==="drawings"&&!showDrawings()) cur=homeView();
-  if(isCrewM()&&["pipeline","ordering","build"].includes(cur)) cur="crewjobs";   // crew Jobs = the All jobs list, no boards
+  if(!isAdmin()&&["pipeline","ordering","build","overview"].includes(cur)) cur="crewjobs";   // crew + Robin: Jobs = the All jobs list, no boards
 });
 GVC.on("render:after",()=>{
-  if(cur===homeView()||["punch","drawings","mytodo","crewjobs","crew"].includes(cur)){ const sub=$("#subnav"); if(sub) sub.hidden=true; }
-  if(!(window.ME&&ME.role==="parts")){ const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",!(cur==="crewjobs"||["overview","pipeline","ordering","build","archive"].includes(cur))); }
+  if(cur===homeView()||["punch","today","purchasing","drawings","mytodo","crewjobs","crew"].includes(cur)){ const sub=$("#subnav"); if(sub) sub.hidden=true; }
+  { const L=document.querySelector("#app>section.list"); if(L){ if(!(window.ME&&ME.role==="parts")) L.classList.toggle("shhide",!(cur==="crewjobs"||["overview","pipeline","ordering","build","archive"].includes(cur)));
+    else L.classList.toggle("shhide",cur!=="crewjobs"); } }
   navState();
 });
 })();

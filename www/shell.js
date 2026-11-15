@@ -199,7 +199,7 @@ const ic={
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
 };
 const svg=(k,c="currentColor",s=24,w=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic[k]}</svg>`;
-const SECT=v=>v==="home"?"home":v==="porders"&&window.ME&&ME.role==="parts"?"orders":v==="inv"&&window.ME&&ME.role==="parts"?"inv":["overview","pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
+const SECT=v=>v==="home"||v==="today"&&window.ME&&ME.role==="crew"?"home":v==="purchasing"?"purchasing":v==="today"?"today":v==="porders"&&window.ME&&ME.role==="parts"?"orders":v==="inv"&&window.ME&&ME.role==="parts"?"inv":["overview","pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
 const go=v=>{ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0,behavior:"smooth"}); };
 window.shellGo=go;
 const lastJobs=()=>{ try{ const v=localStorage.getItem("gvc_last_jobs"); return ["pipeline","ordering","build"].includes(v)?v:"ordering"; }catch(e){ return "ordering"; } };
@@ -223,6 +223,12 @@ nav.innerHTML=`<button class="ni" type="button" data-n="home">${svg("home")}Home
 document.body.appendChild(nav);
 nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); if(n==="inv") return go("inv"); if(n==="orders") return window.pordersGo?window.pordersGo("active"):go("porders"); go(n==="jobs"?((window.ME&&(ME.role==="crew"||ME.role==="parts"))?"build":"overview"):n); });   // Jobs always opens the Overview (review, Nov 15)
 top.querySelector("#shChat").onclick=()=>openChat();
+/* "+" lives in the top bar on phones (usability pass, Nov 15): a plain labelled list of the same quick actions the
+   wheel had - no hold-and-slide gesture needed. The wheel stays on the desktop rail. */
+{ const pb=document.createElement("button"); pb.className="ib shplus"; pb.type="button"; pb.id="shPlusTop"; pb.setAttribute("aria-label","New - quick actions (to-do, count, problem, revision…)");
+  pb.innerHTML=svg("plus","#111",22,2.6); top.lastElementChild.prepend(pb);
+  pb.onclick=()=>sheet(`<h3>New…</h3><div class="mmlist">${ACTL().map(([k,t,i,c])=>`<button type="button" class="mmi" data-qa="${k}">${svg(i,c||"currentColor",22)}<span class="mmt">${t}</span></button>`).join("")}</div>`,(el,close)=>{
+    el.querySelectorAll("[data-qa]").forEach(b=>b.onclick=()=>{ close(); act(b.dataset.qa); }); }); }
 top.querySelector("#shBell").onclick=()=>go("todo");
 function note(m){ todoToast(m,null); const u=$("#toastUndo"); if(u) u.style.display="none"; }
 const upd=$("#updBtn"); if(upd) top.lastElementChild.prepend(upd);
@@ -234,7 +240,7 @@ window.shellTalk=talk;
 /* "Talk about this": a mic that knows what's on screen. What Kyle is looking at (open job, count sheet, tab) goes to
    Claude with the message, so "move this job to done" just works. Snapshot is taken when the mic is pressed
    because the chat panel can cover the card. (Kyle, 2026-11-04) */
-const VIEWN={overview:"Jobs - overview",home:"Home",todo:"To do",pipeline:"Jobs - pipeline",ordering:"Jobs - ordering",build:"Jobs - shop floor",archive:"Finished jobs",crew:"Crew & week plan",time:"My time",inv:"Inventory",ncr:"NCRs",revs:"Revisions"};
+const VIEWN={today:"Today",purchasing:"Purchasing",overview:"Jobs - overview",home:"Home",todo:"To do",pipeline:"Jobs - pipeline",ordering:"Jobs - ordering",build:"Jobs - shop floor",archive:"Finished jobs",crew:"Crew & week plan",time:"My time",inv:"Inventory",ncr:"NCRs",revs:"Revisions"};
 function lookNow(){
   const sc=$("#scrim"), D=$("#dlg"), open=sc&&sc.classList.contains("on");
   if(open&&D){
@@ -256,8 +262,10 @@ function talkHere(){ lookSnap=lookNow(); lookAt=Date.now(); talk(""); setTimeout
 window.shellTalkHere=talkHere;
 /* The Talk mic no longer floats over the screen (it covered table rows, pop-up buttons and the phone nav - Kyle's
    review, Nov 14). It sits in the top bar next to Ask Claude, and inside the job card / count sheet header. */
-{ const st=document.createElement("style"); st.textContent=`.shtop .ib.tk{width:auto;padding:0 12px 0 10px;gap:6px;color:var(--accent-hi);font:600 13px var(--font-ui)}
-@media (max-width:359px){ .shtop .ib.tk span{display:none} .shtop .ib.tk{width:44px;padding:0} }
+{ const st=document.createElement("style"); st.textContent=`.shtop .ib.shplus{background:var(--accent);border-color:var(--accent);color:#111}
+@media (min-width:900px){ .shtop .ib.shplus{display:none} }
+.shtop .ib.tk{width:auto;padding:0 12px 0 10px;gap:6px;color:var(--accent-hi);font:600 13px var(--font-ui)}
+@media (max-width:359px){ .shtop .ib.tk span{display:none} .shtop .ib.tk{width:44px;padding:0} .shtop #shBell{display:none} .shtop .nm{font-size:18px} }
 .dmic{display:inline-flex;align-items:center;gap:6px}
 .dmic svg{color:var(--accent-hi)}
 @media (max-width:520px){ .dmic span{display:none} }
@@ -427,6 +435,7 @@ GVC.on("render:after",()=>{
 });
 
 /* ---- More menu ---- */
+window.gvcSheet=(h,r)=>sheet(h,r);
 function sheet(html,onReady){
   const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><button type="button" class="shx" aria-label="Close">${svg("plus","currentColor",20,2.2).replace("<path",'<path transform="rotate(45 12 12)"')}</button>${html}</div>`;
   document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
@@ -439,7 +448,7 @@ function sheet(html,onReady){
 function moreMenu(){
   const n=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
-  const items=[["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["count","Count an order","count"],["talks","Talks","rec"],["prices","Prices","count"],["requests","Supply requests","box",(window.reqCount?window.reqCount():0)],["pos","RFQs & POs","list",(window.posOpen?window.posOpen():0)],["porders",window.ME&&ME.role==="parts"?"My orders":"Robin's orders","box",(window.pordersOpen?window.pordersOpen():0)],["staging","Staging kits","box"],["crewview","Colton's view","crew"],["partsview","Robin's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
+  const items=[["today","Today & timer","clock"],["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["count","Count an order","count"],["talks","Talks","rec"],["prices","Prices","count"],["requests","Supply requests","box",(window.reqCount?window.reqCount():0)],["pos","RFQs & POs","list",(window.posOpen?window.posOpen():0)],["porders",window.ME&&ME.role==="parts"?"My orders":"Robin's orders","box",(window.pordersOpen?window.pordersOpen():0)],["staging","Staging kits","box"],["crewview","Colton's view","crew"],["partsview","Robin's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
     ["theme","Appearance","heart"],["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
   const CREWOK=["msgs","mytime","supplies","requests","count","inv","ncr","revs","archive","signout"];
   const PARTSOK=["porders","msgs","inv","staging","archive","theme","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
@@ -447,11 +456,11 @@ function moreMenu(){
   const items2=role==="crew"?items.filter(x=>CREWOK.includes(x[0])):role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging"].includes(x[0]));
   /* grouped (redesign stage 6, Kyle Nov 14): everyday work first, then purchasing, then tools & settings.
      The "see the app as" previews and Girly mode sit at the bottom instead of the top. Same items and same roles as before. */
-  const GRP={todo:"day",msgs:"day",time:"day",mytime:"day",count:"day",supplies:"day",newjob:"day",talks:"day",ncr:"jobs",revs:"jobs",inv:"jobs",archive:"jobs",
+  const GRP={today:"day",todo:"day",msgs:"day",time:"day",mytime:"day",count:"day",supplies:"day",newjob:"day",talks:"day",ncr:"jobs",revs:"jobs",inv:"jobs",archive:"jobs",
     pos:"buy",porders:"buy",requests:"buy",prices:"buy",staging:"buy",
     ideas:"set",undo:"set",theme:"set",signout:"set"};
   if(role==="parts"){ GRP.porders="day"; GRP.staging="day"; GRP.inv="day"; GRP.archive="day"; }
-  const ORD=["todo","msgs","time","mytime","count","supplies","newjob","ncr","revs","inv","staging","talks","archive","pos","porders","requests","prices","ideas","undo","theme","signout"];
+  const ORD=["today","todo","msgs","time","mytime","count","supplies","newjob","ncr","revs","inv","staging","talks","archive","pos","porders","requests","prices","ideas","undo","theme","signout"];
   const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0]));
   const rest=items2.filter(x=>!PVK.includes(x[0])).sort((a,b)=>{ const ix=k=>role==="parts"&&k==="porders"?-1:ORD.indexOf(k); return ix(a[0])-ix(b[0]); });
   const GT={day:role==="parts"?"Your work":"Your day",jobs:"Jobs & records",buy:"Purchasing",set:"Tools & settings"};

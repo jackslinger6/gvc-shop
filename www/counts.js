@@ -72,6 +72,8 @@ css.textContent=`
 .cnt .it.sv .bx.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}
 .cnt .it.cfx{--c:#ff6b5a}
 .cnt .q.en{color:#cfd8e3}
+.cnt .q.lg{color:#cfd8e3;font-weight:600}
+.cnt .it.lg{--c:#7d8da3}
 .cnt .q.us{color:#f5b041;font-weight:600}
 .cnt .q.cfq{color:#ff8a7a;font-weight:700}
 .cnt .cfl{font-size:13px;color:var(--muted);margin-top:4px}
@@ -245,27 +247,30 @@ function head(){
     <div class="csub">${esc(sup.name||"")}${sup.quoteNo?" · #"+esc(sup.quoteNo):""}${sup.scope?" · "+esc(sup.scope):""} · ${(ST[sup.status]||ST.sent).t}</div></div>
     <span style="display:flex;gap:6px"><button class="btn" type="button" id="cPrint" title="Print a paper checklist (or save it as a PDF)">🖨 Print</button><button class="btn ghost" type="button" id="cBack">Back to job</button></span></div>
     ${!st.items.some(i=>!i.skip)?`<div class="cnol"><b>No checklist - nothing counted yet.</b> There's no parts list for this order. Add what was ordered below to count it, or receive it without a checklist.</div>`:`<div class="bar" title="Pieces entered"><div style="width:${t.pcs?Math.round(t.got/t.pcs*100):0}%"></div></div>
-    <div class="csub"><b style="color:var(--text)">Confirmed${st.sets.some(S=>S.row)?" and saved":""}: ${live().filter(i=>confirmedOk(i)&&isSaved(i)).length} of ${live().length} parts</b>${live().some(i=>confirmedOk(i)&&!isSaved(i))?` · <b style="color:#f5b041">${live().filter(i=>confirmedOk(i)&&!isSaved(i)).length} not saved yet</b>`:""}${st.conflicts.length?` · <b style="color:#ff8a7a">${st.conflicts.length} conflict${st.conflicts.length>1?"s":""}</b>`:""} · ${t.got} of ${t.pcs} pcs · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`}`;
+    <div class="csub"><b style="color:var(--text)">Confirmed${st.sets.some(S=>S.row)?" and saved":""}: ${live().filter(i=>confirmedOk(i)&&isSaved(i)).length} of ${live().length} parts</b>${live().some(i=>rowState(i)==="legacy")?` · ${live().filter(i=>rowState(i)==="legacy").length} previously saved (confirmation not recorded)`:""}${live().some(i=>confirmedOk(i)&&!isSaved(i))?` · <b style="color:#f5b041">${live().filter(i=>confirmedOk(i)&&!isSaved(i)).length} not saved yet</b>`:""}${st.conflicts.length?` · <b style="color:#ff8a7a">${st.conflicts.length} conflict${st.conflicts.length>1?"s":""}</b>`:""} · ${t.got} of ${t.pcs} pcs · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`}`;
 }
 /* row state (review Nov 15): entered (boxes ticked, not confirmed) · confirmed, not saved yet · confirmed + saved (only
    this one is green) · count conflict. Ticked boxes are grey-blue until the count is confirmed AND on the server. */
 function rowState(it){
   if(st.conflicts.some(c=>c.g===it.g&&c.k===it.k)) return "conflict";
   if(confirmedOk(it)) return isSaved(it)?"saved":"unsaved";
+  // counted and saved before per-part confirmation existed (Nov 14): keep it as a real saved count, not "unconfirmed work"
+  if(!it.conf&&got(it)>0&&isSaved(it)) return "legacy";
   return got(it)>0?"entered":"none";
 }
 function isSaved(it){ const K=bk(it.g,it.k), b=st.base[K]; return !!b&&same(snap(it),b)&&(st.savedConf[K]||"")===((it.conf&&it.conf.at)||""); }
 function itemRow(it,ix){
   const g=got(it), q=it.qty||0, rs=rowState(it);
-  const cls=rs==="conflict"?"cfx":rs==="saved"&&g>=q&&q>0?"full sv":rs==="saved"?"part sv":g>0?"part":"";
+  const cls=rs==="conflict"?"cfx":rs==="legacy"?"lg":rs==="saved"&&g>=q&&q>0?"full sv":rs==="saved"?"part sv":g>0?"part":"";
   const cf=rs==="conflict"?st.conflicts.find(c=>c.g===it.g&&c.k===it.k):null;
   const qlab=rs==="conflict"?`<span class="q cfq">Count conflict - review required</span>`
     :rs==="saved"?`<span class="q cf">✓ Confirmed ${g} of ${q} · saved</span>`
     :rs==="unsaved"?`<span class="q us">Confirmed ${g} of ${q} · ${st.saveErr?"not saved":"saving…"}</span>`
+    :rs==="legacy"?`<span class="q lg">${g} of ${q} · previously saved · confirmation not recorded</span>`
     :rs==="entered"?`<span class="q en">${g} of ${q} entered · not confirmed</span>`:`<span class="q">0 of ${q}</span>`;
   const cfline=cf?`<div class="cfl">Saved count: <b>${cf.theirs.skip?"not on this order":cf.theirs.later?"still to come":cf.theirs.got+" of "+q}</b> · yours: <b>${cf.mine.skip?"not on this order":cf.mine.later?"still to come":cf.mine.got+" of "+q}</b> <button class="lnk" type="button" data-cfgo>Review at the top</button></div>`:"";
   const im=url(it.thumb||it.img); const fl=st.flat&&it.part_no&&st.flat[it.part_no];
-  const boxes=`<button type="button" class="btn sm${confirmedOk(it)?"":" primary"} cnfb" data-cnf="${ix}">${confirmedOk(it)?"Change count":g?"Check & confirm":"Count this part"}</button>`+(q<=24?`<div class="boxes">${Array.from({length:q},(_,b)=>`<button class="bx ${b<g?"on":""}" type="button" data-bx="${ix}" data-b="${b}" aria-label="piece ${b+1}">✓</button>`).join("")}</div>`
+  const boxes=`<button type="button" class="btn sm${confirmedOk(it)||rs==="legacy"?"":" primary"} cnfb" data-cnf="${ix}">${confirmedOk(it)||rs==="legacy"?"Change count":g?"Check & confirm":"Count this part"}</button>`+(q<=24?`<div class="boxes">${Array.from({length:q},(_,b)=>`<button class="bx ${b<g?"on":""}" type="button" data-bx="${ix}" data-b="${b}" aria-label="piece ${b+1}">✓</button>`).join("")}</div>`
     :`<div class="step"><button class="btn" type="button" data-dn="${ix}">−</button><b>${g} / ${q}</b><button class="btn" type="button" data-up="${ix}">+</button><button class="btn sm" type="button" data-all="${ix}">All here</button></div>`);
   const th=fl?`<div class="th fl" data-fl="${esc(it.part_no)}" data-fv="${ix}" role="button" aria-label="Enlarge the flat pattern">${FL[it.part_no]?FL[it.part_no].x.thumb:`<span>…</span>`}</div>`
     :`<div class="th" ${im?`data-fv="${ix}" role="button"`:""}>${im?`<img src="${esc(im)}" alt="" loading="lazy">`:esc(it.part_no||"")}</div>`;

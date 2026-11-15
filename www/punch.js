@@ -88,10 +88,11 @@ function paint(){
   clearInterval(tick);
   if(!open||$("#app").hidden){ bar.hidden=true; return; }
   bar.hidden=false;
-  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||open.job_name||"On the clock")}</b><small>${open.task_name?esc(open.job_name||""):"whole job - split it over the tasks when you punch out"}</small></div><span class="clk" id="pClk" title="Fix the start time" style="cursor:pointer">${hm(paidMs(open.start_at))}</span><button type="button" id="pFix" title="Forgot to punch in on time? Fix the start" style="background:rgba(255,255,255,.1);color:#e9e6e1;padding:8px 9px">✎</button><button type="button" id="pOut">Punch out</button>`;
+  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||open.job_name||"On the clock")}</b><small>${open.task_name?esc(open.job_name||""):"whole job - split it over the tasks when you punch out"}</small></div><span class="clk" id="pClk" title="Fix the start time" style="cursor:pointer">${hm(paidMs(open.start_at))}</span><button type="button" id="pFix" title="Forgot to punch in on time? Fix the start" aria-label="Fix the start time" style="background:rgba(255,255,255,.1);color:#e9e6e1;padding:8px 9px">✎</button><button type="button" id="pOut" title="Stops the clock. The task stays open.">Stop timer</button>`;
   bar.querySelector("#pFix").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pClk").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pOut").onclick=()=>punchOut();
+  bar.querySelector(".t").setAttribute("role","button"); bar.querySelector(".t").tabIndex=0; bar.querySelector(".t").title="Open the task";
   bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)){ if(open.task_id&&window.openJobTask) window.openJobTask(open.job_id,open.task_id); else openJob(open.job_id,"tasks"); } };
   tick=setInterval(()=>{ const c=$("#pClk"); if(c&&open) c.textContent=hm(paidMs(open.start_at)); },1000);
 }
@@ -231,6 +232,9 @@ async function doneTask(jid,aid){
   toast(`Done: ${a?a.name:""}`);
 }
 window.punchIn=punchIn; window.punchOut=punchOut;
+// for the Today screen (today.js)
+window.gvcPunch={open:()=>open, doneTask:(j,a)=>doneTask(j,a), punchIn:(j,a)=>punchIn(j,a), punchOut:()=>punchOut(), punchJob:(j)=>punchJob(j),
+  pickTask:()=>pickTask(), addMyWork:()=>addMyWork(), fixStart:()=>fixStartSheet(), myTasks:()=>myTasks(), hm, paidMs:(a,b)=>paidMs(a,b), me, isCrew:()=>isCrew()};
 
 /* ---- MY DAY: my tasks from the week plan (today, + next 2 work days for crew), plus tasks I'm on that aren't scheduled ---- */
 function myTasks(){
@@ -256,7 +260,7 @@ function rowHtml(x){
   const j=jobs.find(y=>y.id===x.jid); const a=j&&(j.assemblies||[]).find(y=>y.id===x.aid);
   return `<div class="row2 ${on?"on":""} ${dn?"dn":""}" style="--c:${x.color}"><span class="tm">${esc(x.time||"")}</span>
     <div class="nm" data-oj="${esc(x.jid)}" data-oa="${esc(a?a.id:"")}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${a&&a.status==="prog"?" · in progress":""}</small></div>
-    <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">Punch out</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ Punch in</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ Done</button>`}</div></div>`;
+    <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">Stop timer</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ Punch in</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ Done</button>`}</div></div>`;
 }
 /* one row per JOB in its own colour (same as the week plan / All jobs), its tasks as chips under it (Kyle, Nov 8) */
 function jobRows(rows){
@@ -273,7 +277,7 @@ function jobRowHtml(g){
   const allDn=g.rows.length&&g.rows.every(x=>{ const a=(j.assemblies||[]).find(y=>y.id===x.aid); return x.t.done||(a&&a.status==="done"); });
   return `<div class="row2 jrow ${on?"on":""} ${allDn&&!on?"dn":""}" style="--c:${c}"><span class="tm">${esc(g.time||"")}</span>
     <div class="nm" data-oj="${esc(j.id)}"><b>${num?`<span class="jb" style="background:${c}">${esc(num)}</span>`:""}${esc(nm)}</b>${on?`<small style="color:#7ff0a8">On the clock${open.task_name?" · "+esc(open.task_name):""}</small>`:""}</div>
-    <div class="bt">${on?`<button class="pout" type="button" data-pout="1">Punch out</button>`:allDn?`<span class="lbl" style="color:#7ff0a8;font-weight:700">✓ All done</span>`:`<button class="pin" type="button" data-pjob="${esc(j.id)}">▶ Punch in</button>`}</div>
+    <div class="bt">${on?`<button class="pout" type="button" data-pout="1">Stop timer</button>`:allDn?`<span class="lbl" style="color:#7ff0a8;font-weight:700">✓ All done</span>`:`<button class="pin" type="button" data-pjob="${esc(j.id)}">▶ Punch in</button>`}</div>
     <div class="tchips">${chips}</div></div>`;
 }
 window.myDayHtml=()=>{
@@ -331,7 +335,7 @@ GVC.on("drawDlg:after",()=>{
   const rows=[...D.querySelectorAll("[data-task-i]")];
   rows.forEach(tr=>{ const k=+tr.dataset.taskI; const a=(j.assemblies||[])[k]; if(!a||a.status==="done") return; const td=tr.querySelector(".tpunch")||tr.querySelector("td"); if(!td) return;
     const on=open&&open.job_id===j.id&&open.task_id===a.id;
-    const b=document.createElement("button"); b.type="button"; b.className="pnb"+(on?" on":""); b.textContent=on?"■ Punch out":"▶ Punch in";
+    const b=document.createElement("button"); b.type="button"; b.className="pnb"+(on?" on":""); b.textContent=on?"■ Stop timer":"▶ Start work";
     b.onclick=e=>{ e.stopPropagation(); on?punchOut():punchIn(j.id,a.id); }; td.appendChild(b); });
   const tasks=D.querySelector("table.at")||D.querySelector("#newAsm");
   const box=document.createElement("div"); box.className="jtime"; box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><div class="tnote">Loading…</div>`;
@@ -342,7 +346,7 @@ GVC.on("drawDlg:after",()=>{
     P.forEach(p=>{ const k=p.task_id||"-"; const o=by[k]=by[k]||{name:p.task_name,ms:0,who:{}}; const ms=paidMs(p.start_at,p.end_at||now); o.ms+=ms; o.who[p.who]=(o.who[p.who]||0)+ms; });
     const plan=(window.gvcPlan&&gvcPlan.get&&gvcPlan.get())||{}; const H=plan.hours||{};
     const ks=Object.keys(by);
-    if(!ks.length){ box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ Punch in on a task to start the clock.</div>`; return; }
+    if(!ks.length){ box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ Start work on a task to start the timer.</div>`; return; }
     let tot=0;
     box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><table><thead><tr><th>Task</th><th>Who</th><th>Actual</th><th>Planned</th></tr></thead><tbody>${ks.map(k=>{ const o=by[k]; tot+=o.ms;
       const a=(j.assemblies||[]).find(x=>x.id===k); const est=H[`j:${j.id}:${k}`]; const act=o.ms/36e5;
@@ -494,7 +498,7 @@ window.crewAct=k=>{
 };
 
 /* ---- crew mode guard: only the views a crew member uses ---- */
-const CREW_VIEWS=["home","drawings","mytodo","punch","crewjobs","archive","crew","ncr","revs","inv","requests","staging","porders"];
+const CREW_VIEWS=["home","today","purchasing","drawings","mytodo","punch","crewjobs","archive","crew","ncr","revs","inv","requests","staging","porders"];
 GVC.on("render:before",()=>{ if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home"; });
 GVC.on("render:after",()=>{
   { const cb=document.getElementById("crewBar"); if(cb) cb.style.display=cur==="crew"?"":"none"; }

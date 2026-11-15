@@ -24,6 +24,7 @@ async function load(){ const r=await sb.from("gvc_pos").select("*").order("creat
 let started=false;
 setInterval(()=>{ if(!started&&typeof sb!=="undefined"&&sb&&window.ME){ started=true; load(); try{ sb.channel("gvc_pos").on("postgres_changes",{event:"*",schema:"public",table:"gvc_pos"},()=>load()).subscribe(); }catch(e){} } },1500);
 window.posByNo=no=>POS.find(r=>r.no===no);
+window.posAll=()=>({list:POS,loaded,linesOf});   // Purchasing view (purchasing.js) - read only
 
 async function saveRec(r,patch,note){
   const log=[...(r.log||[]),...(note?[{at:new Date().toISOString(),t:note}]:[])].slice(-80);

@@ -532,3 +532,25 @@ body.ovwv #allJobs{margin-top:8px}
   .stgcmp>div{min-width:0}
   .stgarr{align-self:center;transform:rotate(90deg);line-height:1}
 }
+
+/* role-focused job overview (usability pass, Nov 15) */
+.jdw{display:inline-flex;align-items:center;gap:8px;min-height:44px}
+.jows{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.jow{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:12px;border:1px solid var(--line);border-radius:var(--r-lg,12px);background:var(--panel2)}
+.jowt{min-width:0;flex:1}
+.jowx{display:flex;flex-direction:column;align-items:flex-start;gap:4px;background:none;border:0;color:var(--text);font:inherit;text-align:left;padding:0;cursor:pointer}
+.jowx b{font-size:16px;line-height:1.3}
+.jowi{margin-top:6px;font-size:14px;color:var(--text);opacity:.9;white-space:pre-wrap}
+.jowb{margin-top:6px;font-size:13.5px;color:#ffd28a}
+.jowa{display:flex;gap:6px;align-items:center;flex:none}
+.jowa .btn{min-height:44px;min-width:44px}
+.jowon{font:600 13px var(--font-ui);color:#7fe3a1;padding:0 4px}
+.jsumline{font-size:14px;color:var(--muted);margin:2px 0 6px}
+.jppl{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.jpp{font-size:13.5px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);color:var(--muted)}
+.jpp b{color:var(--text)}
+.jpp.na{border-color:rgba(245,176,65,.5);color:#ffd28a}
+.jcnt{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.trow .tdwl{grid-area:dw;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:none;color:var(--text);font:600 13px var(--font-ui);cursor:pointer}
+.trow{grid-template-columns:minmax(0,1fr) auto minmax(96px,auto) minmax(150px,190px) auto 44px;grid-template-areas:"main dw who st punch more"}
+@media (max-width:899px){ .trow{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) 40px;grid-template-areas:"main main more" "who st st" "dw punch punch"} .trow .tdwl{justify-self:stretch} }

@@ -200,6 +200,7 @@ window.ncrNewFor=(jid,pre={})=>{ form={jid,what:"",type:TYPES[2],fix:"Deciding",
   if(typeof setJobTab==="function"&&typeof openId!=="undefined"&&openId===jid){ setJobTab("ncr"); drawDlg(); } else openJob(jid,"ncr");
   setTimeout(()=>{ const w=$("#nfWhat"); if(w) w.focus(); },60); };
 window.ncrOpenN=j=>(j.ncrs||[]).filter(x=>isOpenSt(stats(j,x).st)).length;
+window.ncrDecidingN=j=>(j.ncrs||[]).filter(x=>stats(j,x).st==="Deciding").length;   // job overview: decisions waiting
 /* ---------- NCR log (all jobs) - filter by job, tap a row to open/close its details ---------- */
 let showClosed=false;
 const LS=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } }, LSset=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };

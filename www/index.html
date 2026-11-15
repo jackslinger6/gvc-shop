@@ -432,7 +432,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
   </div>
 </div>
 <button class="btn primary chatfab" type="button" id="chatFab" hidden>💬 Ask Claude</button>
-<section class="chatp" id="chatP" aria-label="Ask Claude"><div class="ch">Ask Claude<span class="sp"></span><button type="button" id="msBtn" title="Connect kyle.gvc Outlook so Claude can read email and write drafts">✉ Outlook</button><button type="button" id="chatClear">Clear</button><button type="button" id="chatX" style="font-size:18px">✕</button></div>
+<section class="chatp" id="chatP" aria-label="Ask Claude"><div class="ch">Ask Claude<span class="sp"></span><button type="button" id="msBtn" title="Connect kyle.gvc Outlook so Claude can read email and write drafts">✉ Outlook</button><button type="button" id="chatClear">Clear</button><button type="button" id="chatX" style="font-size:18px" aria-label="Close Ask Claude">✕</button></div>
 <div class="cm" id="chatM"></div>
 <div class="ci"><textarea id="chatIn" placeholder="Ask about jobs, plan the day, add a to-do…" aria-label="Message"></textarea><button class="btn" type="button" id="chatMic" title="Talk" aria-label="Talk to Claude">🎤</button><button class="btn primary" type="button" id="chatGo">Send</button></div></section>
 <div class="toast" id="toast" role="status"><span id="toastTx"></span><button type="button" id="toastUndo">Undo</button></div>
@@ -960,35 +960,83 @@ function jobTitleHTML(j){
 }
 const stagePills=j=>{ const s=stOf(j); return `<span class="jbt">${esc(s.bt)}</span>`+[s,...alsoIn(j).map(k=>STAGES[SIDX[k]])].map(x=>`<span class="ostat" style="--c:${x.c}">${esc(x.t)}</span>`).join(""); };
 /* the Overview: where the job is, what's done, what's next - details live in the other sections */
+/* Job overview by role (usability pass, Nov 15) - same job, different emphasis:
+   crew    : your tasks (instructions, Start / timer running), what's in the way, drawings, progress
+   Robin   : materials - orders by what they need next (quote, order, pick up, count), drawings, progress
+   Kyle    : progress, decisions waiting, blockers, who's on what, next actions, counts
+   Everything else stays in the tabs (Tasks / Orders / NCRs / Notes); the card note and latest log entry sit at the bottom. */
+function taskBlockers(j,a){ const out=[]; const G=window.gvcPlan;
+  try{ if(G&&G.loaded&&G.loaded()){ const {M}=G.mc(); const t=M.T[`j:${j.id}:${a.id}`];
+    if(t){ if(t.why) out.push(t.why); (t.needs||[]).forEach(k=>{ const n=M.T[k]; if(n&&!n.done) out.push(`After: ${n.name}`); }); } } }catch(e){}
+  if(a.status==="bend"&&!out.length) out.push("Waiting on bending");
+  if(a.ncr) out.push(`NCR-${String(a.ncr).padStart(3,"0")}`);
+  return [...new Set(out)]; }
+window.taskBlockers=taskBlockers;
+const DWI=`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>`;
+const SUPNEXT={sent:"Waiting for the quote",replied:"Quote question to answer",quote:"Quote in - pick or order",approved:"Ordered",production:"Being made",ready:"Ready to pick up",arrived:"Arrived - count it"};
 function jobOverviewHTML(j){
   const A=j.assemblies||[], done=A.filter(a=>a.status==="done").length, pct=A.length?Math.round(done/A.length*100):0;
   const act=(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status!=="received");
   const ncrN=window.ncrOpenN?window.ncrOpenN(j):(j.ncrs||[]).filter(x=>!x.closed).length;
-  const tiles=`<div class="jtiles">
-    <button type="button" class="jtile" data-jgo="tasks"><b>${A.length?`${done} of ${A.length}`:"No tasks"}</b><span>${A.length?"tasks done":"yet - add some in Tasks"}</span>${A.length?`<div class="prog"><div style="width:${pct}%"></div></div>`:""}</button>
-    <button type="button" class="jtile jsupsec" data-jgo="orders"><b>${act.length}</b><span>open order${act.length===1?"":"s"}</span></button>
-    <button type="button" class="jtile" data-jgo="ncr"><b>${ncrN}</b><span>open NCR${ncrN===1?"":"s"}</span></button></div>`;
-  let next=[];
-  if(isCrewish()){
-    const me=window.ME&&ME.name; A.forEach(a=>{ if(a.status!=="done"&&whoList(a).includes(me)) next.push(`<button type="button" class="jnext" data-jgo="tasks"><span class="ostat" style="--c:${(AST[a.status]||AST.ready).c}">${esc((AST[a.status]||AST.ready).t)}</span><span>${esc(a.name)}</span></button>`); });
-  } else {
-    // inside the job card the job's own name in a to-do is noise: "Pick up at Russel - 1086WT - Avalanche Winch Tractor" -> "Pick up at Russel"
-    const nm=String(j.name||""), short=t=>String(t).split(nm).join("").replace(/\s*\(\s*\)/g,"").replace(/\s*[-–:·]\s*(?=\(|$)/g," ").replace(/:\s*$/,"").replace(/\s{2,}/g," ").trim()||t;
-    const items=[...liveAuto().filter(t=>t.job===j.id).map(t=>({text:short(t.text),go:t.ncr?"ncr":/quote|order|pick up|count|reply|supplier|russel|grandview|PO-|RFQ-/i.test(t.text)?"orders":/assign|task|bend|weld|build/i.test(t.text)?"tasks":""})),
-                 ...liveMine().filter(t=>t.job_id===j.id).map(t=>({text:short(t.text),go:""}))];
-    next=items.slice(0,4).map(t=>({...t,text:tdShort(t.text,[j])})).map(t=>t.go?`<button type="button" class="jnext" data-jgo="${t.go}"><span>${esc(t.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:`<div class="jnext"><span>${esc(t.text)}</span></div>`);
-    if(items.length>4) next.push(`<div class="jnext jmore">+ ${items.length-4} more on your To do list</div>`);
-  }
+  const role=window.ME&&ME.role==="crew"?"crew":window.ME&&ME.role==="parts"?"parts":"admin";
+  const me=window.ME&&ME.name;
+  const num=window.jobNum?window.jobNum(j.name):"";
+  const dw=num&&window.openJobParts?`<button class="btn jdw" type="button" data-jdw="1">${DWI}<span>Drawings &amp; parts</span></button>`:"";
+  const prog=`<button type="button" class="jtile" data-jgo="tasks"><b>${A.length?`${done} of ${A.length}`:"No tasks"}</b><span>${A.length?"tasks done":"yet - add some in Tasks"}</span>${A.length?`<div class="prog"><div style="width:${pct}%"></div></div>`:""}</button>`;
+  const tOrd=`<button type="button" class="jtile jsupsec" data-jgo="orders"><b>${act.length}</b><span>open order${act.length===1?"":"s"}</span></button>`;
+  const tNcr=`<button type="button" class="jtile" data-jgo="ncr"><b>${ncrN}</b><span>open NCR${ncrN===1?"":"s"}</span></button>`;
   const cnt=window.openCount?act.filter(x=>x.status==="arrived"||x.status==="ready").map(x=>`<button class="btn${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">☑ Count ${esc(first(x.name))}${x.po||x.rfq?" · "+esc(x.po||x.rfq):""}</button>`).join(""):"";
   const last=(j.log||[]).length?j.log[j.log.length-1]:null;
-  // the card note is whatever was typed on the job at some point - label it so it doesn't read as today's status (Kyle's review, Nov 14)
-  return `${j.summary?`<div class="jsum"><span class="lbl">Card note</span> ${esc(j.summary)}</div>`:""}${tiles}
-    <div class="sec"><span>${isCrewish()?"Your tasks on this job":"Next up"}</span></div>
-    <div class="jnexts">${next.join("")||`<div class="jnext jnone">${isCrewish()?"Nothing on you for this job.":"Nothing waiting on you for this job."}</div>`}</div>
+  const foot=`${last?`<button type="button" class="jlast" data-jgo="notes"><span class="lbl">Latest · ${fmt(last.at)}</span><span>${esc(last.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:""}
+    ${j.summary?`<div class="jsum"><span class="lbl">Card note</span> ${esc(j.summary)}</div>`:""}`;
+  const sec=t=>`<div class="sec"><span>${t}</span></div>`;
+  const P=window.gvcPunch, o=P&&P.open&&P.open();
+  if(role==="crew"){
+    const mine=A.filter(a=>a.status!=="done"&&whoList(a).includes(me));
+    const rows=mine.map(a=>{ const bl=taskBlockers(j,a), on=o&&o.job_id===j.id&&o.task_id===a.id, st=AST[a.status]||AST.ready;
+      return `<div class="jow"><div class="jowt"><button type="button" class="jowx" data-jtask="${esc(a.id)}"><b>${esc(a.name)}</b><span class="ostat" style="--c:${st.c}">${esc(st.t)}</span></button>
+        ${a.meta?`<div class="jowi">${esc(a.meta)}</div>`:""}${bl.length?`<div class="jowb">Blocked: ${esc(bl.join(" · "))}</div>`:""}</div>
+        <div class="jowa">${num?`<button type="button" class="btn" data-jdw="1" aria-label="Drawings for ${esc(a.name)}" title="Drawings">${DWI}</button>`:""}${on?`<span class="jowon">Timer running</span>`:bl.length?"":`<button type="button" class="btn primary" data-jst="${esc(a.id)}" aria-label="Start work on ${esc(a.name)}">▶ Start</button>`}</div></div>`; }).join("");
+    return `${sec("Your work on this job")}<div class="jows">${rows||`<div class="jnext jnone">Nothing on you for this job.</div>`}</div>
+      <div class="jquick" id="jQuick"></div>
+      <div class="jtiles">${prog}${tNcr}</div>${foot}`;
+  }
+  if(role==="parts"){
+    const order=["arrived","ready","quote","replied","sent","approved","production"];
+    const L=act.slice().sort((a,b)=>order.indexOf(a.status)-order.indexOf(b.status));
+    const rows=L.map(x=>`<button type="button" class="jnext" data-jgo="orders"><span class="ostat" style="--c:${(ST[x.status]||ST.sent).c||"#8e96a3"}">${esc(quoteRev(x)?"Waiting on a revised quote":SUPNEXT[x.status]||(ST[x.status]||{}).t||x.status)}</span><span><b>${esc(x.name)}</b>${x.po||x.rfq?" · "+esc(x.po||x.rfq):""}${x.quoteNo?` <span class="lbl">vendor ref ${esc(x.quoteNo)}</span>`:""}${x.scope?`<br><span class="lbl">${esc(x.scope)}</span>`:""}</span><span class="ochev" aria-hidden="true">›</span></button>`).join("");
+    const pick=L.filter(x=>x.status==="ready").length, cntN=L.filter(x=>x.status==="arrived").length, wait=L.filter(x=>["sent","replied","quote"].includes(x.status)).length;
+    return `${sec("Materials & orders")}<div class="jsumline">${[wait?`${wait} waiting on a quote or order`:"",pick?`${pick} to pick up`:"",cntN?`${cntN} to count`:""].filter(Boolean).join(" · ")||"Nothing waiting on purchasing for this job."}</div>
+      <div class="jnexts">${rows||`<div class="jnext jnone">No open orders on this job.</div>`}</div>
+      ${cnt?`<div class="jcnt">${cnt}</div>`:""}
+      <div class="jquick" id="jQuick"></div>
+      <div class="jtiles">${prog}${tOrd}${tNcr}</div>${foot}`;
+  }
+  // Kyle
+  const blocked=A.filter(a=>a.status!=="done").map(a=>({a,bl:taskBlockers(j,a)})).filter(x=>x.bl.length);
+  const dec=window.ncrDecidingN?window.ncrDecidingN(j):0;
+  const people={}; A.filter(a=>a.status!=="done").forEach(a=>{ const w=whoList(a); if(!w.length) (people["Not assigned"]=people["Not assigned"]||[]).push(a); w.forEach(p=>(people[p]=people[p]||[]).push(a)); });
+  const crewLine=Object.entries(people).map(([p,l])=>`<span class="jpp${p==="Not assigned"?" na":""}"><b>${esc(p)}</b> ${l.length} task${l.length>1?"s":""}${p!=="Not assigned"&&l.some(a=>a.status==="prog")?" · on it":""}</span>`).join("");
+  const nm=String(j.name||""), short=t=>String(t).split(nm).join("").replace(/\s*\(\s*\)/g,"").replace(/\s*[-–:·]\s*(?=\(|$)/g," ").replace(/:\s*$/,"").replace(/\s{2,}/g," ").trim()||t;
+  const items=[...liveAuto().filter(t=>t.job===j.id).map(t=>({text:short(t.text),go:t.ncr?"ncr":/quote|order|pick up|count|reply|supplier|russel|grandview|PO-|RFQ-/i.test(t.text)?"orders":/assign|task|bend|weld|build/i.test(t.text)?"tasks":""})),
+               ...liveMine().filter(t=>t.job_id===j.id).map(t=>({text:short(t.text),go:""}))];
+  const next=items.slice(0,4).map(t=>({...t,text:tdShort(t.text,[j])})).map(t=>t.go?`<button type="button" class="jnext" data-jgo="${t.go}"><span>${esc(t.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:`<div class="jnext"><span>${esc(t.text)}</span></div>`);
+  if(items.length>4) next.push(`<div class="jnext jmore">+ ${items.length-4} more on your To do list</div>`);
+  const attn=[dec?`<button type="button" class="jnext" data-jgo="ncr"><span class="ostat" style="--c:#ff6b5a">Decide</span><span>${dec} NCR${dec>1?"s":""} waiting for a decision</span><span class="ochev" aria-hidden="true">›</span></button>`:"",
+    blocked.length?`<button type="button" class="jnext" data-jgo="tasks"><span class="ostat" style="--c:#f5b041">Blocked</span><span>${blocked.length} task${blocked.length>1?"s":""} waiting: ${esc([...new Set(blocked.flatMap(x=>x.bl))].slice(0,3).join(" · "))}</span><span class="ochev" aria-hidden="true">›</span></button>`:""].join("");
+  return `<div class="jtiles">${prog}${tOrd}${tNcr}</div>
+    ${attn?`${sec("Needs you")}<div class="jnexts">${attn}</div>`:""}
+    ${sec("Next up")}<div class="jnexts">${next.join("")||`<div class="jnext jnone">Nothing waiting on you for this job.</div>`}</div>
     ${cnt?`<div class="jcnt">${cnt}</div>`:""}
     <div class="jquick" id="jQuick"></div>
-    ${last?`<button type="button" class="jlast" data-jgo="notes"><span class="lbl">Latest · ${fmt(last.at)}</span><span>${esc(last.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:""}`;
+    ${crewLine?`${sec("Crew on this job")}<div class="jppl">${crewLine}</div>`:""}${foot}`;
 }
+// overview buttons: drawings, start work on a task, open a task
+GVC.on("drawDlg:after",()=>{ const j=job(); if(!j) return; const D=$("#dlg");
+  D.querySelectorAll("[data-jdw]").forEach(b=>b.onclick=()=>{ if(window.jpFresh) window.jpFresh(); openJobParts(window.jobNum(j.name),j.name); });
+  D.querySelectorAll("[data-jtask]").forEach(b=>b.onclick=()=>window.openJobTask(j.id,b.dataset.jtask));
+  D.querySelectorAll("[data-jst]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; b.disabled=true; if(window.gvcPunch) await gvcPunch.punchIn(j.id,b.dataset.jst); if(openId===j.id) drawDlg(); });
+});
 /* ---------- Tasks with optional assembly groups (redesign stage 5, Kyle Nov 14) ----------
    A job can group its tasks under assemblies (Headache rack, Belly boxes, Rear apron...). Groups are a list on the job
    (j.groups = [{id, name, asm?}] - asm = an inventory assembly number, optional), in display order; a task's j.assemblies[k].group
@@ -1006,6 +1054,7 @@ function taskRow(j,a,k){
   const G=j.groups||[];
   return `<div class="trow ${a.status==="done"?"tdone":""} ${taskHi===a.id?"thi":""}" data-task-i="${k}" data-task-id="${esc(a.id)}">
     <div class="tmain"><div class="an2" data-ren="${k}" ${admin?`title="Tap to rename"`:""}>${esc(a.name)}</div>${a.meta?(a.meta.length>90?`<details class="tnotes"><summary class="am2">${esc(a.meta.slice(0,80).replace(/\s+\S*$/,""))}… <u>Details</u></summary><div class="am2">${esc(a.meta)}</div></details>`:`<div class="am2">${esc(a.meta)}</div>`):""}${a.final?`<div class="am2">Last task - waits for the rest</div>`:""}</div>
+    ${window.jobNum&&window.jobNum(j.name)&&a.status!=="done"?`<button type="button" class="tdwl" data-tdraw="1" aria-label="Drawings for ${esc(a.name)}">${DWI}<span>Drawings</span></button>`:""}
     <div class="twho">${admin?`<button type="button" class="twb ${who.length?"":"none"}" data-whot="${esc(a.id)}" aria-expanded="${whoOpen.has(a.id)}" aria-label="Who's on ${esc(a.name)}: ${who.length?esc(who.join(", ")):"nobody"} - change">${who.length?esc(who.join(", ")):"Assign"}</button>`
       :`<span class="twn ${who.length?"":"none"}">${who.length?esc(who.join(", ")):"Unassigned"}</span>`}</div>
     <div class="tst" style="--c:${st.c}">${canStatus?asmSel(j,k,a,"status"):`<span class="ostat" style="--c:${st.c}">${esc(st.t)}</span>`}</div>
@@ -1360,7 +1409,7 @@ GVC.on("render:after",()=>{ const t=$("#toList"); if(t) t.style.display=cur==="o
   let open=true; try{ open=localStorage.getItem("gvc_alljobs")!=="0"; }catch(e){} set(open);
   H.onclick=()=>set(L.classList.contains("closed")); H.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); H.click(); } }; }
 const START_HASH=location.hash||"";
-const VIEWS=["todo","overview",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas","archive","revs"];
+const VIEWS=["todo","overview",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas","archive","revs","today","purchasing","punch","mytodo","drawings","pos","porders","requests","crewjobs"];   // deep links (role guards in tabs.js / punch.js send each role to what it may see)
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
@@ -2270,6 +2319,7 @@ render();
 <script src="recaps.js"></script>
 <script src="quotes.js"></script>
 <script src="punch.js"></script>
+<script src="today.js"></script>
 <script src="prices.js"></script>
 <script src="team.js"></script>
 <script src="hw-icons.js"></script>
@@ -2279,7 +2329,9 @@ render();
 <script src="pos.js"></script>
 <script src="theme.js"></script>
 <script src="tabs.js"></script>
+<script src="purchasing.js"></script>
 <script src="back.js"></script>
+<script src="a11y.js"></script>
 <script>/* shared look goes last so it wins ties with the screens' own styles (redesign stage 1) */
 try{ document.head.appendChild(document.getElementById("gvcUi")); }catch(e){}</script>
 </body>
