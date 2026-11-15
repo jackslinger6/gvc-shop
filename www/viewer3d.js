@@ -218,65 +218,96 @@ function loadLibs(){
 }
 const modelCache={};
 
-/* ---------- orbit controls (Kyle, Nov 11: Trackball felt clunky) ----------
-   Turntable about the up axis + tilt about the screen's sideways axis, with no stop at the top/bottom
-   (the camera's up turns with it, so you can roll right over the part). A flick keeps spinning and slows down.
-   Zoom (pinch / wheel) goes toward the point under your fingers / cursor, and the spin pivot moves with it,
-   so after zooming into the headache rack it spins about the headache rack, not the middle of the truck.
-   One finger / left mouse = spin · two fingers = pinch zoom + move · right/middle mouse or shift = move · wheel = zoom.
+/* ---------- orbit controls (Kyle, Nov 11: Trackball felt clunky; reworked Nov 15 after the gesture review) ----------
+   Turntable about the up axis + tilt about the screen's sideways axis. The camera turns about a pivot without
+   re-aiming (so a pivot that isn't in the middle of the screen stays put on screen).
+   One finger / left mouse = spin · two fingers = move, and pinch = zoom · right/middle mouse or shift = move · wheel = zoom.
+   - A touch only becomes a spin after it moves more than tapPx (the same distance the viewers use for a tap),
+     so a tap to select / pick a face never nudges the model.
+   - After a two-finger gesture nothing spins until every finger is off the glass (lifting one finger of a pinch
+     used to start a spin from the other one).
+   - Pinch: zooms toward the spot between the fingers, at a depth fixed when the pinch starts (sliding the fingers
+     off a toolbox edge no longer makes the zoom jump). Small changes in finger spread are ignored until the
+     spread changes by 8%, so a two-finger drag moves without creeping zoom.
+   - A flick coasts briefly, slowing by time (not per frame, so it feels the same on a fast or slow phone);
+     inertia() false turns it off (measuring).
+   opts (all optional; the single-part viewer uses the defaults):
+     tapPx (8), sens() rotation multiplier, viewportRot (true: a drag across the short side of the view turns ~200 deg;
+     false: fixed 0.0085 rad/px as before), upright() true = keep the model upright (tilt stops just short of
+     straight up/down - View menu Top/Bottom still go all the way), pivot() -> Vector3|null spin centre,
+     inertia() -> bool.
    pick(x,y) -> THREE.Vector3 on the model or null (used to aim the zoom). */
-function makeControls(THREE,cam,el,worldUp,pick){
-  const L={}; const target=new THREE.Vector3(); const up0=worldUp.clone().normalize();
-  const C={target, enabled:true, listeners:[], addEventListener(t,f){ if(t==="change") this.listeners.push(f); }, handleResize(){}};
+function makeControls(THREE,cam,el,worldUp,pick,opts){
+  opts=opts||{}; const target=new THREE.Vector3(); const up0=worldUp.clone().normalize();
+  const C={target, enabled:true, listeners:[], addEventListener(t,f){ if(t==="change") this.listeners.push(f); }, handleResize(){}, TAP_PX:opts.tapPx||8};
   const changed=()=>C.listeners.forEach(f=>f());
-  const ptrs=new Map(); let vel={x:0,y:0}, lastT=0, spinning=false, prev=null, mode=null;
-  const ROT=0.0085;   // radians per pixel
+  const ptrs=new Map(); let mode=null, prev=null, start=null, spin=null, samples=[], pinch=null;
+  const radPerPx=()=>opts.viewportRot?(1.1*Math.PI/Math.max(120,Math.min(el.clientWidth,el.clientHeight)))*(opts.sens?opts.sens():1):0.0085;
+  const V=()=>new THREE.Vector3();
   function rotate(dx,dy){
-    const off=cam.position.clone().sub(target);
-    const s=cam.up.dot(up0)<0?-1:1;   // upside down: keep left/right the same way round on screen
-    const q1=new THREE.Quaternion().setFromAxisAngle(up0.clone().multiplyScalar(s),-dx*ROT);
-    const right=new THREE.Vector3(1,0,0).applyQuaternion(cam.quaternion).normalize();
-    const q2=new THREE.Quaternion().setFromAxisAngle(right,-dy*ROT);
-    const q=q1.multiply(q2);
-    off.applyQuaternion(q); cam.up.applyQuaternion(q);
-    cam.position.copy(target).add(off);
-    const dir=off.clone().normalize().negate(); cam.up.sub(dir.multiplyScalar(cam.up.dot(dir))).normalize();
-    cam.lookAt(target); cam.updateMatrixWorld(); changed(); }
-  function worldPerPx(){ const d=cam.position.distanceTo(target); return 2*d*Math.tan(cam.fov*Math.PI/360)/Math.max(1,el.clientHeight); }
-  function pan(dx,dy){
-    const k=worldPerPx(), right=new THREE.Vector3(1,0,0).applyQuaternion(cam.quaternion), upv=new THREE.Vector3(0,1,0).applyQuaternion(cam.quaternion);
+    const k=radPerPx(); const upright=!!(opts.upright&&opts.upright());
+    const s=!upright&&cam.up.dot(up0)<0?-1:1;   // free orbit upside down: keep left/right the same way round on screen
+    const right=V().set(1,0,0).applyQuaternion(cam.quaternion).normalize();
+    let a2=-dy*k;
+    if(upright){   // elevation of the view direction moves linearly with a turn about a level sideways axis: clamp it
+      const f=V().set(0,0,-1).applyQuaternion(cam.quaternion), el0=Math.asin(Math.max(-1,Math.min(1,f.dot(up0))));
+      const probe=f.clone().applyAxisAngle(right,1e-3), c=Math.sign(Math.asin(Math.max(-1,Math.min(1,probe.dot(up0))))-el0)||1;
+      const L=Math.max(89.5*Math.PI/180,Math.abs(el0)), want=Math.max(-L,Math.min(L,el0+c*a2)); a2=(want-el0)/c; }
+    const q=new THREE.Quaternion().setFromAxisAngle(up0.clone().multiplyScalar(s),-dx*k).multiply(new THREE.Quaternion().setFromAxisAngle(right,a2));
+    let P=opts.pivot&&opts.pivot(); if(!P) P=target;
+    cam.position.sub(P).applyQuaternion(q).add(P);
+    if(P!==target) target.sub(P).applyQuaternion(q).add(P);
+    cam.quaternion.premultiply(q); cam.up.applyQuaternion(q).normalize(); cam.updateMatrixWorld(); changed(); }
+  function worldPerPx(depth){ const d=depth||cam.position.distanceTo(target); return 2*d*Math.tan(cam.fov*Math.PI/360)/Math.max(1,el.clientHeight); }
+  function pan(dx,dy,depth){   // depth: move things at that distance exactly with the fingers (the pinch anchor)
+    const k=worldPerPx(depth), right=V().set(1,0,0).applyQuaternion(cam.quaternion), upv=V().set(0,1,0).applyQuaternion(cam.quaternion);
     const m=right.multiplyScalar(-dx*k).add(upv.multiplyScalar(dy*k)); cam.position.add(m); target.add(m); cam.updateMatrixWorld(); changed(); }
-  function zoomAt(f,x,y){   // f<1 = closer
-    const r=el.getBoundingClientRect(); let P=pick&&pick(x,y);
-    if(!P){ const ndc=new THREE.Vector3((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1,0.5).unproject(cam);
-      const dir=ndc.sub(cam.position).normalize(), n=new THREE.Vector3(); cam.getWorldDirection(n);
-      const t=target.clone().sub(cam.position).dot(n)/Math.max(1e-6,dir.dot(n)); P=cam.position.clone().addScaledVector(dir,t); }
+  /* world point under screen (x,y) at a given depth in front of the camera */
+  function atDepth(x,y,depth){ const r=el.getBoundingClientRect(); const p=V().set((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1,0.5).unproject(cam);
+    const dir=p.sub(cam.position).normalize(), fwd=V(); cam.getWorldDirection(fwd); return cam.position.clone().addScaledVector(dir,depth/Math.max(1e-6,dir.dot(fwd))); }
+  function depthOf(P){ const fwd=V(); cam.getWorldDirection(fwd); return P.clone().sub(cam.position).dot(fwd); }
+  function zoomToward(f,P){   // f<1 = closer; P stays where it is on screen
     const minD=(cam.near||1)*4; if(f<1&&cam.position.distanceTo(P)*f<minD) f=minD/Math.max(minD,cam.position.distanceTo(P));
-    cam.position.sub(P).multiplyScalar(f).add(P); target.sub(P).multiplyScalar(f).add(P);
-    // keep the pivot in front of the camera on the line of sight toward P, so the next spin turns about what you zoomed into
-    cam.updateMatrixWorld(); changed(); }
+    cam.position.sub(P).multiplyScalar(f).add(P); target.sub(P).multiplyScalar(f).add(P); cam.updateMatrixWorld(); changed(); return f; }
+  function zoomAt(f,x,y){ let P=pick&&pick(x,y); if(!P) P=atDepth(x,y,Math.max(1,depthOf(target))); zoomToward(f,P); }
   const pts=()=>[...ptrs.values()];
   const mid=a=>({x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2}), dist=a=>Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
+  function startPinch(){ const a=pts(), m=mid(a); const P=pick&&pick(m.x,m.y); pinch={d0:dist(a),locked:true,depth:P?depthOf(P):Math.max(1,depthOf(target))}; prev={m,d:dist(a)}; }
   el.addEventListener("contextmenu",e=>e.preventDefault());
   el.addEventListener("pointerdown",e=>{ if(!C.enabled) return; el.setPointerCapture&&el.setPointerCapture(e.pointerId);
-    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); spinning=false; vel={x:0,y:0};
-    const a=pts(); if(a.length===1) mode=(e.pointerType==="mouse"&&(e.button===1||e.button===2||e.shiftKey))?"pan":"rot"; else mode="pinch";
-    prev=a.length>=2?{m:mid(a),d:dist(a)}:{m:{x:e.clientX,y:e.clientY}}; lastT=performance.now(); });
-  el.addEventListener("pointermove",e=>{ if(!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); const a=pts(); const now=performance.now();
-    if(mode==="pinch"&&a.length>=2){ const m=mid(a), d=dist(a); if(prev&&prev.d){ if(d>0) zoomAt(prev.d/d,m.x,m.y); pan(m.x-prev.m.x,m.y-prev.m.y); } prev={m,d}; return; }
-    if(a.length!==1||!prev) return; const dx=e.clientX-prev.m.x, dy=e.clientY-prev.m.y; prev={m:{x:e.clientX,y:e.clientY}};
+    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); spin=null; samples=[];
+    const a=pts();
+    if(a.length===1&&mode===null){ mode=(e.pointerType==="mouse"&&(e.button===1||e.button===2||e.shiftKey))?"panP":"rotP"; start={x:e.clientX,y:e.clientY}; prev={m:{...start}}; }
+    else if(a.length>=2){ mode="pinch"; startPinch(); } });
+  el.addEventListener("pointermove",e=>{ if(!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); const a=pts();
+    if(mode==="pinch"&&a.length>=2){ pinch.dirty=true; return; }   // handled once per frame in update(): the two fingers' moves arrive
+                                                                       // as separate events, and half-updated spreads looked like a pinch
+    if(a.length!==1||!prev) return;
+    if(mode==="rotP"||mode==="panP"){ if(Math.hypot(e.clientX-start.x,e.clientY-start.y)<=C.TAP_PX) return; mode=mode==="rotP"?"rot":"pan"; prev={m:{x:e.clientX,y:e.clientY}}; return; }
+    const dx=e.clientX-prev.m.x, dy=e.clientY-prev.m.y; prev={m:{x:e.clientX,y:e.clientY}};
     if(mode==="pan"){ pan(dx,dy); return; }
-    rotate(dx,dy); const dt=Math.max(1,now-lastT); vel={x:0.8*dx/dt*16+0.2*vel.x, y:0.8*dy/dt*16+0.2*vel.y}; lastT=now; });
-  const end=e=>{ ptrs.delete(e.pointerId); const a=pts();
-    if(a.length===0){ if(mode==="rot"&&performance.now()-lastT<60&&Math.hypot(vel.x,vel.y)>1.5) spinning=true; mode=null; prev=null; }
-    else if(a.length===1){ mode="rot"; prev={m:{...a[0]}}; vel={x:0,y:0}; }   // lifted one finger of a pinch: carry on spinning from the other without a jump
-    else { prev={m:mid(a),d:dist(a)}; } };
+    if(mode==="rot"){ rotate(dx,dy); const t=e.timeStamp; samples.push({t,dx,dy}); while(samples.length&&t-samples[0].t>80) samples.shift(); } });
+  const end=e=>{ if(!ptrs.has(e.pointerId)) return; if(mode==='pinch'&&pinch&&pinch.dirty) pinchStep(); ptrs.delete(e.pointerId); const a=pts();
+    if(a.length===0){
+      if(mode==="rot"&&(!opts.inertia||opts.inertia())&&samples.length>=2&&e.timeStamp-samples[samples.length-1].t<60){
+        const T=Math.max(16,samples[samples.length-1].t-samples[0].t), vx=samples.reduce((s,x)=>s+x.dx,0)/T, vy=samples.reduce((s,x)=>s+x.dy,0)/T;
+        const v=Math.hypot(vx,vy); if(v>0.35){ const k=Math.min(1,0.8/v); spin={vx:vx*k,vy:vy*k,t:performance.now()}; } }   // px per ms; only a real flick coasts, and never far (<= ~65 px)
+      mode=null; prev=null; pinch=null; samples=[]; }
+    else if(mode==="pinch"){ if(a.length>=2) startPinch(); else mode="hold"; } };   // one finger left after a pinch: do nothing until it lifts
   el.addEventListener("pointerup",end); el.addEventListener("pointercancel",end);
-  el.addEventListener("wheel",e=>{ e.preventDefault(); zoomAt(Math.pow(1.0015,e.deltaY),e.clientX,e.clientY); },{passive:false});
-  C.update=()=>{ if(!spinning) return; vel.x*=0.92; vel.y*=0.92; if(Math.hypot(vel.x,vel.y)<0.05){ spinning=false; return; } rotate(vel.x,vel.y); };
-  C.stop=()=>{ spinning=false; };
+  el.addEventListener("wheel",e=>{ e.preventDefault(); spin=null; zoomAt(Math.pow(1.0015,e.deltaY),e.clientX,e.clientY); },{passive:false});
+  function pinchStep(){ const a=pts(); if(a.length<2) return; pinch.dirty=false; const m=mid(a), d=dist(a);
+    pan(m.x-prev.m.x,m.y-prev.m.y,pinch.depth);   // move first, so the spot that was between the fingers is between them again...
+    if(pinch.locked&&Math.abs(d/Math.max(1,pinch.d0)-1)>0.08){ pinch.locked=false; prev.d=d; }   // ...then, once the spread has really changed, zoom on it
+    if(!pinch.locked&&prev.d&&d>0){ const f=zoomToward(prev.d/d,atDepth(m.x,m.y,pinch.depth)); pinch.depth*=f; }
+    prev={m,d}; }
+  C.update=()=>{ if(pinch&&pinch.dirty&&mode==="pinch") pinchStep(); if(!spin) return; if(opts.inertia&&!opts.inertia()){ spin=null; return; }
+    const now=performance.now(), dt=Math.min(50,now-spin.t); spin.t=now; const k=Math.exp(-dt/80);   // 80 ms time constant: a short, restrained coast
+    spin.vx*=k; spin.vy*=k; if(Math.hypot(spin.vx,spin.vy)<0.03){ spin=null; return; } rotate(spin.vx*dt,spin.vy*dt); };
+  C.stop=()=>{ spin=null; };
   C.isGesture=()=>ptrs.size>1;
-  void L; return C;
+  C.spinning=()=>!!spin;
+  return C;
 }
 window.GVC3DControls=makeControls;
 
@@ -418,9 +449,9 @@ window.open3D=async function(url,title,opts){
 
   // a tap (not a drag) measures
   let down=null, moved=false, fingers=0;
-  renderer.domElement.addEventListener("pointerdown",e=>{ fingers++; if(fingers===1){ down={x:e.clientX,y:e.clientY,t:Date.now()}; moved=false; } else down=null; });
+  renderer.domElement.addEventListener("pointerdown",e=>{ fingers++; if(fingers===1){ down={x:e.clientX,y:e.clientY,t:e.timeStamp}; moved=false; } else down=null; });
   renderer.domElement.addEventListener("pointermove",e=>{ if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>8) moved=true; });
-  const up=e=>{ fingers=Math.max(0,fingers-1); if(!down||moved||Date.now()-down.t>600||mode==="spin"){ if(fingers===0) down=null; return; } const x=down.x,y=down.y; down=null; tap(x,y); };
+  const up=e=>{ fingers=Math.max(0,fingers-1); if(!down||moved||e.timeStamp-down.t>600||mode==="spin"){ if(fingers===0) down=null; return; } const x=down.x,y=down.y; down=null; tap(x,y); };
   renderer.domElement.addEventListener("pointerup",up); renderer.domElement.addEventListener("pointercancel",()=>{ fingers=0; down=null; });
   function tap(x,y){
     const h=hit(x,y);

@@ -245,10 +245,12 @@ css.textContent=`
 #v3d.a3v .a3note{font-size:12px;color:var(--a3mut)}
 #v3d.a3v details.a3det summary{cursor:pointer;font-size:13px;color:var(--a3mut);min-height:32px;display:flex;align-items:center}
 #v3d.a3v details.a3det div{font-size:12.5px;color:var(--a3mut);word-break:break-all}
-#v3d.a3v .a3menu{position:absolute;z-index:6;background:#171b21;border:1px solid var(--a3line);border-radius:12px;padding:6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;min-width:250px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+#v3d.a3v .a3menu{position:absolute;z-index:6;background:#171b21;border:1px solid var(--a3line);border-radius:12px;padding:6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;min-width:270px;max-height:calc(100% - 70px);overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 #v3d.a3v .a3menu button{min-height:44px;border-radius:8px;border:1px solid transparent;background:#1f242b;color:var(--a3text);font:600 13px var(--font-ui,Inter,sans-serif);cursor:pointer;text-align:left;padding:0 10px}
 #v3d.a3v .a3menu button:hover{border-color:var(--a3line)}
 #v3d.a3v .a3menu .wide{grid-column:1/-1}
+#v3d.a3v .a3menu .a3seg.wide{display:flex}#v3d.a3v .a3menu .a3seg button{flex:1;min-height:44px;border-radius:0;text-align:center;border:0}
+#v3d.a3v .a3mh{grid-column:1/-1;font-size:12px;color:var(--a3mut);padding:6px 4px 0}
 #v3d.a3v .a3menu label{grid-column:1/-1;display:flex;flex-direction:row;color:var(--a3text);align-items:center;gap:8px;min-height:44px;padding:0 8px;font-size:14px;cursor:pointer}
 #v3d.a3v .a3menu label input{width:20px;height:20px}
 #v3d.a3v .a3ov[hidden]{display:none}
@@ -354,7 +356,15 @@ window.openAsm3D=async function(url,title,opts){
   const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
   const visibleMeshes=()=>meshes.filter(m=>m.visible);
   function hit(x,y){ const r=renderer.domElement.getBoundingClientRect(); ndc.set((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1); ray.setFromCamera(ndc,cam); return ray.intersectObjects(visibleMeshes(),false)[0]||null; }
-  const ctl=window.GVC3DControls?window.GVC3DControls(THREE,cam,renderer.domElement,UP.clone(),(x,y)=>{ const h=hit(x,y); return h?h.point.clone():null; }):null;
+  /* viewer preferences (View menu, remembered on this device): Keep upright (default) or Free orbit; spin speed;
+     spin around the selected part. Inertia is off while measuring. */
+  const PREF=(()=>{ try{ return Object.assign({upright:true,speed:1,selPivot:true},JSON.parse(localStorage.getItem("gvc_a3_prefs")||"{}")); }catch(e){ return {upright:true,speed:1,selPivot:true}; } })();
+  const savePref=()=>{ try{ localStorage.setItem("gvc_a3_prefs",JSON.stringify(PREF)); }catch(e){} };
+  let selCentre=null;   // centre of the selection's box, set by setSel
+  const pivotFn=()=>{ if(!PREF.selPivot||!selCentre||mode==="measure") return null;   // only when the selection is on screen
+    const p=selCentre.clone().project(cam); return Math.abs(p.x)<0.95&&Math.abs(p.y)<0.95&&p.z<1?selCentre:null; };
+  const ctl=window.GVC3DControls?window.GVC3DControls(THREE,cam,renderer.domElement,UP.clone(),(x,y)=>{ const h=hit(x,y); return h?h.point.clone():null; },
+    {tapPx:8, viewportRot:true, sens:()=>PREF.speed, upright:()=>PREF.upright, pivot:pivotFn, inertia:()=>mode!=="measure"}):null;
   let need=true; const draw=()=>{ need=true; }; if(ctl) ctl.addEventListener("change",draw);
   const labels=[];   // HTML labels pinned to 3D points
   const loop=()=>{ if(disposed) return; ctl&&ctl.update(); if(need){ need=false; renderer.render(scene,cam); labels.forEach(l=>{ const p=l.p.clone().project(cam); const r=cv.getBoundingClientRect(); l.el.style.left=((p.x+1)/2*r.width)+"px"; l.el.style.top=((1-p.y)/2*r.height)+"px"; l.el.style.display=p.z>1?"none":""; }); } raf=requestAnimationFrame(loop); };
@@ -364,11 +374,20 @@ window.openAsm3D=async function(url,title,opts){
   /* ---- camera ---- */
   function boxOf(list){ const b=new THREE.Box3(); list.forEach(m=>b.expandByObject(m)); return b.isEmpty()?bbAll.clone():b; }
   let anim=0;   // a newer camera move (or a finger on the model) cancels one still running
-  function frame(box,dir,animate){ ctl&&ctl.stop&&ctl.stop(); const my=++anim; const c=box.getCenter(new THREE.Vector3()), sz=Math.max(1,box.getSize(new THREE.Vector3()).length());
-    const d=(dir||cam.position.clone().sub(ctl?ctl.target:c)).clone().normalize(); const dist=sz*0.6/Math.tan(cam.fov*Math.PI/360)*Math.max(1,1/Math.max(0.5,cam.aspect))*0.9;
-    const to=c.clone().add(d.multiplyScalar(dist)), from=cam.position.clone(), t0=ctl?ctl.target.clone():c.clone();
+  /* Fit: keeps the current viewing angle (dir null) and works out the distance from the box's 8 corners against BOTH
+     the width and the height of the view, so a long truck fits the same on a portrait phone and a landscape tablet.
+     The canvas already excludes the side panel / phone sheet, so its aspect is the space actually free. */
+  function frame(box,dir,animate){ ctl&&ctl.stop&&ctl.stop(); const my=++anim; const c=box.getCenter(new THREE.Vector3());
+    const d=dir?dir.clone().normalize():cam.getWorldDirection(new THREE.Vector3()).negate();
+    const upv=dir?(Math.abs(d.dot(UP))>0.99?(upY?new THREE.Vector3(0,0,-1):new THREE.Vector3(0,1,0)):UP.clone()):cam.up.clone();
+    const ax=new THREE.Vector3().crossVectors(upv,d); if(ax.lengthSq()<1e-9) ax.set(1,0,0); ax.normalize(); const ay=new THREE.Vector3().crossVectors(d,ax).normalize();
+    const tV=Math.tan(cam.fov*Math.PI/360), tH=tV*Math.max(0.05,cam.aspect); let dist=1;
+    for(let k=0;k<8;k++){ const p=new THREE.Vector3(k&1?box.max.x:box.min.x,k&2?box.max.y:box.min.y,k&4?box.max.z:box.min.z).sub(c);
+      const z=p.dot(d); dist=Math.max(dist,z+Math.abs(p.dot(ax))/tH,z+Math.abs(p.dot(ay))/tV); }
+    dist*=1.08;   // a little margin round the edges
+    const to=c.clone().addScaledVector(d,dist), from=cam.position.clone(), t0=ctl?ctl.target.clone():c.clone();
     cam.near=Math.max(0.5,sizeAll/5000); cam.far=sizeAll*60; cam.updateProjectionMatrix();
-    const setUp=()=>{ if(dir){ const up=Math.abs(d.clone().normalize().dot(UP))>0.99?(upY?new THREE.Vector3(0,0,-1):new THREE.Vector3(0,1,0)):UP.clone(); cam.up.copy(up); } };
+    const setUp=()=>{ if(dir) cam.up.copy(upv); };
     const done=()=>{ cam.position.copy(to); if(ctl) ctl.target.copy(c); setUp(); cam.lookAt(c); cam.updateMatrixWorld(); draw(); };
     if(!animate||RM()){ done(); return; }
     const t1=performance.now(), dur=220; const step=()=>{ if(my!==anim) return; const k=Math.min(1,(performance.now()-t1)/dur), e=1-Math.pow(1-k,3);
@@ -398,7 +417,7 @@ window.openAsm3D=async function(url,title,opts){
     while(selOutline.children.length){ const c=selOutline.children.pop(); c.geometry.dispose(); }
     if(ids.size&&ids.size<=400){ const om=new THREE.LineBasicMaterial({color:0xffe066,depthTest:false,transparent:true,opacity:0.95}); ids.forEach(i=>{ const l=new THREE.LineSegments(new THREE.EdgesGeometry(meshes[i].geometry,25),om); l.matrixAutoUpdate=false; l.matrix.copy(meshes[i].matrixWorld); l.renderOrder=8; selOutline.add(l); }); }
     draw(); }
-  function setSel(id,from){ sel=id; paint(); renderFoot(); if(from!=="tree") renderPanel(true); }
+  function setSel(id,from){ sel=id; selCentre=id?boxOf(T.nodes.get(id).meshes.map(i=>meshes[i])).getCenter(new THREE.Vector3()):null; paint(); renderFoot(); if(from!=="tree") renderPanel(true); }
   const leafFor=mi=>T.leafOf[mi];
   const parentAsm=id=>{ let n=T.nodes.get(id); if(n.kind==="body") n=T.nodes.get(n.parent); const p=n.parent; return p||n.id; };
 
@@ -540,7 +559,7 @@ window.openAsm3D=async function(url,title,opts){
   function setMode(m){ mode=m; $("#a3meas").setAttribute("aria-pressed",m==="measure"); if(m==="measure"){ mType="face"; mA=mB=pA=pB=null; mPick="A"; if(sel) setSel(null); } else clearMG(); drawMeasure(); renderFoot(); }
 
   /* ---- taps ---- */
-  function tap(x,y){
+  function tap(x,y){ ctl&&ctl.stop();
     const h=hit(x,y);
     if(mode==="select"){ if(!h){ setSel(null); return; } const leaf=leafFor(h.object.userData._i); const id=selMode==="asm"?parentAsm(leaf):leaf; revealInTree(id); setSel(id); return; }
     if(!h) return;
@@ -555,7 +574,7 @@ window.openAsm3D=async function(url,title,opts){
   let down=null, moved=false, fingers=0; const el=renderer.domElement;
   // event timestamps, not the clock when the handler runs: on a slow phone a frame can take longer than the tap
   el.addEventListener("pointerdown",e=>{ anim++; fingers++; if(fingers===1){ down={x:e.clientX,y:e.clientY,t:e.timeStamp}; moved=false; } else down=null; });
-  el.addEventListener("pointermove",e=>{ if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>8) moved=true; });
+  el.addEventListener("pointermove",e=>{ if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>(ctl?ctl.TAP_PX:8)) moved=true; /* same distance the controls wait before spinning */ });
   el.addEventListener("pointerup",e=>{ fingers=Math.max(0,fingers-1); if(!down||moved||e.timeStamp-down.t>600){ if(fingers===0) down=null; return; } const x=down.x,y=down.y; down=null; tap(x,y); });
   el.addEventListener("pointercancel",()=>{ fingers=0; down=null; });
 
@@ -566,10 +585,19 @@ window.openAsm3D=async function(url,title,opts){
   bView.onclick=()=>{ if(closeMenu()) return; menu=document.createElement("div"); menu.className="a3menu"; menu.setAttribute("role","menu");
     menu.innerHTML=Object.keys(VIEWS).map(k=>`<button type="button" role="menuitem" data-v="${k}" class="${k==="Isometric"?"wide":""}">${k}</button>`).join("")+
       `<button type="button" role="menuitem" class="wide" data-v="reset">Reset view (camera only)</button>
-       <label><input type="checkbox" id="a3cb" ${colourBy?"checked":""}> Colour by assembly</label><label><input type="checkbox" id="a3ed" ${edgesOn?"checked":""}> Edge lines</label>`;
+       <label><input type="checkbox" id="a3cb" ${colourBy?"checked":""}> Colour by assembly</label><label><input type="checkbox" id="a3ed" ${edgesOn?"checked":""}> Edge lines</label>
+       <div class="a3mh">Spinning</div>
+       <div class="a3seg wide" role="group" aria-label="Spinning"><button type="button" data-up="1" aria-pressed="${PREF.upright}">Keep upright</button><button type="button" data-up="0" aria-pressed="${!PREF.upright}">Free orbit</button></div>
+       <div class="a3seg wide" role="group" aria-label="Spin speed"><button type="button" data-sp="0.6" aria-pressed="${PREF.speed===0.6}">Slow</button><button type="button" data-sp="1" aria-pressed="${PREF.speed===1}">Normal</button><button type="button" data-sp="1.6" aria-pressed="${PREF.speed===1.6}">Fast</button></div>
+       <label><input type="checkbox" id="a3sp" ${PREF.selPivot?"checked":""}> Spin around the selected part</label>`;
     const r=bView.getBoundingClientRect(), wr=W.getBoundingClientRect(); menu.style.top=(r.bottom-wr.top+6)+"px"; menu.style.left=Math.max(8,Math.min(r.left-wr.left,wr.width-270))+"px"; W.appendChild(menu); bView.setAttribute("aria-expanded","true");
     menu.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{ const v=b.dataset.v; closeMenu(); if(v==="reset") resetView(); else frame(boxOf(visibleMeshes()),new THREE.Vector3(...VIEWS[v]),true); });
     menu.querySelector("#a3cb").onchange=e=>{ colourBy=e.target.checked; paint(); };
+    menu.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>{ PREF.upright=b.dataset.up==="1"; savePref();
+      if(PREF.upright&&cam.up.dot(UP)<0.2){ frame(boxOf(visibleMeshes()),cam.getWorldDirection(new THREE.Vector3()).negate().setComponent(upY?1:2,0).normalize().addScaledVector(UP,0.6).normalize(),true); }   // was upside down: stand it back up
+      menu.querySelectorAll("[data-up]").forEach(x=>x.setAttribute("aria-pressed",x===b)); });
+    menu.querySelectorAll("[data-sp]").forEach(b=>b.onclick=()=>{ PREF.speed=+b.dataset.sp; savePref(); menu.querySelectorAll("[data-sp]").forEach(x=>x.setAttribute("aria-pressed",x===b)); });
+    menu.querySelector("#a3sp").onchange=e=>{ PREF.selPivot=e.target.checked; savePref(); };
     menu.querySelector("#a3ed").onchange=e=>{ edgesOn=e.target.checked; rebuildEdges(); draw(); };
     setTimeout(()=>{ const f=menu&&menu.querySelector("button"); if(f) f.focus(); },20); };
   W.addEventListener("pointerdown",e=>{ if(menu&&!menu.contains(e.target)&&e.target!==bView&&!bView.contains(e.target)) closeMenu(); },true);
@@ -584,7 +612,7 @@ window.openAsm3D=async function(url,title,opts){
   ov.hidden=true; W.querySelectorAll(".a3top .a3b").forEach(b=>b.disabled=false);
   if(window.innerWidth>1000){ panel.hidden=false; bAsm.setAttribute("aria-expanded","true"); W.classList.add("sheet"); }
   onResize(); resetView(); applyVis(); loop();
-  window.__a3=window.__a3test?{T,VIS,meshes,setSel:id=>setSel(id),tap,cam,frame,fitVisible,hitAt:hit,state:()=>({sel,mode,mType,mA:!!mA,mB:!!mB,units}),measure:()=>mA&&mB?faceToFace(mA.F,mB.F):null,renderer,boxOf,visibleMeshes}:undefined;
+  window.__a3=window.__a3test?{ctl,PREF,UP,T,VIS,meshes,setSel:id=>setSel(id),tap,cam,frame,fitVisible,hitAt:hit,state:()=>({sel,mode,mType,mA:!!mA,mB:!!mB,units}),measure:()=>mA&&mB?faceToFace(mA.F,mB.F):null,renderer,boxOf,visibleMeshes}:undefined;
 };
 /* EXPORT NOTE - exact CAD faces in the whole-assembly view
    The assembly GLB comes from the Fusion mesh export (asm_mesh.json/bin -> glTF-Transform -> Draco) and has no
