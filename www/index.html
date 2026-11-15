@@ -662,7 +662,8 @@ function ajRow(j){
   const worked=!j.archived&&j.stage!=="done"&&(ONGOING(j)||stOf(j).board==="build"||A.some(a=>a.status!=="done"&&String(a.who||"").trim()));
   const jc=worked&&window.jobColor?window.jobColor(j.id):"";
   let stg;
-  if(ONGOING(j)) stg=`<span class="jlst ong">Ongoing</span><span class="jlsb">punch in any time</span>`;
+  if(ONGOING(j)) stg=`<span class="jlst ong">Shop</span><span class="jlsb">ongoing · punch in any time</span>`;
+  else if(!j.archived&&j.stage!=="done"&&lifeOf(j)==="planned") stg=`<span class="jlst" style="--c:#8e96a3">Planned</span><span class="jlsb">${esc(planStatus(j))}</span>`;
   else if(j.stage==="done"||j.archived){ const f=finAt(j); stg=`<span class="jlst" style="--c:var(--green)">Done${f?" "+new Date(f).toLocaleDateString("en-CA",{month:"short",day:"numeric"}):""}</span>${j.archived?`<span class="jlsb">archived</span>`:""}`; }
   else { const s=stOf(j); stg=`<span class="jlst" style="--c:${s.bc}">${esc([s,...alsoIn(j).map(k=>STAGES[SIDX[k]])].map(x=>x.t).join(" + "))}</span><span class="jlsb">${esc(s.bt)}</span>`; }
   const nd=ajNeeds(j); const open=ajOpen.has(j.id);
@@ -678,29 +679,53 @@ function ajRow(j){
     ${open&&!ONGOING(j)?ajGrid(j):""}
   </div>`;
 }
+/* Job lifecycle (stage 8, Kyle Nov 14) - separate from a job's stages, tasks and orders:
+   Active = being built / worked on · Planned = upcoming (can be quoted / ordered for without being active) ·
+   Shop = ongoing shop jobs (Inventory, Shop cleanup - a purpose, not "unbillable") · Completed = done / archived.
+   `j.life` ("planned" / "active") is set by Kyle; without it: on the Shop floor or a task started = Active, else Planned. */
+const PLAN_ST=["Upcoming","Waiting on release","Released to me","Getting quotes","Ready to start"];
+const lifeOf=j=>j.archived||j.stage==="done"?"done":ONGOING(j)?"shop":j.life==="active"||j.life==="planned"?j.life
+  :(stOf(j).board==="build"||(j.assemblies||[]).some(a=>["prog","qc","done"].includes(a.status)))?"active":"planned";
+const planStatus=j=>j.planStatus||(j.stage==="released"?"Upcoming":j.stage==="drawings"?"Checking drawings":j.stage==="dxfs"?"Making DXFs":stOf(j).board==="ordering"?"Getting quotes / ordering":"Upcoming");
+window.lifeOf=lifeOf; window.planStatus=planStatus;
+/* the job card says whether a job is Planned or Active; Kyle switches it (stage 8) */
+function lifeRow(j){
+  const L=lifeOf(j), admin=isAdminRole(); if(L!=="planned"&&L!=="active") return "";
+  if(L==="planned") return `<div class="jlife"><span class="ostat" style="--c:#8e96a3">Planned</span>${admin?`<label class="jlifel">Planning status<select id="jPlanSt">${[...new Set([planStatus(j),...PLAN_ST])].map(t=>`<option ${t===planStatus(j)?"selected":""}>${esc(t)}</option>`).join("")}</select></label><button class="btn sm primary" type="button" id="jStart">Start job - make it active</button>`:`<span class="jlsb">${esc(planStatus(j))}</span>`}</div>`;
+  return `<div class="jlife"><span class="ostat" style="--c:var(--green)">Active</span><span class="jlsb">being built</span>${admin?`<span style="flex:1"></span><button class="btn sm ghost" type="button" id="jToPlan">Move back to Planned</button>`:""}</div>`;
+}
+GVC.on("drawDlg:after",()=>{ const j=job(); if(!j) return; const D=$("#dlg");
+  const save=async(label,fn)=>{ const jj=structuredClone(job()); fn(jj); jj.log=[...(jj.log||[]),{at:new Date().toISOString(),text:label}]; await put(jj,label); };
+  const ps=D.querySelector("#jPlanSt"); if(ps) ps.onchange=()=>save(`Planning status: ${ps.value}`,jj=>{ jj.life="planned"; jj.planStatus=ps.value; });
+  const st=D.querySelector("#jStart"); if(st) st.onclick=()=>{ if(st.disabled) return; st.disabled=true; save("Job started - now Active",jj=>{ jj.life="active"; }); };
+  const tp=D.querySelector("#jToPlan"); if(tp) tp.onclick=()=>{ if(tp.disabled) return; tp.disabled=true; save("Moved back to Planned",jj=>{ jj.life="planned"; }); };
+});
 function drawTrack(){
   const T=$("#track"), F=$("#ajFilt"); if(!T) return;
-  const live=jobs.filter(j=>j.stage!=="done"&&!j.archived);
+  const notDone=jobs.filter(j=>j.stage!=="done"&&!j.archived);
+  const act=notDone.filter(j=>lifeOf(j)==="active"), plan=notDone.filter(j=>lifeOf(j)==="planned"), shop=notDone.filter(j=>lifeOf(j)==="shop");
   const doneAll=[...jobs.filter(j=>j.stage==="done"&&!j.archived),...archivedJobs.filter(j=>!jobs.some(x=>x.id===j.id))]
     .sort((a,b)=>String(finAt(b)||"").localeCompare(String(finAt(a)||"")));
-  const att=live.filter(j=>ajNeeds(j).length);
+  const att=notDone.filter(j=>ajNeeds(j).length);
   if(ajF==="att"&&!att.length) ajF="active";
   const BR={build:0,ordering:1,pipeline:2};
-  const sortLive=L=>[...L].sort((a,b)=>(ONGOING(a)-ONGOING(b))||((BR[stOf(a).board]??3)-(BR[stOf(b).board]??3))||((SIDX[b.stage]??0)-(SIDX[a.stage]??0))||((a.order||0)-(b.order||0)));
+  const sortLive=L=>[...L].sort((a,b)=>((BR[stOf(a).board]??3)-(BR[stOf(b).board]??3))||((SIDX[b.stage]??0)-(SIDX[a.stage]??0))||((a.order||0)-(b.order||0)));
   const CAP=20;
-  const chips=[["active","Active",live.length],...(att.length?[["att","Needs attention",att.length]]:[]),["done","Completed",doneAll.length]];
+  const chips=[["active","Active",act.length],["planned","Planned",plan.length],["shop","Shop",shop.length],...(att.length?[["att","Needs attention",att.length]]:[]),["done","Completed",doneAll.length]];
   F.innerHTML=chips.map(([k,t,n])=>`<button type="button" class="jlc${k==="att"?" warn":""}" data-ajf="${k}" aria-pressed="${ajF===k}">${t} <span>${n}</span></button>`).join("");
   let L, foot="";
   if(ajF==="done"){ L=doneAll.slice(0,CAP); if(doneAll.length>CAP) foot=`<button type="button" class="btn sm ghost jlall" id="ajAll">See all ${doneAll.length} in Finished jobs</button>`; }
-  else L=sortLive(ajF==="att"?att:live);
-  const head=`<div class="jlhd" aria-hidden="true"><span>Job #</span><span>Project</span><span>Stage</span><span>Tasks</span><span>Needs attention</span><span></span></div>`;
-  T.innerHTML=L.length?head+L.map(ajRow).join("")+foot:`<div class="empty">${ajF==="done"?"No finished jobs yet.":"No active jobs. Add one with + New job."}</div>`;
+  else L=sortLive(ajF==="att"?att:ajF==="planned"?plan:ajF==="shop"?shop:act);
+  const head=`<div class="jlhd" aria-hidden="true"><span>Job #</span><span>Project</span><span>${ajF==="planned"?"Planning status":"Stage"}</span><span>Tasks</span><span>Needs attention</span><span></span></div>`;
+  const EMPTY={done:"No finished jobs yet.",planned:"Nothing planned. New jobs from Randy land here until they start.",shop:"No shop jobs.",active:"Nothing active right now - start a planned job when it's released.",att:"Nothing needs attention."};
+  T.innerHTML=L.length?head+L.map(ajRow).join("")+foot:`<div class="empty">${EMPTY[ajF]||""}</div>`;
   T.querySelectorAll(".jlo").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
   T.querySelectorAll("[data-ajx]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const id=el.dataset.ajx; ajOpen.has(id)?ajOpen.delete(id):ajOpen.add(id); drawTrack(); });
   F.querySelectorAll("[data-ajf]").forEach(el=>el.onclick=()=>{ ajF=el.dataset.ajf; drawTrack(); });
   const all=$("#ajAll"); if(all) all.onclick=()=>{ cur="archive"; try{history.replaceState(null,"","#archive")}catch(e){} render(); window.scrollTo({top:0}); };
-  // the heading says what's listed (stage 6 review): "8 active · 2 need attention", "2 need attention", "6 completed"
-  const n=$("#allJobsN"); if(n) n.textContent=ajF==="done"?`${doneAll.length} completed${doneAll.length>CAP?` · newest ${CAP} shown`:""}`:ajF==="att"?`${att.length} of ${live.length} active need attention`:`${live.length} active${att.length?` · ${att.length} need attention`:""}`;
+  const n=$("#allJobsN"); if(n) n.textContent=ajF==="done"?`${doneAll.length} completed${doneAll.length>CAP?` · newest ${CAP} shown`:""}`
+    :ajF==="att"?`${att.length} need attention`
+    :`${act.length} active · ${plan.length} planned · ${shop.length} shop`;
 }
 window.drawTrack=drawTrack;
 
@@ -1106,6 +1131,7 @@ function drawDlgCore(){
    </div>
    <div class="err" id="err"></div>
    <section class="jsec" data-jsec="overview">
+   ${lifeRow(j)}
    ${ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span class="jstg">${stagePills(j)}</span><span style="flex:1"></span>
      <button class="btn sm ghost" type="button" id="back" ${i===0?"disabled":""}>← Back</button>
      <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""}>Next: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div>`}
@@ -1643,17 +1669,17 @@ function autoTodosCore(){
     if(j.stage==="dxfs") add(`Make DXFs: ${j.name}`,"var(--cyan)",{job:j.id});
     if(j.stage==="prep") add(`Send the order: ${j.name}`,"var(--red)",{job:j.id});
     if(j.stage==="quote"){
-      a.filter(x=>x.status==="quote").forEach(x=>add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id}));
-      a.filter(x=>x.status==="sent"&&days(askedAt(x))>=2).forEach(x=>add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(askedAt(x))}d)`,"var(--red)",{job:j.id}));
+      a.filter(x=>x.status==="quote").forEach(x=>add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id,sup:x.id}));
+      a.filter(x=>x.status==="sent"&&days(askedAt(x))>=2).forEach(x=>add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(askedAt(x))}d)`,"var(--red)",{job:j.id,sup:x.id}));
     }
-    if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id});
+    if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id,sup:a[0]?a[0].id:null});
     if(j.stage==="arrived"){ const cs=a.find(x=>x.status==="arrived")||a.find(x=>x.status!=="received")||a[0]; add(`Count & check: ${j.name}`,"var(--amber)",{job:j.id,count:cs?cs.id:null}); }
     if(j.stage==="bending"||alsoIn(j).includes("bending")) add(`Bend parts: ${j.name}`,"var(--pink)",{job:j.id});
     }
     offOrders(j).forEach(x=>{
-      if(x.status==="quote") add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id});
-      else if(x.status==="sent"&&days(askedAt(x))>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(askedAt(x))}d)`,"var(--red)",{job:j.id});
-      else if(x.status==="ready") add(`Pick up at ${first(x.name)} - ${j.name}`,"var(--cyan)",{job:j.id});
+      if(x.status==="quote") add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id,sup:x.id});
+      else if(x.status==="sent"&&days(askedAt(x))>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(askedAt(x))}d)`,"var(--red)",{job:j.id,sup:x.id});
+      else if(x.status==="ready") add(`Pick up at ${first(x.name)} - ${j.name}`,"var(--cyan)",{job:j.id,sup:x.id});
       else if(x.status==="arrived") add(`Count & check ${first(x.name)} order - ${j.name}`,"var(--amber)",{job:j.id,count:x.id});
     });
   });
@@ -1737,6 +1763,61 @@ function laterMenu(btn,o){
   m.querySelectorAll("button").forEach(b=>b.onclick=e=>{e.stopPropagation(); m.remove(); snoozeItem(o,b.dataset.k);});
   setTimeout(()=>document.addEventListener("click",function off(ev){ if(!m.contains(ev.target)){ m.remove(); document.removeEventListener("click",off);} }),0);
 }
+/* ---- To do rows (stage 8, Kyle Nov 14): job badge · action badge · short title; tap to expand the original
+   description, source, dates and the right Open button. The checkbox stays visible; Later lives in the expanded part.
+   The short title is display-only - the stored text is never changed. ---- */
+const todoOpen=new Set();
+const tdJobs=(text,jid)=>{ const out=[]; const add=j=>{ if(j&&!out.includes(j)) out.push(j); };
+  if(jid) add(jobs.find(x=>x.id===jid)||archivedJobs.find(x=>x.id===jid));
+  const T=String(text||"");
+  jobs.forEach(j=>{ const n=window.jobNum?window.jobNum(j.name):""; if(n&&n.length>=3&&new RegExp("(^|[^A-Za-z0-9])"+n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"($|[^A-Za-z0-9])").test(T)) add(j); });
+  return out; };
+const tdAction=(t)=>{ const x=String(t.text||"");
+  if(t.ncr||/\bNCRs?\b/i.test(x)) return /decid|what was decided/i.test(x)?"NCR decision":"NCR review";
+  if(t.count||/^count|count (&|and) check|count received/i.test(x)) return "Count";
+  if(/pick ?up|collect/i.test(x)) return "Pickup";
+  if(/follow up|no reply/i.test(x)) return "Follow up";
+  if(/^answer|^reply|^text |^email|^call /i.test(x)) return "Reply";
+  if(/quote/i.test(x)) return "Review quote";
+  if(/^send the order|^order\b|\border (the|more)\b/i.test(x)) return "Order";
+  if(/log your time|\bhours\b|\btime\b|timesheet/i.test(x)) return "Time";
+  if(/^assign|give work/i.test(x)) return "Assign";
+  if(/^bend/i.test(x)) return "Bend";
+  if(/look over new job/i.test(x)) return "New job";
+  if(/drawing|dxf|revision|model/i.test(x)) return "Drawings";
+  if(/^answer|^reply|^text |^email|^call /i.test(x)) return "Reply";
+  if(/talk to|bring up|discuss|ask |meet|with randy|with robin/i.test(x)) return "Discuss";
+  return "To do"; };
+const tdShort=(text,js)=>{ let s=String(text||"");
+  js.forEach(j=>{ const nm=String(j.name||""); if(!nm) return; s=s.split(nm).join(""); const rest=nm.replace(/^\s*\S+\s*[-–:]?\s*/,""); });
+  s=s.replace(/\(\s*\)/g,"").replace(/\s*[-–:·]\s*$/,"").replace(/^\s*[-–:]\s*/,"").replace(/\s{2,}/g," ").trim();
+  // first clause: up to a colon / dash / bracket, if that still says something
+  const cut=s.search(/\s[-–]\s|:\s|\s\(/); if(cut>=14) s=s.slice(0,cut);
+  s=s.replace(/[\s,;:.-]+$/,"");
+  if(s.length>76){ s=s.slice(0,74); s=s.slice(0,Math.max(40,s.lastIndexOf(" ")))+"…"; }
+  return s||String(text||""); };
+function todoRow(o){
+  const js=tdJobs(o.text,o.job), act=tdAction(o), open=todoOpen.has(o.key);
+  const nums=js.map(j=>window.jobNum?window.jobNum(j.name):"").filter(Boolean);
+  const jb=nums.length?nums.join(" · "):(act==="Time"?"Shop":"General");
+  const j0=js[0]; const jcol=j0&&window.jobColor?window.jobColor(j0.id):"#6c727a";
+  const btns=[];
+  if(o.count&&window.openCount) btns.push(`<button class="btn sm primary" type="button" data-cnt="${esc(o.job)}|${esc(o.count)}">Count it</button>`);
+  if(o.sup&&o.job&&window.openOrderLine) btns.push(`<button class="btn sm" type="button" data-tdo="${esc(o.job)}|${esc(o.sup)}">Open order</button>`);
+  if(o.ncr&&o.job) btns.push(`<button class="btn sm" type="button" data-tdn="${esc(o.job)}">Open NCR</button>`);
+  else if(act.startsWith("NCR")&&j0) btns.push(`<button class="btn sm" type="button" data-tdn="${esc(j0.id)}">Open NCRs</button>`);
+  if(act==="Bend"&&o.job) btns.push(`<button class="btn sm" type="button" data-tdt="${esc(o.job)}">Open tasks</button>`);
+  if(o.view) btns.push(`<button class="btn sm" type="button" data-view="${esc(o.view)}">Open ${esc(o.view)}</button>`);
+  js.forEach(j=>btns.push(`<button class="btn sm ghost" type="button" data-job="${esc(j.id)}">Open ${esc(window.jobNum&&window.jobNum(j.name)||j.name)}</button>`));
+  return `<div class="ti tx${open?" open":""}" style="--c:${o.c}"><button class="ck" type="button" ${o.done} title="${o.auto?"Done / hide":"Mark done"}" aria-label="Done: ${esc(o.text)}">✓</button><span class="bar"></span>
+    <div class="body"><button type="button" class="txh" data-tdk="${esc(o.key)}" aria-expanded="${open}">
+      <span class="txb"><span class="tjb" style="--jc:${jcol}">${esc(jb)}</span><span class="tact">${esc(act)}</span></span>
+      <span class="tt">${esc(tdShort(o.text,js))}</span><span class="tch" aria-hidden="true">${open?"▴":"▾"}</span></button>
+      ${open?`<div class="txd"><div class="txf">${esc(o.text)}</div>
+        <div class="meta">${[esc(o.src||""),o.at?"added "+fmt(o.at):""].filter(Boolean).join(" · ")}</div>
+        <div class="txa">${btns.join("")}<span style="flex:1"></span><button class="btn sm ghost later" type="button" ${o.later} title="Not now - move to Later">Later</button></div></div>`:""}
+    </div></div>`;
+}
 function renderTodo(){
   const B=$("#board"); B.className="todo"; B.style.gridTemplateColumns="";
   const auto=liveAuto(), mine=liveMine().sort((a,b)=>a.created_at<b.created_at?-1:1);
@@ -1747,8 +1828,8 @@ function renderTodo(){
   const jn=id=>{const j=jobs.find(x=>x.id===id);return j?j.name:"";};
   B.innerHTML=`<section class="tbox"><h3>To do <span class="n">${auto.length+mine.length}</span></h3>
     <div class="addtodo"><input id="tdNew" placeholder="Add a to-do…" aria-label="New to-do"><button class="btn" type="button" id="tdAdd">Add</button></div>
-    ${mine.map(t=>`<div class="ti" style="--c:#ffd28a"><button class="ck" type="button" data-done="${t.id}" title="Mark done">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">${[t.from_name?esc(t.from_name):"",t.job_id&&jn(t.job_id)?`<button class="go" type="button" data-job="${esc(t.job_id)}">${esc(jn(t.job_id))}</button>`:"",fmt(t.created_at)].filter(Boolean).join(" · ")}</div></div><div class="lw"><button class="later" type="button" data-snz="${t.id}" title="Not now - move to Later">Later</button></div></div>`).join("")}
-    ${auto.map((t,i)=>`<div class="ti" style="--c:${t.c}"><button class="ck" type="button" data-auto="${i}" title="Done / hide">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">From the board · <button class="go" type="button" ${t.job?`data-job="${esc(t.job)}">Open job`:`data-view="${t.view}">Open ${t.view}`}</button></div>${t.count&&window.openCount?`<button class="btn sm primary" type="button" style="margin-top:6px" data-cnt="${esc(t.job)}|${esc(t.count)}">Count it</button>`:""}</div><div class="lw"><button class="later" type="button" data-snza="${i}" title="Not now - move to Later">Later</button></div></div>`).join("")}
+    ${mine.map(t=>todoRow({key:"m:"+t.id,text:t.text,job:t.job_id,c:"#ffd28a",src:t.from_name||"You",at:t.created_at,done:`data-done="${t.id}"`,later:`data-snz="${t.id}"`})).join("")}
+    ${auto.map((t,i)=>todoRow({key:"a:"+t.text,text:t.text,job:t.job,sup:t.sup,count:t.count,ncr:t.ncr,view:t.view,c:t.c,src:"From the board",auto:true,done:`data-auto="${i}"`,later:`data-snza="${i}"`})).join("")}
     ${!auto.length&&!mine.length?`<div class="tnote">Nothing to do. Nice.</div>`:""}
     ${later.length?`<details class="laterbox" style="margin-top:10px"><summary class="tnote" style="cursor:pointer">Later (${later.length})</summary>${later.map(t=>`<div class="ti"><span class="bar" style="--c:#6c727a"></span><div class="body"><div class="tt" style="color:var(--muted)">${esc(t.text)}</div><div class="meta">Back ${esc(snoozeLabel(t.until))}${t.auto?" · from the board":""}</div></div><div class="lw"><button class="later" type="button" data-unsnz="${esc(t.id)}">Bring back</button></div></div>`).join("")}</details>`:""}
     ${doneRecent.length?`<details style="margin-top:8px"><summary class="tnote" style="cursor:pointer">Recently done (${doneRecent.length})</summary>${doneRecent.map(t=>`<div class="ti"><button class="ck" type="button" data-undone="${t.id}" title="Not done" style="color:var(--green);border-color:var(--green)">✓</button><div class="body"><div class="tt" style="color:var(--dim);text-decoration:line-through">${esc(t.text)}</div>${t.outcome?`<div class="meta" style="color:var(--text)">Decided: ${esc(t.outcome)}</div>`:""}</div></div>`).join("")}</details>`:""}
@@ -1786,6 +1867,10 @@ function renderTodo(){
   B.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const [jid,sid]=el.dataset.cnt.split("|"); window.openCount(jid,sid); });
   B.querySelectorAll("[data-unsnz]").forEach(el=>el.onclick=()=>unsnooze({id:el.dataset.unsnz}));
   B.querySelectorAll("[data-job]").forEach(el=>el.onclick=()=>openJob(el.dataset.job));
+  B.querySelectorAll("[data-tdk]").forEach(el=>el.onclick=()=>{ const k=el.dataset.tdk; todoOpen.has(k)?todoOpen.delete(k):todoOpen.add(k); renderTodo(); });
+  B.querySelectorAll("[data-tdo]").forEach(el=>el.onclick=()=>{ const [j,sid]=el.dataset.tdo.split("|"); window.openOrderLine(j,sid); });
+  B.querySelectorAll("[data-tdn]").forEach(el=>el.onclick=()=>openJob(el.dataset.tdn,"ncr"));
+  B.querySelectorAll("[data-tdt]").forEach(el=>el.onclick=()=>openJob(el.dataset.tdt,"tasks"));
   B.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>{cur=el.dataset.view;render();});
   B.querySelectorAll("[data-acc]").forEach(el=>el.onclick=()=>acceptSugg(el.dataset.acc));
   B.querySelectorAll("[data-dis]").forEach(el=>el.onclick=()=>setSugg(el.dataset.dis,"dismissed"));
