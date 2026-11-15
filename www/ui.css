@@ -451,3 +451,8 @@ button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
   .jlgrid .cells.lbl div{font-size:9.5px}
 }
 body.girly .jlrow{background:transparent}
+
+/* stage 7: kept quote awaiting revision / received without a checklist */
+.sxq{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+.sxq b{color:#ffb070;font-weight:600}
+.sxq.warn{color:#ffd28a}

@@ -255,7 +255,7 @@ function rowHtml(x){
   const on=open&&open.job_id===x.jid&&open.task_id===x.aid; const dn=x.t.done;
   const j=jobs.find(y=>y.id===x.jid); const a=j&&(j.assemblies||[]).find(y=>y.id===x.aid);
   return `<div class="row2 ${on?"on":""} ${dn?"dn":""}" style="--c:${x.color}"><span class="tm">${esc(x.time||"")}</span>
-    <div class="nm" data-oj="${esc(x.jid)}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${a&&a.status==="prog"?" · in progress":""}</small></div>
+    <div class="nm" data-oj="${esc(x.jid)}" data-oa="${esc(a?a.id:"")}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${a&&a.status==="prog"?" · in progress":""}</small></div>
     <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">Punch out</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ Punch in</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ Done</button>`}</div></div>`;
 }
 /* one row per JOB in its own colour (same as the week plan / All jobs), its tasks as chips under it (Kyle, Nov 8) */
@@ -288,7 +288,7 @@ window.myDayWire=root=>{
   root.querySelectorAll("[data-pout]").forEach(b=>b.onclick=()=>punchOut());
   root.querySelectorAll("[data-pjob]").forEach(b=>b.onclick=()=>punchJob(b.dataset.pjob));
   root.querySelectorAll("[data-pdn]").forEach(b=>b.onclick=()=>{ const [j,a]=b.dataset.pdn.split("|"); doneTask(j,a); });
-  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>{ if(b.dataset.oj) openJob(b.dataset.oj); });
+  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>{ if(!b.dataset.oj) return; if(b.dataset.oa&&window.openJobTask) window.openJobTask(b.dataset.oj,b.dataset.oa); else openJob(b.dataset.oj); });
   root.querySelectorAll("[data-addw]").forEach(b=>b.onclick=()=>addMyWork());
   root.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>pickTask());
   root.querySelectorAll("[data-crewv]").forEach(b=>b.onclick=()=>window.crewPreview(true));
@@ -301,7 +301,7 @@ window.myTodoHtml=()=>{
     const dn=x.t.done||(a&&a.status==="done"); if(!dn) open++;
     const num=j&&window.jobNum?window.jobNum(j.name):""; const c=x.color||"#8e96a3";
     return `<div class="ti ctd ${dn?"dn":""}" style="--c:${c}"><button class="ck" type="button" ${a&&!dn?`data-pdn="${esc(x.jid)}|${esc(x.aid)}"`:"disabled"} title="${dn?"Done":"Mark done"}">${dn?"✓":""}</button><span class="bar"></span>
-      <div class="body" ${j?`data-oj="${esc(j.id)}"`:""}><div class="tt">${esc(x.t.name)}</div><div class="meta">${num?`<span class="jb" style="background:${c}">${esc(num)}</span> `:""}${esc(j?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,""):(x.t.job||""))}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${x.time?" · "+esc(x.time):""}${a&&a.status==="prog"?" · in progress":""}</div></div></div>`; };
+      <div class="body" ${j?`data-oj="${esc(j.id)}" data-oa="${esc(a?a.id:"")}"`:""}><div class="tt">${esc(x.t.name)}</div><div class="meta">${num?`<span class="jb" style="background:${c}">${esc(num)}</span> `:""}${esc(j?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,""):(x.t.job||""))}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${x.time?" · "+esc(x.time):""}${a&&a.status==="prog"?" · in progress":""}</div></div></div>`; };
   const days=T.days.map(d=>{ const r=d.rows.map(row).join(""); return `<div class="dh">${d.label}</div>${r||`<div class="none">Nothing planned${d.label==="TODAY"?" for you today":""}.</div>`}`; }).join("");
   const other=T.other.map(row).join("");
   return `<section class="tbox mday ctodo" aria-label="To do"><h3>To do <span class="n">${open}</span></h3>${days}${other?`<div class="dh">ALSO ON YOU</div>${other}`:""}
@@ -309,7 +309,7 @@ window.myTodoHtml=()=>{
 };
 window.myTodoWire=root=>{
   root.querySelectorAll("[data-pdn]").forEach(b=>b.onclick=()=>{ const [j,a]=b.dataset.pdn.split("|"); doneTask(j,a); });
-  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>openJob(b.dataset.oj));
+  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>{ if(b.dataset.oa&&window.openJobTask) window.openJobTask(b.dataset.oj,b.dataset.oa); else openJob(b.dataset.oj); });
   root.querySelectorAll("[data-addw]").forEach(b=>b.onclick=()=>addMyWork());
 };
 window.crewHome=B=>{

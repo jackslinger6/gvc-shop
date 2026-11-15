@@ -489,6 +489,22 @@ const ST={
  approved:{t:"Approved / PO",c:"#9b4dff"}, production:{t:"In production",c:"#9b4dff"}, ready:{t:"Ready for pickup",c:"#22c3e6"},
  arrived:{t:"Arrived - not counted",c:"#f5b041"}, received:{t:"Received - counted",c:"#3ad06b"}, hold:{t:"On hold",c:"#6c727a"}, declined:{t:"Declined",c:"#4a4f56"}
 };
+/* Revised quotes (stage 7, Kyle Nov 14): a line that already has a quote (quote # / total) but is back to waiting
+   (sent / replied) is waiting on a REVISED quote - the old quote is kept and shown as "awaiting revision".
+   The reply clock runs from the latest request (x.reqAt, set by "Ask for a revised quote"; older lines fall back to
+   their last update), not from the first send. */
+const quoteRev=x=>!!x&&["sent","replied"].includes(x.status)&&!!(x.quoteNo||x.total||x.prevQuote)&&!x.po;
+const askedAt=x=>x.reqAt||(quoteRev(x)?(x.updated||x.sent):x.sent);
+/* received without a checklist (stage 7): received, but nothing was counted against a list */
+const recvNoList=x=>!!x&&x.status==="received"&&!!x.recvNoList;
+const supT=x=>recvNoList(x)?"Received - not counted":quoteRev(x)?"Revised quote requested":(ST[x.status]||ST.sent).t;
+window.quoteRev=quoteRev; window.askedAt=askedAt; window.supT=supT; window.recvNoList=recvNoList;
+/* the kept quote on a line waiting for a revision, and how a no-checklist delivery was received (stage 7) */
+const supExtraHTML=x=>{ const out=[]; const d=t=>t?new Date(t).toLocaleDateString("en-CA",{month:"short",day:"numeric"}):"";
+  if(quoteRev(x)){ const q=x.prevQuote||{no:x.quoteNo,total:x.total}; out.push(`<div class="sxq">Previous quote${q.no?" #"+esc(q.no):""}${q.total?" · "+esc(q.total):""} - <b>awaiting revision</b>${askedAt(x)?" (asked "+d(askedAt(x))+")":""}</div>`); }
+  if(recvNoList(x)){ const r=x.recvNoList; out.push(`<div class="sxq warn">Received without a checklist${r.by?" by "+esc(r.by):""}${r.at?" "+d(r.at):""} - quantities not verified.${r.what?" Arrived: "+esc(r.what):""}</div>`); }
+  return out.join(""); };
+window.supExtraHTML=supExtraHTML;
 const CREW=["Kyle","Colton","Aaron","Cooper"];
 const AST={bend:{t:"Waiting on bending",c:"#e04fa0"},ready:{t:"Ready to start",c:"#2f8ff0"},prog:{t:"In progress",c:"#ff8a2a"},qc:{t:"Inspection",c:"#9b4dff"},done:{t:"Done",c:"#3ad06b"}};
 const FAB_STAGES=["bending","fab","paint","assembly"];
@@ -541,11 +557,11 @@ function flags(j){
   if(j.sample) out.push(`<span class="flag sample">Sample</span>`);
   if(s==="quote"){
     a.filter(x=>x.status==="quote").forEach(x=>out.push(`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`));
-    a.filter(x=>x.status==="sent"&&days(x.sent)>=2).forEach(x=>out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`));
+    a.filter(x=>x.status==="sent"&&days(askedAt(x))>=2).forEach(x=>out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(askedAt(x))}d</span>`));
   }
   if(s==="pickup") out.push(`<span class="flag go">Pick up${a[0]?" at "+esc(first(a[0].name)):""}</span>`);
   offOrders(j).forEach(x=>{ if(x.status==="quote") out.push(`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`);
-    else if(x.status==="sent"&&days(x.sent)>=2) out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`);
+    else if(x.status==="sent"&&days(askedAt(x))>=2) out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(askedAt(x))}d</span>`);
     else if(x.status==="ready") out.push(`<span class="flag go">Pick up at ${esc(first(x.name))}</span>`);
     else if(x.status==="arrived") out.push(`<span class="flag count">Count &amp; check ${esc(first(x.name))}</span>`); });
   if(s==="arrived") out.push(`<span class="flag count">Count &amp; check</span>`);
@@ -571,7 +587,7 @@ function supGroupsHTML(j,stOpts,editBox){
     const main=isPo?(L.find(o=>o.x.po===key)||L[0]):(L.find(o=>!done(o.x))||L[0]);
     return {key,L,isPo,isRfq,main,closed:L.every(o=>done(o.x))}; })
     .sort((a,b)=>(a.closed-b.closed)||String(b.main.x.updated||b.main.x.sent||"").localeCompare(String(a.main.x.updated||a.main.x.sent||"")));
-  const pill=x=>{ const st=ST[x.status]||ST.sent; return `<span class="sgp" style="--c:${st.c}">${esc(x.status==="declined"&&x.rfq?"Quoted - not chosen":st.t)}</span>`; };
+  const pill=x=>{ const st=ST[x.status]||ST.sent; return `<span class="sgp" style="--c:${st.c}">${esc(x.status==="declined"&&x.rfq?"Quoted - not chosen":supT(x))}</span>`; };
   const one=g=>{ const r=(g.isPo||g.isRfq)&&rec(g.key); const x=g.main.x;
     const rfqNo=g.isPo?((r&&r.rfq_no)||(g.L.find(o=>o.x.rfq)||{x:{}}).x.rfq):null;
     const desc=(r&&r.title)||x.scope||"";
@@ -587,6 +603,7 @@ function supGroupsHTML(j,stOpts,editBox){
         ${g.L.map(({x,k})=>`<div class="sgl"><div class="sgh"><b>${esc(x.name)}</b>${x.contact?` <span class="sgd">· ${esc(x.contact)}</span>`:""} ${pill(x)}
             <span style="flex:1"></span>${window.openCount&&!["sent","replied","quote","declined"].includes(x.status)?`<button class="btn sm${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">Count</button>`:""}<button class="btn sm" type="button" data-sged="${k}">✎ Edit</button></div>
           <div class="sgf">${[x.quoteNo?`<div><span>${x.po?"Their #":"Quote #"}</span>${esc(x.quoteNo)}</div>`:"",x.total?`<div><span>Total</span>${esc(x.total)}</div>`:"",x.lead?`<div><span>Lead time</span>${esc(x.lead)}</div>`:"",x.sent?`<div><span>Sent</span>${fmt(x.sent)}</div>`:"",x.scope&&x.scope!==desc?`<div><span>What</span>${esc(x.scope)}</div>`:""].join("")}</div>
+          ${supExtraHTML(x)}${x.ncr?`<div class="sxq">Replacement for NCR-${String(x.ncr).padStart(3,"0")}</div>`:""}
           ${x.note?`<div class="sgn">${esc(x.note)}</div>`:""}
           <div class="sgedit" data-sge="${k}" hidden>${editBox(x,k)}</div></div>`).join("")}
         ${D.length?`<div class="sgdl"><b>Deliveries</b>${D.map(d=>`<div><span class="sgp" style="--c:${d.status==="received"?"#3ad06b":d.status==="arrived"?"#f5b041":d.status==="ready"?"#22c3e6":"#9b4dff"}">${esc(({production:"In production",ready:"Ready",arrived:"Arrived",received:"Received"})[d.status]||d.status)}</span> ${esc(d.ref||"?")}${d.what?` · ${esc(d.what)}`:""}</div>`).join("")}</div>`:""}
@@ -600,10 +617,10 @@ function supGroupsHTML(j,stOpts,editBox){
 let supOldOpen=false;
 function supLine(x,stage){
   const st=ST[x.status]||ST.sent; let extra="";
-  if(x.status==="sent"&&x.sent){const d=days(x.sent);extra=d<1?" · today":" · "+d+"d";}
+  if(x.status==="sent"&&askedAt(x)){const d=days(askedAt(x));extra=d<1?" · today":" · "+d+"d";}
   if(x.status==="quote"&&x.quoteNo) extra=" · #"+esc(x.quoteNo);
   if(x.lead&&["approved","production"].includes(x.status)) extra+=" · "+esc(x.lead);
-  const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:st.t;
+  const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:supT(x);
   if(x.po||x.rfq) extra+=" · "+esc(x.po||x.rfq);
   return `<div class="sup"><span class="dot" style="background:${st.c}"></span><span class="who">${esc(x.name)}</span><span class="st">${t}${extra}</span></div>`;
 }
@@ -701,15 +718,15 @@ const jobsN=n=>`${n} job${n===1?"":"s"}`;
 function ordNeeds(cards){
   const k={late:0,quote:0,pick:0,count:0};
   cards.forEach(({j,rows,s})=>{ const act=rows.filter(ACTIVE);
-    act.forEach(x=>{ if(x.status==="sent"&&days(x.sent)>=2) k.late++; else if(x.status==="quote") k.quote++; else if(x.status==="ready") k.pick++; else if(x.status==="arrived") k.count++; });
+    act.forEach(x=>{ if(x.status==="sent"&&days(askedAt(x))>=2) k.late++; else if(x.status==="quote") k.quote++; else if(x.status==="ready") k.pick++; else if(x.status==="arrived") k.count++; });
     if(j.stage===s.k&&s.k==="pickup"&&!act.some(x=>x.status==="ready")) k.pick++;
     if(j.stage===s.k&&s.k==="arrived"&&!act.some(x=>x.status==="arrived")) k.count++; });
   return [k.late?`<span class="npill late">${k.late} overdue</span>`:"",k.quote?`<span class="npill quote">${k.quote} quote${k.quote>1?"s":""} to review</span>`:"",
     k.pick?`<span class="npill pick">${k.pick} to pick up</span>`:"",k.count?`<span class="npill cnt">${k.count} to count</span>`:""].join("");
 }
 function ordRow(j,x,stage){
-  const st=ST[x.status]||ST.sent; const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:st.t;
-  const bits=[]; let late=false; if(x.status==="sent"&&x.sent){ const d=days(x.sent); late=d>=2; bits.push(d<1?"sent today":late?`no reply ${d}d`:`sent ${d}d ago`); }
+  const st=ST[x.status]||ST.sent; const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:supT(x);
+  const bits=[]; let late=false; if(x.status==="sent"&&askedAt(x)){ const d=days(askedAt(x)); late=d>=2; const rv=quoteRev(x); bits.push(d<1?(rv?"revised quote asked today":"sent today"):late?`no reply ${d}d`:rv?`revised quote asked ${d}d ago`:`sent ${d}d ago`); }
   if(x.lead&&["approved","production"].includes(x.status)) bits.push(esc(x.lead));
   const ref=x.po||x.rfq||(x.quoteNo&&x.status==="quote"?"#"+x.quoteNo:"");
   return `<button type="button" class="orow ${x.status==="declined"?"dim":""}" data-ol="${esc(j.id)}|${esc(x.id||"")}" aria-label="Open order: ${esc(x.name)}${ref?" "+esc(ref):""} - ${esc(t)}">
@@ -795,7 +812,7 @@ function renderCore(){
         ${flags(j).join("")}${s.k==="arrived"||s.k==="pickup"?(j.suppliers||[]).filter(x=>ACTIVE(x)&&(x.status==="arrived"||x.status==="ready")).map(x=>`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`).join("")||((j.suppliers||[]).filter(ACTIVE)[0]?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc((j.suppliers||[]).filter(ACTIVE)[0].id)}">☑ Count it</span>`:""):""}</button>`).join("")}${extra.map(j=>{const os=offOrders(j).filter(x=>SUP_COL[x.status]===s.k);return `<button class="card offo" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
         ${cardTitle(j)}<div class="offtag">${ONGOING(j)?"Ongoing job · order":`${esc(stOf(j).bt)} · ${esc(stOf(j).t)} - extra order`}</div>
         <div class="sups">${os.map(x=>supLine(x,"quote")).join("")}</div>
-        ${os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(x.sent)>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span><span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:x.status==="arrived"?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:"").join("")}</button>`;}).join("")}</div></section>`;
+        ${os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(askedAt(x))>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(askedAt(x))}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span><span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:x.status==="arrived"?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:"").join("")}</button>`;}).join("")}</div></section>`;
   }).join("");
   $("#board").querySelectorAll(".card:not(.ocard)").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
   if(ORD) wireOrdBoard();
@@ -971,6 +988,7 @@ function taskRow(j,a,k){
     <button type="button" class="tmore" data-tmore="${esc(a.id)}" aria-expanded="${more}" aria-label="More for ${esc(a.name)}">⋯</button>
     ${admin&&whoOpen.has(a.id)?`<div class="tsub">${whoChips(j,k,a)}</div>`:""}
     ${more?`<div class="tsub tmorep">
+      <button type="button" class="btn sm" data-tdraw="1">Parts &amp; drawings</button><button type="button" class="btn sm" data-tncr="${esc(a.id)}">⚠ Report a problem</button>
       ${a.ncr?`<button type="button" class="btn sm" data-jgo="ncr">Rework for NCR-${String(a.ncr).padStart(3,"0")} ›</button>`:""}
       ${admin&&G.length?`<label class="tml">Group<select data-tmove="${k}" aria-label="Group for ${esc(a.name)}"><option value="">General</option>${G.map(g=>`<option value="${esc(g.id)}" ${a.group===g.id?"selected":""}>${esc(g.name)}</option>`).join("")}</select></label>`:""}
       ${admin?`<span class="tnote" style="margin:0">Tap the task name to rename it.</span><span style="flex:1"></span><button type="button" class="btn sm danger" data-rmasm="${k}" aria-label="Remove task ${esc(a.name)}">Remove task</button>`:`<span class="tnote" style="margin:0">${mine?"You can change the status of your own tasks.":"Ask Kyle to change who's on this task."}</span>`}
@@ -1021,7 +1039,7 @@ function tasksHTML(j){
 /* jump to one task (week plan, punch clock): Tasks section, its group open, filters that would hide it turned off */
 window.openJobTask=(jid,aid)=>{
   const j=jobs.find(x=>x.id===jid)||archivedJobs.find(x=>x.id===jid); const a=j&&(j.assemblies||[]).find(x=>x.id===aid);
-  if(a){ if(a.status==="done") taskF.done=true; if(taskF.mine&&!whoList(a).includes(window.ME&&ME.name)) taskF.mine=false; grpShut.delete(jid+":"+(a.group&&(j.groups||[]).some(g=>g.id===a.group)?a.group:"_general")); taskHi=aid; }
+  if(a){ if(a.status==="done") taskF.done=true; if(taskF.mine&&!whoList(a).includes(window.ME&&ME.name)) taskF.mine=false; grpShut.delete(jid+":"+(a.group&&(j.groups||[]).some(g=>g.id===a.group)?a.group:"_general")); taskHi=aid; taskMore.add(aid); }   // stage 7: the task's actions (drawings, report a problem) open with it
   openJob(jid,"tasks");
   if(a) setTimeout(()=>{ const r=document.querySelector(`#dlg [data-task-id="${CSS.escape(aid)}"]`); if(r) try{ r.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} setTimeout(()=>{ if(taskHi===aid){ taskHi=null; const x=document.querySelector(`#dlg .thi`); if(x) x.classList.remove("thi"); } },2500); },80);
 };
@@ -1030,6 +1048,8 @@ function wireTasks(D){
   const save=async(label,fn)=>{ const jj=structuredClone(job()); if(fn(jj)===false) return; jj.log=[...(jj.log||[]),{at:new Date().toISOString(),text:label}]; await put(jj,label); };
   D.querySelectorAll("[data-tf]").forEach(b=>b.onclick=e=>{ e.preventDefault(); const k=b.dataset.tf; taskF[k]=!taskF[k]; drawDlg(); });
   D.querySelectorAll("details.tgrp").forEach(d=>d.addEventListener("toggle",()=>{ const key=j.id+":"+d.dataset.grp; d.open?grpShut.delete(key):grpShut.add(key); }));
+  D.querySelectorAll("[data-tdraw]").forEach(b=>b.onclick=()=>{ const p=D.querySelector("#jpBtn"); if(p) p.click(); });
+  D.querySelectorAll("[data-tncr]").forEach(b=>b.onclick=()=>{ const a=(j.assemblies||[]).find(x=>x.id===b.dataset.tncr); if(window.ncrNewFor) window.ncrNewFor(j.id,{details:a?`Found on task: ${a.name}`:""}); });
   D.querySelectorAll("[data-tmore]").forEach(b=>b.onclick=()=>{ const id=b.dataset.tmore; taskMore.has(id)?taskMore.delete(id):taskMore.add(id); drawDlg(); });
   D.querySelectorAll("[data-whot]").forEach(b=>b.onclick=()=>{ const id=b.dataset.whot; whoOpen.has(id)?whoOpen.delete(id):whoOpen.add(id); drawDlg(); });
   if(!admin) return;
@@ -1226,11 +1246,34 @@ function supForm(){
     await put(j,`Added ${name} to ${j.name}`);
   };
 }
-$("#addJob").onclick=async()=>{
-  const first=(BOARDS.find(b=>b.k===cur)||BOARDS[0]).stages[0].k;
-  const id=uid(); const data={name:"New job",folder:"",summary:"",stage:first,suppliers:[],log:[],order:Date.now()};
-  if(!db){ jobs.push({id,...data}); render(); openJob(id); pushUndo(id,null,"Added a new job"); return; }
-  try{ await saveJob(id,data); jobs.push({id,...data}); openJob(id); pushUndo(id,null,"Added a new job"); }catch(e){ $("#status").textContent="Couldn't add job: "+(e.message||e); }
+/* New job (stage 7, Kyle Nov 14): a draft form first - nothing is saved until Create job. Cancel / Back / tapping outside
+   leaves no record behind. Warns if the job number is already used. */
+$("#addJob").onclick=()=>{
+  const board=BOARDS.find(b=>b.k===cur)||BOARDS[0];
+  openId=null; const D=$("#dlg");
+  D.innerHTML=`<div class="njf"><div class="jhd"><h3 id="dlgTitle">New job</h3><button class="btn ghost" type="button" id="njX">Cancel</button></div>
+    <div class="tnote" style="margin:2px 0 10px">Nothing is saved until you tap Create job.</div>
+    <label>Job number and name<input id="njName" placeholder="e.g. 1090WT - Mark's Hauling" autocomplete="off"></label>
+    <label>Starts at<select id="njStage">${BOARDS.map(b=>`<optgroup label="${b.t}">${b.stages.filter(x=>x.k!=="done").map(x=>`<option value="${x.k}" ${x.k===board.stages[0].k?"selected":""}>${x.t}</option>`).join("")}</optgroup>`).join("")}</select></label>
+    <label>Folder (optional)<input id="njFolder" placeholder="Where the files are"></label>
+    <label>Card note (optional)<input id="njNote" placeholder="One line about the job"></label>
+    <div class="err" id="njErr"></div>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn" type="button" id="njX2">Cancel</button><button class="btn primary" type="button" id="njGo" style="min-height:44px">Create job</button></div></div>`;
+  $("#scrim").classList.add("on"); setTimeout(()=>{ const n=$("#njName"); if(n) n.focus(); },40);
+  const cancel=()=>{ if(typeof closeDlg==="function") closeDlg(); else $("#scrim").classList.remove("on"); };
+  $("#njX").onclick=cancel; $("#njX2").onclick=cancel;
+  $("#njName").onkeydown=e=>{ if(e.key==="Enter") $("#njGo").click(); };
+  $("#njGo").onclick=async()=>{
+    const go=$("#njGo"); if(go.disabled) return;
+    const name=$("#njName").value.trim(); if(!name){ $("#njErr").textContent="Give the job a name (job number first if it has one)."; $("#njName").focus(); return; }
+    const num=window.jobNum?window.jobNum(name):""; const dup=num&&[...jobs,...archivedJobs].find(j=>window.jobNum&&window.jobNum(j.name)===num);
+    if(dup&&!confirm(`${num} is already used by "${dup.name}"${dup.archived?" (finished)":""}.\n\nCreate another job with the same number anyway?`)) return;
+    go.disabled=true; go.textContent="Creating…";
+    const id=uid(); const data={name,folder:$("#njFolder").value.trim(),summary:$("#njNote").value.trim(),stage:$("#njStage").value||board.stages[0].k,suppliers:[],log:[{at:new Date().toISOString(),text:`Job created by ${(window.ME&&ME.name)||"?"}`}],order:Date.now()};
+    if(!db){ jobs.push({id,...data}); render(); openJob(id); pushUndo(id,null,"Added a new job"); return; }
+    try{ await saveJob(id,data); jobs.push({id,...data}); render(); openJob(id); pushUndo(id,null,"Added a new job"); }
+    catch(e){ go.disabled=false; go.textContent="Create job"; $("#njErr").textContent="Couldn't create it: "+(e.message||e); }
+  };
 };
 
 /* jump from the top of a board straight to the All jobs list (opens it if folded) - stage 6 review */
@@ -1601,7 +1644,7 @@ function autoTodosCore(){
     if(j.stage==="prep") add(`Send the order: ${j.name}`,"var(--red)",{job:j.id});
     if(j.stage==="quote"){
       a.filter(x=>x.status==="quote").forEach(x=>add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id}));
-      a.filter(x=>x.status==="sent"&&days(x.sent)>=2).forEach(x=>add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id}));
+      a.filter(x=>x.status==="sent"&&days(askedAt(x))>=2).forEach(x=>add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(askedAt(x))}d)`,"var(--red)",{job:j.id}));
     }
     if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id});
     if(j.stage==="arrived"){ const cs=a.find(x=>x.status==="arrived")||a.find(x=>x.status!=="received")||a[0]; add(`Count & check: ${j.name}`,"var(--amber)",{job:j.id,count:cs?cs.id:null}); }
@@ -1609,7 +1652,7 @@ function autoTodosCore(){
     }
     offOrders(j).forEach(x=>{
       if(x.status==="quote") add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id});
-      else if(x.status==="sent"&&days(x.sent)>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id});
+      else if(x.status==="sent"&&days(askedAt(x))>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(askedAt(x))}d)`,"var(--red)",{job:j.id});
       else if(x.status==="ready") add(`Pick up at ${first(x.name)} - ${j.name}`,"var(--cyan)",{job:j.id});
       else if(x.status==="arrived") add(`Count & check ${first(x.name)} order - ${j.name}`,"var(--amber)",{job:j.id,count:x.id});
     });

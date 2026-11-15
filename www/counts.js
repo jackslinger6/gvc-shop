@@ -325,6 +325,42 @@ async function finish(){
   const sup0=(jobOf(st.jobId).suppliers||[]).find(x=>x.id===st.supId);
   const D=$("#dlg"); D.querySelectorAll(".cfin").forEach(e=>e.remove()); const box=document.createElement("div"); box.className="addbox cfin"; box.style.borderColor=miss.length?"#f5b041":"#3ad06b";
   const L=later();
+  /* no checklist (stage 7, Kyle Nov 14): nothing to count against (e.g. PO-1002 Grandview - the 151 pcs are only in the
+     order's description). Never "All 0 pcs here". Either add the parts, or receive it explicitly WITHOUT a checklist:
+     who, when and what arrived are saved, and the order shows "Received - not counted" (quantities not verified). */
+  if(!st.items.some(i=>!i.skip)){
+    const me=(window.ME&&ME.name)||"";
+    box.style.borderColor="#f5b041";
+    box.innerHTML=`<b>No checklist for this order - nothing has been counted.</b>
+      <div class="tnote">There's no parts list to check against${sup0&&sup0.scope?` (the order says: ${esc(sup0.scope.slice(0,160))}${sup0.scope.length>160?"…":""})`:""}. Add the parts above to count them, or receive it without a checklist.</div>
+      <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn" type="button" id="cAddFirst">Add the parts first</button><button class="btn" type="button" id="cNoList">Received without a checklist…</button></div>
+      <div id="cNoListF" hidden style="margin-top:10px">
+        <label class="tnote" style="display:block">What arrived (required)<textarea id="cNoWhat" rows="3" style="width:100%;margin-top:4px;font:inherit;font-size:14px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px" placeholder="e.g. 4 sheets of parts on 2 skids, looked complete, not counted piece by piece"></textarea></label>
+        <div class="tnote">Received by <b>${esc(me||"you")}</b>, ${new Date().toLocaleString("en-CA",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}. The order will show <b>Received - not counted</b>: quantities are not verified.</div>
+        <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn ghost" type="button" id="cNoCancel">Cancel</button><button class="btn primary" type="button" id="cNoSave">Save as received - not counted</button></div></div>`;
+    D.querySelector(".foot").before(box); box.scrollIntoView({behavior:"smooth",block:"center"});
+    $("#cAddFirst").onclick=()=>{ box.remove(); const q=$("#cAddQ"); if(q){ q.scrollIntoView({behavior:"smooth",block:"center"}); q.focus(); } };
+    $("#cNoList").onclick=()=>{ $("#cNoListF").hidden=false; $("#cNoWhat").focus(); };
+    $("#cNoCancel").onclick=()=>box.remove();
+    $("#cNoSave").onclick=async()=>{
+      const b=$("#cNoSave"); if(b.disabled) return;
+      const what=$("#cNoWhat").value.trim(); if(!what){ $("#cNoWhat").focus(); $("#cNoWhat").style.borderColor="#e5483b"; return; }
+      if(window.ME&&ME.preview){ if(typeof todoToast==="function") todoToast("Preview - nothing is saved.",null); return; }
+      b.disabled=true; b.textContent="Saving…";
+      const now=new Date().toISOString(); let ok=true;
+      for(let g=0;g<st.sets.length;g++){
+        const S=st.sets[g]; const j=structuredClone(jobOf(S.jobId)); const sup=(j.suppliers||[]).find(x=>x.id===S.supId);
+        if(sup){ if(sup.status==="received"){ continue; }   // already received (another device / double tap) - change nothing
+          sup.status="received"; sup.updated=now; sup.receivedAt=now; sup.recvNoList={by:me,at:now,what:what.slice(0,500)};
+          sup.note=((sup.note?sup.note+" | ":"")+`Received without a checklist by ${me||"?"}: ${what}`).slice(0,1500); }
+        j.log=[...(j.log||[]),{at:now,text:`Received ${sup?sup.name:"order"}${sup&&sup.quoteNo?" #"+sup.quoteNo:""} WITHOUT a checklist (not counted) - by ${me||"?"}: ${what}`}];
+        if(window.autoToShop) window.autoToShop(j);
+        if(!await put(j,`Received without a checklist - ${j.name}`)) ok=false;
+      }
+      if(ok){ closeDlg(); if(typeof todoToast==="function") todoToast(`Received - not counted (no checklist)`,null); } else { b.disabled=false; b.textContent="Save as received - not counted"; }
+    };
+    return;
+  }
   if(L.length){
     // partial delivery: save what came, keep the order open for the rest
     const lp=L.reduce((a,i)=>a+(i.qty||0),0); const lm=[...new Set(L.map(i=>i.mat||"Other"))].join(", ");
@@ -336,6 +372,7 @@ async function finish(){
     D.querySelector(".foot").before(box); box.scrollIntoView({behavior:"smooth",block:"center"});
     $("#cKeep").onclick=()=>closeDlg();
     $("#cPart").onclick=async()=>{
+      const pb=$("#cPart"); if(pb.disabled) return; pb.disabled=true;
       const now=new Date().toISOString(); let ok=true;
       for(let g=0;g<st.sets.length;g++){
         const S=st.sets[g]; const j=structuredClone(jobOf(S.jobId)); const sup=(j.suppliers||[]).find(x=>x.id===S.supId);
@@ -350,7 +387,7 @@ async function finish(){
         if(j.stage==="arrived"&&!(j.suppliers||[]).some(x=>(typeof ACTIVE!=="function"||ACTIVE(x))&&x.status==="arrived")) j.stage="prod";
         if(!await put(j,`Partial delivery counted - ${j.name}`)) ok=false;
       }
-      if(ok){ closeDlg(); if(typeof todoToast==="function") todoToast(`Delivery counted: ${t.got} of ${t.pcs} pcs - ${lp} pcs still to come`,null); }
+      if(ok){ closeDlg(); if(typeof todoToast==="function") todoToast(`Delivery counted: ${t.got} of ${t.pcs} pcs - ${lp} pcs still to come`,null); } else pb.disabled=false;
     };
     return;
   }
@@ -358,19 +395,23 @@ async function finish(){
       <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn" type="button" id="cKeep">Keep counting later</button><button class="btn primary" type="button" id="cRecvShort">Mark received - note what's missing</button></div>`
     :`<b>All ${t.pcs} pcs here.</b><div class="row" style="margin-top:8px;gap:8px"><button class="btn primary" type="button" id="cRecv">Mark ${esc(sup0?sup0.name:"order")} received${st.sets.length>1?` (all ${st.sets.length} jobs)`:""}</button></div>`;
   D.querySelector(".foot").before(box); box.scrollIntoView({behavior:"smooth",block:"center"});
+  let busy=false;
   const recv=async(short)=>{
+    if(busy) return; busy=true; D.querySelectorAll("#cRecv,#cRecvShort").forEach(b=>b.disabled=true);
     const now=new Date().toISOString(); let ok=true;
     for(let g=0;g<st.sets.length;g++){
       const S=st.sets[g]; const j=structuredClone(jobOf(S.jobId)); const sup=(j.suppliers||[]).find(x=>x.id===S.supId);
       const mine=st.items.filter(i=>i.g===g&&!i.skip); const pcs=mine.reduce((a,i)=>a+(i.qty||0),0), gt=mine.reduce((a,i)=>a+got(i),0);
       const myMiss=mine.filter(i=>got(i)<(i.qty||0)).map(i=>`${i.part_no||i.name} (${got(i)} of ${i.qty})`).join(", ");
-      if(sup){ sup.status="received"; sup.updated=now; sup.receivedAt=now; if(myMiss) sup.note=((sup.note?sup.note+" | ":"")+"Short: "+myMiss).slice(0,1000); }
+      if(sup){ sup.status="received"; sup.updated=now; sup.receivedAt=now; if(sup.recvNoList){ sup.recvNoListWas=sup.recvNoList; delete sup.recvNoList; }   // now counted against a list
+        if(myMiss) sup.note=((sup.note?sup.note+" | ":"")+"Short: "+myMiss).slice(0,1000); }
       j.log=[...(j.log||[]),{at:now,text:`Counted ${sup?sup.name:"order"}${sup&&sup.quoteNo?" #"+sup.quoteNo:""}: ${gt} of ${pcs} pcs${myMiss?" - short: "+myMiss:" - all here"}${st.sets.length>1?" (combined order with "+st.sets.filter((_,x)=>x!==g).map(o=>jobOf(o.jobId).name).join(", ")+")":""}`}];
       if(window.autoToShop) window.autoToShop(j);
       await sb.from("gvc_counts").update({done_at:now}).eq("job_id",S.jobId).eq("sup_id",S.supId);
       if(!await put(j,`Counted ${sup?sup.name:"order"} - ${j.name}`)) ok=false;
     }
     if(ok){ closeDlg(); if(typeof todoToast==="function") todoToast(`Counted: ${t.got} of ${t.pcs} pcs`,null); }
+    else { busy=false; D.querySelectorAll("#cRecv,#cRecvShort").forEach(b=>b.disabled=false); }
   };
   const k=$("#cKeep"); if(k) k.onclick=()=>closeDlg();
   const rs=$("#cRecvShort"); if(rs) rs.onclick=()=>recv(true);

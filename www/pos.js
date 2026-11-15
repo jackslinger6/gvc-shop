@@ -107,7 +107,9 @@ const recColor=r=>{ const a=rfqAhead(r); if(a) return (PL[a.x.status]||{}).c||"#
   return r.kind==="rfq"?(r.status==="open"?(rfqIn(r).got&&rfqIn(r).got>=rfqIn(r).n?"#3ad06b":"#2f8ff0"):"#6c727a"):((PL[r.status]||{}).c||"#6c727a"); };
 const recStatus=r=>{ if(r.kind!=="rfq") return (PL[r.status]||{}).t||r.status;
   const a=rfqAhead(r); if(a) return `${(PL[a.x.status]||{}).t||a.x.status} · no PO yet`;
-  if(r.status==="open"){ const {got,n}=rfqIn(r); return !got?"Waiting on quote"+(n>1?"s":""):got>=n?(n>1?"Quotes in":"Quote in"):`${got} of ${n} quotes in`; }
+  if(r.status==="open"){ const rv=window.quoteRev?linesOf(r).filter(o=>window.quoteRev(o.x)).length:0;   // stage 7: a quote is kept but a revision was asked for
+    const {got,n}=rfqIn(r); if(rv) return n>1?`Revised quote requested (${rv} of ${n})`:"Revised quote requested";
+    return !got?"Waiting on quote"+(n>1?"s":""):got>=n?(n>1?"Quotes in":"Quote in"):`${got} of ${n} quotes in`; }
   return ({ordered:"Ordered",closed:"Closed"})[r.status]||r.status; };
 /* what the order comes to: the totals typed on its job lines, else what the read quote adds up to (Nov 10) */
 const money=n=>"$"+n.toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -157,13 +159,16 @@ function renderRfq(B,r){
   const sts=typeof ST!=="undefined"?ST:{};
   B.innerHTML=`<div class="pod">${head(r,B)}
     <div class="psc"><h3>VENDORS ASKED</h3>
-      ${Object.entries(byV).map(([v,arr])=>{ const x=(arr[0]||{}).x||{}; const st=sts[x.status]||{t:x.status||"-",c:"#888"}; const done=PAST.includes(x.status);
+      ${Object.entries(byV).map(([v,arr])=>{ const x=(arr[0]||{}).x||{}; const st0=sts[x.status]||{t:x.status||"-",c:"#888"}; const st={...st0,t:window.supT&&x.status?window.supT(x):st0.t}; const done=PAST.includes(x.status);
+        const canRev=isKyle()&&r.status==="open"&&!x.po&&!done&&!!(x.quoteNo||x.total)&&["quote","sent","replied"].includes(x.status);
         const qt=!x.total&&window.quoteTotal?window.quoteTotal(x):null;
         const acts=[window.openCount&&arr[0]&&["approved","production","ready","arrived"].includes(x.status)?`<button class="btn${["ready","arrived"].includes(x.status)?" primary":""}" type="button" data-rcnt="${E(arr[0].j.id)}|${E(x.id)}">☑ Count it</button>`:"",
           isKyle()&&r.status==="open"&&!x.po?(done?`<button class="btn" type="button" data-ord="${E(v)}">Give it a PO number</button>`:`<button class="btn primary" type="button" data-ord="${E(v)}">Order from ${E(String(v).split(/\s/)[0])} →</button>`):"",
-          x.po?`<button class="btn" type="button" data-opo="${E(x.po)}">Open ${E(x.po)} ›</button>`:""].filter(Boolean);
+          x.po?`<button class="btn" type="button" data-opo="${E(x.po)}">Open ${E(x.po)} ›</button>`:"",
+          canRev?(window.quoteRev&&window.quoteRev(x)?`<button class="btn" type="button" data-revin="${E(v)}">Revised quote is in</button>`:`<button class="btn ghost" type="button" data-rev="${E(v)}">Ask for a revised quote</button>`):""].filter(Boolean);
         return `<div class="vrow"><div class="vrh"><b>${E(v)}</b><span class="ostat" style="--c:${st.c}">${E(st.t)}</span>${arr.length>1?`<span class="lbl">${arr.length} jobs</span>`:""}</div>
           ${done&&!x.po?`<div class="lbl">${E(String(v).split(/\s/)[0])} already confirmed this order - give it a PO number to follow pickup and deliveries.</div>`:""}
+          ${window.supExtraHTML?window.supExtraHTML(x):""}
           <div class="vrf"><label>Their quote #<input data-vq="${E(v)}" value="${E(x.quoteNo||"")}" placeholder="quote #" ${isKyle()?"":"disabled"}></label>
             <label>Total<input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${qt?money(qt)+" on the quote":"$"}" ${isKyle()?"":"disabled"}></label></div>
           ${acts.length?`<div class="oacts">${acts.join("")}</div>`:""}</div>`; }).join("")}
@@ -173,10 +178,20 @@ function renderRfq(B,r){
     </div>
     ${notesLog(r)}</div>`;
   wireCommon(B,r);
-  const saveV=async(v,f,val)=>{ await editLines(L.filter(o=>o.x.name===v).map(o=>o.j.id),S=>{ let c=false; S.forEach(x=>{ if(x.rfq===r.no&&x.name===v&&(x[f]||"")!==val){ x[f]=val; x.updated=new Date().toISOString(); if(f==="quoteNo"&&val&&["sent","replied"].includes(x.status)) x.status="quote"; c=true; } }); return c; },`${r.no}: ${v} ${f==="quoteNo"?"quote # "+val:"total "+val}`); };
+  const saveV=async(v,f,val)=>{ await editLines(L.filter(o=>o.x.name===v).map(o=>o.j.id),S=>{ let c=false; S.forEach(x=>{ if(x.rfq===r.no&&x.name===v&&(x[f]||"")!==val){ x[f]=val; x.updated=new Date().toISOString(); if(f==="quoteNo"&&val&&["sent","replied"].includes(x.status)){ x.status="quote"; delete x.reqAt; } c=true; } }); return c; },`${r.no}: ${v} ${f==="quoteNo"?"quote # "+val:"total "+val}`); };
   B.querySelectorAll("[data-vq]").forEach(i=>i.onchange=()=>saveV(i.dataset.vq,"quoteNo",i.value.trim()));
   B.querySelectorAll("[data-vt]").forEach(i=>i.onchange=()=>saveV(i.dataset.vt,"total",i.value.trim()));
   B.querySelectorAll("[data-ord]").forEach(b=>b.onclick=()=>orderFrom(r,b.dataset.ord));
+  /* "Ask for a revised quote" (stage 7): keeps the quote they sent as the previous quote, puts the line back to waiting,
+     and starts the reply clock today. Entering their new quote # later moves it back to Quote in. */
+  B.querySelectorAll("[data-revin]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; b.disabled=true; const v=b.dataset.revin; const now=new Date().toISOString();
+    await editLines(L.filter(o=>o.x.name===v).map(o=>o.j.id),S=>{ let c=false; S.forEach(y=>{ if(y.rfq===r.no&&y.name===v&&!y.po&&["sent","replied"].includes(y.status)){ y.status="quote"; delete y.reqAt; y.updated=now; c=true; } }); return c; },`${r.no}: ${v} revised quote in (update the quote # / total if they changed)`); });
+  B.querySelectorAll("[data-rev]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; const v=b.dataset.rev; const x=(L.find(o=>o.x.name===v)||{x:{}}).x;
+    if(!confirm(`Mark ${v} as asked for a revised quote on ${r.no}?\n\nQuote ${x.quoteNo?"#"+x.quoteNo:""}${x.total?" ("+x.total+")":""} is kept as the previous quote. The reply clock starts today.`)) return;
+    b.disabled=true; const now=new Date().toISOString(); const d=new Date(now).toLocaleDateString("en-CA",{month:"short",day:"numeric"});
+    await editLines(L.filter(o=>o.x.name===v).map(o=>o.j.id),S=>{ let c=false; S.forEach(y=>{ if(y.rfq===r.no&&y.name===v&&!y.po){
+        y.prevQuote={no:y.quoteNo||"",total:y.total||"",at:y.updated||y.sent||""}; y.status="sent"; y.reqAt=now; y.updated=now;
+        y.note=((y.note?y.note+" | ":"")+`${d}: asked for a revised quote (previous ${y.quoteNo?"#"+y.quoteNo:"quote"} kept)`).slice(0,1500); c=true; } }); return c; },`${r.no}: asked ${v} for a revised quote`); });
   B.querySelectorAll("[data-rcnt]").forEach(b=>b.onclick=()=>{ const [jid,sid]=b.dataset.rcnt.split("|"); window.openCount(jid,sid); });
   const av=B.querySelector("#pAddV"); if(av) av.onclick=()=>addVendor(r);
   const cm=B.querySelector("#pCmp"); if(cm) cm.onclick=()=>{ const jid=(r.jobs||[])[0]; if(jid&&window.compareQuotes) window.compareQuotes(jid); };
@@ -192,8 +207,8 @@ function renderPo(B,r){
       <div class="lbl" style="margin-top:6px">Moving this moves ${L.length===1?`the ${E(r.vendor)} line on ${E(jobTag(L[0].j.id))}`:`the ${E(r.vendor)} lines on ${L.length} jobs`} too (Orders board, Count).</div>
       ${["arrived","ready","production","approved"].includes(r.status)&&L.length&&window.openCount?`<div style="margin-top:8px"><button class="btn primary" type="button" id="pCount">☑ Count it</button></div>`:""}</div>
     ${L.length?`<div class="psc"><h3>ON THE JOBS</h3>${L.map(({j,x})=>{ const st=(typeof ST!=="undefined"&&ST[x.status])||{t:x.status,c:"#888"};
-        return `<div class="ojl"><div class="ojlh"><button class="chip" type="button" data-oj="${E(j.id)}" title="Open ${E(j.name)}">${E(jobTag(j.id))}</button><span class="ostat" style="--c:${st.c}">${E(st.t)}</span></div>
-          ${x.scope?`<div class="ojls">${E(x.scope)}</div>`:""}
+        return `<div class="ojl"><div class="ojlh"><button class="chip" type="button" data-oj="${E(j.id)}" title="Open ${E(j.name)}">${E(jobTag(j.id))}</button><span class="ostat" style="--c:${st.c}">${E(window.supT?window.supT(x):st.t)}</span></div>
+          ${x.scope?`<div class="ojls">${E(x.scope)}</div>`:""}${window.supExtraHTML?window.supExtraHTML(x):""}
           <div class="lbl">${[x.quoteNo?"Their # "+E(x.quoteNo):"",x.total?"Total "+E(x.total):"",x.sent?"Sent "+day(x.sent):"",x.receivedAt?"Received "+day(x.receivedAt):""].filter(Boolean).join(" · ")||"&nbsp;"}</div></div>`; }).join("")}</div>`:""}
     <div class="psc"><h3>DELIVERIES <span class="lbl" style="font-family:inherit;letter-spacing:0">${D.length?`${inN} of ${D.length} in`:"one delivery"}</span></h3>
       ${D.length?`<div class="bar"><div style="width:${Math.round(inN/D.length*100)}%"></div></div>`:`<div class="lbl">If ${E(r.vendor||"the vendor")} splits this order (separate order acks, part pickups), add each piece here so you can follow them one by one.</div>`}
@@ -268,9 +283,9 @@ function newSheet(kind,pre={}){
         const rec={no,kind,title:title||null,vendor:rfq?null:vs[0],vendors:rfq?vs:[vs[0]],jobs:js,status:rfq?"open":"approved",vendor_ref:rfq?null:(el.querySelector("#nR").value.trim()||null),created_by:(window.ME&&ME.name)||"Kyle",log:[{at:now,t:`${rfq?"RFQ":"PO"} made${title?" - "+title:""}`}]};
         const q=await sb.from("gvc_pos").insert(rec).select().single(); if(q.error) throw new Error(q.error.message); POS.unshift(q.data);
         // reuse a line only if it's still at the asking stage - never an order that's already placed / arriving
-        await editLines(js,S=>{ vs.forEach(v=>{ const ex=S.find(x=>x.name===v&&!x.rfq&&!x.po&&(rfq?["sent","replied","quote"]:["sent","replied","quote","approved"]).includes(x.status||"sent"));
+        await editLines(js,(S,D)=>{ const forNcr=pre.ncr&&(D.ncrs||[]).some(x=>x.n===pre.ncr.n); vs.forEach(v=>{ const ex=!forNcr&&S.find(x=>x.name===v&&!x.rfq&&!x.po&&(rfq?["sent","replied","quote"]:["sent","replied","quote","approved"]).includes(x.status||"sent"));
             if(ex){ ex[rfq?"rfq":"po"]=no; if(!rfq){ ex.status="approved"; if(rec.vendor_ref) ex.quoteNo=ex.quoteNo||rec.vendor_ref; } ex.updated=now; }
-            else S.push({id:uid(),name:v,scope:title||"",sent:now,status:rfq?"sent":"approved",[rfq?"rfq":"po"]:no,quoteNo:rfq?"":(rec.vendor_ref||""),updated:now}); }); return true; },`${no}${title?" "+title:""}: ${rfq?"asked "+vs.join(", "):"ordered from "+vs[0]}`);
+            else S.push({id:uid(),name:v,scope:title||"",sent:now,status:rfq?"sent":"approved",[rfq?"rfq":"po"]:no,quoteNo:rfq?"":(rec.vendor_ref||""),updated:now,...(forNcr?{ncr:pre.ncr.n}:{})}); }); return true; },`${no}${title?" "+title:""}: ${rfq?"asked "+vs.join(", "):"ordered from "+vs[0]}`);
         close(); selNo=no; if(typeof cur!=="undefined"&&cur!=="pos") shellGo("pos"); else render(); toTop(); say(`${no} made`);
       }catch(e){ go.disabled=false; say("Couldn't make it: "+e.message); }
     };
@@ -320,6 +335,8 @@ window.openPo=no=>{ selNo=no; if(typeof closeDlg==="function") closeDlg(); if(ty
 // from a job card: close the card first so its copy of the job can't overwrite the new lines
 window.newRfqFor=jid=>{ if(typeof closeDlg==="function") closeDlg(); newSheet("rfq",{jobs:[jid]}); };
 window.newPoFor=jid=>{ if(typeof closeDlg==="function") closeDlg(); newSheet("po",{jobs:[jid]}); };
+/* replacement order for an NCR (stage 7): a new RFQ / PO on that job whose line carries ncr = n, so the NCR shows it as tracking */
+window.newOrderForNcr=(jid,n,kind,title)=>{ newSheet(kind==="po"?"po":"rfq",{jobs:[jid],title,ncr:{jid,n}}); };
 window.posOpen=()=>POS.filter(r=>r.kind==="rfq"?r.status==="open":!["received","cancelled"].includes(r.status)).length;
 document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-opo]"); if(b){ e.preventDefault(); e.stopPropagation(); window.openOrder(b.dataset.opo); } },true);
 // Back: the order panel closes first, then an open RFQ / PO page goes back to the RFQs & POs list ("back" hooks - see back.js)
@@ -377,7 +394,7 @@ function drawLine(B){
   const {jid,sid}=panel.line; const j=jobOf(jid); const x=j&&(j.suppliers||[]).find(s=>s.id===sid);
   const hd=`<div class="ophd"><button class="btn sm" type="button" id="pBack" aria-label="Close and go back">‹ Back</button><span style="flex:1"></span>${j?`<button class="btn sm" type="button" id="lJob">Open full job ›</button>`:""}</div>`;
   if(!x){ B.innerHTML=hd+`<div class="empty" style="text-align:left">This order isn't on the job any more.</div>`; B.querySelector("#pBack").onclick=closePanel; const lj=B.querySelector("#lJob"); if(lj) lj.onclick=()=>{ closePanel(false); openJob(jid); }; return; }
-  const sts=typeof ST!=="undefined"?ST:{}; const st=sts[x.status]||sts.sent||{t:x.status,c:"#888"};
+  const sts=typeof ST!=="undefined"?ST:{}; const st0=sts[x.status]||sts.sent||{t:x.status,c:"#888"}; const st={...st0,t:window.supT?window.supT(x):st0.t};
   const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim():j.name;
   const qt=!x.total&&window.quoteTotal?window.quoteTotal(x):null;
   const f=(t,v)=>v?`<div><dt>${t}</dt><dd>${v}</dd></div>`:"";
@@ -386,6 +403,7 @@ function drawLine(B){
     <button class="opjob" type="button" id="lJob2">${num?`<span class="jnum">${E(num)}</span>`:""}<span>${E(rest)}</span></button>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><span class="no" style="font-size:22px">${E(x.name)}</span><span class="ostat" style="--c:${st.c}">${E(st.t)}</span></div>
     <div class="lbl" style="margin-top:2px">No RFQ or PO number on this order${x.scope?` · ${E(x.scope)}`:""}</div>
+    ${window.supExtraHTML?window.supExtraHTML(x):""}
     <dl class="ofacts">${f(x.po?"Their #":"Quote #",E(x.quoteNo))}${f("Total",x.total?E(x.total):qt?money(qt)+" on the quote":"")}${f("Lead time",E(x.lead))}${f("Contact",E(x.contact))}
       ${f("Sent",x.sent?E(fmt(x.sent)):"Not sent yet")}${f("Last update",x.updated&&E(fmt(x.updated)))}${f("Arrived",x.arrivedAt&&E(fmt(x.arrivedAt)))}${f("Received",x.receivedAt&&E(fmt(x.receivedAt)))}</dl>
     ${x.note?`<div class="psc"><h3>LATEST</h3><div class="onote">${E(x.note)}</div></div>`:""}
