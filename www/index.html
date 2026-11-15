@@ -919,7 +919,7 @@ function taskRow(j,a,k){
   const canStatus=admin||mine, more=taskMore.has(a.id), who=whoList(a);
   const G=j.groups||[];
   return `<div class="trow ${a.status==="done"?"tdone":""} ${taskHi===a.id?"thi":""}" data-task-i="${k}" data-task-id="${esc(a.id)}">
-    <div class="tmain"><div class="an2" data-ren="${k}" ${admin?`title="Tap to rename"`:""}>${esc(a.name)}</div>${a.meta?`<div class="am2">${esc(a.meta)}</div>`:""}${a.final?`<div class="am2">Last task - waits for the rest</div>`:""}</div>
+    <div class="tmain"><div class="an2" data-ren="${k}" ${admin?`title="Tap to rename"`:""}>${esc(a.name)}</div>${a.meta?(a.meta.length>90?`<details class="tnotes"><summary class="am2">${esc(a.meta.slice(0,80).replace(/\s+\S*$/,""))}… <u>Details</u></summary><div class="am2">${esc(a.meta)}</div></details>`:`<div class="am2">${esc(a.meta)}</div>`):""}${a.final?`<div class="am2">Last task - waits for the rest</div>`:""}</div>
     <div class="twho">${admin?`<button type="button" class="twb ${who.length?"":"none"}" data-whot="${esc(a.id)}" aria-expanded="${whoOpen.has(a.id)}" aria-label="Who's on ${esc(a.name)}: ${who.length?esc(who.join(", ")):"nobody"} - change">${who.length?esc(who.join(", ")):"Assign"}</button>`
       :`<span class="twn ${who.length?"":"none"}">${who.length?esc(who.join(", ")):"Unassigned"}</span>`}</div>
     <div class="tst" style="--c:${st.c}">${canStatus?asmSel(j,k,a,"status"):`<span class="ostat" style="--c:${st.c}">${esc(st.t)}</span>`}</div>

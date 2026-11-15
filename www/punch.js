@@ -334,7 +334,7 @@ GVC.on("drawDlg:after",()=>{
     const b=document.createElement("button"); b.type="button"; b.className="pnb"+(on?" on":""); b.textContent=on?"■ Punch out":"▶ Punch in";
     b.onclick=e=>{ e.stopPropagation(); on?punchOut():punchIn(j.id,a.id); }; td.appendChild(b); });
   const tasks=D.querySelector("table.at")||D.querySelector("#newAsm");
-  const box=document.createElement("div"); box.className="jtime"; box.innerHTML=`<div class="sec"><span>Time on this job</span></div><div class="tnote">Loading…</div>`;
+  const box=document.createElement("div"); box.className="jtime"; box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><div class="tnote">Loading…</div>`;
   const anchor=D.querySelector("#newAsm")||(tasks&&tasks.closest(".atw")); if(anchor) anchor.after(box); else return;
   punchesFor(j.id).then(P=>{
     if(!D.contains(box)) return;
@@ -342,11 +342,11 @@ GVC.on("drawDlg:after",()=>{
     P.forEach(p=>{ const k=p.task_id||"-"; const o=by[k]=by[k]||{name:p.task_name,ms:0,who:{}}; const ms=paidMs(p.start_at,p.end_at||now); o.ms+=ms; o.who[p.who]=(o.who[p.who]||0)+ms; });
     const plan=(window.gvcPlan&&gvcPlan.get&&gvcPlan.get())||{}; const H=plan.hours||{};
     const ks=Object.keys(by);
-    if(!ks.length){ box.innerHTML=`<div class="sec"><span>Time on this job</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ Punch in on a task to start the clock.</div>`; return; }
+    if(!ks.length){ box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ Punch in on a task to start the clock.</div>`; return; }
     let tot=0;
-    box.innerHTML=`<div class="sec"><span>Time on this job</span></div><table><thead><tr><th>Task</th><th>Who</th><th>Actual</th><th>Planned</th></tr></thead><tbody>${ks.map(k=>{ const o=by[k]; tot+=o.ms;
+    box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><table><thead><tr><th>Task</th><th>Who</th><th>Actual</th><th>Planned</th></tr></thead><tbody>${ks.map(k=>{ const o=by[k]; tot+=o.ms;
       const a=(j.assemblies||[]).find(x=>x.id===k); const est=H[`j:${j.id}:${k}`]; const act=o.ms/36e5;
-      return `<tr><td>${esc(a?a.name:o.name||"")}</td><td>${Object.entries(o.who).map(([w,ms])=>`${esc(w)} ${hrs(ms)}`).join(", ")}</td><td>${hrs(o.ms)}</td><td class="${est?act>est*1.15?"over":act<est*0.85&&a&&a.status==="done"?"under":"":""}">${est?est+"h":"-"}</td></tr>`; }).join("")}
+      return `<tr><td>${a?esc(a.name):o.name?esc(o.name)+' <span class="tnote" style="margin:0">(task removed)</span>':'<i style="color:var(--muted)">Time not linked to a task</i>'}</td><td>${Object.entries(o.who).map(([w,ms])=>`${esc(w)} ${hrs(ms)}`).join(", ")}</td><td>${hrs(o.ms)}</td><td class="${est?act>est*1.15?"over":act<est*0.85&&a&&a.status==="done"?"under":"":""}">${est?est+"h":"-"}</td></tr>`; }).join("")}
       <tr><td><b>Total</b></td><td></td><td><b>${hrs(tot)}</b></td><td></td></tr></tbody></table>`;
   });
 });

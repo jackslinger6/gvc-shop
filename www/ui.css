@@ -285,6 +285,7 @@ button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
 .tsub{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:6px;border-top:1px dashed var(--line)}
 .tsub .wchips{gap:6px}
 .tml{flex-direction:row!important;align-items:center;gap:6px!important;flex:0 1 260px!important;min-width:0!important;margin:0!important}
+.tnotes>summary{list-style:none;cursor:pointer}.tnotes>summary::-webkit-details-marker{display:none}.tnotes>summary u{color:var(--text);text-underline-offset:2px}.tnotes[open]>summary{display:none}
 .tempty{font-size:13px;color:var(--muted);padding:8px 4px}
 .linkb{background:none;border:0;padding:0;color:var(--text);text-decoration:underline;font:inherit;cursor:pointer}
 @media (max-width:700px){
