@@ -46,7 +46,7 @@ async function save(o,patch,note){
 const css=document.createElement("style");
 css.textContent=`
 .pov{max-width:1000px;margin-top:6px}
-.pov h2{font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0}
+.pov h2{font-family:var(--font-display);letter-spacing:.05em;margin:0}
 .pov .lbl{font-size:12.5px;color:var(--muted)}
 .pov .stg{display:flex;gap:6px;overflow-x:auto;margin:10px 0 4px;padding-bottom:4px}
 .pov .stg button{flex:none}
@@ -61,10 +61,10 @@ css.textContent=`
 #poAll .trk{grid-template-columns:minmax(150px,280px) minmax(0,1fr) 150px}
 #poAll .cell[style*='--cc']{background:var(--cc)!important}#poAll .cell.past{opacity:.4}
 @media (max-width:760px){ .potabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.potabs .tab{flex:0 0 auto;font-size:12.5px;padding:5px 10px} #poAll .trk{grid-template-columns:1fr} #poAll .where{margin-bottom:8px} }
-.pno{font:600 20px/1.1 Oswald,sans-serif;letter-spacing:.04em;color:var(--c,#2f8ff0);margin-bottom:2px}.pno.big{font-size:28px;--c:#2f8ff0}
+.pno{font:600 20px/1.1 var(--font-display);letter-spacing:.04em;color:var(--c,#2f8ff0);margin-bottom:2px}.pno.big{font-size:28px;--c:#2f8ff0}
 .pno small{display:block;font-family:system-ui,sans-serif;font-size:12.5px;font-weight:500;line-height:1.3;letter-spacing:0;color:var(--muted);margin-top:2px}.poc .m{font-size:12.5px;color:var(--muted);margin-top:3px}
 .pod .psec{margin-top:16px}
-.pod .psec>h3{font-family:Oswald,sans-serif;letter-spacing:.08em;font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.pod .psec>h3{font-family:var(--font-display);letter-spacing:.08em;font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
 .pod .steps{display:flex;gap:5px;flex-wrap:wrap}
 .pod .steps button{border-radius:999px}
 .pod .steps button.on{background:var(--c);border-color:var(--c);color:#fff}
@@ -98,12 +98,12 @@ body.girly .poc,body.girly .pod .qc{background:#fffafd}
 .pod .plc{font:inherit;font-size:13px;padding:4px 11px;border-radius:99px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer}
 .pod .plc[aria-pressed="true"]{background:#2f8ff0;border-color:#2f8ff0;color:#fff}
 .pod .pltot{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
-.pod .plt{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel)}.pod .plt b{display:block;font:600 22px Oswald,sans-serif}.pod .plt span{display:block;font-size:11.5px;color:var(--muted);line-height:1.35}
+.pod .plt{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel)}.pod .plt b{display:block;font:600 22px var(--font-display)}.pod .plt span{display:block;font-size:11.5px;color:var(--muted);line-height:1.35}
 .pod .plt.low{border-color:#3ad06b}.pod .plt.low b{color:#3ad06b}.pod .plt.ord{box-shadow:0 0 0 2px #3ad06b inset}
 .pod .pll{display:grid;gap:6px;margin-top:8px}
 .pod .plr{display:grid;grid-template-columns:56px minmax(0,1fr) 70px 130px auto;gap:6px 12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
 .pod .plr.win{border-left-color:#3ad06b}.pod .plr.miss{border-left-color:#e5483b}
-.pod .plth{width:56px;height:46px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font:600 15px Oswald,sans-serif}
+.pod .plth{width:56px;height:46px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font:600 15px var(--font-display)}
 .pod .plth .hwpic{width:46px;height:46px;background:none;border:0}.pod .plth .hwpic svg{width:100%;height:100%}
 .pod .pln{font-weight:600;font-size:14px;line-height:1.3;word-break:break-word}
 .pod .plm{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);margin-top:2px}
@@ -111,8 +111,8 @@ body.girly .poc,body.girly .pod .qc{background:#fffafd}
 .pod .plp i{display:block;font-style:normal;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .pod .plp b{font-size:14px}.pod .plp small{display:block;font-size:11px;color:var(--muted)}.pod .plp em{color:var(--muted)}
 .pod .plp .lo b{color:#3ad06b}
-.pod .plq{text-align:center;line-height:1.05}.pod .plq b{display:block;font:600 24px Oswald,sans-serif}.pod .plq small,.pod .plb small{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-.pod .plb{line-height:1.15;border-left:1px solid var(--line);padding-left:10px;min-height:34px}.pod .plb b{display:block;font:600 16px Oswald,sans-serif;color:#3ad06b;letter-spacing:.03em}.pod .plb small{text-transform:none;letter-spacing:0;color:#3ad06b;font-size:12px}
+.pod .plq{text-align:center;line-height:1.05}.pod .plq b{display:block;font:600 24px var(--font-display)}.pod .plq small,.pod .plb small{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.pod .plb{line-height:1.15;border-left:1px solid var(--line);padding-left:10px;min-height:34px}.pod .plb b{display:block;font:600 16px var(--font-display);color:#3ad06b;letter-spacing:.03em}.pod .plb small{text-transform:none;letter-spacing:0;color:#3ad06b;font-size:12px}
 .pod .plx{grid-column:1/-1;font-size:13px;border-top:1px dashed var(--line);padding-top:6px;line-height:1.45}
 .pod .srcq>summary{cursor:pointer;list-style:none}.pod .srcq>summary::-webkit-details-marker{display:none}
 @media (max-width:640px){ .pod .plr{grid-template-columns:48px minmax(0,1fr) 54px} .pod .plq b{font-size:20px} .pod .plb{grid-column:1/-1;border:0;padding:0;min-height:0;display:flex;gap:8px;align-items:baseline} .pod .plb:empty{display:none} .pod .plth{width:48px;height:40px} .pod .plp{grid-column:1/-1;grid-template-columns:repeat(var(--n),1fr);text-align:left;border-top:1px solid var(--line);padding-top:6px} }
@@ -221,7 +221,7 @@ function renderOrder(B,o){
   const si=ST.findIndex(x=>x[0]===o.status);
   B.innerHTML=`<div class="pod">
     <button class="btn sm" type="button" id="poBack">‹ All orders</button>
-    <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px">${(N=>N.big?`<div class="pno big">${E(N.big)}${N.sub?`<small>${E(N.sub)}</small>`:""}</div>`:"")(nums(o))}<h2 style="font-family:Oswald,sans-serif;letter-spacing:.04em;margin:0">${E(nums(o).name)}</h2>
+    <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px">${(N=>N.big?`<div class="pno big">${E(N.big)}${N.sub?`<small>${E(N.sub)}</small>`:""}</div>`:"")(nums(o))}<h2 style="font-family:var(--font-display);letter-spacing:.04em;margin:0">${E(nums(o).name)}</h2>
       <div class="lbl">${[o.job?"Job "+o.job:"","started "+day(o.created_at)+(o.created_by?" by "+o.created_by:"")].filter(Boolean).map(E).join(" · ")}</div></div>
       <button class="btn sm" type="button" id="poEd">✎ Edit</button></div>
     <div class="psec"><div class="steps">${ST.map(([k,t,c],i)=>`<button class="btn sm ${k===o.status?"on":i<si?"past":""}" type="button" data-pst="${k}" style="--c:${c}">${t}</button>`).join("")}</div>

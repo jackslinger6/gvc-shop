@@ -18,9 +18,9 @@ st.textContent=`
 .cw .p .ost{display:block;font-size:10.5px;letter-spacing:.06em;color:var(--muted);margin-top:2px;text-transform:uppercase}
 .cw .p.onl .ost{color:#7ff0a8}
 .cw .p .mbd{position:absolute;top:-6px;right:-8px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5483b;color:#fff;font:700 11px/18px system-ui;text-align:center;box-shadow:0 0 0 2px #17191d}
-.tmav{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font:600 28px Oswald,sans-serif;color:#111;flex:none}
+.tmav{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font:600 28px var(--font-display);color:#111;flex:none}
 .tmav.onl{box-shadow:0 0 0 3px #17191d,0 0 0 6px #3ad06b,0 0 22px 6px rgba(58,208,107,.5)}
-.tmhd{display:flex;gap:14px;align-items:center;margin-bottom:12px}.tmhd b{font:600 24px Oswald,sans-serif;letter-spacing:.04em}.tmhd small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.tmhd{display:flex;gap:14px;align-items:center;margin-bottom:12px}.tmhd b{font:600 24px var(--font-display);letter-spacing:.04em}.tmhd small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
 .tmhd small.on{color:#7ff0a8}
 .mthr{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto;padding:4px 2px 8px}
 .mb{max-width:80%;padding:8px 11px;border-radius:14px;font-size:14.5px;line-height:1.35;white-space:pre-wrap;word-wrap:break-word}
@@ -29,7 +29,7 @@ st.textContent=`
 .mb small{display:block;font-size:10.5px;opacity:.7;margin-top:3px}
 .mday0{text-align:center;color:var(--muted);font-size:11px;letter-spacing:.08em;margin:6px 0 2px}
 .msend{display:flex;gap:8px;margin-top:8px}.msend textarea{flex:1;min-height:44px;max-height:120px;resize:none;border-radius:12px;padding:10px 12px;font:inherit;font-size:15px}
-.msend button{border:0;border-radius:12px;background:#2f8ff0;color:#fff;font:600 14px Oswald,sans-serif;letter-spacing:.08em;padding:0 16px;cursor:pointer}
+.msend button{border:0;border-radius:12px;background:#2f8ff0;color:#fff;font:600 14px var(--font-display);letter-spacing:.08em;padding:0 16px;cursor:pointer}
 .tmbtns{display:flex;gap:8px;margin-top:12px}.tmbtns button{flex:1}
 .mban{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translate(-50%,-140%);z-index:95;display:flex;gap:10px;align-items:center;
   width:min(520px,calc(100vw - 20px));background:#1d2025;border:1px solid #2f8ff0;border-radius:14px;padding:10px 12px;box-shadow:0 10px 40px rgba(0,0,0,.6);transition:transform .3s cubic-bezier(.2,.8,.2,1);cursor:pointer}
@@ -39,20 +39,20 @@ st.textContent=`
 .mlist em{font-style:normal;background:#e5483b;color:#fff;border-radius:9px;padding:1px 7px;font-size:12px;font-weight:700}
 .tmrow{margin-top:4px}
 /* crew My time */
-.mtw{display:flex;align-items:center;gap:8px;margin-bottom:10px}.mtw b{flex:1;text-align:center;font:600 16px Oswald,sans-serif;letter-spacing:.06em}
+.mtw{display:flex;align-items:center;gap:8px;margin-bottom:10px}.mtw b{flex:1;text-align:center;font:600 16px var(--font-display);letter-spacing:.06em}
 .mtw button{border:1px solid var(--line);background:#1d2025;color:inherit;border-radius:10px;width:42px;height:38px;font-size:20px;cursor:pointer}
 .mttot{display:flex;gap:10px;margin-bottom:12px}.mttot div{flex:1;background:#1d2025;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
-.mttot b{display:block;font:600 24px Oswald,sans-serif;color:#7ff0a8}.mttot span{font-size:11px;letter-spacing:.08em;color:var(--muted)}
-.mtd{display:flex;justify-content:space-between;font:600 13px Oswald,sans-serif;letter-spacing:.08em;color:var(--muted);margin:12px 2px 6px}
+.mttot b{display:block;font:600 24px var(--font-display);color:#7ff0a8}.mttot span{font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.mtd{display:flex;justify-content:space-between;font:600 13px var(--font-display);letter-spacing:.08em;color:var(--muted);margin:12px 2px 6px}
 .mtr{display:flex;gap:10px;align-items:center;background:#1d2025;border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin-bottom:6px;cursor:pointer;width:100%;text-align:left;color:inherit}
 .mtr div{flex:1;min-width:0}.mtr b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mtr span{font-size:12.5px;color:var(--muted)}
-.mtr em{font-style:normal;font:600 16px Oswald,sans-serif;font-variant-numeric:tabular-nums}.mtr.run{border-color:rgba(58,208,107,.6)}.mtr.run em{color:#7ff0a8}
+.mtr em{font-style:normal;font:600 16px var(--font-display);font-variant-numeric:tabular-nums}.mtr.run{border-color:rgba(58,208,107,.6)}.mtr.run em{color:#7ff0a8}
 .mtr i{font-style:normal;font-size:10.5px;color:#f5b041;margin-left:6px}
 .mted{background:#14161a;border:1px solid #2f8ff0;border-radius:12px;padding:10px;margin:-2px 0 8px}
 .mted .row{display:flex;gap:8px}.mted label{flex:1;font-size:12px;color:var(--muted)}.mted input,.mted select{width:100%;margin-top:3px}
 .mted .acts{display:flex;gap:8px;margin-top:10px}.mted .acts button{flex:1;min-height:42px}
 .mycard{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#1d2025;border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:inherit;cursor:pointer}
-.mycard b{font:600 26px Oswald,sans-serif;color:#7ff0a8}.mycard div{flex:1}.mycard span{display:block;font-size:12px;letter-spacing:.08em;color:var(--muted)}
+.mycard b{font:600 26px var(--font-display);color:#7ff0a8}.mycard div{flex:1}.mycard span{display:block;font-size:12px;letter-spacing:.08em;color:var(--muted)}
 `;
 document.head.appendChild(st);
 

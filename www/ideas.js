@@ -36,7 +36,7 @@ const openCount=()=>notes.filter(n=>n.status==="new"||n.status==="planned").leng
 window.renderIdeas=function(){
   const B=$("#board"); B.className="idv"; B.style.gridTemplateColumns="";
   const live=notes.filter(n=>showDone||n.status==="new"||n.status==="planned");
-  let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">App ideas &amp; fixes</h2><span style="flex:1"></span>
+  let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">App ideas &amp; fixes</h2><span style="flex:1"></span>
     <button class="btn sm primary" id="idTalk">Talk it through with Claude</button><button class="btn sm" id="idAdd">+ Write one</button><button class="btn sm ${showDone?"primary":""}" id="idDone">Show done</button></div>
     <div class="lbl" style="margin-top:6px">Tell the in-app Claude what you want changed or what's not working. It talks it through and saves it here. At home, ask Claude to "go through the app ideas" and it builds the next version.</div>`;
   if(adding) h+=`<div class="form"><div class="row" style="margin-top:0"><select id="nfK">${Object.entries(KIND).map(([k,v])=>`<option value="${k}">${v[0]} ${v[1]}</option>`).join("")}</select>

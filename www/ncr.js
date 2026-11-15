@@ -165,7 +165,7 @@ window.renderNcr=function(){
   const byType={}; A.forEach(r=>{ const t=byType[r.x.type]=byType[r.x.type]||{n:0,h:0,m:0}; t.n++; t.h+=r.s.h; t.m+=Number(r.x.mat)||0; });
   const allOpen=live.length&&live.every(r=>openRows.has(r.j.id+":"+r.x.n));
   const cols=rate?8:7;
-  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">NCR log</h2><span style="flex:1"></span>
+  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">NCR log</h2><span style="flex:1"></span>
      <span class="lbl">Shop rate for cost</span><input id="nRate" type="number" min="0" value="${rate||""}" placeholder="$/h" style="width:80px;font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 7px">
      <button class="btn sm ${showClosed?"primary":""}" id="nClosed">Show closed</button></div>
    <div class="fbar"><span class="lbl">Job</span><select id="nJob"><option value="">All jobs (${ALL.length})</option>${jobList.map(t=>`<option value="${esc(t.j.id)}" ${t.j.id===jobF?"selected":""}>${esc(t.j.name)} (${t.n}${t.open?`, ${t.open} open`:""})</option>`).join("")}</select>

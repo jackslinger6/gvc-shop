@@ -19,26 +19,26 @@ window.paidMs=(a,b)=>{ a=+new Date(a); b=b==null?Date.now():+new Date(b); if(!(b
 const st=document.createElement("style");
 st.textContent=`
 .pclk{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;margin:0 auto 10px;max-width:1500px;padding:8px 12px;border-radius:12px;
-  background:linear-gradient(90deg,rgba(58,208,107,.22),rgba(58,208,107,.06));border:1px solid rgba(58,208,107,.55);box-shadow:0 0 18px rgba(58,208,107,.18)}
+  background:linear-gradient(90deg,rgba(58,208,107,.22),rgba(58,208,107,.06));border:1px solid rgba(58,208,107,.55)}
 .pclk[hidden]{display:none}
-.pclk .dot{width:10px;height:10px;border-radius:50%;background:#3ad06b;box-shadow:0 0 10px #3ad06b;animation:pdot 1.4s ease-in-out infinite;flex:none}
+.pclk .dot{width:10px;height:10px;border-radius:50%;background:#3ad06b;box-shadow:none;animation:pdot 1.4s ease-in-out infinite;flex:none}
 @keyframes pdot{50%{opacity:.35}}
 .pclk .t{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pclk .t b{font-weight:600}.pclk .t small{color:var(--muted);margin-left:6px}
-.pclk .clk{font:600 18px Oswald,sans-serif;letter-spacing:.06em;color:#7ff0a8;font-variant-numeric:tabular-nums}
-.pclk button{border:none;border-radius:10px;background:#e5483b;color:#fff;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:8px 12px;cursor:pointer}
+.pclk .clk{font:600 18px var(--font-display);letter-spacing:.06em;color:#7ff0a8;font-variant-numeric:tabular-nums}
+.pclk button{border:none;border-radius:10px;background:#e5483b;color:#fff;font:600 13px var(--font-display);letter-spacing:.08em;padding:8px 12px;cursor:pointer}
 .mday{grid-column:1/-1}
 .mday .row2{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid #2a2e34;border-left:4px solid var(--c);border-radius:12px;margin-bottom:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 12%,#17191d),#15171a 60%)}
 .mday .row2.on{border-color:#3ad06b;box-shadow:0 0 0 1px #3ad06b inset}
 .mday .row2.dn{opacity:.5}
-.mday .tm{font:600 12px Oswald,sans-serif;letter-spacing:.06em;color:var(--muted);min-width:54px}
+.mday .tm{font:600 12px var(--font-display);letter-spacing:.06em;color:var(--muted);min-width:54px}
 .mday .nm{min-width:0}.mday .nm b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mday .nm small{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mday .bt{display:flex;gap:6px}
-.mday .bt button{border:none;border-radius:10px;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:0 12px;height:40px;cursor:pointer}
+.mday .bt button{border:none;border-radius:10px;font:600 13px var(--font-display);letter-spacing:.08em;padding:0 12px;height:40px;cursor:pointer}
 .mday .pin{background:linear-gradient(180deg,#5be38a,#2fae5b);color:#0b1a10}.mday .pout{background:#e5483b;color:#fff}.mday .pdn{background:rgba(255,255,255,.07);color:#e9e6e1;border:1px solid #33373e!important}
 @media (max-width:600px){ .mday .row2{grid-template-columns:1fr auto;row-gap:2px} .mday .tm{grid-column:1/-1;min-width:0} .mday .nm b{white-space:normal} .mday .bt button{height:44px} }
 .mday .none{color:var(--dim);font-size:13px;margin:0 2px 4px}
 .mday .jrow .nm b{display:flex;align-items:center;gap:8px;font-size:16px}
-.mday .jb{font:600 12.5px Oswald,sans-serif;letter-spacing:.06em;color:#111;border-radius:5px;padding:1px 7px;flex:none}
+.mday .jb{font:600 12.5px var(--font-display);letter-spacing:.06em;color:#111;border-radius:5px;padding:1px 7px;flex:none}
 .mday .tchips{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
 .mday .tchip{font:500 12.5px Inter,sans-serif;color:var(--text);background:color-mix(in srgb,var(--c) 14%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);border-radius:99px;padding:4px 10px;cursor:pointer}
 .mday .tchip.dn{opacity:.5;text-decoration:line-through;cursor:default}.mday .tchip.live{box-shadow:0 0 0 2px #3ad06b}
@@ -46,17 +46,17 @@ st.textContent=`
 .splt{display:grid;gap:6px}.spr{display:grid;grid-template-columns:minmax(0,1fr) 84px auto;gap:10px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--c);border-radius:10px;padding:8px 10px}
 .spr.dn{opacity:.6}.spr .sn b{display:block;font-size:14px}.spr .sn small{display:block;font-size:11.5px;color:var(--muted)}
 .spr select{font-size:16px;min-height:42px;margin:0}.spr .sfin{display:flex;gap:6px;align-items:center;margin:0;font-size:13px;white-space:nowrap}.spr .sfin input{width:20px;height:20px;margin:0}
-.pkh{font:600 11.5px Oswald,sans-serif;letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
+.pkh{font:600 11.5px var(--font-display);letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
 .pkt{display:block;width:100%;text-align:left;border:1px solid #2a2e34;border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin-bottom:6px;cursor:pointer;
   background:linear-gradient(90deg,color-mix(in srgb,var(--c) 12%,#17191d),#15171a 60%);color:var(--text);font:inherit}
 .pkt b{display:block;font-size:14.5px;font-weight:600}.pkt small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .pkt.on{border-color:#3ad06b;box-shadow:0 0 0 1px #3ad06b inset}.pkt:active{transform:scale(.99)}
 .mday .pdn{font-size:12px!important;padding:0 10px!important}
-.mday .dh{font:600 11.5px Oswald,sans-serif;letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
+.mday .dh{font:600 11.5px var(--font-display);letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
 .mday .add{width:100%;border:1px dashed #3a3e45;background:none;color:#cfd3d8;border-radius:12px;padding:10px;font:500 14px Inter,sans-serif;cursor:pointer;margin-top:4px}
 .jtime table{width:100%;border-collapse:collapse;font-size:13.5px}.jtime td,.jtime th{padding:6px 8px;border-bottom:1px solid #22252a;text-align:left}
-.jtime th{font:600 11px Oswald,sans-serif;letter-spacing:.12em;color:var(--muted)}.jtime .over{color:#ff9b91}.jtime .under{color:#3ad06b}
-.pnb{border:none;border-radius:8px;background:rgba(58,208,107,.16);color:#7ff0a8;font:600 11.5px Oswald,sans-serif;letter-spacing:.08em;padding:4px 8px;margin-top:5px;cursor:pointer}
+.jtime th{font:600 11px var(--font-display);letter-spacing:.12em;color:var(--muted)}.jtime .over{color:#ff9b91}.jtime .under{color:#3ad06b}
+.pnb{border:none;border-radius:8px;background:rgba(58,208,107,.16);color:#7ff0a8;font:600 11.5px var(--font-display);letter-spacing:.08em;padding:4px 8px;margin-top:5px;cursor:pointer}
 .pnb.on{background:#e5483b;color:#fff}
 /* crew mode: hide the office side */
 body.crew #shBell,body.crew #undoBtn,body.crew #ideasBtn,body.crew #addJob,body.crew #msBtn,
@@ -390,7 +390,7 @@ window.addMyWork=addMyWork;
 async function needSupplies(){
   let cons=[]; try{ const r=await sb.from("gvc_consumables").select("id,name,category,unit,qty,min_qty").order("category").order("name"); cons=r.data||[]; }catch(e){}
   const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>NEED SUPPLIES</h3>
-    <button class="btn primary" type="button" id="nsTalk" style="width:100%;min-height:52px;font:600 15px Oswald,sans-serif;letter-spacing:.1em;margin-bottom:10px">🎤 SAY IT TO CLAUDE</button>
+    <button class="btn primary" type="button" id="nsTalk" style="width:100%;min-height:52px;font:600 15px var(--font-display);letter-spacing:.1em;margin-bottom:10px">🎤 SAY IT TO CLAUDE</button>
     <div class="tnote" style="margin:-4px 0 10px">e.g. ".035 wire is running low, last spool on the Miller"</div>
     <label>or type it - what do we need<input id="nsWhat" placeholder="e.g. 0.035 wire, 4.5&quot; flap discs, argon"></label>
     ${cons.length?`<div class="tnote" style="margin:4px 0 6px">or tap one</div><div class="chips" id="nsChips" style="margin-bottom:10px">${cons.map(c=>`<button type="button" data-ns="${esc(c.id)}">${esc(c.name)}</button>`).join("")}</div>`:""}
@@ -465,8 +465,8 @@ function pickTask(){
 }
 window.pickTask=pickTask;
 /* Kyle can look at the app the way Colton sees it (nothing saved while previewing) */
-const pvBar=document.createElement("div"); pvBar.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1200;background:#9085e9;color:#0b0b14;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:6px 8px 6px 14px;border-radius:0 0 12px 12px;display:none;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.5)";
-pvBar.innerHTML=`👁 CREW PREVIEW · WHAT COLTON SEES <button type="button" style="border:none;border-radius:8px;background:#0b0b14;color:#fff;font:600 12px Oswald,sans-serif;letter-spacing:.08em;padding:5px 10px;cursor:pointer">EXIT</button>`;
+const pvBar=document.createElement("div"); pvBar.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1200;background:#9085e9;color:#0b0b14;font:600 13px var(--font-display);letter-spacing:.08em;padding:6px 8px 6px 14px;border-radius:0 0 12px 12px;display:none;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.5)";
+pvBar.innerHTML=`👁 CREW PREVIEW · WHAT COLTON SEES <button type="button" style="border:none;border-radius:8px;background:#0b0b14;color:#fff;font:600 12px var(--font-display);letter-spacing:.08em;padding:5px 10px;cursor:pointer">EXIT</button>`;
 document.body.appendChild(pvBar);
 let realMe=null, realOpen=null;
 window.crewPreview=(on,who)=>{

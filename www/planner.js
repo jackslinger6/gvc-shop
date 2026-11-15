@@ -45,7 +45,7 @@ css.textContent=`
 .wkv .pblk.nr{opacity:.5;border-left-style:dotted}
 .wkv .pwrap{overflow-x:auto;margin-top:8px}
 .wkv table.pg{width:100%;min-width:640px;border-collapse:separate;border-spacing:4px;table-layout:fixed}
-.wkv table.pg th{font-family:Oswald,sans-serif;font-weight:500;letter-spacing:.04em;font-size:13px;color:var(--muted);text-align:left;padding:2px 4px}
+.wkv table.pg th{font-family:var(--font-display);font-weight:500;letter-spacing:.04em;font-size:13px;color:var(--muted);text-align:left;padding:2px 4px}
 .wkv table.pg th.day{font-family:Inter,sans-serif;font-size:12px;vertical-align:top;padding-top:8px;width:80px}
 .wkv table.pg th.day.today{color:#ffd28a}
 .wkv table.pg td{vertical-align:top;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:4px;height:86px}
@@ -66,10 +66,10 @@ css.textContent=`
 .wkv .psplit{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;align-items:start;margin-top:8px}
 .wkv .psplit .pwrap{margin-top:0}
 .wkv .ppanel{position:sticky;top:10px;border:1px solid var(--line);border-radius:10px;background:rgba(0,0,0,.3);padding:10px 12px;font-size:13px}
-.wkv .pph{font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:13px;color:var(--muted);margin-bottom:6px}
+.wkv .pph{font-family:var(--font-display);letter-spacing:.06em;text-transform:uppercase;font-size:13px;color:var(--muted);margin-bottom:6px}
 .wkv .pjob{border-radius:6px;padding:5px 7px;margin-bottom:3px;line-height:1.25;font-size:12px;cursor:grab;touch-action:none;background:color-mix(in srgb,var(--c) 22%,transparent);border-left:4px solid var(--c);color:var(--text)}
 .wkv .pjob .pjh{display:flex;justify-content:space-between;gap:6px;font-weight:600}
-.wkv .pjob .pjn{font-family:Oswald,sans-serif;font-weight:500;letter-spacing:.04em;color:#fff;background:var(--c);border-radius:4px;padding:0 4px;font-size:11px}
+.wkv .pjob .pjn{font-family:var(--font-display);font-weight:500;letter-spacing:.04em;color:#fff;background:var(--c);border-radius:4px;padding:0 4px;font-size:11px}
 .wkv .pjob .pjc{color:var(--muted)}
 .wkv .pjob small{display:block;color:var(--muted);font-size:10.5px;margin-top:2px}
 .wkv .pjob.sel{outline:1.5px solid #fff}.wkv .pjob.bad{box-shadow:inset 0 0 0 1.5px #e5483b}.wkv .pjob.done{opacity:.6;filter:grayscale(1)}

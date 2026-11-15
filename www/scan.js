@@ -31,7 +31,7 @@ css.textContent=`
 #gScan .card img{width:84px;height:60px;object-fit:contain;background:#fff;border-radius:8px}
 #gScan .card .nm{font-weight:700;font-size:16px;word-break:break-word}
 #gScan .card .sb{font-size:12.5px;opacity:.75}
-#gScan .card .ct{font:600 30px Oswald,sans-serif;text-align:center}
+#gScan .card .ct{font:600 30px var(--font-display);text-align:center}
 #gScan .card .ct.full{color:#3ad06b}
 #gScan .card .bt{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:8px}
 #gScan .card .bt button{font-size:18px;min-height:52px;border-radius:12px}

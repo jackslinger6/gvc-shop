@@ -18,18 +18,18 @@ window.gvcHomeView=homeView;
 const css=document.createElement("style");
 css.textContent=`
 .dw{max-width:900px;margin-top:10px}
-.dw h4{margin:16px 0 8px;font:500 12px Oswald,sans-serif;letter-spacing:.16em;color:var(--muted);display:flex;justify-content:space-between;align-items:baseline}
+.dw h4{margin:16px 0 8px;font:500 12px var(--font-display);letter-spacing:.16em;color:var(--muted);display:flex;justify-content:space-between;align-items:baseline}
 .dw h4:first-child{margin-top:0}
 .dw input[type=search]{font:inherit;font-size:15px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;box-sizing:border-box}
 .dw .dj{display:grid;grid-template-columns:auto 1fr auto;column-gap:12px;align-items:center;width:100%;text-align:left;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 14%,#17191d),#15171a 60%);border:1px solid #2a2e34;border-left:4px solid var(--c);border-radius:12px;padding:12px;margin-bottom:8px;color:var(--text);cursor:pointer;font:inherit}
 .dw .dj:active{transform:scale(.985)}
 .dw .dj.none{opacity:.55}
-.dw .dn{font:600 14px Oswald,sans-serif;letter-spacing:.06em;background:rgba(0,0,0,.35);border:1px solid #3a3e45;border-radius:8px;padding:7px 9px;min-width:64px;text-align:center}
+.dw .dn{font:600 14px var(--font-display);letter-spacing:.06em;background:rgba(0,0,0,.35);border:1px solid #3a3e45;border-radius:8px;padding:7px 9px;min-width:64px;text-align:center}
 .dw .dt{font-weight:600;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dw .ds{font-size:12.5px;color:var(--muted);margin-top:2px}
-.dw .dc{font:600 15px Oswald,sans-serif;color:#ffb36b;text-align:right;line-height:1.1}
-.dw .dc small{display:block;font:500 10px Oswald,sans-serif;letter-spacing:.12em;color:var(--muted)}
-.dw .fold{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:1px solid var(--line);border-radius:10px;color:#cfd3d8;font:500 13px Oswald,sans-serif;letter-spacing:.12em;padding:11px 12px;cursor:pointer;margin:8px 0}
+.dw .dc{font:600 15px var(--font-display);color:#ffb36b;text-align:right;line-height:1.1}
+.dw .dc small{display:block;font:500 10px var(--font-display);letter-spacing:.12em;color:var(--muted)}
+.dw .fold{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:1px solid var(--line);border-radius:10px;color:#cfd3d8;font:500 13px var(--font-display);letter-spacing:.12em;padding:11px 12px;cursor:pointer;margin:8px 0}
 .dw .fold span:last-child{transition:transform .15s}
 .dw .fold.open span:last-child{transform:rotate(90deg)}
 .dw .empty2{font-size:13px;color:var(--muted);padding:8px 2px}
@@ -38,7 +38,7 @@ body.crew:not(.parts) .shnav [data-n="jobs"]{display:flex!important}
 .ctodo .ti .body{cursor:pointer;min-width:0}
 .ctodo .ti.dn .tt{text-decoration:line-through;opacity:.55}
 .ctodo .ti .ck:disabled{cursor:default;border-color:#3ad06b;color:#3ad06b}
-.ctodo .jb{font:600 11.5px Oswald,sans-serif;letter-spacing:.06em;color:#111;border-radius:5px;padding:0 6px}
+.ctodo .jb{font:600 11.5px var(--font-display);letter-spacing:.06em;color:#111;border-radius:5px;padding:0 6px}
 .cjobs{margin-top:10px}
 @media (max-width:899px){ body.nav7 .shnav .ni{font-size:10.5px;letter-spacing:.04em} body.nav7 .shnav .ni svg{width:21px;height:21px} body.nav7 .shnav .plus{width:58px;height:58px} }
 `;
@@ -53,8 +53,8 @@ const svg=k=>`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke
 const nav=document.querySelector(".shnav");
 let bD=null, bP=null;
 if(nav){
-  bD=document.createElement("button"); bD.className="ni nx"; bD.type="button"; bD.dataset.n="drawings"; bD.innerHTML=svg("draw")+"DRAWINGS";
-  bP=document.createElement("button"); bP.className="ni nx"; bP.type="button"; bP.dataset.n="punch"; bP.innerHTML=svg("punch")+"PUNCH";
+  bD=document.createElement("button"); bD.className="ni nx"; bD.type="button"; bD.dataset.n="drawings"; bD.innerHTML=svg("draw")+"Drawings";
+  bP=document.createElement("button"); bP.className="ni nx"; bP.type="button"; bP.dataset.n="punch"; bP.innerHTML=svg("punch")+"Punch";
   const pw=nav.querySelector(".pluswrap"); nav.insertBefore(bD,pw); pw.after(bP);
   bD.onclick=()=>{ dwQ=""; showFin=false; shellGo("drawings"); };
   bP.onclick=()=>shellGo("punch");

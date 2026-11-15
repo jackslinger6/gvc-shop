@@ -27,7 +27,7 @@ css.textContent=`
 .jp .gh .gt img{max-width:100%;max-height:100%;object-fit:contain}
 .jp .gh .gn{font-weight:700;font-size:14.5px;letter-spacing:.02em;word-break:break-word}
 .jp .gh .gs{font-size:12px;color:var(--muted);margin-top:2px}
-.jp .gh .gc{font:600 13px Oswald,sans-serif;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+.jp .gh .gc{font:600 13px var(--font-display);background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:8px;padding:3px 8px}
 .jp .gb{display:grid;gap:6px;padding:0 8px 8px}
 .jp .grp:not(.open) .gb{display:none}
 

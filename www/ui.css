@@ -1,0 +1,193 @@
+/* =====================================================================================================
+   GVC Vault - shared look (redesign stage 1, Nov 14 2026)
+   One visual system for every screen: solid charcoal surfaces, one orange accent, explicit status
+   labels, consistent controls. Values come from the tokens in index.html :root (--bg, --panel, --line,
+   --accent, --r-*, --s*, --fs-*...). This file is moved to the end of <head> after all the screens have
+   added their own styles, so it wins ties with them. Girly mode (theme.js) re-maps these colours too.
+   Layout and behaviour are unchanged here - only how things look.
+   ===================================================================================================== */
+
+/* ---------- base ---------- */
+html{color-scheme:dark;-webkit-tap-highlight-color:transparent}
+body.girly{color-scheme:light}
+::selection{background:rgba(255,138,42,.35)}
+*{scrollbar-width:thin;scrollbar-color:#3b4048 transparent}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#3b4048;border-radius:10px;border:2px solid transparent;background-clip:padding-box}::-webkit-scrollbar-track{background:transparent}
+h1,h2,h3,h4{font-family:var(--font-display);text-wrap:balance}
+a{color:#8fc2ff}
+img{max-width:100%}
+
+/* keyboard focus: a clear ring on everything you can tab to (mouse/touch taps don't show it) */
+:where(button,a,input,select,textarea,summary,[tabindex],[role=button],[role=tab]):focus-visible{outline:none!important;box-shadow:var(--focus)!important}
+:where(button,a,summary,[role=button],[role=tab]):focus:not(:focus-visible){outline:none}
+
+/* ---------- buttons ---------- */
+.btn{min-height:var(--ctl);vertical-align:middle;font-family:var(--font-ui);font-weight:600;font-size:13px;line-height:1.2;
+  border-radius:var(--r-md);border:1px solid var(--line2);background:var(--panel2);color:var(--text);padding:7px 14px;box-shadow:none;transition:background .15s,border-color .15s,transform .1s}
+.btn:hover{background:var(--panel3);border-color:#4a5059}
+.btn:disabled,.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{background:var(--accent-hi);border-color:var(--accent-hi)}
+.btn.ghost{background:transparent;border-color:var(--line)}
+.btn.ghost:hover{background:var(--panel2)}
+/* destructive = quiet until hovered, never looks like the main action */
+.btn.danger{background:transparent;color:#ff9b91;border-color:rgba(229,72,59,.45)}
+.btn.danger:hover{background:rgba(229,72,59,.12);border-color:rgba(229,72,59,.7)}
+.btn.sm{min-height:30px;padding:4px 10px;font-size:12px;border-radius:var(--r-sm)}
+.signout{color:var(--muted)}
+
+/* ---------- form fields ---------- */
+input,select,textarea{font-family:var(--font-ui);font-size:13.5px;color:var(--text);background:var(--inset);border:1px solid var(--line2);border-radius:var(--r-md);padding:8px 10px;min-height:var(--ctl);transition:border-color .15s}
+input[type=checkbox],input[type=radio]{min-height:0;width:auto;accent-color:var(--accent)}
+input[type=range]{accent-color:var(--accent)}
+textarea{min-height:64px;line-height:1.45}
+input::placeholder,textarea::placeholder{color:#6f7680}
+input:hover,select:hover,textarea:hover{border-color:#4a5059}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+select{cursor:pointer}
+label{color:var(--muted);font-size:12px;font-weight:500}
+
+/* ---------- surfaces: solid, lighter than the page, subtle border, no glow ---------- */
+.card,.asmc,.pr,.sg,.tbox,.list,.login,.supbox,.stagebar,.asm,.jfold,.sgrp,.dtile,.mycard,.pcard,.rc,.rqc,.hwr,.mtr{box-shadow:none}
+.card,.asmc,.pr,.sg{background:var(--panel2);border-color:var(--line);border-radius:var(--r-lg)}
+.card:hover,.asmc:hover{border-color:var(--line2)}
+.tbox,.list,.login{background:var(--panel);border-color:var(--line);border-radius:var(--r-lg)}
+.supbox,.stagebar,.asm,.sgrp{background:var(--panel2);border-color:var(--line)}
+.jfold{background:var(--panel);border-color:var(--line)}
+.log div{background:var(--inset);border-color:var(--line)}
+.dtile{background:var(--panel2);border-color:var(--line)}
+.aj,.dw .dj{background:var(--panel2);border-color:var(--line);border-left-width:3px}
+.aj:hover,.dw .dj:hover{border-color:var(--line2);border-left-color:var(--c)}
+.ajd{box-shadow:none}
+.ajn,.dw .dn{background:var(--inset);border-color:var(--line2);letter-spacing:.03em}
+.cw .p,.qs .q{background:var(--panel2);border-color:var(--line)}
+.nu .cd{background:var(--panel2);border-color:color-mix(in srgb,var(--c) 40%,var(--line))}
+.nu .empty{background:var(--panel);border-color:var(--line)}
+
+/* ---------- headings: sentence case, no wide letter-spacing ---------- */
+.colhead h2,.listhead h3,.tbox h3,.dlg h3,.shsheet h3,.login h2,.ig h3,.chatp .ch{text-transform:none;letter-spacing:0}
+.colhead h2{font-size:14px;font-weight:600;min-height:0;color:var(--text)}
+.listhead h3{font-size:var(--fs-lg);font-weight:600}
+.tbox h3{font-size:var(--fs-md);font-weight:600}
+.dlg h3{font-size:var(--fs-xl);font-weight:650;line-height:1.25}
+.shsheet h3{font-size:var(--fs-lg);font-weight:650}
+.chatp .ch{font-size:var(--fs-md);font-weight:600}
+/* small section labels stay as quiet uppercase eyebrows */
+.sec,.hm h4,.dw h4,.ajh,.mpvh{font-size:11.5px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+.sec{margin-top:18px}
+
+/* ---------- dialogs and sheets ---------- */
+.scrim{background:rgba(6,7,9,.72)}
+.dlg{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-xl);box-shadow:var(--shadow-3);padding:20px}
+.shov.on{background:rgba(6,7,9,.72)}
+.shsheet{background:var(--panel);border-color:var(--line);box-shadow:var(--shadow-3)}
+.shsheet input,.shsheet select{background:var(--inset);border-color:var(--line2)}
+.mgrid button{background:var(--panel2);border-color:var(--line);border-radius:var(--r-lg);font-family:var(--font-ui);font-weight:600;font-size:12.5px;letter-spacing:0}
+.mgrid button:hover{background:var(--panel3);border-color:var(--line2)}
+.latermenu{background:var(--panel3);border-color:var(--line2);box-shadow:var(--shadow-2)}
+.toast{background:var(--panel3);border-color:var(--line2);box-shadow:var(--shadow-2);border-radius:var(--r-lg)}
+.toast button{color:var(--accent-hi)}
+.chatp{background:var(--panel);border-color:var(--line);box-shadow:var(--shadow-3)}
+.chatp .b.a{background:var(--panel2)}
+.chatp .b.u{background:#3a2a1a}
+
+/* ---------- tabs (Jobs: Pipeline / Orders / Shop floor / Finished jobs, Inventory: Truck parts / ...) ---------- */
+.subnav{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:4px;gap:4px}
+.subnav .sn{min-height:36px;font-family:var(--font-ui);font-size:13.5px;font-weight:600;color:var(--muted);border-radius:var(--r-md);padding:6px 12px;border:1px solid transparent;transition:background .15s,color .15s}
+.subnav .sn:hover{background:var(--panel2);color:var(--text);border-color:transparent}
+.subnav .sn.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--text);box-shadow:none}
+.subnav .sn .ct{min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--panel3);color:var(--text);font-size:11.5px;display:inline-flex;align-items:center;justify-content:center}
+.chip{background:var(--panel2);border-color:var(--line2);font-weight:500}
+.chip.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--text)}
+.chips button{font-family:var(--font-ui);font-weight:600;font-size:14px;letter-spacing:0;background:var(--panel2)}
+.wc{border-color:var(--line2)}
+.wc.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--text)}
+
+/* ---------- badges: one shape for every count / status pill, always with words ---------- */
+.flag,.eta,.qb,.sgp{border-radius:var(--r-pill);font-weight:600;letter-spacing:0}
+.eta{border-radius:var(--r-md)}
+/* "needs you" counts (red) next to a plain count read clearly as two different numbers */
+span.at{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:var(--r-pill);font-size:11px;font-weight:600;background:rgba(229,72,59,.16);color:#ffa097;border:1px solid rgba(229,72,59,.45)}
+.card .jnum,.sg .sgjob .jnum{letter-spacing:.03em;border-radius:var(--r-sm)}
+.card .cntb{border-radius:var(--r-md);min-height:36px;display:flex;align-items:center;justify-content:center}
+
+/* ---------- order / job boards (stage 2 reworks the board itself) ---------- */
+.col{border-color:var(--line)!important}
+.colhead{background:var(--panel);border-bottom:1px solid var(--line)}
+.colhead:before{height:3px;box-shadow:none}
+.colhead .n{color:var(--muted)}
+.cell.now{box-shadow:none;border-color:var(--text)}
+.sb.now{box-shadow:none}
+.jn .jc[style]{box-shadow:none!important}
+.cells .obar{font-family:var(--font-ui);font-weight:600;letter-spacing:.06em}
+table.at th{font-family:var(--font-ui);text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted);background:var(--panel2);border-color:var(--line)}
+table.at td{border-color:var(--line)}
+.atw{border-color:var(--line)}
+
+/* ---------- To do ---------- */
+.ti{border-top-color:var(--line)}
+.ti .ck{border-color:#5a616b;border-radius:var(--r-sm)}
+.addtodo input{min-height:40px}
+
+/* ---------- top bar ---------- */
+.shtop .nm{font-family:var(--font-brand);font-size:20px;letter-spacing:.04em;color:var(--text)}
+.shtop .nm b{color:var(--accent);font-weight:400;margin:0 .1em}
+.shtop .dt{font-family:var(--font-ui);font-size:12px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.shtop .ib{background:var(--panel);border-color:var(--line);border-radius:var(--r-md);transition:background .15s,border-color .15s}
+.shtop .ib:hover{background:var(--panel2);border-color:var(--line2)}
+.shtop .ib .bd{font-family:var(--font-ui);font-size:11px;font-weight:700;border:2px solid var(--bg);height:22px;min-width:22px;border-radius:11px}
+.pvtag{display:inline-block;vertical-align:3px;margin-left:8px;font:700 10px/1 var(--font-ui);letter-spacing:.08em;color:#111;background:#f5d142;border-radius:5px;padding:4px 6px}
+
+/* ---------- main navigation (side rail on a computer, bottom bar on a phone) ---------- */
+.shnav{background:var(--panel);border-color:var(--line)}
+.shnav .ni{font-family:var(--font-ui);font-size:11.5px;font-weight:600;letter-spacing:0;color:var(--muted);border-radius:var(--r-lg)}
+.shnav .ni:hover{color:var(--text)}
+.shnav .ni.on{color:var(--accent-hi)}
+.shnav .ni .bd{font-size:10.5px;font-weight:700;border:2px solid var(--panel);height:20px;min-width:20px;border-radius:10px}
+.shnav .plus{background:var(--accent);border-color:var(--bg);box-shadow:var(--shadow-2)}
+.shnav .plus:hover{background:var(--accent-hi)}
+@media (min-width:900px){
+  /* selected item: filled pill so it's unmistakable */
+  .shnav .ni{margin:0 6px;min-height:58px}
+  /* the + only floats in the middle of the rail when there's room for it below the buttons */
+  @media (max-height:899px){ .shnav .pluswrap{position:static!important;transform:none!important;margin:8px 0!important} .shnav .railcrew{position:static!important;margin-top:6px!important} }
+  .shnav .ni.on{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line);color:var(--text)}
+  .shnav .ni.on svg{color:var(--accent-hi)}
+  .shnav .railcrew .rh{font-family:var(--font-ui);letter-spacing:.08em}
+}
+@media (max-width:899px){
+  /* selected item: orange icon + label with a bar on top */
+  .shnav .ni.on::before{content:"";position:absolute;top:0;left:22%;right:22%;height:3px;border-radius:0 0 3px 3px;background:var(--accent)}
+}
+.hereMic{background:var(--accent);box-shadow:var(--shadow-2)}
+.hereMic small{font-family:var(--font-ui);font-weight:700;letter-spacing:.04em;color:var(--accent-hi)}
+.talk{background:var(--accent);font-family:var(--font-ui);letter-spacing:0}
+.whl .ctr{background:var(--accent)}
+.whl .it{font-family:var(--font-ui);font-weight:600;letter-spacing:0}
+.whl .ring{background:radial-gradient(circle,var(--panel) 0 45%,rgba(24,26,30,.92) 46%);border-color:var(--line)}
+.whl .it .c{background:var(--panel2)}
+
+/* ---------- empty / loading / error states: small and quiet ---------- */
+.empty{color:var(--dim);font-size:12.5px;padding:10px 0}
+.status{color:var(--muted)}
+.err{color:#ff9b91}
+#errbar{border-radius:var(--r-lg)!important}
+
+/* ---------- touch screens: everything you tap is at least 44px ---------- */
+@media (pointer:coarse){
+  .btn{min-height:var(--hit)} .btn.sm{min-height:40px;padding:6px 12px}
+  .subnav .sn{min-height:var(--hit);padding:6px 14px}
+  input,select{min-height:var(--hit)}
+  input,select,textarea{font-size:16px}   /* 16px stops iPhones zooming in on a field */
+  input[type=checkbox],input[type=radio]{min-height:0;width:22px;height:22px}
+  .wc,.chip{min-height:40px}
+  .ti .ck{width:30px;height:30px}
+  .shtop .ib{width:var(--hit);height:var(--hit)}
+}
+/* phones: the dialog uses the whole width; the page never scrolls sideways */
+@media (max-width:600px){
+  .scrim{padding:8px 0 0;align-items:flex-start}
+  .dlg{border-radius:var(--r-xl) var(--r-xl) 0 0;padding:16px 14px calc(20px + env(safe-area-inset-bottom));min-height:calc(100dvh - 8px);border-left:0;border-right:0;border-bottom:0}
+  .dlg h3{font-size:18px}
+}
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important} }

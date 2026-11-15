@@ -69,7 +69,7 @@ window.renderRevs=function(){
   const cnt=k=>revs.filter(r=>(!jf||r.job_id===jf)&&r.status===k).length;
   const jobOpts=(v,blank)=>`${blank?`<option value="">${blank}</option>`:""}${jobs.map(j=>`<option value="${esc(j.id)}" ${v===j.id?"selected":""}>${esc(j.name)}</option>`).join("")}`;
   const openSel=list.filter(r=>r.status==="open");
-  let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">Model revisions</h2><span style="flex:1"></span>
+  let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">Model revisions</h2><span style="flex:1"></span>
      <button class="btn primary" type="button" id="rvAdd">+ Revision</button></div>
    <div class="lbl" style="margin-top:4px">${isAdm()?"Things found in the shop that need changing in the model. The crew's go to you first (For Kyle). Send the approved ones to Jessie as one list - he marks them done himself from his link, then you check his update.":"Something in the shop that should change in the model? Log it with a photo. Kyle looks it over and sends it to Jessie."}</div>
    <div class="row"><select id="rvJob">${jobOpts(jf,"All jobs")}</select>

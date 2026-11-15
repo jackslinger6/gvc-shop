@@ -118,9 +118,9 @@ css.textContent=`#gFlat{position:fixed;inset:0;z-index:8500;background:#0d0e10;d
 #gFlat .hd{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:start;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 10px}
 #gFlat .pn{font-weight:700;font-size:16px;line-height:1.25;overflow-wrap:anywhere;align-self:center}
 #gFlat .mt{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-#gFlat .mat{font:600 20px Oswald,sans-serif;letter-spacing:.03em;padding:4px 12px;border-radius:8px;background:#f5b041;color:#1a1204;text-transform:uppercase}
+#gFlat .mat{font:600 20px var(--font-display);letter-spacing:.03em;padding:4px 12px;border-radius:8px;background:#f5b041;color:#1a1204;text-transform:uppercase}
 #gFlat .mat.al{background:#9fd3ff;color:#06223a}#gFlat .mat.ss{background:#d9dde3;color:#15181c}
-#gFlat .dm{font:600 24px Oswald,sans-serif;color:#3ad06b;letter-spacing:.01em;white-space:nowrap}
+#gFlat .dm{font:600 24px var(--font-display);color:#3ad06b;letter-spacing:.01em;white-space:nowrap}
 #gFlat .sb{grid-column:1/-1;font-size:12.5px;color:#aab0b8;line-height:1.35}
 #gFlat .wn{grid-column:1/-1;font-size:12.5px;color:#f5b041;line-height:1.35}
 #gFlat button{font:inherit;font-weight:600;border:0;border-radius:999px;padding:8px 16px;background:rgba(255,255,255,.14);color:#fff;min-height:40px;cursor:pointer}
@@ -133,7 +133,7 @@ css.textContent=`#gFlat{position:fixed;inset:0;z-index:8500;background:#0d0e10;d
 #gFlat .stage{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
 #gFlat .ct{padding:10px 14px calc(env(safe-area-inset-bottom,0px) + 12px)}
 #gFlat .ct .tt{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
-#gFlat .ct .tt b{font:600 22px Oswald,sans-serif}#gFlat .ct .tt b.full{color:#3ad06b}
+#gFlat .ct .tt b{font:600 22px var(--font-display)}#gFlat .ct .tt b.full{color:#3ad06b}
 #gFlat .bxs{display:flex;flex-wrap:wrap;gap:8px}
 #gFlat .pc{width:46px;height:46px;border-radius:10px;border:2px solid #5a5f68;background:transparent;color:transparent;font-size:24px;padding:0;min-height:0}
 #gFlat .pc.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}

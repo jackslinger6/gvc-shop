@@ -25,17 +25,17 @@ css.textContent=`
 .cnt .th{width:84px;height:60px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font-size:10.5px;text-align:center}
 .cnt .th img{max-width:100%;max-height:100%;object-fit:contain}
 .cnt .th[data-fv]{cursor:zoom-in}
-.cnt .mchip{display:inline-block;font:600 12.5px Oswald,sans-serif;letter-spacing:.03em;padding:1px 7px;border-radius:5px;background:#f5b041;color:#1a1204;text-transform:uppercase;margin:2px 0}
+.cnt .mchip{display:inline-block;font:600 12.5px var(--font-display);letter-spacing:.03em;padding:1px 7px;border-radius:5px;background:#f5b041;color:#1a1204;text-transform:uppercase;margin:2px 0}
 .cnt .mchip.al{background:#9fd3ff;color:#06223a}.cnt .mchip.ss{background:#d9dde3;color:#15181c}.cnt .th svg{width:100%;height:100%;display:block;padding:3px;box-sizing:border-box}
 .cnt .nm{font-weight:600;font-size:14px;word-break:break-word;display:flex;justify-content:space-between;gap:8px}
-.cnt .nm .q{font-family:Oswald,sans-serif;font-size:15px;white-space:nowrap}
+.cnt .nm .q{font-family:var(--font-display);font-size:15px;white-space:nowrap}
 .cnt .mt{font-size:12px;color:var(--muted);margin-top:1px}
 .cnt .boxes{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
 .cnt .bx{width:34px;height:34px;border-radius:7px;border:1.5px solid #5a5f68;background:transparent;color:transparent;font-size:18px;line-height:30px;padding:0;cursor:pointer}
 .cnt .bx.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}
 .cnt .step{display:flex;align-items:center;gap:8px;margin-top:7px}
 .cnt .step button{min-width:40px;height:34px;font-size:16px;white-space:nowrap}
-.cnt .step b{font-family:Oswald,sans-serif;font-size:18px;min-width:70px;text-align:center}
+.cnt .step b{font-family:var(--font-display);font-size:18px;min-width:70px;text-align:center}
 .cnt .lnk{font:inherit;font-size:11.5px;color:var(--dim);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
 .cnt .addbox{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px}
 .cnt .addrow{display:flex;gap:6px;flex-wrap:wrap}
@@ -44,7 +44,7 @@ css.textContent=`
 .cnt .pick img{width:40px;height:28px;object-fit:contain;background:#fff;border-radius:4px}
 .cnt .foot{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(20,22,25,0),#141619 30%);padding-top:14px;margin-top:10px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .cnt .saved{font-size:12px;color:var(--dim);align-self:center;margin-right:auto}
-.cnt .grp{font-family:Oswald,sans-serif;letter-spacing:.04em;font-size:15px;margin:16px 0 2px;padding-bottom:4px;border-bottom:2px solid var(--c,#555);display:flex;justify-content:space-between;gap:8px}
+.cnt .grp{font-family:var(--font-display);letter-spacing:.04em;font-size:15px;margin:16px 0 2px;padding-bottom:4px;border-bottom:2px solid var(--c,#555);display:flex;justify-content:space-between;gap:8px}
 .cnt .grp span{font-family:Inter,sans-serif;font-size:12px;color:var(--muted);letter-spacing:0}
 .cnt .addrow select{font:inherit;font-size:13px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px}
 @media (max-width:600px){ .cnt .it{grid-template-columns:64px 1fr} .cnt .th{width:64px;height:48px} }

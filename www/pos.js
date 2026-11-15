@@ -45,17 +45,17 @@ async function nextNo(kind){ const r=await sb.rpc("gvc_next_no",{p_kind:kind}); 
 const css=document.createElement("style");
 css.textContent=`
 .posv{max-width:1000px;margin-top:6px}
-.posv h2{font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0}
+.posv h2{font-family:var(--font-display);letter-spacing:.05em;margin:0}
 .posv .lbl{font-size:12.5px;color:var(--muted)}
 .posv .tabs{display:flex;gap:6px;margin:10px 0;flex-wrap:wrap}
 .posv .rc{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;width:100%;text-align:left;font:inherit;color:inherit;background:var(--panel,#1d2025);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
-.posv .no{font:600 18px Oswald,sans-serif;letter-spacing:.03em;white-space:nowrap}
+.posv .no{font:600 18px var(--font-display);letter-spacing:.03em;white-space:nowrap}
 .posv .rc .t{min-width:0}.posv .rc .t b{display:block;font-size:14.5px}.posv .rc .t span{font-size:12.5px;color:var(--muted)}
 .posv .st{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--c);color:#fff;white-space:nowrap}
 .posv .chip{display:inline-block;font-size:12px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.08);margin:2px 4px 2px 0}
 .posv .grp{font-size:12px;letter-spacing:.12em;color:var(--muted);margin:16px 0 6px}
 .posv .psc{display:block;margin-top:18px}
-.posv .psc>h3{font-family:Oswald,sans-serif;letter-spacing:.08em;font-size:14px;margin:0 0 8px;display:flex;gap:8px;align-items:center}
+.posv .psc>h3{font-family:var(--font-display);letter-spacing:.08em;font-size:14px;margin:0 0 8px;display:flex;gap:8px;align-items:center}
 .posv .steps{display:flex;gap:5px;flex-wrap:wrap}.posv .steps button{border-radius:999px}
 .posv .steps button.on{background:var(--c);border-color:var(--c);color:#fff}.posv .steps button.past{opacity:.55}
 .posv table{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -68,7 +68,7 @@ css.textContent=`
 .posv .bar{height:8px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden;margin:6px 0}.posv .bar div{height:100%;background:#3ad06b}
 .posv .dl .dx{min-width:0;padding:0 10px}
 @media (max-width:600px){ .posv .dl{grid-template-columns:1fr 1fr 44px} .posv .dl [data-dr]{grid-column:1/2} .posv .dl [data-dw]{grid-column:2/4} .posv .dl select{grid-column:1/3} .posv .dl .dx{grid-column:3/4} .posv .rc{grid-template-columns:1fr auto} .posv .rc .no{grid-column:1/-1} }
-.supchips{margin-top:3px}.supchips button{font:600 11.5px Oswald,sans-serif;letter-spacing:.04em;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);border-radius:6px;padding:2px 7px;margin-right:4px;cursor:pointer}
+.supchips{margin-top:3px}.supchips button{font:600 11.5px var(--font-display);letter-spacing:.04em;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);border-radius:6px;padding:2px 7px;margin-right:4px;cursor:pointer}
 `;
 document.head.appendChild(css);
 

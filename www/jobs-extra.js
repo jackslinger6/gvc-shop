@@ -18,7 +18,7 @@ css.textContent=`
 .arv .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0}
 .arv .aj{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin:6px 0;background:rgba(0,0,0,.28);cursor:pointer}
 .arv .aj:hover{border-color:#5a5f68}
-.arv .num{font-family:Oswald,sans-serif;font-size:16px;letter-spacing:.04em}
+.arv .num{font-family:var(--font-display);font-size:16px;letter-spacing:.04em}
 .arv .meta{font-size:12px;color:var(--muted);margin-top:3px}
 .numrow{display:flex;gap:10px}
 `;
@@ -83,7 +83,7 @@ window.renderArchive=function(){
   const types=[...new Set(archivedJobs.map(j=>jtype(j.name)).filter(Boolean))].sort();
   const words=aq.toLowerCase().split(/\s+/).filter(Boolean);
   const list=archivedJobs.filter(j=>(!atype||jtype(j.name)===atype)&&words.every(w=>hay(j).includes(w))).sort((a,b)=>String(b.archivedAt||"").localeCompare(String(a.archivedAt||"")));
-  B.innerHTML=`<h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">Finished jobs</h2>
+  B.innerHTML=`<h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">Finished jobs</h2>
    <div class="lbl" style="margin-top:4px">Archived jobs with everything that happened: tasks and who did them, suppliers and quotes, NCRs, notes. Tap one to open it (you can restore it to the board from there).</div>
    <div class="row"><input id="aQ" type="search" placeholder="Search number, name, person, supplier, quote #, note…" value="${esc(aq)}"></div>
    ${types.length?`<div class="row"><span class="lbl">Type</span><button class="btn sm ${atype?"":"primary"}" data-at="">All</button>${types.map(t=>`<button class="btn sm ${atype===t?"primary":""}" data-at="${t}">${t}</button>`).join("")}</div>`:""}

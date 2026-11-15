@@ -67,7 +67,7 @@ function themeRules(rules,out){
   }
 }
 const EXTRA=`
-body.girly{--bg:#fff4fa;--panel:#ffffff;--panel2:#fdeef7;--line:#efd3e5;--text:${TEXT};--muted:${MUTED};--dim:${DIM};color:${TEXT};
+body.girly{--font-display:Quicksand,Inter,system-ui,sans-serif;--bg:#fff4fa;--panel3:#fbe7f2;--inset:#fff7fb;--line2:#e7c3da;--accent:#ff97c4;--accent-hi:#ff97c4;--on-accent:#4a1430;--accent-soft:rgba(255,151,196,.18);--accent-line:rgba(255,151,196,.6);--focus:0 0 0 2px #fff4fa,0 0 0 4px #e0569a;--panel:#ffffff;--panel2:#fdeef7;--line:#efd3e5;--text:${TEXT};--muted:${MUTED};--dim:${DIM};color:${TEXT};
   background-color:#fff4fa!important;background-image:radial-gradient(900px 520px at 8% -10%,rgba(255,179,209,.45),transparent 60%),radial-gradient(800px 520px at 100% 0%,rgba(203,182,243,.42),transparent 60%),
   radial-gradient(800px 600px at 50% 115%,rgba(169,214,243,.35),transparent 60%),radial-gradient(600px 400px at 0% 100%,rgba(255,233,166,.35),transparent 60%),linear-gradient(180deg,#fff7fb,#fdf0f8)!important}
 body.girly .btn.primary,body.girly .shnav .plus,body.girly .talk,body.girly .whl .ctr,body.girly button.primary{background:linear-gradient(180deg,#ffc2dc,#ff97c4)!important;border-color:#ff97c4!important;color:#4a1430!important;box-shadow:0 6px 16px rgba(255,120,180,.35)!important}
