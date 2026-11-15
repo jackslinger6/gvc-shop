@@ -219,7 +219,12 @@ function draw(jobNo,jobName,rows){
     const r=await sb.storage.from("gvc-parts").createSignedUrl(p.model_path,60*60); if(r.data&&r.data.signedUrl) open3D(r.data.signedUrl,p.part_no+" · 3D",{part:p}); };
   asmPath(jobNo).then(path=>{ const b=$("#jpAsm"); if(!b||!path) return; b.hidden=false;
     b.onclick=async()=>{ b.disabled=true; const r=await sb.storage.from("gvc-parts").createSignedUrl(path,60*60); b.disabled=false;
-      if(r.data&&r.data.signedUrl) openAsm3D(r.data.signedUrl,jobNo+" · whole assembly",{up:"y",onPart:pn=>{ const p=rows.find(x=>x.part_no===pn); if(p&&p.model_path) openPart3D(pn); else alert("No 3D model for "+pn+" yet"); }}); }; });
+      if(r.data&&r.data.signedUrl) openAsm3D(r.data.signedUrl,jobNo+" · whole assembly",{up:"y",
+        onPart:pn=>{ const p=rows.find(x=>x.part_no===pn); if(p&&p.model_path) openPart3D(pn); else alert("No 3D model for "+pn+" yet"); },
+        /* Open drawing: only an exact part-number match to this job's parts list (the export matched the body to the part by
+           geometry), never a name guess. drawingFor(pn,true) = is there one; drawingFor(pn) = {url,title} */
+        drawingFor:(pn,check)=>{ const p=rows.find(x=>x.part_no===pn&&x.thumb_path); if(check) return !!p; if(!p) return null;
+          return sign([p.thumb_path]).then(()=>urls[p.thumb_path]?{url:urls[p.thumb_path],title:"Bend drawing - "+p.part_no}:null); }}); }; });
   D.querySelectorAll("[data-j3]").forEach(el=>el.onclick=async()=>{ const p=rows.find(x=>x.id===el.dataset.j3); if(!p||!p.model_path) return;
     el.disabled=true; const r=await sb.storage.from("gvc-parts").createSignedUrl(p.model_path,60*60); el.disabled=false;
     if(!r.data||!r.data.signedUrl){ alert("Couldn't open the 3D model"); return; }

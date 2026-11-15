@@ -278,6 +278,7 @@ function makeControls(THREE,cam,el,worldUp,pick){
   C.isGesture=()=>ptrs.size>1;
   void L; return C;
 }
+window.GVC3DControls=makeControls;
 
 /* ---------- viewer ---------- */
 const css=document.createElement("style");
@@ -307,177 +308,7 @@ css.textContent=`
 document.head.appendChild(css);
 
 
-/* ---------- whole assembly (Draco GLB made from the Fusion model) ----------
-   Each body is its own node; node.userData = {comp, body, path, mat, pn:[part numbers] or null}.
-   Tap a part to see what it is; if it's a laser part with its own STEP, "Open part" goes to the exact-measure viewer. */
-let asmLibsP=null, v3dDepth=0;   // stacked viewers (assembly -> part): Back closes only the top one
-function loadAsmLibs(){
-  if(!asmLibsP) asmLibsP=(async()=>{
-    const [THREE,gl,dr]=await Promise.all([import(CDN.three),import(CDN.gltf),import(CDN.draco)]);
-    const loader=new gl.GLTFLoader(); const dl=new dr.DRACOLoader(); dl.setDecoderPath(CDN.dracoDec); loader.setDRACOLoader(dl);
-    return {THREE,loader};
-  })().catch(e=>{ asmLibsP=null; throw e; });
-  return asmLibsP;
-}
-/* Assembly tree + filters (Kyle, Nov 11): hide/show whole assemblies (headache rack, apron, subframe...),
-   hide all covers / hardware / the winch / bought parts to look at just the fab parts, and get hidden parts back.
-   Groups come from each body's Fusion path; the kinds are guessed from names, material and part number. */
-const HW_RE=/\b(bolt|nut|nyloc|nylock|washer|screw|rivet|cotter|clevis|pin|hinge|latch|shackle|bushing|grease|zerk|stud|spring|gas ?strut|strut|grommet|clamp|u-?bolt|lag|hex|shcs|fhcs|bhcs|socket head|keeper|lanyard|handle|lock|catch|bumper|gasket|seal|weatherstrip|plug|fitting|mcmaster|hardware|fastener)s?\b|^\d{4,5}[a-z]\d{2,4}/i;
-const COVER_RE=/\b(cover|covers|lid|shroud|guard plate|cap|trim|closeout|close-out|filler)\b/i;
-const WINCH_RE=/\bwinch\b/i, WINCH_FAB_RE=/\b(rack|mount|bracket|plate|tab|frame|support|gusset|base|guard|cradle)\b/i;
-const TUBE_RE=/\b(tube|tubing|hss|pipe|angle|channel|flat ?bar|bar|beam|rect|square|sq)\b/i;
-const clean=s=>String(s||"").replace(/:\d+$/,"").replace(/\s+v\d+$/i,"").trim();
-function partKinds(u){
-  const name=(u.comp||"")+" "+(u.body||""), pn=(u.pn||[]).length>0, mat=u.mat||"", path=u.path||"";
-  const k=new Set();
-  if(WINCH_RE.test(name)&&!WINCH_FAB_RE.test(name)&&!pn) k.add("winch");
-  else if(/\bwinch\b/i.test(path)&&!pn&&!WINCH_FAB_RE.test(name)&&/\bwinch\b/i.test(clean(String(path).split(/[\/>|]/).pop()))) k.add("winch");
-  if(!pn&&HW_RE.test(name)) k.add("hardware");
-  if(COVER_RE.test(name)&&(/alum|\bal\b|5052|3003|6061|checker|tread/i.test(mat)||/alum|\bal\b/i.test(name)||!mat)) k.add("covers");
-  if(!pn&&!k.size&&!TUBE_RE.test(name+" "+mat)) k.add("bought");
-  return k;
-}
-const KINDS=[["covers","Covers"],["hardware","Hardware"],["winch","Winch"],["bought","Other bought parts"]];
-
-window.openAsm3D=async function(url,title,opts){
-  opts=opts||{}; let unitMM=false, mode="part", picks=[], sel=null;
-  const manual=[];   // parts hidden one at a time, newest last (Undo brings back the last one)
-  const offKinds=new Set(), offGroups=new Set(); let only=null;   // filters, assemblies switched off, "Only" this assembly
-  const W=document.createElement("div"); W.id="v3d";
-  W.innerHTML=`<div class="hd"><b>${esc(title)}</b>
-     <button class="btn sm on" data-m="part" type="button">Parts</button><button class="btn sm" data-m="point" type="button">Measure</button>
-     <button class="btn sm" id="v3tree" type="button">Show / hide</button>
-     <button class="btn sm" id="v3fit" type="button">Fit</button><button class="btn sm" id="v3u" type="button">in</button><button class="btn sm" id="v3x" type="button">Close</button></div>
-   <div class="cv"><div class="msg" id="v3msg">Loading 3D…</div><div class="tp" id="v3tp" hidden></div></div>
-   <div class="ft"><div class="out" id="v3out"></div><div id="v3act" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:6px"></div>
-   <div class="note">Model reference - drawings and the parts list are the boss. Measure here snaps to mesh points (close, not exact) - open a part for exact sizes.</div></div>`;
-  document.body.appendChild(W);
-  const box=W.querySelector(".cv"), out=W.querySelector("#v3out"), act=W.querySelector("#v3act"), msg=W.querySelector("#v3msg"), tp=W.querySelector("#v3tp");
-  let disposed=false, renderer=null, onResize=null;
-  const myId=++v3dDepth; const onPop=()=>{ if(((history.state&&history.state.v3d)||0)<myId) close(); };
-  const close=()=>{ disposed=true; if(onResize) window.removeEventListener("resize",onResize); if(renderer){ renderer.dispose(); renderer.forceContextLoss&&renderer.forceContextLoss(); } W.remove(); window.removeEventListener("popstate",onPop); };
-  try{ history.pushState({v3d:myId},""); window.addEventListener("popstate",onPop); }catch(e){}
-  const back=()=>{ try{ if(history.state&&history.state.v3d) history.back(); else close(); }catch(e){ close(); } };
-  W.querySelector("#v3x").onclick=back;
-  let L, gltf;
-  try{
-    msg.textContent="Loading 3D tools…"; L=await loadAsmLibs(); if(disposed) return;
-    msg.textContent="Downloading model…";
-    gltf=await new Promise((ok,no)=>L.loader.load(url,ok,ev=>{ if(ev.total) msg.textContent=`Downloading model… ${Math.round(ev.loaded/ev.total*100)}%`; },no));
-    if(disposed) return;
-  }catch(e){ msg.textContent=(e.message||String(e))+" - check the connection and try again."; return; }
-  msg.remove();
-  const {THREE}=L;
-  renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1)); box.appendChild(renderer.domElement);
-  const scene=new THREE.Scene(); scene.background=new THREE.Color(0x1d2126);
-  const cam=new THREE.PerspectiveCamera(35,1,1,1e7);
-  scene.add(new THREE.HemisphereLight(0xffffff,0x445566,1.5)); const dl=new THREE.DirectionalLight(0xffffff,1.7); cam.add(dl); dl.position.set(0.5,1,0.3); scene.add(cam);
-  const root=gltf.scene; scene.add(root);
-  const meshes=[]; root.traverse(o=>{ if(o.isMesh){ meshes.push(o); o.userData=Object.assign({},o.parent&&o.parent.userData,o.userData); } });
-
-  /* groups: the body's path inside the truck, e.g. ["Headache Rack","Top Box"] (top level first) */
-  const tree={name:"",kids:new Map(),meshes:[]};
-  const nodePath=m=>{ const a=[]; let o=m.parent; while(o&&o!==root){ if(o.name) a.unshift(o.name); o=o.parent; } return a; };
-  meshes.forEach(m=>{ const u=m.userData; let segs=String(u.path||"").split(/\s*[\/>|]\s*/).map(clean).filter(Boolean);
-    if(!segs.length) segs=nodePath(m).map(clean).filter(Boolean);   // no path saved: use how the nodes are nested in the file
-    if(segs.length&&clean(u.comp)&&segs[segs.length-1]===clean(u.comp)) segs=segs.slice(0,-1);   // the part's own name isn't a group
-    if(segs.length>1&&meshes.length>1&&segs[0]===clean(title.split(" ·")[0])) segs=segs.slice(1);
-    m.userData._segs=segs; m.userData._kinds=partKinds(u);
-    let n=tree; const key=[]; segs.forEach(s=>{ key.push(s); if(!n.kids.has(s)) n.kids.set(s,{name:s,key:key.join(" / "),kids:new Map(),meshes:[]}); n=n.kids.get(s); }); n.meshes.push(m); });
-  // a single wrapper group at the top (the whole truck) adds nothing - open it up
-  let top=tree; while(top.kids.size===1&&!top.meshes.length) top=[...top.kids.values()][0];
-  const allIn=n=>{ const a=[...n.meshes]; n.kids.forEach(k=>a.push(...allIn(k))); return a; };
-  const groupOff=m=>{ const s=m.userData._segs; for(let i=1;i<=s.length;i++) if(offGroups.has(s.slice(0,i).join(" / "))) return true; return false; };
-  const kindOff=m=>{ for(const k of m.userData._kinds) if(offKinds.has(k)) return true; return false; };
-  function apply(){ meshes.forEach(m=>{ m.visible=!manual.includes(m)&&!groupOff(m)&&!kindOff(m)&&(!only||(m.userData._segs.join(" / ")+" / ").startsWith(only+" / ")); }); if(sel&&!sel.visible){ select(null); } draw(); show(); if(!tp.hidden) drawTree(); }
-
-  const bb=new THREE.Box3().setFromObject(root), ctr=bb.getCenter(new THREE.Vector3()), size=bb.getSize(new THREE.Vector3()).length();
-  const hl=new THREE.Group(); scene.add(hl);
-  const upY=(opts.up||"y")==="y"; cam.up.set(0,upY?1:0,upY?0:1);
-  const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
-  function hit(x,y){ const r=renderer.domElement.getBoundingClientRect(); ndc.set((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1); ray.setFromCamera(ndc,cam); return ray.intersectObjects(meshes.filter(m=>m.visible),false)[0]||null; }
-  const ctl=makeControls(THREE,cam,renderer.domElement,new THREE.Vector3(0,upY?1:0,upY?0:1),(x,y)=>{ const h=hit(x,y); return h?h.point.clone():null; });
-  let need=true; const draw=()=>{ need=true; }; ctl.addEventListener("change",draw);
-  const fit=()=>{ ctl.stop(); const vis=meshes.filter(m=>m.visible); const b=vis.length?new THREE.Box3():bb; vis.forEach(m=>b.expandByObject(m));
-    const c=b.getCenter(new THREE.Vector3()), sz=Math.max(1e-6,b.getSize(new THREE.Vector3()).length());
-    const dir=upY?new THREE.Vector3(1.2,0.8,1):new THREE.Vector3(1,1.2,0.8); cam.position.copy(c).add(dir.normalize().multiplyScalar(sz*1.1)); cam.near=size/4000; cam.far=size*50; cam.updateProjectionMatrix(); cam.up.set(0,upY?1:0,upY?0:1); ctl.target.copy(c); cam.lookAt(c); cam.updateMatrixWorld(); draw(); };
-  onResize=()=>{ const w=box.clientWidth, h=box.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); draw(); };
-  window.addEventListener("resize",onResize); onResize(); fit();
-  const loop=()=>{ if(disposed) return; ctl.update(); if(need){ need=false; renderer.render(scene,cam); } requestAnimationFrame(loop); }; loop();
-  const selMat=new THREE.MeshStandardMaterial({color:0x4ea1ff,emissive:0x0b3a73,metalness:0.2,roughness:0.5,side:THREE.DoubleSide});
-  const select=m=>{ if(sel){ sel.material=sel.userData._mat; } sel=m; if(m){ m.userData._mat=m.userData._mat||m.material; m.material=selMat; } draw(); };
-  W.querySelector("#v3fit").onclick=fit;
-  W.querySelector("#v3u").onclick=e=>{ unitMM=!unitMM; e.target.textContent=unitMM?"mm":"in"; show(); };
-  W.querySelector("#v3tree").onclick=e=>{ tp.hidden=!tp.hidden; e.target.classList.toggle("on",!tp.hidden); if(!tp.hidden) drawTree(); };
-  W.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ mode=b.dataset.m; picks=[]; clearHl(); W.querySelectorAll("[data-m]").forEach(x=>x.classList.toggle("on",x===b)); show(); });
-  function clearHl(){ while(hl.children.length){ const c=hl.children.pop(); c.geometry&&c.geometry.dispose(); } draw(); }
-  function dot3(p,color){ const s=new THREE.Mesh(new THREE.SphereGeometry(size/400,12,8),new THREE.MeshBasicMaterial({color,depthTest:false})); s.position.copy(p); s.renderOrder=5; hl.add(s); draw(); }
-  function line3(a,b){ const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]),new THREE.LineBasicMaterial({color:0xffd400,depthTest:false})); l.renderOrder=6; hl.add(l); draw(); }
-  function snapPt(h,x,y){   // nearest corner of the tapped triangle if it's close on screen
-    const r=renderer.domElement.getBoundingClientRect(), pos=h.object.geometry.getAttribute("position"); let best=h.point.clone(), bd=24*24;
-    [h.face.a,h.face.b,h.face.c].forEach(i=>{ const v=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(h.object.matrixWorld); const s=v.clone().project(cam); const d=(((s.x+1)/2*r.width+r.left)-x)**2+(((1-s.y)/2*r.height+r.top)-y)**2; if(d<bd){ bd=d; best=v; } });
-    return best; }
-  const nm=m=>{ const u=m.userData, pns=u.pn||[]; return (pns.length?pns.join(", ")+" · ":"")+clean(u.comp)+(u.body&&u.body!==u.comp?" "+u.body:""); };
-  const btn=(label,fn,cls)=>{ const b=document.createElement("button"); b.className="btn sm"+(cls?" "+cls:""); b.type="button"; b.textContent=label; b.onclick=fn; act.appendChild(b); return b; };
-  function show(){
-    act.innerHTML="";
-    if(manual.length) btn(`Undo hide (${manual.length})`,()=>{ manual.pop(); apply(); });
-    if(only) btn("Show all assemblies",()=>{ only=null; apply(); fit(); });
-    if(mode==="point"){
-      if(picks.length<2){ out.textContent=picks.length?"Tap the second point.":"Tap two points to measure (snaps to the nearest mesh corner)."; return; }
-      const d=picks[1].clone().sub(picks[0]); out.textContent="Distance "+fmt(d.length(),unitMM); return; }
-    const nh=meshes.filter(m=>!m.visible).length;
-    if(!sel){ out.textContent="Tap a part to see what it is. One finger spins, two fingers zoom and move."+(nh?` (${nh} hidden - Show / hide to bring them back)`:""); return; }
-    const u=sel.userData, pns=u.pn||[];
-    out.textContent=nm(sel)+(u.mat?" · "+u.mat:"")+(u._segs.length?"  —  in "+u._segs.join(" › "):"");
-    btn("Hide part",()=>{ const m=sel; select(null); manual.push(m); apply(); });
-    if(u._segs.length){ const g=u._segs.join(" / "); btn("Hide "+u._segs[u._segs.length-1],()=>{ offGroups.add(g); apply(); });
-      btn("Only "+u._segs[u._segs.length-1],()=>{ isolate(g); }); }
-    if(pns.length&&opts.onPart) pns.forEach(pn=>btn("Open "+pn,()=>opts.onPart(pn)));
-    if(!pns.length){ const s=document.createElement("span"); s.style.cssText="font-size:12px;color:#9aa;align-self:center"; s.textContent="Not a laser part on the parts list (bought part, tube, or not matched)."; act.appendChild(s); }
-  }
-  function isolate(key){ only=key; apply(); fit(); }   // show only this group (filters and single hides still apply)
-  /* the Show / hide panel */
-  const open=new Set();
-  function drawTree(){
-    const cnt=n=>{ const a=allIn(n); return [a.filter(m=>m.visible).length,a.length]; };
-    const kindN=k=>meshes.filter(m=>m.userData._kinds.has(k)).length;
-    let h=`<div class="tph"><b>Show / hide</b><button class="btn sm" type="button" data-a="all">Show everything</button><button class="btn sm" type="button" data-a="fab">Fab parts only</button><button class="btn sm" type="button" data-a="x">Done</button></div>
-      <div class="tpk">${KINDS.map(([k,l])=>kindN(k)?`<label><input type="checkbox" data-k="${k}" ${offKinds.has(k)?"":"checked"}> ${l} <i>${kindN(k)}</i></label>`:"").join("")}</div>
-      ${only?`<div class="tpo">Showing only <b>${esc(only.split(" / ").pop())}</b> <button class="btn sm" type="button" data-a="only">Show all assemblies</button></div>`:""}<div class="tps">Assemblies</div>`;
-    const row=(n,d)=>{ const [v,t]=cnt(n); if(!t) return ""; const on=!offGroups.has(n.key), kids=[...n.kids.values()].filter(k=>allIn(k).length);
-      let s=`<div class="tpr" style="padding-left:${6+d*16}px">${kids.length?`<button type="button" class="tw" data-o="${esc(n.key)}">${open.has(n.key)?"▾":"▸"}</button>`:`<span class="tw"></span>`}
-        <label><input type="checkbox" data-g="${esc(n.key)}" ${on?"checked":""}> ${esc(n.name)}</label><i>${v}/${t}</i><button type="button" class="btn sm" data-iso="${esc(n.key)}">Only</button></div>`;
-      if(open.has(n.key)) kids.forEach(k=>{ s+=row(k,d+1); });
-      return s; };
-    const groups=[...top.kids.values()];
-    h+=groups.length?groups.map(g=>row(g,0)).join(""):`<div class="tpe">This model has no assembly groups saved in it.</div>`;
-    if(manual.length) h+=`<div class="tps">Hidden one at a time (${manual.length})</div>`+manual.map((m,i)=>`<div class="tpr"><span class="tw"></span><span style="flex:1">${esc(nm(m))}</span><button type="button" class="btn sm" data-un="${i}">Show</button></div>`).join("");
-    tp.innerHTML=h;
-    tp.querySelectorAll("[data-k]").forEach(c=>c.onchange=()=>{ c.checked?offKinds.delete(c.dataset.k):offKinds.add(c.dataset.k); apply(); });
-    tp.querySelectorAll("[data-g]").forEach(c=>c.onchange=()=>{ const k=c.dataset.g; c.checked?offGroups.delete(k):offGroups.add(k); apply(); });
-    tp.querySelectorAll("[data-o]").forEach(b=>b.onclick=()=>{ const k=b.dataset.o; open.has(k)?open.delete(k):open.add(k); drawTree(); });
-    tp.querySelectorAll("[data-iso]").forEach(b=>b.onclick=()=>isolate(b.dataset.iso));
-    tp.querySelectorAll("[data-un]").forEach(b=>b.onclick=()=>{ manual.splice(+b.dataset.un,1); apply(); });
-    tp.querySelector('[data-a="all"]').onclick=()=>{ manual.length=0; offKinds.clear(); offGroups.clear(); only=null; apply(); fit(); };
-    const ob=tp.querySelector('[data-a="only"]'); if(ob) ob.onclick=()=>{ only=null; apply(); fit(); };
-    tp.querySelector('[data-a="fab"]').onclick=()=>{ KINDS.forEach(([k])=>offKinds.add(k)); apply(); };
-    tp.querySelector('[data-a="x"]').onclick=()=>{ tp.hidden=true; W.querySelector("#v3tree").classList.remove("on"); };
-  }
-  show();
-  let down=null, moved=false, fingers=0;
-  renderer.domElement.addEventListener("pointerdown",e=>{ fingers++; if(fingers===1){ down={x:e.clientX,y:e.clientY,t:Date.now()}; moved=false; } else down=null; });
-  renderer.domElement.addEventListener("pointermove",e=>{ if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>8) moved=true; });
-  renderer.domElement.addEventListener("pointerup",()=>{ fingers=Math.max(0,fingers-1); if(!down||moved||Date.now()-down.t>600){ if(fingers===0) down=null; return; } const x=down.x,y=down.y; down=null; tap(x,y); });
-  renderer.domElement.addEventListener("pointercancel",()=>{ fingers=0; down=null; });
-  function tap(x,y){
-    const h=hit(x,y);
-    if(mode==="part"){ select(h?h.object:null); show(); return; }
-    if(!h) return; if(picks.length>=2){ picks=[]; clearHl(); }
-    const p=snapPt(h,x,y); picks.push(p); dot3(p,picks.length===1?0x4ea1ff:0xffa64e); if(picks.length===2) line3(picks[0],picks[1]); show();
-  }
-};
-
+/* whole-assembly viewer: moved to asm3d.js (Nov 15 redesign) */
 window.open3D=async function(url,title,opts){
   opts=opts||{};
   let unitMM=false, mode="spin", picks=[];
@@ -492,7 +323,7 @@ window.open3D=async function(url,title,opts){
   const box=W.querySelector(".cv"), out=W.querySelector("#v3out"), msg=W.querySelector("#v3msg");
   let disposed=false, renderer=null, onResize=null;
   const close=()=>{ disposed=true; if(onResize) window.removeEventListener("resize",onResize); if(renderer){ renderer.dispose(); renderer.forceContextLoss&&renderer.forceContextLoss(); } W.remove(); window.removeEventListener("popstate",onPop); };
-  const myId=++v3dDepth; const onPop=()=>{ if(((history.state&&history.state.v3d)||0)<myId) close(); };
+  const myId=window.__v3dDepth=(window.__v3dDepth||0)+1; const onPop=()=>{ if(((history.state&&history.state.v3d)||0)<myId) close(); };
   try{ history.pushState({v3d:myId},""); window.addEventListener("popstate",onPop); }catch(e){}
   W.querySelector("#v3x").onclick=()=>{ try{ if(history.state&&history.state.v3d) history.back(); else close(); }catch(e){ close(); } };
 

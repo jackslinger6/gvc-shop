@@ -14,7 +14,8 @@ const $=s=>document.querySelector(s);
 const click=el=>{ if(el){ el.click(); return true; } return false; };
 const L=[
   { k:"scan",  el:()=>$("#gScan"), open:e=>!!e, box:e=>e, name:"Scan a part", close:()=>click($("#gsX")) },
-  { k:"v3d",   el:()=>$("#v3d"), open:e=>!!e, box:e=>e, name:"3D model", close:()=>click($("#v3x")) },
+  { k:"v3d",   el:()=>[...document.querySelectorAll("#v3d")].pop()||null, open:e=>!!e, box:e=>e, name:"3D model",
+    close:e=>{ if(e.classList.contains("a3v")&&window.__v3dBack&&window.__v3dBack()) return; click(e.querySelector("#v3x")); } },   // assembly viewer: menu / drawing / measure / phone panel close first
   { k:"cfp",   el:()=>$("#gFlat .cfp"), open:e=>!!e, box:e=>e.querySelector(".cfpa")?e:e, name:"Unconfirmed count", alert:true,
     close:()=>click($("#gFlat .cfp [data-k]")) },
   { k:"flat",  el:()=>$("#gFlat"), open:e=>!!e, box:e=>e, name:"Drawing", close:()=>click($("#gfX")) },
