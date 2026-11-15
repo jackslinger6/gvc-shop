@@ -72,9 +72,9 @@ css.textContent=`
 .posv .chip{border:0;cursor:pointer;font:inherit;font-size:12px;font-weight:600;color:var(--text);background:var(--panel3);border-radius:6px;padding:3px 8px}
 .ojl{padding:10px 0;border-bottom:1px solid var(--line)}.ojl:last-child{border-bottom:0}
 .ojlh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ojls{font-size:13.5px;margin:6px 0 2px;line-height:1.4}
-@media (max-width:600px){ .posv table.vt,.posv table.vt tbody,.posv table.vt tr,.posv table.vt td{display:block;width:100%} .posv table.vt thead{display:none}
-  .posv table.vt tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;padding:10px 0;border-bottom:1px solid var(--line)} .posv table.vt td{border:0;padding:0}
-  .posv table.vt td:nth-child(1),.posv table.vt td:nth-child(2){grid-column:auto} .posv table.vt td:last-child{grid-column:1/-1;text-align:left!important} .posv table.vt td:last-child .btn{width:100%} }
+.vrow{padding:12px 0;border-bottom:1px solid var(--line);display:grid;gap:10px}.vrow:first-of-type{padding-top:4px}
+.vrh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.vrh b{font-size:15px}
+.vrf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}.vrf label{margin:0;min-width:0}.vrf input{width:100%}
 /* ---- order panel: one order (PO / RFQ / a plain supplier line) on top of the board (redesign stage 2) ---- */
 .opanel{position:fixed;inset:0;z-index:9;display:none}
 .opanel.on{display:block}
@@ -97,8 +97,15 @@ document.head.appendChild(css);
 /* an open RFQ says what's actually happened: how many of the asked vendors have quoted (Kyle, Nov 10 - RFQ-1004 said "Waiting on quotes" with the quote in hand) */
 const rfqIn=r=>{ const V=[...new Set([...(r.vendors||[]),...linesOf(r).map(o=>o.x.name)])]; const L=linesOf(r);
   const got=V.filter(v=>L.some(o=>o.x.name===v&&(["quote","ordered","received"].includes(o.x.status)||o.x.quoteNo||o.x.total))).length; return {got,n:V.length}; };
-const recColor=r=>r.kind==="rfq"?(r.status==="open"?(rfqIn(r).got&&rfqIn(r).got>=rfqIn(r).n?"#3ad06b":"#2f8ff0"):"#6c727a"):((PL[r.status]||{}).c||"#6c727a");
+/* a vendor on an open RFQ that already confirmed the order (its job line went past "Quote in" without a PO being made
+   here, e.g. RFQ-1004: Russel confirmed, cut, ready for pickup) - the RFQ shows that, not "Quote in" (Kyle's review, Nov 14) */
+const PAST=["approved","production","ready","arrived","received"];
+const rfqAhead=r=>{ if(r.kind!=="rfq"||r.status!=="open") return null; const L=linesOf(r).filter(o=>!o.x.po&&PAST.includes(o.x.status)); if(!L.length) return null;
+  return L.reduce((a,o)=>PAST.indexOf(o.x.status)>PAST.indexOf(a.x.status)?o:a); };
+const recColor=r=>{ const a=rfqAhead(r); if(a) return (PL[a.x.status]||{}).c||"#9b4dff";
+  return r.kind==="rfq"?(r.status==="open"?(rfqIn(r).got&&rfqIn(r).got>=rfqIn(r).n?"#3ad06b":"#2f8ff0"):"#6c727a"):((PL[r.status]||{}).c||"#6c727a"); };
 const recStatus=r=>{ if(r.kind!=="rfq") return (PL[r.status]||{}).t||r.status;
+  const a=rfqAhead(r); if(a) return `${(PL[a.x.status]||{}).t||a.x.status} · no PO yet`;
   if(r.status==="open"){ const {got,n}=rfqIn(r); return !got?"Waiting on quote"+(n>1?"s":""):got>=n?(n>1?"Quotes in":"Quote in"):`${got} of ${n} quotes in`; }
   return ({ordered:"Ordered",closed:"Closed"})[r.status]||r.status; };
 /* what the order comes to: the totals typed on its job lines, else what the read quote adds up to (Nov 10) */
@@ -149,14 +156,16 @@ function renderRfq(B,r){
   const sts=typeof ST!=="undefined"?ST:{};
   B.innerHTML=`<div class="pod">${head(r,B)}
     <div class="psc"><h3>VENDORS ASKED</h3>
-      <div style="overflow-x:auto"><table class="vt"><thead><tr><th>Vendor</th><th>Status</th><th>Their quote #</th><th>Total</th><th></th></tr></thead><tbody>
-      ${Object.entries(byV).map(([v,arr])=>{ const x=(arr[0]||{}).x||{}; const st=sts[x.status]||{t:x.status||"-",c:"#888"};
-        return `<tr><td><b>${E(v)}</b>${arr.length>1?`<div class="lg">${arr.length} jobs</div>`:""}</td>
-          <td><span style="color:${st.c};font-weight:700">${E(st.t)}</span>${x.po?`<div class="lg">${E(x.po)}</div>`:""}</td>
-          <td><input data-vq="${E(v)}" value="${E(x.quoteNo||"")}" placeholder="quote #" ${isKyle()?"":"disabled"}></td>
-          <td><input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${!x.total&&window.quoteTotal&&window.quoteTotal(x)?money(window.quoteTotal(x))+" on the quote":"$"}" ${isKyle()?"":"disabled"}></td>
-          <td style="text-align:right">${isKyle()&&r.status==="open"&&!x.po?`<button class="btn sm primary" type="button" data-ord="${E(v)}">Order from ${E(String(v).split(/\s/)[0])} →</button>`:""}${window.openCount&&arr[0]&&["approved","production","ready","arrived"].includes(x.status)?` <button class="btn sm${["ready","arrived"].includes(x.status)?" primary":""}" type="button" data-rcnt="${E(arr[0].j.id)}|${E(x.id)}">☑ Count it</button>`:""}</td></tr>`; }).join("")}
-      </tbody></table></div>
+      ${Object.entries(byV).map(([v,arr])=>{ const x=(arr[0]||{}).x||{}; const st=sts[x.status]||{t:x.status||"-",c:"#888"}; const done=PAST.includes(x.status);
+        const qt=!x.total&&window.quoteTotal?window.quoteTotal(x):null;
+        const acts=[window.openCount&&arr[0]&&["approved","production","ready","arrived"].includes(x.status)?`<button class="btn${["ready","arrived"].includes(x.status)?" primary":""}" type="button" data-rcnt="${E(arr[0].j.id)}|${E(x.id)}">☑ Count it</button>`:"",
+          isKyle()&&r.status==="open"&&!x.po?(done?`<button class="btn" type="button" data-ord="${E(v)}">Give it a PO number</button>`:`<button class="btn primary" type="button" data-ord="${E(v)}">Order from ${E(String(v).split(/\s/)[0])} →</button>`):"",
+          x.po?`<button class="btn" type="button" data-opo="${E(x.po)}">Open ${E(x.po)} ›</button>`:""].filter(Boolean);
+        return `<div class="vrow"><div class="vrh"><b>${E(v)}</b><span class="ostat" style="--c:${st.c}">${E(st.t)}</span>${arr.length>1?`<span class="lbl">${arr.length} jobs</span>`:""}</div>
+          ${done&&!x.po?`<div class="lbl">${E(String(v).split(/\s/)[0])} already confirmed this order - give it a PO number to follow pickup and deliveries.</div>`:""}
+          <div class="vrf"><label>Their quote #<input data-vq="${E(v)}" value="${E(x.quoteNo||"")}" placeholder="quote #" ${isKyle()?"":"disabled"}></label>
+            <label>Total<input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${qt?money(qt)+" on the quote":"$"}" ${isKyle()?"":"disabled"}></label></div>
+          ${acts.length?`<div class="oacts">${acts.join("")}</div>`:""}</div>`; }).join("")}
       ${isKyle()&&r.status==="open"?`<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" type="button" id="pAddV">+ Ask another vendor</button><button class="btn sm" type="button" id="pCmp">⚖ Compare their quotes</button><button class="btn sm" type="button" id="pClose">Close without ordering</button></div>`:""}
     </div>
     ${notesLog(r)}</div>`;
@@ -275,11 +284,13 @@ function addVendor(r){
 }
 async function orderFrom(r,v){
   const L=linesOf(r), mine=L.filter(o=>o.x.name===v), others=[...new Set(L.filter(o=>o.x.name!==v&&!o.x.po).map(o=>o.x.name))];
-  if(!confirm(`Order from ${v}?\n\nThis makes a new PO number for ${v}${others.length?` and marks ${others.join(", ")} Declined on this RFQ`:""}.`)) return;
+  const ahead=mine.map(o=>o.x.status).filter(k=>PAST.includes(k)).sort((a,b)=>PAST.indexOf(b)-PAST.indexOf(a))[0]||null;   // already ordered with the vendor
+  if(!confirm(ahead?`${v} already confirmed this order (${(PL[ahead]||{}).t||ahead}).\n\nGive it a PO number? It stays at ${(PL[ahead]||{}).t||ahead}${others.length?`, and ${others.join(", ")} ${others.length>1?"are":"is"} marked Declined on this RFQ`:""}.`
+    :`Order from ${v}?\n\nThis makes a new PO number for ${v}${others.length?` and marks ${others.join(", ")} Declined on this RFQ`:""}.`)) return;
   try{ const no=await nextNo("po"); const now=new Date().toISOString(); const qn=(mine[0]&&mine[0].x.quoteNo)||null;
-    const rec={no,kind:"po",title:r.title,vendor:v,vendors:[v],jobs:[...new Set(mine.map(o=>o.j.id))],status:"approved",rfq_no:r.no,vendor_ref:qn,created_by:(window.ME&&ME.name)||"Kyle",log:[{at:now,t:`ordered from ${v} (from ${r.no}${qn?", their quote "+qn:""})`}]};
+    const rec={no,kind:"po",title:r.title,vendor:v,vendors:[v],jobs:[...new Set(mine.map(o=>o.j.id))],status:ahead||"approved",rfq_no:r.no,vendor_ref:qn,created_by:(window.ME&&ME.name)||"Kyle",log:[{at:now,t:`ordered from ${v} (from ${r.no}${qn?", their quote "+qn:""})`}]};
     const q=await sb.from("gvc_pos").insert(rec).select().single(); if(q.error) throw new Error(q.error.message); POS.unshift(q.data);
-    await editLines(r.jobs,S=>{ let c=false; S.forEach(x=>{ if(x.rfq!==r.no) return; if(x.name===v){ x.po=no; x.status="approved"; x.updated=now; c=true; } else if(!x.po&&x.status!=="declined"){ x.status="declined"; x.updated=now; c=true; } }); return c; },`${r.no}: ordered from ${v} as ${no}`);
+    await editLines(r.jobs,S=>{ let c=false; S.forEach(x=>{ if(x.rfq!==r.no) return; if(x.name===v){ x.po=no; if(!PAST.includes(x.status)) x.status="approved"; x.updated=now; c=true; } else if(!x.po&&x.status!=="declined"){ x.status="declined"; x.updated=now; c=true; } }); return c; },`${r.no}: ordered from ${v} as ${no}`);
     await saveRec(r,{status:"ordered"},`ordered from ${v} → ${no}`);
     if(panel.no){ panel.no=no; drawPanel(); render(); } else { selNo=no; render(); toTop(); } say(`${no} made for ${v}`);
   }catch(e){ say("Couldn't make the PO: "+e.message); }

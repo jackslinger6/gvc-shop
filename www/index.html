@@ -630,14 +630,24 @@ function ordSelPick(COLS){
   if(ordPicked&&COLS.some(c=>c.s.k===ordSel)) return;
   const c=COLS.find(c=>c.att)||COLS.find(c=>c.n)||COLS[0]; ordSel=c.s.k;
 }
+const jobsN=n=>`${n} job${n===1?"":"s"}`;
+function ordNeeds(cards){
+  const k={late:0,quote:0,pick:0,count:0};
+  cards.forEach(({j,rows,s})=>{ const act=rows.filter(ACTIVE);
+    act.forEach(x=>{ if(x.status==="sent"&&days(x.sent)>=2) k.late++; else if(x.status==="quote") k.quote++; else if(x.status==="ready") k.pick++; else if(x.status==="arrived") k.count++; });
+    if(j.stage===s.k&&s.k==="pickup"&&!act.some(x=>x.status==="ready")) k.pick++;
+    if(j.stage===s.k&&s.k==="arrived"&&!act.some(x=>x.status==="arrived")) k.count++; });
+  return [k.late?`<span class="npill late">${k.late} overdue</span>`:"",k.quote?`<span class="npill quote">${k.quote} quote${k.quote>1?"s":""} to review</span>`:"",
+    k.pick?`<span class="npill pick">${k.pick} to pick up</span>`:"",k.count?`<span class="npill cnt">${k.count} to count</span>`:""].join("");
+}
 function ordRow(j,x,stage){
   const st=ST[x.status]||ST.sent; const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:st.t;
-  const bits=[]; if(x.status==="sent"&&x.sent){ const d=days(x.sent); bits.push(d<1?"today":d+"d"); }
+  const bits=[]; let late=false; if(x.status==="sent"&&x.sent){ const d=days(x.sent); late=d>=2; bits.push(d<1?"sent today":late?`no reply ${d}d`:`sent ${d}d ago`); }
   if(x.lead&&["approved","production"].includes(x.status)) bits.push(esc(x.lead));
   const ref=x.po||x.rfq||(x.quoteNo&&x.status==="quote"?"#"+x.quoteNo:"");
   return `<button type="button" class="orow ${x.status==="declined"?"dim":""}" data-ol="${esc(j.id)}|${esc(x.id||"")}" aria-label="Open order: ${esc(x.name)}${ref?" "+esc(ref):""} - ${esc(t)}">
     <span class="ow"><b>${esc(x.name)}</b>${ref?`<span class="oref">${esc(ref)}</span>`:""}</span>
-    <span class="ost"><span class="ostat" style="--c:${st.c}">${esc(t)}</span>${bits.length?`<span class="oage">${bits.join(" · ")}</span>`:""}</span><span class="ochev" aria-hidden="true">›</span></button>`;
+    <span class="ost"><span class="ostat" style="--c:${st.c}">${esc(t)}</span>${bits.length?`<span class="oage${late?" late":""}">${bits.join(" · ")}</span>`:""}</span><span class="ochev" aria-hidden="true">›</span></button>`;
 }
 function ordCard(j,s,rows,sub,flagsHtml,countHtml){
   const one=rows.length===1?`${esc(j.id)}|${esc(rows[0].id||"")}`:"";
@@ -652,13 +662,14 @@ function ordCol(s,list,extra,n,att){
   const cards=list.map(j=>{
     const act=(j.suppliers||[]).filter(ACTIVE);
     const cnt=s.k==="arrived"||s.k==="pickup"?(act.filter(x=>x.status==="arrived"||x.status==="ready").map(x=>cntBtn(j,x,"Count "+esc(first(x.name)))).join("")||(act[0]?cntBtn(j,act[0],"Count it"):"")):"";
-    return ordCard(j,s,j.suppliers||[],j.summary?`<span class="osum">${esc(j.summary)}</span>`:"",flags(j).join(""),cnt);
+    return ordCard(j,s,j.suppliers||[],j.summary?`<span class="osum">${esc(j.summary)}</span>`:"",flags(j).filter(f=>!/class="flag (go|late|count)"/.test(f)).join(""),cnt);
   }).concat(extra.map(j=>{ const os=offOrders(j).filter(x=>SUP_COL[x.status]===s.k);
-    const fl=os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(x.sent)>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span>`:"").join("");
+    const fl=os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:"").join("");
     const cnt=os.filter(x=>x.status==="ready"||x.status==="arrived").map(x=>cntBtn(j,x,"Count "+esc(first(x.name)))).join("");
     return ordCard(j,s,os,ONGOING(j)?"Ongoing job · order":`${esc(stOf(j).bt)} · ${esc(stOf(j).t)} - extra order`,fl,cnt); }));
-  return `<section class="col ocol ${n?"":"emptycol"} ${s.k===ordSel?"sel":""}" style="--c:${s.c}" aria-label="${esc(s.t)}: ${n} job${n===1?"":"s"}${att?`, ${att} need you`:""}">
-    <div class="colhead"><h2>${esc(s.t)}</h2><span class="ccount" title="${n} job${n===1?"":"s"}">${n}</span>${att?`<span class="catt" title="${att} need you">${att} need you</span>`:""}</div>
+  const needs=ordNeeds(list.map(j=>({j,rows:j.suppliers||[],s})).concat(extra.map(j=>({j,rows:offOrders(j).filter(x=>SUP_COL[x.status]===s.k),s:{k:"_"}}))));
+  return `<section class="col ocol ${n?"":"emptycol"} ${s.k===ordSel?"sel":""}" style="--c:${s.c}" aria-label="${esc(s.t)}: ${jobsN(n)}">
+    <div class="colhead"><div class="chrow"><h2>${esc(s.t)}</h2><span class="ccount">${jobsN(n)}</span></div>${needs?`<div class="cpills">${needs}</div>`:""}</div>
     <div class="cards">${cards.join("")||`<div class="oempty">No orders</div>`}</div></section>`;
 }
 function wireOrdBoard(){
@@ -679,7 +690,7 @@ function render(){
   const tdCount=liveAuto().length+liveMine().length, sgNew=suggs.filter(x=>x.status==="new").length;
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
     const js=b.k==="ordering"?jobs.filter(onOrdersBoard):jobs.filter(j=>!ONGOING(j)&&stOf(j).board===b.k); const at=js.filter(needsAttention).length;
-    return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct" title="${js.length} job${js.length===1?"":"s"}">${js.length}</span>${at?`<span class="at" title="${at} need you">${at} need you</span>`:""}</button>`;
+    return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct" title="${js.length} job${js.length===1?"":"s"}">${js.length}</span>${at?`<span class="at soft" title="${at} need you">${at} need you</span>`:""}</button>`;
   }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${liveAuto().some(t=>/^Assign \d+ assembl/.test(t.text))&&crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+(window.timeTab?window.timeTab():"")+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)&&liveAuto().some(t=>/sitting flat/.test(t.text))?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
   { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
@@ -689,11 +700,13 @@ function render(){
   // what's in each column (same rules as before) - worked out first so the stage picker can show the counts
   const COLS=B.stages.map(s=>{ const list=jobs.filter(j=>inCol(j,s.k)&&!(s.k==="recv"&&recvStale(j))).sort((x,y)=>(x.order||0)-(y.order||0));
     const extra=ORD?jobs.filter(j=>offOrders(j).some(x=>SUP_COL[x.status]===s.k)).sort((x,y)=>(x.order||0)-(y.order||0)):[];
-    const att=[...list,...extra].filter(needsAttention).length; return {s,list,extra,n:list.length+extra.length,att}; });
+    const att=[...list,...extra].filter(needsAttention).length;
+    const needs=ORD?ordNeeds(list.map(j=>({j,rows:j.suppliers||[],s})).concat(extra.map(j=>({j,rows:offOrders(j).filter(x=>SUP_COL[x.status]===s.k),s:{k:"_"}})))):"";
+    return {s,list,extra,n:list.length+extra.length,att,needs}; });
   if(ORD) ordSelPick(COLS);
   $("#board").className="board"+(ORD?" ordb":"");
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
-  $("#board").innerHTML=(ORD?`<div class="ostages" role="tablist" aria-label="Order stages">${COLS.map(c=>`<button type="button" role="tab" class="ostg ${c.s.k===ordSel?"on":""}" style="--c:${c.s.c}" aria-selected="${c.s.k===ordSel}" data-osel="${c.s.k}"><span class="sw"></span>${esc(c.s.t)}<span class="ccount">${c.n}</span>${c.att?`<span class="catt">${c.att} need you</span>`:""}</button>`).join("")}</div>`:"")+COLS.map(({s,list,extra,n,att})=>{
+  $("#board").innerHTML=(ORD?`<div class="ostages" role="tablist" aria-label="Order stages">${COLS.map(c=>`<button type="button" role="tab" class="ostg ${c.s.k===ordSel?"on":""}" style="--c:${c.s.c}" aria-selected="${c.s.k===ordSel}" data-osel="${c.s.k}"><span class="sw"></span>${esc(c.s.t)}<span class="ccount">${jobsN(c.n)}</span>${/npill late/.test(c.needs)?`<span class="npill late">overdue</span>`:""}</button>`).join("")}</div>`:"")+COLS.map(({s,list,extra,n,att})=>{
     if(ORD) return ordCol(s,list,extra,n,att);
     return `<section class="col ${list.length+extra.length?"":"emptycol"}" style="--c:${s.c}"><div class="colhead"><h2>${s.t}</h2><span class="none">none</span><div class="n">${(list.length+extra.length)||""}</div></div>
       <div class="cards">${list.map(j=>`<button class="card" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">

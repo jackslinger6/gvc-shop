@@ -128,13 +128,23 @@ table.at td{border-color:var(--line)}
 .ostat{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;line-height:1.2;padding:2px 9px;border-radius:var(--r-pill);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--text);white-space:nowrap}
 .ostat::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
 .ccount{min-width:22px;height:22px;padding:0 7px;border-radius:var(--r-pill);background:var(--panel3);color:var(--text);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;flex:none}
+span.at.soft{background:var(--accent-soft);color:#ffc89a;border-color:var(--accent-line)}
+/* what a column needs: red only for problems (overdue), the rest in their stage colour */
+.npill{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:var(--r-pill);font-size:12px;font-weight:600;white-space:nowrap;border:1px solid;flex:none}
+.npill.late{background:rgba(229,72,59,.16);color:#ffa097;border-color:rgba(229,72,59,.5)}
+.npill.quote{background:var(--accent-soft);color:#ffc89a;border-color:var(--accent-line)}
+.npill.pick{background:rgba(34,195,230,.13);color:#8fe3f5;border-color:rgba(34,195,230,.45)}
+.npill.cnt{background:rgba(245,176,65,.14);color:#ffd28a;border-color:rgba(245,176,65,.5)}
 .catt{height:22px;padding:0 8px;border-radius:var(--r-pill);background:rgba(229,72,59,.16);color:#ffa097;border:1px solid rgba(229,72,59,.45);font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap;flex:none}
 
 /* ---------- Orders board (stage 2): each column its own panel, sized to what's in it ---------- */
 .board.ordb{gap:10px;align-items:start;margin-top:12px}
 .board.ordb .col{border:1px solid var(--line)!important;border-radius:var(--r-lg);background:var(--panel);min-height:0;overflow:hidden}
-.board.ordb .colhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;text-align:left;padding:13px 12px 10px;background:transparent}
-.board.ordb .colhead h2{font-size:13.5px;line-height:1.2;justify-content:flex-start;flex:1 1 auto;min-width:0}
+.board.ordb .colhead{display:flex;flex-direction:column;align-items:stretch;gap:8px;text-align:left;padding:13px 12px 10px;background:transparent}
+.board.ordb .chrow{display:flex;align-items:center;gap:8px}
+.board.ordb .colhead h2{font-size:14px;line-height:1.2;justify-content:flex-start;flex:1 1 auto;min-width:0}
+.board.ordb .ccount{font-weight:500;color:var(--muted)}
+.cpills{display:flex;gap:6px;flex-wrap:wrap}
 .board.ordb .colhead .none,.board.ordb .colhead .n{display:none!important}
 .board.ordb .cards{padding:8px;gap:8px}
 .oempty{font-size:12.5px;color:var(--dim);padding:4px 4px 6px;text-align:center}
@@ -142,17 +152,17 @@ table.at td{border-color:var(--line)}
 .ocard:hover{border-color:var(--line2)}
 .ocard .ojob{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:10px 10px 2px;cursor:pointer;border-radius:var(--r-lg) var(--r-lg) 0 0}
 .ocard .ojob:hover .jname{text-decoration:underline}
-.ocard .offtag{padding:0 10px;margin-top:2px;font-size:12px;color:var(--muted)}
+.ocard .offtag{padding:0 10px;margin-top:2px;font-size:12.5px;line-height:1.4;color:var(--muted)}
 .ocard .osum{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .orows{display:flex;flex-direction:column;margin-top:8px;border-top:1px solid var(--line)}
 .orow{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"w ch" "s ch";gap:4px 8px;align-items:center;width:100%;min-height:var(--hit);text-align:left;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;font:inherit;padding:8px 10px;cursor:pointer}
 .orow:last-child{border-bottom:0}
 .orow:hover{background:var(--panel3)}
 .orow .ow{grid-area:w;display:flex;gap:4px 8px;align-items:baseline;flex-wrap:wrap;min-width:0}
-.orow .ow b{font-size:13px;font-weight:600}
-.oref{font-size:11.5px;font-weight:600;color:#ffd0a8;letter-spacing:.02em;white-space:nowrap}
+.orow .ow b{font-size:14px;font-weight:600}
+.oref{font-size:12.5px;font-weight:600;color:#ffd0a8;letter-spacing:.02em;white-space:nowrap}
 .orow .ost{grid-area:s;display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
-.oage{font-size:11.5px;color:var(--muted)}
+.oage{font-size:12.5px;color:var(--muted)}.oage.late{color:#ffa097;font-weight:600}
 .ochev{grid-area:ch;color:var(--dim);font-size:20px;line-height:1}
 .orow.dim{opacity:.55}
 .oflags{padding:0 10px 2px;border-top:1px solid var(--line)}
@@ -168,10 +178,11 @@ table.at td{border-color:var(--line)}
   .ostg .sw{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
   .ostg.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--text)}
   .ostg .ccount{height:20px;min-width:20px;font-size:11.5px}
-  .ostg .catt{height:20px;padding:0 7px}
+  .ostg .npill{height:20px;padding:0 7px;font-size:11.5px}
   .board.ordb .ocol{display:none}
   .board.ordb .ocol.sel{display:flex}
-  .board.ordb .ocol .colhead{display:none}   /* the picker above already shows the stage, its count and who needs you */
+  .board.ordb .ocol .chrow{display:none}   /* the picker above already shows the stage and its count */
+  .board.ordb .ocol .colhead:not(:has(.cpills)){display:none}
   .board.ordb .col.emptycol .cards{display:flex}
   .board.ordb .col.emptycol .colhead{padding:13px 12px 10px}
   .board.ordb .col.emptycol .colhead:before{height:3px;width:auto;right:0;bottom:auto;opacity:1}
