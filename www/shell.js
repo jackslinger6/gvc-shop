@@ -449,18 +449,18 @@ function moreMenu(){
   const n=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
   const items=[["today","Today & timer","clock"],["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["count","Count an order","count"],["talks","Talks","rec"],["prices","Prices","count"],["requests","Supply requests","box",(window.reqCount?window.reqCount():0)],["pos","RFQs & POs","list",(window.posOpen?window.posOpen():0)],["porders",window.ME&&ME.role==="parts"?"My orders":"Robin's orders","box",(window.pordersOpen?window.pordersOpen():0)],["staging","Staging kits","box"],["crewview","Colton's view","crew"],["partsview","Robin's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
-    ["theme","Appearance","heart"],["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
+    ["theme","Appearance","heart"],["soon","Coming later","bulb"],["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
   const CREWOK=["msgs","mytime","supplies","requests","count","inv","ncr","revs","archive","signout"];
-  const PARTSOK=["porders","msgs","inv","staging","archive","theme","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
+  const PARTSOK=["porders","msgs","inv","staging","archive","theme","soon","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
   const role=window.ME&&ME.role;
-  const items2=role==="crew"?items.filter(x=>CREWOK.includes(x[0])):role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging"].includes(x[0]));
+  const items2=role==="crew"?items.filter(x=>CREWOK.includes(x[0])):role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging","soon"].includes(x[0]));
   /* grouped (redesign stage 6, Kyle Nov 14): everyday work first, then purchasing, then tools & settings.
      The "see the app as" previews and Girly mode sit at the bottom instead of the top. Same items and same roles as before. */
   const GRP={today:"day",todo:"day",msgs:"day",time:"day",mytime:"day",count:"day",supplies:"day",newjob:"day",talks:"day",ncr:"jobs",revs:"jobs",inv:"jobs",archive:"jobs",
     pos:"buy",porders:"buy",requests:"buy",prices:"buy",staging:"buy",
     ideas:"set",undo:"set",theme:"set",signout:"set"};
   if(role==="parts"){ GRP.porders="day"; GRP.staging="day"; GRP.inv="day"; GRP.archive="day"; }
-  const ORD=["today","todo","msgs","time","mytime","count","supplies","newjob","ncr","revs","inv","staging","talks","archive","pos","porders","requests","prices","ideas","undo","theme","signout"];
+  const ORD=["today","todo","msgs","time","mytime","count","supplies","newjob","ncr","revs","inv","staging","talks","archive","pos","porders","requests","prices","ideas","undo","theme","soon","signout"];
   const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0]));
   const rest=items2.filter(x=>!PVK.includes(x[0])).sort((a,b)=>{ const ix=k=>role==="parts"&&k==="porders"?-1:ORD.indexOf(k); return ix(a[0])-ix(b[0]); });
   const GT={day:role==="parts"?"Your work":"Your day",jobs:"Jobs & records",buy:"Purchasing",set:"Tools & settings"};
@@ -480,6 +480,7 @@ function moreMenu(){
       else if(k==="newjob"){ go(lastJobs()); setTimeout(()=>$("#addJob").click(),60); }
       else if(k==="undo") $("#undoBtn").click();
       else if(k==="theme"){ appearanceSheet(); }
+      else if(k==="soon"){ window.comingLater&&window.comingLater(); }
       else if(k==="signout") $("#signOut").click();
       else go(k); });
   });

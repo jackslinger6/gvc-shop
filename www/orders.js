@@ -244,7 +244,7 @@ function renderOrder(B,o){
       ${I.length?priceListShell(o):`<div class="lbl">No items yet - add them, or read a quote from email and the items come from it.</div>`}</div>
     <div class="psec"><details class="srcq"><summary><h3 style="display:inline-flex;margin:0">SOURCE QUOTES <span class="lbl" style="font-family:inherit;letter-spacing:0;margin-left:6px">${Q.length} - the emails these prices came from</span></h3></summary>
       <div style="margin-top:8px">${Q.map((q,i)=>quoteCard(o,q,i)).join("")||`<div class="lbl">No quotes yet.</div>`}</div></details></div>
-    <div class="psec"><h3>HISTORY</h3>${(o.log||[]).slice().reverse().slice(0,12).map(l=>`<div class="lg">${day(l.at)} · ${E(l.who)}: ${E(l.t)}</div>`).join("")||`<div class="lg">-</div>`}
+    <div class="psec"><h3>History</h3>${(o.log||[]).slice().reverse().slice(0,12).map(l=>`<div class="lg">${day(l.at)} · ${E(l.who)}: ${E(l.t)}</div>`).join("")||`<div class="lg">-</div>`}
       <div style="margin-top:12px"><button class="btn sm" type="button" id="poDel" style="color:#e5483b">Delete order</button></div></div>
   </div>`;
   if(I.length) wirePriceList(B,o);
@@ -374,7 +374,7 @@ function sheetUI(html,onReady,cls=""){
 const jobNames=()=>(typeof jobs!=="undefined"?jobs:[]).filter(j=>j.stage!=="done"&&!j.archived).map(j=>j.name);
 function newOrder(pre={}){
   if(pv()){ say(PV); return; }
-  sheetUI(`<h3>NEW ORDER</h3>
+  sheetUI(`<h3>New order</h3>
     <label>What's it for<input id="noT" value="${E(pre.title||"")}" placeholder="e.g. Steel for 1086 / 1087, Grade 8 bolt restock"></label>
     <label>Job (optional)<input id="noJ" list="noJL" placeholder="e.g. 1086WT"><datalist id="noJL">${jobNames().map(n=>`<option value="${E(n)}">`).join("")}</datalist></label>
     <label>Items - one per line (optional - they can come from the first quote)<textarea id="noI" rows="5" placeholder="10 pcs 1/2-13 x 1-1/2 Gr 8 bolt&#10;2x2x1/8 HSS 24' (qty 2)"></textarea></label>
@@ -389,7 +389,7 @@ function newOrder(pre={}){
   });
 }
 function editOrder(o){
-  sheetUI(`<h3>EDIT ORDER</h3><label>What's it for<input id="eoT" value="${E(nums(o).name)}"></label>
+  sheetUI(`<h3>Edit order</h3><label>What's it for<input id="eoT" value="${E(nums(o).name)}"></label>
     <label>Job (optional)<input id="eoJ" list="eoJL" value="${E(o.job||"")}"><datalist id="eoJL">${jobNames().map(n=>`<option value="${E(n)}">`).join("")}</datalist></label>
     <label>Who you asked for quotes<input id="eoA" value="${E((o.asked||[]).join(", "))}"></label>
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn" type="button" id="eoX">Cancel</button><button class="btn primary" type="button" id="eoGo">Save</button></div>`,(el,close)=>{
@@ -399,7 +399,7 @@ function editOrder(o){
   });
 }
 function addItems(o){
-  sheetUI(`<h3>ADD ITEMS</h3><label>One per line<textarea id="aiI" rows="6" placeholder="10 pcs 1/2-13 x 1-1/2 Gr 8 bolt"></textarea><div class="lbl">Quantity first with pcs (10 pcs …) or at the end (… qty 10).</div></label>
+  sheetUI(`<h3>Add items</h3><label>One per line<textarea id="aiI" rows="6" placeholder="10 pcs 1/2-13 x 1-1/2 Gr 8 bolt"></textarea><div class="lbl">Quantity first with pcs (10 pcs …) or at the end (… qty 10).</div></label>
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn" type="button" id="aiX">Cancel</button><button class="btn primary" type="button" id="aiGo">Add</button></div>`,(el,close)=>{
     el.querySelector("#aiX").onclick=close;
     el.querySelector("#aiGo").onclick=async()=>{ const n=el.querySelector("#aiI").value.split("\n").map(parseLine).filter(Boolean); if(!n.length){ close(); return; }
@@ -426,7 +426,7 @@ function pickVendor(o,q){ infoSheet(o,"ordered",{vendor:q.vendor,po:o.po||q.quot
 function countSheet(o){
   if(pv()){ say(PV); return; }
   const I=items(o);
-  sheetUI(`<h3>COUNT IT IN</h3><div class="tnote" style="margin:-4px 0 8px">${E(o.title)}${o.vendor?" · "+E(o.vendor):""} - put in what actually came. Leave it as is if it all came.</div>
+  sheetUI(`<h3>Count it in</h3><div class="tnote" style="margin:-4px 0 8px">${E(o.title)}${o.vendor?" · "+E(o.vendor):""} - put in what actually came. Leave it as is if it all came.</div>
     ${I.map((it,i)=>`<div class="it" style="display:grid;grid-template-columns:1fr 80px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div>${E(it.desc)}${it.qty!=null?` <span class="lbl">ordered ${E(it.qty)}</span>`:""}</div>
       <input type="number" inputmode="decimal" min="0" data-cg="${i}" value="${E(it.got!=null?it.got:(it.qty!=null?it.qty:""))}" style="font-size:16px;text-align:right"></div>`).join("")||`<div class="lbl">No item list on this order - it'll just be marked received.</div>`}
     <label style="margin-top:8px">Note (back-ordered, damaged, wrong part…)<input id="cgN" placeholder="optional"></label>
@@ -444,7 +444,7 @@ function mailPicker(o){
   if(pv()){ say(PV); return; }
   const used=new Set(PO.flatMap(x=>quotes(x).map(q=>q.src&&q.src.msg)).filter(Boolean));
   let q="", all=false;
-  sheetUI(`<div class="pom"><h3>READ A QUOTE FROM EMAIL</h3>
+  sheetUI(`<div class="pom"><h3>Read a quote from email</h3>
     <div class="tnote" style="margin:-4px 0 8px">Tap the supplier's quote email. Claude reads the prices (from the email and any PDF) and lines them up with this order's items.</div>
     <div class="row" style="gap:6px"><input id="pmQ" type="search" placeholder="Search: Fastenal, steel, quote #…" style="flex:1"><button class="btn sm" type="button" id="pmGo">Search</button></div>
     <label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px"><input type="checkbox" id="pmAll" style="width:auto"> Show all emails, not just ones that look like quotes</label>
@@ -525,30 +525,53 @@ function robinNext(){
     act:{t:"DONE",fn:()=>{ if(typeof setTodo==="function"){ setTodo(t.id,true); if(typeof todoToast==="function") todoToast("Done: "+t.text,()=>setTodo(t.id,false)); } }},later:{id:t.id,text:t.text}}));
   return out.sort((a,b)=>a.r-b.r);
 }
+/* Robin's Today (usability review, Nov 15): every action visible in one ordered list - no carousel, long text wraps,
+   the main action of each item first; for her own to-dos "Mark done" is a quiet secondary button next to Open/Later.
+   "Coming later" features moved off Today into More -> Coming later. */
+const RT_CSS=document.createElement("style"); RT_CSS.textContent=`
+.rtd{max-width:860px;display:flex;flex-direction:column;gap:14px}
+.rtd h2.rtt{margin:0;font:700 22px var(--font-ui);text-transform:none;letter-spacing:0;background:none;border:0;padding:0}
+.rtd .rts{color:var(--muted);font-size:14px;margin-top:2px}
+.rtd .rtl{display:flex;flex-direction:column;gap:8px}
+.rtd .rti{display:grid;grid-template-columns:4px minmax(0,1fr);gap:12px;padding:12px 12px 12px 0;border:1px solid var(--line);border-radius:12px;background:var(--panel2);overflow:hidden}
+.rtd .rti .cb{background:var(--c)}
+.rtd .rtg{display:inline-block;font:700 12px var(--font-ui);color:var(--c);border:1px solid var(--c);border-radius:999px;padding:2px 9px;line-height:1.4}
+.rtd .rtx{font:600 16px/1.35 var(--font-ui);margin:6px 0 2px;word-break:break-word;white-space:normal}
+.rtd .rtsub{font-size:13.5px;color:var(--muted);word-break:break-word}
+.rtd .rta{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.rtd .rta .btn{min-height:44px}
+.rtd .qk{display:flex;gap:8px;flex-wrap:wrap}.rtd .qk .btn{min-height:44px;flex:1 1 140px}
+.rtd .rtempty{padding:16px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:14px}
+`; document.head.appendChild(RT_CSS);
+const sc2=t=>{ t=String(t||"").toLowerCase(); return t.charAt(0).toUpperCase()+t.slice(1); };
 window.partsHome=B=>{
-  B.innerHTML=`<div class="hm shanim"></div>`; const hm=B.querySelector(".hm");
-  const items=robinNext(), NU=window.shellNu;
-  const left=document.createElement("section"); left.setAttribute("aria-label","Next up");
-  left.innerHTML=`<h4><span>NEXT UP${items.length?" · "+items.length:""}</span>${items.length>1?`<span style="letter-spacing:.08em">SWIPE FOR MORE</span>`:""}</h4>
-    ${NU?NU.html(items,"No quotes to compare, nothing to order, pick up or count."):""}
-    <div class="row" style="gap:8px;margin-top:12px"><button class="btn" type="button" id="poHN" style="flex:1">+ New order</button><button class="btn" type="button" id="poHA" style="flex:1">My orders ›</button><button class="btn" type="button" id="poHI" style="flex:1">Inventory ›</button></div>`;
-  hm.appendChild(left);
-  const right=document.createElement("section"); right.setAttribute("aria-label","Coming later");
-  const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0",Robin:"#9b7bff"};
-  right.innerHTML=`<div class="homecrew"><h4><span>THE CREW</span><span>TAP TO MESSAGE</span></h4><div class="cw tmrow" style="margin-bottom:14px">${[...(typeof CREW!=="undefined"?CREW:["Kyle","Colton","Aaron","Cooper"]),"Robin"].map(p=>`<button class="p" type="button" data-cw="${E(p)}"><span class="av" style="background:${COL[p]||"#9aa1aa"}">${E(p[0])}</span><span class="n">${E(p)}</span></button>`).join("")}</div></div>
-    <h4><span>COMING LATER</span></h4>
-    <button class="soon" type="button" data-pg="staging" style="display:block;width:100%;text-align:left;background:none;font:inherit;cursor:pointer"><b>Staging kits<i>COMING LATER</i></b>Parts for upcoming jobs, pulled and ready before the build starts.</button>
-    <div class="soon"><b>Hardware price comparison<i>COMING LATER</i></b>The same bolt at Fastenal, Resource and Gregg's side by side, with price history.</div>
-    <div class="soon"><b>Time & payroll<i>COMING LATER</i></b>Everyone's punched hours by pay period (semi-monthly), approved and exported for QuickBooks.</div>`;
-  hm.appendChild(right);
+  const items=robinNext();
+  const todo=it=>it.tag==="TO DO";
+  B.innerHTML=`<div class="rtd shanim">
+    <div><h2 class="rtt">Today</h2><div class="rts">${items.length?`${items.length} thing${items.length>1?"s":""} for you, most urgent first`:"Nothing needs you right now."}</div></div>
+    <div class="rtl" role="list">${items.map((t,i)=>`<article class="rti" role="listitem" style="--c:${t.c}"><span class="cb"></span><div>
+      <span class="rtg">${E(sc2(t.tag))}</span><div class="rtx">${E(t.text)}</div>${t.sub?`<div class="rtsub">${E(t.sub)}</div>`:""}
+      <div class="rta">${todo(t)
+        ?`${t.later?`<button class="btn" type="button" data-rtl="${i}">Later</button>`:""}<button class="btn ghost" type="button" data-rta="${i}" aria-label="Mark done: ${E(t.text)}">Mark done</button>`
+        :`${t.act?`<button class="btn primary" type="button" data-rta="${i}">${E(sc2(t.act.t))}</button>`:""}${t.act2?`<button class="btn" type="button" data-rtb="${i}">${E(sc2(t.act2.t))}</button>`:""}`}</div>
+    </div></article>`).join("")||`<div class="rtempty">You're all caught up - no quotes to compare, nothing to order, pick up or count.</div>`}</div>
+    <div class="qk"><button class="btn" type="button" id="poHN">+ New order</button><button class="btn" type="button" id="poHA">My orders</button><button class="btn" type="button" id="poHI">Inventory</button></div>
+  </div>`;
   if(PR().length){ B.insertAdjacentHTML("beforeend",allOrdersHTML());
     const H=B.querySelector("#poAllH"); if(H) H.onclick=()=>{ allOpen=!allOpen; try{localStorage.setItem("gvc_allorders",allOpen?"1":"0")}catch(e){} B.querySelector("#poAll").classList.toggle("closed",!allOpen); };
     B.querySelectorAll("#poAll [data-po]").forEach(b=>b.onclick=()=>{ tab="active"; poId=b.dataset.po; shellGo("porders"); toTop(); }); }
-  if(NU) NU.wire(B,items);
-  if(window.teamDecorate) window.teamDecorate();
+  B.querySelectorAll("[data-rta]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.rta]; if(b.disabled||!t||!t.act) return; b.disabled=true; t.act.fn(); });
+  B.querySelectorAll("[data-rtb]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.rtb]; t&&t.act2&&t.act2.fn(); });
+  B.querySelectorAll("[data-rtl]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const t=items[+b.dataset.rtl]; if(t&&t.later&&typeof laterMenu==="function") laterMenu(b,t.later); });
   B.querySelector("#poHN").onclick=()=>newOrder();
   B.querySelector("#poHA").onclick=()=>window.pordersGo("active");
   B.querySelector("#poHI").onclick=()=>shellGo("inv");
-  right.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>shellGo(b.dataset.pg));
 };
+/* the "coming later" features, now in More -> Coming later (not on Today) */
+window.comingLater=()=>{ if(!window.gvcSheet) return;
+  window.gvcSheet(`<h3>Coming later</h3><div class="tnote" style="margin:-2px 0 10px">Planned for the app - not working yet.</div>
+    <button class="add" type="button" data-pg="staging" style="text-align:left;display:block;width:100%;min-height:52px"><b>Staging kits</b><span style="display:block;color:var(--muted);font-size:13px">Parts for upcoming jobs, pulled and ready before the build starts.</span></button>
+    <div class="add" style="text-align:left;margin-top:6px"><b>Hardware price comparison</b><span style="display:block;color:var(--muted);font-size:13px">The same bolt at Fastenal, Resource and Gregg's side by side, with price history.</span></div>
+    <div class="add" style="text-align:left;margin-top:6px"><b>Time &amp; payroll</b><span style="display:block;color:var(--muted);font-size:13px">Everyone's punched hours by pay period, approved and exported for QuickBooks.</span></div>`,
+    (el,close)=>{ el.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>{ close(); shellGo(b.dataset.pg); }); }); };
 })();

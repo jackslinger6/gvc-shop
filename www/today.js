@@ -114,7 +114,7 @@ function render(){
       <div class="clk" id="tdyClk" aria-live="off">${P().hm(P().paidMs(o.start_at))}</div><div class="since">Timer running since ${clk12(o.start_at)} · <button class="tdfix" type="button" data-tdfix>Fix start time</button></div>
       ${curA&&curA.meta?`<div class="ins"><span class="lab" style="display:block;margin-bottom:4px">Instructions</span>${esc(curA.meta)}</div>`:""}
       ${why.length?`<div class="blk" role="note"><b>Blocked:</b> ${esc(why.join(" · "))}</div>`:""}
-      <div class="links">${curJ?drawBtn(curJ,"Drawings for this job"):""}${curJ?`<button class="btn" type="button" data-tdo="${esc(curJ.id)}|${esc(curA?curA.id:"")}">Open ${curA?"task":"job"}</button>`:""}</div>
+      <div class="links">${curJ?drawBtn(curJ,"Drawings for this job"):""}${curJ?`<button class="btn" type="button" data-tdo="${esc(curJ.id)}|${esc(curA?curA.id:"")}">${curA?"Task details":"Open job"}</button>`:""}</div>
       <div class="acts" role="group" aria-label="Timer and task">
         <button type="button" data-tdout><span>Stop timer</span><small>Clock stops. Task stays open.</small></button>
         <button type="button" data-tdsw><span>Switch task</span><small>Stop this, start another.</small></button>
@@ -156,7 +156,7 @@ function wire(B){
   B.querySelectorAll("[data-tdfix]").forEach(b=>b.onclick=()=>P().fixStart());
   B.querySelectorAll("[data-tdw2]").forEach(b=>b.onclick=()=>P().addMyWork());
   B.querySelectorAll("[data-tdtime]").forEach(b=>b.onclick=()=>shellGo("time"));
-  B.querySelectorAll("[data-tdo]").forEach(b=>b.onclick=()=>{ const [j,a]=sp(b.dataset.tdo); if(a&&window.openJobTask) openJobTask(j,a); else openJob(j); });
+  B.querySelectorAll("[data-tdo]").forEach(b=>b.onclick=()=>{ const [j,a]=sp(b.dataset.tdo); if(a) taskDetail(j,a); else openJob(j); });
   B.querySelectorAll("[data-tdw]").forEach(b=>b.onclick=()=>{ const j=jobOf(b.dataset.tdw); if(j&&window.openJobParts){ if(window.jpFresh) window.jpFresh(); openJobParts(num(j),j.name,"today"); } });
 }
 /* Switch task: the clock moves to the task you pick (punching in on another task closes this one) */
@@ -172,6 +172,58 @@ function switchSheet(){
     el.querySelector("[data-swo]").onclick=()=>{ close(); P().pickTask(); };
   });
 }
+/* Focused task (usability review, Nov 15): tapping a task opens just that task - instructions, what's in the way,
+   drawings, the timer actions and Report a problem. The whole job's task list is one tap away ("View all job tasks"). */
+function taskDetail(jid,aid){
+  const j=jobOf(jid), a=taskOf(j,aid); if(!a){ if(window.openJob) openJob(jid,"tasks"); return; }
+  const o=P()&&P().open(), on=o&&o.job_id===jid&&o.task_id===aid;
+  const why=blockers(jid,aid), st=(typeof AST!=="undefined"&&AST[a.status])||{t:a.status,c:"#8e96a3"};
+  const who=String(a.who||"").split(",").map(x=>x.trim()).filter(Boolean);
+  const mine=who.includes(P().me()), crew=P().isCrew();
+  const html=`<div class="tdd">
+    <div class="lab">Task</div><h2 class="tdh2">${esc(a.name)}</h2>
+    <div class="jn">${num(j)?`<span class="jb" style="background:${col(j.id)}">${esc(num(j))}</span>`:""}<span>${esc(rest(j))}</span><span class="ostat" style="--c:${st.c}">${esc(st.t)}</span></div>
+    <div class="tdw">${who.length?`On it: ${esc(who.join(", "))}`:"Nobody assigned yet"}</div>
+    <div class="ins"><span class="lab" style="display:block;margin-bottom:4px">Instructions</span>${a.meta?esc(a.meta):`<span style="color:var(--muted)">No instructions written for this task.</span>`}</div>
+    ${why.length?`<div class="blk" role="note"><b>Blocked:</b> ${esc(why.join(" · "))}</div>`:""}
+    ${on?`<div class="clkl">Timer running · ${P().hm(P().paidMs(o.start_at))}</div>`:""}
+    <div class="tdact">
+      ${a.status==="done"?`<span class="lbl" style="color:#7fe3a1;font-weight:700">✓ Done</span>`
+        :on?`<button class="btn" type="button" data-dout>Stop timer<small>Task stays open</small></button>${(!crew||mine)?`<button class="btn done" type="button" data-ddone>Task done<small>Finished for everyone</small></button>`:""}`
+        :`<button class="btn primary" type="button" data-dstart ${why.length?"":""}>▶ Start work${why.length?"<small>It's marked blocked - start anyway</small>":"<small>Starts the timer on this task</small>"}</button>${(!crew||mine)?`<button class="btn" type="button" data-ddone>Task done<small>Finished for everyone</small></button>`:""}`}
+    </div>
+    <div class="tdlinks">${num(j)&&window.openJobParts?`<button class="btn" type="button" data-ddw>Drawings for this job</button>`:""}<button class="btn" type="button" data-dncr>⚠ Report a problem</button></div>
+    <button class="tdall" type="button" data-dall>View all job tasks ›</button>
+  </div>`;
+  if(!window.gvcSheet){ openJob(jid,"tasks"); return; }
+  window.gvcSheet(html,(el,close)=>{
+    const q=s=>el.querySelector(s);
+    const after=()=>{ if(cur==="today") render(); };
+    if(q("[data-dstart]")) q("[data-dstart]").onclick=async e=>{ const b=e.currentTarget; if(b.disabled) return; b.disabled=true; close(); await P().punchIn(jid,aid); after(); };
+    if(q("[data-dout]")) q("[data-dout]").onclick=async e=>{ e.currentTarget.disabled=true; close(); await P().punchOut(); after(); };
+    if(q("[data-ddone]")) q("[data-ddone]").onclick=async e=>{ e.currentTarget.disabled=true; close(); await P().doneTask(jid,aid); after(); };
+    if(q("[data-ddw]")) q("[data-ddw]").onclick=()=>{ close(); if(window.jpFresh) window.jpFresh(); openJobParts(num(j),j.name,"task"); };
+    q("[data-dncr]").onclick=()=>{ close(); if(window.ncrNewFor) window.ncrNewFor(jid,{details:`Found on task: ${a.name}`}); };
+    q("[data-dall]").onclick=()=>{ close(); if(window.openJobTask) openJobTask(jid,aid); else openJob(jid,"tasks"); };
+  });
+}
+window.openTaskDetail=taskDetail;
+{ const s3=document.createElement("style"); s3.textContent=`
+.tdd .lab{font:700 11.5px var(--font-ui,Inter,sans-serif);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tdd h2.tdh2{margin:4px 0 6px;font:700 20px/1.25 var(--font-ui,Inter,sans-serif);text-transform:none;letter-spacing:0;padding:0;border:0;background:none;word-break:break-word}
+.tdd .jn{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:14px}
+.tdd .jb{font:700 12px var(--font-ui,Inter,sans-serif);color:#111;border-radius:6px;padding:2px 7px}
+.tdd .tdw{margin-top:8px;font-size:14px;color:var(--muted)}
+.tdd .ins{margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:15px;line-height:1.45;white-space:pre-wrap}
+.tdd .blk{margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(245,176,65,.55);background:rgba(245,176,65,.08);color:#ffd28a;font-size:14px}
+.tdd .clkl{margin-top:10px;font:600 15px var(--font-ui,Inter,sans-serif);color:#7fe3a1}
+.tdd .tdact{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:14px}
+.tdd .tdact .btn{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:15px}
+.tdd .tdact .btn small{font-size:12px;font-weight:500;opacity:.8}
+.tdd .tdact .btn.done{background:#3ad06b;border-color:#3ad06b;color:#0d1a12}
+.tdd .tdlinks{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.tdd .tdlinks .btn{min-height:44px;flex:1 1 160px}
+.tdd .tdall{margin-top:12px;background:none;border:0;color:var(--accent,#ff8a2a);font:600 14px var(--font-ui,Inter,sans-serif);min-height:44px;cursor:pointer;padding:0;text-decoration:underline}
+`; document.head.appendChild(s3); }
 window.renderToday=render;
 window.extraViews=Object.assign(window.extraViews||{},{today:render});
 // the clock changed (punch in/out on another screen or device): keep Today current

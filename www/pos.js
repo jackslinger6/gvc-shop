@@ -161,7 +161,7 @@ function renderRfq(B,r){
   (r.vendors||[]).forEach(v=>{ byV[v]=byV[v]||[]; });
   const sts=typeof ST!=="undefined"?ST:{};
   B.innerHTML=`<div class="pod">${head(r,B)}
-    <div class="psc"><h3>VENDORS ASKED</h3>
+    <div class="psc"><h3>Vendors asked</h3>
       ${Object.entries(byV).map(([v,arr])=>{ const x=(arr[0]||{}).x||{}; const st0=sts[x.status]||{t:x.status||"-",c:"#888"}; const st={...st0,t:window.supT&&x.status?window.supT(x):st0.t}; const done=PAST.includes(x.status);
         const canRev=isKyle()&&r.status==="open"&&!x.po&&!done&&!!(x.quoteNo||x.total)&&["quote","sent","replied"].includes(x.status);
         const qt=!x.total&&window.quoteTotal?window.quoteTotal(x):null;
@@ -170,7 +170,8 @@ function renderRfq(B,r){
           x.po?`<button class="btn" type="button" data-opo="${E(x.po)}">Open ${E(x.po)} ›</button>`:"",
           canRev?(window.quoteRev&&window.quoteRev(x)?`<button class="btn" type="button" data-revin="${E(v)}">Revised quote is in</button>`:`<button class="btn ghost" type="button" data-rev="${E(v)}">Ask for a revised quote</button>`):""].filter(Boolean);
         return `<div class="vrow"><div class="vrh"><b>${E(v)}</b><span class="ostat" style="--c:${st.c}">${E(st.t)}</span>${arr.length>1?`<span class="lbl">${arr.length} jobs</span>`:""}</div>
-          ${done&&!x.po?`<div class="lbl">${E(String(v).split(/\s/)[0])} already confirmed this order - give it a PO number to follow pickup and deliveries.</div>`:""}
+          ${done&&!x.po?(isKyle()?`<div class="lbl">${E(String(v).split(/\s/)[0])} already confirmed this order - give it a PO number to follow pickup and deliveries.</div>`
+            :`<div class="vwho"><b>Waiting for Kyle to give it a PO number.</b> ${E(String(v).split(/\s/)[0])} already confirmed the order.${["ready","arrived"].includes(x.status)?" You can still pick it up and count it in now.":""}</div>`):""}
           ${window.supExtraHTML?window.supExtraHTML(x):""}
           <div class="vrf"><label>${window.quoteRev&&window.quoteRev(x)?"Revised quote #":"Their quote #"}<input data-vq="${E(v)}" value="${window.quoteRev&&window.quoteRev(x)?"":E(x.quoteNo||"")}" placeholder="${window.quoteRev&&window.quoteRev(x)?"when it comes in":"quote #"}" ${isKyle()?"":"disabled"}></label>
             <label>Total${window.quoteRev&&window.quoteRev(x)?" (previous quote)":""}<input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${qt?money(qt)+" on the quote":"$"}" ${isKyle()?"":"disabled"}></label></div>
@@ -209,7 +210,7 @@ function renderPo(B,r){
     <div class="psc"><div class="steps">${PST.map(([k,t,c],i)=>`<button class="btn sm ${k===r.status?"on":i<si?"past":""}" type="button" data-ps="${k}" style="--c:${c}" ${isKyle()?"":"disabled"}>${t}</button>`).join("")}</div>
       <div class="lbl" style="margin-top:6px">Moving this moves ${L.length===1?`the ${E(r.vendor)} line on ${E(jobTag(L[0].j.id))}`:`the ${E(r.vendor)} lines on ${L.length} jobs`} too (Orders board, Count).</div>
       ${["arrived","ready","production","approved"].includes(r.status)&&L.length&&window.openCount?`<div style="margin-top:8px"><button class="btn primary" type="button" id="pCount">☑ Count it</button></div>`:""}</div>
-    ${L.length?`<div class="psc"><h3>ON THE JOBS</h3>${L.map(({j,x})=>{ const st=(typeof ST!=="undefined"&&ST[x.status])||{t:x.status,c:"#888"};
+    ${L.length?`<div class="psc"><h3>On the jobs</h3>${L.map(({j,x})=>{ const st=(typeof ST!=="undefined"&&ST[x.status])||{t:x.status,c:"#888"};
         return `<div class="ojl"><div class="ojlh"><button class="chip" type="button" data-oj="${E(j.id)}" title="Open ${E(j.name)}">${E(jobTag(j.id))}</button><span class="ostat" style="--c:${st.c}">${E(window.supT?window.supT(x):st.t)}</span></div>
           ${x.scope?`<div class="ojls">${E(x.scope)}</div>`:""}${window.supExtraHTML?window.supExtraHTML(x):""}
           <div class="lbl">${[x.quoteNo?"Their # "+E(x.quoteNo):"",x.total?"Total "+E(x.total):"",x.sent?"Sent "+day(x.sent):"",x.receivedAt?"Received "+day(x.receivedAt):""].filter(Boolean).join(" · ")||"&nbsp;"}</div></div>`; }).join("")}</div>`:""}
@@ -235,7 +236,7 @@ function renderPo(B,r){
   const ad=B.querySelector("#pAddD"); if(ad) ad.onclick=()=>saveRec(r,{deliveries:[...D,{id:Math.random().toString(36).slice(2,9),ref:"",what:"",status:"production"}]},"");
 }
 function notesLog(r){
-  return `<div class="psc"><h3>NOTES</h3><textarea id="pNotes" rows="3" style="width:100%;font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px" ${isKyle()?"":"disabled"} placeholder="Anything to remember about this ${r.kind==="po"?"order":"RFQ"}">${E(r.notes||"")}</textarea>
+  return `<div class="psc"><h3>Notes</h3><textarea id="pNotes" rows="3" style="width:100%;font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px" ${isKyle()?"":"disabled"} placeholder="Anything to remember about this ${r.kind==="po"?"order":"RFQ"}">${E(r.notes||"")}</textarea>
     <div style="margin-top:10px">${(r.log||[]).slice().reverse().slice(0,15).map(l=>`<div class="lg">${day(l.at)} · ${E(l.t)}</div>`).join("")}</div></div>`;
 }
 function wireCommon(B,r){
@@ -414,8 +415,8 @@ function drawLine(B){
     ${window.supExtraHTML?window.supExtraHTML(x):""}
     <dl class="ofacts">${f(x.po?"Their #":"Quote #",E(x.quoteNo))}${f("Total",x.total?E(x.total):qt?money(qt)+" on the quote":"")}${f("Lead time",E(x.lead))}${f("Contact",E(x.contact))}
       ${f("Sent",x.sent?E(fmt(x.sent)):"Not sent yet")}${f("Last update",x.updated&&E(fmt(x.updated)))}${f("Arrived",x.arrivedAt&&E(fmt(x.arrivedAt)))}${f("Received",x.receivedAt&&E(fmt(x.receivedAt)))}</dl>
-    ${x.note?`<div class="psc"><h3>LATEST</h3><div class="onote">${E(x.note)}</div></div>`:""}
-    <div class="psc"><h3>WHAT YOU CAN DO</h3><div class="oacts">
+    ${x.note?`<div class="psc"><h3>Latest</h3><div class="onote">${E(x.note)}</div></div>`:""}
+    <div class="psc"><h3>What you can do</h3><div class="oacts">
       ${canCount?`<button class="btn${x.status==="arrived"||x.status==="ready"?" primary":""}" type="button" id="lCount">☑ Count it</button>`:""}
       <button class="btn" type="button" id="lEdit">✎ Edit status, quote #, total…</button>
       ${isKyle()&&["sent","replied","quote"].includes(x.status||"sent")?`<button class="btn" type="button" id="lRfq">Give it an RFQ number</button>`:""}
@@ -436,3 +437,5 @@ document.addEventListener("keydown",e=>{ if(e.key!=="Tab"||!panel.on||!PEL) retu
   if(e.shiftKey&&(i<=0)){ e.preventDefault(); F[F.length-1].focus(); } else if(!e.shiftKey&&(i===-1||i===F.length-1)){ e.preventDefault(); F[0].focus(); } },true);
 
 })();
+
+{ const st=document.createElement("style"); st.textContent=".vwho{margin:6px 0 2px;padding:8px 10px;border-radius:8px;border:1px solid rgba(245,176,65,.5);background:rgba(245,176,65,.08);color:#ffd28a;font-size:14px}.vwho b{color:#ffd28a}.psc h3{text-transform:none!important;letter-spacing:.01em!important}"; document.head.appendChild(st); }

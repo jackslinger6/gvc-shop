@@ -999,7 +999,7 @@ function jobOverviewHTML(j){
         <div class="jowa">${num?`<button type="button" class="btn" data-jdw="1" aria-label="Drawings for ${esc(a.name)}" title="Drawings">${DWI}</button>`:""}${on?`<span class="jowon">Timer running</span>`:bl.length?"":`<button type="button" class="btn primary" data-jst="${esc(a.id)}" aria-label="Start work on ${esc(a.name)}">▶ Start</button>`}</div></div>`; }).join("");
     return `${sec("Your work on this job")}<div class="jows">${rows||`<div class="jnext jnone">Nothing on you for this job.</div>`}</div>
       <div class="jquick" id="jQuick"></div>
-      <div class="jtiles">${prog}${tNcr}</div>${foot}`;
+      <div class="jtiles">${prog}${tNcr}</div><!--stage-->${foot}`;
   }
   if(role==="parts"){
     const order=["arrived","ready","quote","replied","sent","approved","production"];
@@ -1010,7 +1010,7 @@ function jobOverviewHTML(j){
       <div class="jnexts">${rows||`<div class="jnext jnone">No open orders on this job.</div>`}</div>
       ${cnt?`<div class="jcnt">${cnt}</div>`:""}
       <div class="jquick" id="jQuick"></div>
-      <div class="jtiles">${prog}${tOrd}${tNcr}</div>${foot}`;
+      <div class="jtiles">${prog}${tOrd}${tNcr}</div><!--stage-->${foot}`;
   }
   // Kyle
   const blocked=A.filter(a=>a.status!=="done").map(a=>({a,bl:taskBlockers(j,a)})).filter(x=>x.bl.length);
@@ -1024,17 +1024,19 @@ function jobOverviewHTML(j){
   if(items.length>4) next.push(`<div class="jnext jmore">+ ${items.length-4} more on your To do list</div>`);
   const attn=[dec?`<button type="button" class="jnext" data-jgo="ncr"><span class="ostat" style="--c:#ff6b5a">Decide</span><span>${dec} NCR${dec>1?"s":""} waiting for a decision</span><span class="ochev" aria-hidden="true">›</span></button>`:"",
     blocked.length?`<button type="button" class="jnext" data-jgo="tasks"><span class="ostat" style="--c:#f5b041">Blocked</span><span>${blocked.length} task${blocked.length>1?"s":""} waiting: ${esc([...new Set(blocked.flatMap(x=>x.bl))].slice(0,3).join(" · "))}</span><span class="ochev" aria-hidden="true">›</span></button>`:""].join("");
-  return `<div class="jtiles">${prog}${tOrd}${tNcr}</div>
-    ${attn?`${sec("Needs you")}<div class="jnexts">${attn}</div>`:""}
+  // Needs your attention first; progress next; stage changes are deliberate, so they sit lower and aren't the loudest button
+  return `${attn?`${sec("Needs your attention")}<div class="jnexts jattn">${attn}</div>`:""}
     ${sec("Next up")}<div class="jnexts">${next.join("")||`<div class="jnext jnone">Nothing waiting on you for this job.</div>`}</div>
     ${cnt?`<div class="jcnt">${cnt}</div>`:""}
+    <div class="jtiles">${prog}${tOrd}${tNcr}</div>
     <div class="jquick" id="jQuick"></div>
-    ${crewLine?`${sec("Crew on this job")}<div class="jppl">${crewLine}</div>`:""}${foot}`;
+    ${crewLine?`${sec("Crew on this job")}<div class="jppl">${crewLine}</div>`:""}
+    ${sec("Stage")}<!--stage-->${foot}`;
 }
 // overview buttons: drawings, start work on a task, open a task
 GVC.on("drawDlg:after",()=>{ const j=job(); if(!j) return; const D=$("#dlg");
   D.querySelectorAll("[data-jdw]").forEach(b=>b.onclick=()=>{ if(window.jpFresh) window.jpFresh(); openJobParts(window.jobNum(j.name),j.name); });
-  D.querySelectorAll("[data-jtask]").forEach(b=>b.onclick=()=>window.openJobTask(j.id,b.dataset.jtask));
+  D.querySelectorAll("[data-jtask]").forEach(b=>b.onclick=()=>{ if(window.openTaskDetail) openTaskDetail(j.id,b.dataset.jtask); else window.openJobTask(j.id,b.dataset.jtask); });
   D.querySelectorAll("[data-jst]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; b.disabled=true; if(window.gvcPunch) await gvcPunch.punchIn(j.id,b.dataset.jst); if(openId===j.id) drawDlg(); });
 });
 /* ---------- Tasks with optional assembly groups (redesign stage 5, Kyle Nov 14) ----------
@@ -1181,10 +1183,10 @@ function drawDlgCore(){
    <div class="err" id="err"></div>
    <section class="jsec" data-jsec="overview">
    ${lifeRow(j)}
-   ${ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span class="jstg">${stagePills(j)}</span><span style="flex:1"></span>
+   ${(()=>{ const stg=ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span class="jstg">${stagePills(j)}</span><span style="flex:1"></span>
      <button class="btn sm ghost" type="button" id="back" aria-expanded="false" aria-controls="stgPanel" title="Pick any stage - you see the change before it's saved">Change stage</button>
-     <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""} title="Review moving the job to the next stage">Next stage: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div><div id="stgPanel" hidden></div>`}
-   ${jobOverviewHTML(j)}
+     <button class="btn sm" type="button" id="next" ${i===STAGES.length-1?"disabled":""} title="Review moving the job to the next stage">Next stage: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div><div id="stgPanel" hidden></div>`; return jobOverviewHTML(j).replace("<!--stage-->",()=>stg); })()}
+
    </section>
    <section class="jsec" data-jsec="tasks">
    ${tasksHTML(j)}

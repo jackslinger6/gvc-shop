@@ -557,3 +557,9 @@ body.ovwv #allJobs{margin-top:8px}
 .jnext.jpo{flex-wrap:wrap;align-items:flex-start;row-gap:6px}
 .jnext.jpo>span:nth-child(2){flex:1 1 220px;min-width:0}
 @media (max-width:600px){ .jnext.jpo>.ostat{flex-basis:100%;justify-content:flex-start;width:max-content;max-width:100%} }
+/* review Nov 15 (2): an empty "From texts & recordings" is a one-line strip, not a full-height column */
+@media (min-width:1000px){ #board.todo:has(.tbox.intake){grid-template-columns:minmax(0,1fr)!important} #board.todo>.tbox.intake{order:-1} }
+#board.todo>.tbox.intake{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 14px;align-self:start;min-height:0}
+#board.todo>.tbox.intake h3{margin:0;font-size:15px;flex:1 1 auto;display:flex;gap:10px;align-items:baseline}
+#board.todo>.tbox.intake .tools{flex-direction:row!important;flex-wrap:wrap;gap:8px;margin:0}
+#board.todo>.tbox.intake .tools .btn,#board.todo>.tbox.intake .tools button{min-height:40px;width:auto}
