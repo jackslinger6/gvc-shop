@@ -554,3 +554,6 @@ body.ovwv #allJobs{margin-top:8px}
 .trow .tdwl{grid-area:dw;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:none;color:var(--text);font:600 13px var(--font-ui);cursor:pointer}
 .trow{grid-template-columns:minmax(0,1fr) auto minmax(96px,auto) minmax(150px,190px) auto 44px;grid-template-areas:"main dw who st punch more"}
 @media (max-width:899px){ .trow{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) 40px;grid-template-areas:"main main more" "who st st" "dw punch punch"} .trow .tdwl{justify-self:stretch} }
+.jnext.jpo{flex-wrap:wrap;align-items:flex-start;row-gap:6px}
+.jnext.jpo>span:nth-child(2){flex:1 1 220px;min-width:0}
+@media (max-width:600px){ .jnext.jpo>.ostat{flex-basis:100%;justify-content:flex-start;width:max-content;max-width:100%} }
