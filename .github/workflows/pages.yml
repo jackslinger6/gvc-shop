@@ -1,5 +1,8 @@
 name: Publish web version
 
+# The site is main (jackslinger6.github.io/gvc-shop/) plus, while it exists, the redesign branch at /preview/
+# (jackslinger6.github.io/gvc-shop/preview/) so Kyle can try the redesign on a PC without touching the real app.
+# A push to redesign re-runs this on main (see preview-apk.yml), so the preview stays current.
 on:
   push:
     branches: [main]
@@ -22,12 +25,29 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci && npm run vendor
-      - run: echo "${GITHUB_SHA}" > www/version.txt
+      - run: git rev-parse HEAD > www/version.txt
+
+      - name: Add the redesign preview at /preview/ (if the branch exists)
+        run: |
+          if git ls-remote --exit-code --heads origin redesign >/dev/null; then
+            git clone --depth 1 --branch redesign "https://github.com/${{ github.repository }}" /tmp/redesign
+            cd /tmp/redesign && npm ci && npm run vendor && cd -
+            SHA=$(git -C /tmp/redesign rev-parse --short HEAD)
+            sed -i "s#<title>GVC Vault</title>#<title>GVC Vault Preview</title><script>window.GVC_PREVIEW='web (${SHA})'</script>#" /tmp/redesign/www/index.html
+            git -C /tmp/redesign rev-parse HEAD > /tmp/redesign/www/version.txt
+            rm -rf www/preview && cp -r /tmp/redesign/www www/preview
+            echo "preview added from redesign ${SHA}"
+          else
+            echo "no redesign branch - main only"
+          fi
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
