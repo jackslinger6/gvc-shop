@@ -76,13 +76,17 @@ function section(j){
   // each NCR: the issue, the decision, what's next and who's on it; editing / rework / cost / history fold away (stage 4)
   const card=x=>{ const s=stats(j,x); const rv=window.revsFor?window.revsFor(j.id,x.n):[];
     const todo=s.ts.find(a=>a.status!=="done"); const who=todo?(todo.who||"").trim():"";
-    const next=s.st==="Closed"?"":s.st==="Deciding"?"Decide the fix":todo?`Rework: ${todo.name}`:s.st==="Fixed"?"Rework done - close it when you're happy":x.fix==="Use as is"?"Close it":"Add the rework steps (or close it)";
+    // what's next follows what was actually decided - it never suggests closing an NCR that's still being dealt with (Kyle's review, Nov 14)
+    const next=s.st==="Closed"?"":s.st==="Deciding"?"Decide the fix":todo?`Rework: ${todo.name}`
+      :s.st==="Fixed"?(s.ts.length?"Rework done - check it, then close the NCR":"Close the NCR when you're happy with it"):"";
+    const untracked=!next&&s.st!=="Closed";   // decided (reorder, remake...) but no task tracks it yet
     const revOpen=rv.filter(r=>!["checked","dropped"].includes(r.status));
     return `<div class="ncard" style="--c:${stColor[s.st]}">
       <div class="nh"><b>${tag(x.n)}</b><span class="ostat" style="--c:${stColor[s.st]}">${s.st}</span><span style="flex:1"></span><span class="nm" style="margin:0">${esc(x.type)}</span></div>
-      <div class="nwhat">${esc(x.what)}${x.part?`<span class="nm">${esc(x.part)}</span>`:""}</div>
+      <div class="nwhat">${esc(x.what)}${x.part?(x.part.length>90?`<details class="nparts"><summary class="nm">${esc(x.part.slice(0,x.part.lastIndexOf(",",80)>20?x.part.lastIndexOf(",",80):80))}… <u>show all ${x.part.split(",").length} affected parts</u></summary><span class="nm">${esc(x.part)}</span></details>`:`<span class="nm">${esc(x.part)}</span>`):""}</div>
       <dl class="nkv"><dt>Decision</dt><dd>${x.decision?esc(x.decision):`<span style="color:var(--muted)">${x.fix==="Deciding"?"Not decided yet":esc(x.fix)}</span>`}</dd>
-        ${next?`<dt>Next</dt><dd><b>${esc(next)}</b>${todo?` <span class="nm" style="display:inline">· ${who?esc(who):"nobody assigned"}</span>`:s.st==="Deciding"||!todo?` <span class="nm" style="display:inline">· Kyle</span>`:""}</dd>`:""}
+        ${next?`<dt>Next</dt><dd><b>${esc(next)}</b> <span class="nm" style="display:inline">· ${todo?(who?esc(who):"nobody assigned"):"Kyle"}</span></dd>`:""}
+        ${untracked?`<dt>Next</dt><dd><span style="color:var(--muted)">No task tracks this yet - add a rework step under Edit if it needs shop time.</span></dd>`:""}
         ${revOpen.length?`<dt>Model</dt><dd>${revOpen.map(r=>`${window.revTag(r.n)} ${window.revStatus(r.status)}`).join(", ")}</dd>`:""}</dl>
       <details ${openCards.has(j.id+":"+x.n)?"open":""} data-ndetails="${x.n}"><summary>Edit, rework &amp; details</summary><div class="nedit">
         <div class="nm">${esc(x.type)} · ${esc(x.fix)} · ${s.h?s.h+"h":"0h"} rework${s.unk?` (+${s.unk} task${s.unk>1?"s":""} with no estimate)`:""}${x.mat?` · ${money(x.mat)} material`:""} · logged ${fmt(x.at)}</div>

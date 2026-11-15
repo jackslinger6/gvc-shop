@@ -209,6 +209,7 @@ span.at.soft{background:var(--accent-soft);color:#ffc89a;border-color:var(--acce
 #dlg .stagebar{margin-top:0;align-items:center}
 .jstg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.jbt{color:var(--muted);font-size:13px;font-weight:500}
 .jsum{color:var(--muted);margin:10px 2px 0;font-size:13.5px;line-height:1.45}
+.jsum .lbl{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-right:4px}
 .jtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
 /* the shop crew don't see orders / prices on a job (that was the intent of punch.js .supsec; it had stopped hiding the
    supplier blocks after they became fold-outs on Nov 8). Robin (parts) keeps them. They keep the Count buttons on Overview. */
@@ -242,6 +243,7 @@ button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
 /* NCRs on the job card: issue, decision, next + who first; editing folds away */
 .ncrsec .ncard{background:var(--panel2);border-color:var(--line);border-radius:var(--r-lg);padding:12px 12px 10px;margin-top:8px}
 .ncrsec .nwhat{font-size:14.5px;font-weight:600;margin-top:6px;line-height:1.4}.ncrsec .nwhat .nm{display:block;font-weight:400}
+.nparts>summary{cursor:pointer;list-style:none;font-weight:400}.nparts>summary::-webkit-details-marker{display:none}.nparts>summary u{color:var(--text);text-underline-offset:2px}.nparts[open]>summary{display:none}
 .nkv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:8px 0 0;font-size:13.5px}.nkv dt{color:var(--muted);font-size:12px;font-weight:600;padding-top:1px}.nkv dd{margin:0;min-width:0}
 .ncrsec details[data-ndetails]{margin-top:8px}
 .ncrsec details[data-ndetails]>summary{cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:600;min-height:32px;display:flex;align-items:center}
@@ -252,6 +254,7 @@ button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
 .ncrsec .nrw{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ncrsec .nrt{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;background:var(--panel3);border-radius:var(--r-pill);padding:2px 4px 2px 10px}
 .ncrsec .nrt .rmb{font-size:15px;padding:0 6px;min-height:0}
 .ncrsec .nacts{border-top:1px solid var(--line);padding-top:8px}
+.sgold{margin-top:10px}.sgold>summary{cursor:pointer;color:var(--muted);font-weight:600;font-size:13px;min-height:40px;display:flex;align-items:center}.sgold>summary:hover{color:var(--text)}
 .nclosed{margin-top:10px}.nclosed>summary{cursor:pointer;color:var(--muted);font-weight:600;font-size:13px;min-height:36px;display:flex;align-items:center}
 @media (max-width:600px){
   .jtop{margin:-16px -14px 0;padding:12px 14px 0;border-radius:var(--r-xl) var(--r-xl) 0 0}

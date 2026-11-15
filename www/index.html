@@ -571,7 +571,7 @@ function supGroupsHTML(j,stOpts,editBox){
     return {key,L,isPo,isRfq,main,closed:L.every(o=>done(o.x))}; })
     .sort((a,b)=>(a.closed-b.closed)||String(b.main.x.updated||b.main.x.sent||"").localeCompare(String(a.main.x.updated||a.main.x.sent||"")));
   const pill=x=>{ const st=ST[x.status]||ST.sent; return `<span class="sgp" style="--c:${st.c}">${esc(x.status==="declined"&&x.rfq?"Quoted - not chosen":st.t)}</span>`; };
-  return groups.map(g=>{ const r=(g.isPo||g.isRfq)&&rec(g.key); const x=g.main.x;
+  const one=g=>{ const r=(g.isPo||g.isRfq)&&rec(g.key); const x=g.main.x;
     const rfqNo=g.isPo?((r&&r.rfq_no)||(g.L.find(o=>o.x.rfq)||{x:{}}).x.rfq):null;
     const desc=(r&&r.title)||x.scope||"";
     const D=(r&&r.deliveries)||[]; const dl=D.length?` · ${D.filter(d=>d.status==="received").length} of ${D.length} deliveries in`:"";
@@ -590,8 +590,13 @@ function supGroupsHTML(j,stOpts,editBox){
           <div class="sgedit" data-sge="${k}" hidden>${editBox(x,k)}</div></div>`).join("")}
         ${D.length?`<div class="sgdl"><b>Deliveries</b>${D.map(d=>`<div><span class="sgp" style="--c:${d.status==="received"?"#3ad06b":d.status==="arrived"?"#f5b041":d.status==="ready"?"#22c3e6":"#9b4dff"}">${esc(({production:"In production",ready:"Ready",arrived:"Arrived",received:"Received"})[d.status]||d.status)}</span> ${esc(d.ref||"?")}${d.what?` · ${esc(d.what)}`:""}</div>`).join("")}</div>`:""}
         ${g.isPo||g.isRfq?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button class="btn sm" type="button" data-opo="${esc(g.key)}">Open ${esc(g.key)} ›</button>${rfqNo?`<button class="btn sm" type="button" data-opo="${esc(rfqNo)}">Open ${esc(rfqNo)} ›</button>`:""}</div>`:""}
-      </div></details>`; }).join("");
+      </div></details>`; };
+  // open orders first; received / declined ones fold away as history (Kyle's review, Nov 14)
+  const live=groups.filter(g=>!g.closed), old=groups.filter(g=>g.closed);
+  return (live.length?live.map(one).join(""):`<div class="empty" style="text-align:left">No open orders on this job.</div>`)
+    +(old.length?`<details class="sgold" ${supOldOpen?"open":""}><summary>Received &amp; declined · ${old.length}</summary>${old.map(one).join("")}</details>`:"");
 }
+let supOldOpen=false;
 function supLine(x,stage){
   const st=ST[x.status]||ST.sent; let extra="";
   if(x.status==="sent"&&x.sent){const d=days(x.sent);extra=d<1?" · today":" · "+d+"d";}
@@ -890,7 +895,8 @@ function jobOverviewHTML(j){
   }
   const cnt=window.openCount?act.filter(x=>x.status==="arrived"||x.status==="ready").map(x=>`<button class="btn${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">☑ Count ${esc(first(x.name))}${x.po||x.rfq?" · "+esc(x.po||x.rfq):""}</button>`).join(""):"";
   const last=(j.log||[]).length?j.log[j.log.length-1]:null;
-  return `${j.summary?`<div class="jsum">${esc(j.summary)}</div>`:""}${tiles}
+  // the card note is whatever was typed on the job at some point - label it so it doesn't read as today's status (Kyle's review, Nov 14)
+  return `${j.summary?`<div class="jsum"><span class="lbl">Card note</span> ${esc(j.summary)}</div>`:""}${tiles}
     <div class="sec"><span>${isCrewish()?"Your tasks on this job":"Next up"}</span></div>
     <div class="jnexts">${next.join("")||`<div class="jnext jnone">${isCrewish()?"Nothing on you for this job.":"Nothing waiting on you for this job."}</div>`}</div>
     ${cnt?`<div class="jcnt">${cnt}</div>`:""}
@@ -965,7 +971,9 @@ function drawDlgCore(){
    <section class="jsec" data-jsec="notes">
    <div class="sec"><span>Notes</span></div>
    <div class="row" style="margin-top:8px"><label style="flex:4">Add a note<input id="fNote" placeholder="Cooper picked it up"></label><button class="btn" type="button" id="addNote">Add</button></div>
-   <div class="log" style="margin-top:8px">${(j.log||[]).slice().reverse().map(l=>`<div><small>${fmt(l.at)}</small>${esc(l.text)}</div>`).join("")||`<div style="color:var(--dim)">No notes yet.</div>`}</div>
+   ${(()=>{ const L=(j.log||[]).slice().reverse(), row=l=>`<div><small>${fmt(l.at)}</small>${esc(l.text)}</div>`;   // newest 5, the rest folded (Kyle's review, Nov 14)
+     return `<div class="log" style="margin-top:8px">${L.slice(0,5).map(row).join("")||`<div style="color:var(--dim)">No notes yet.</div>`}</div>`
+       +(L.length>5?`<details class="sgold jold"><summary>Older history · ${L.length-5}</summary><div class="log">${L.slice(5).map(row).join("")}</div></details>`:""); })()}
    <div class="sec"><span>Stage settings</span></div>
    <div class="jset">${ONGOING(j)?`<button class="btn sm" type="button" id="ongo">Make it a normal job (with stages)</button>`:`
      ${FAB_STAGES.includes(j.stage)?`<div style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);font-size:13px">Also in:</span>${FAB_STAGES.filter(k=>k!==j.stage).map(k=>`<button class="btn sm ${alsoIn(j).includes(k)?"primary":""}" type="button" data-also="${k}">${STAGES[SIDX[k]].t}</button>`).join("")}</div>`:""}
@@ -1024,6 +1032,7 @@ function drawDlgCore(){
   };
   $("#dlg").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeSup(+b.dataset.del));
   $("#dlg").querySelectorAll("details[data-sgk]").forEach(d=>d.addEventListener("toggle",()=>{ d.open?supOpen.add(d.dataset.sgk):supOpen.delete(d.dataset.sgk); }));
+  { const so=$("#dlg").querySelector("details.sgold"); if(so) so.addEventListener("toggle",()=>{ supOldOpen=so.open; }); }
   $("#dlg").querySelectorAll("[data-sged]").forEach(b=>b.onclick=()=>{ const e=$("#dlg").querySelector(`[data-sge="${b.dataset.sged}"]`); e.hidden=!e.hidden; b.textContent=e.hidden?"✎ Edit":"Done editing"; });
   $("#dlg").querySelectorAll("[data-scnt]").forEach(b=>b.onclick=async()=>{ const jid=openId; const j=collect(); if(JSON.stringify(j)!==JSON.stringify(job())) await put(j); window.openCount(jid,b.dataset.scnt); });
 }

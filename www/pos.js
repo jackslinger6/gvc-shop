@@ -222,8 +222,8 @@ function notesLog(r){
 }
 function wireCommon(B,r){
   if(B.dataset.panel){ B.querySelector("#pBack").onclick=closePanel;
-    const all=B.querySelector("#pAll"); if(all) all.onclick=()=>{ closePanel(); selNo=null; if(typeof cur!=="undefined"&&cur!=="pos") shellGo("pos"); else render(); toTop(); };
-    B.querySelectorAll("[data-oj]").forEach(c=>c.onclick=()=>{ closePanel(); openJobAt(c.dataset.oj,{no:r.no}); }); }
+    const all=B.querySelector("#pAll"); if(all) all.onclick=()=>{ closePanel(false); selNo=null; if(typeof cur!=="undefined"&&cur!=="pos") shellGo("pos"); else render(); toTop(); };
+    B.querySelectorAll("[data-oj]").forEach(c=>c.onclick=()=>{ if(panel.from&&panel.from.jid===c.dataset.oj) return closePanel(); closePanel(false); openJobAt(c.dataset.oj,{no:r.no}); }); }
   else { B.querySelector("#pBack").onclick=()=>{ selNo=null; render(); toTop(); };
     B.querySelectorAll("[data-oj]").forEach(c=>c.onclick=()=>{ if(typeof openJob==="function") openJob(c.dataset.oj); }); }
   const n=B.querySelector("#pNotes"); if(n) n.onchange=()=>saveRec(r,{notes:n.value.trim()||null},"");
@@ -343,10 +343,18 @@ function drawPanel(){
   B.setAttribute("aria-label",panel.no?`Order ${panel.no}`:"Order"); B.scrollTop=top;
 }
 function showPanel(){ const el=panelEl(); if(!panel.on) lastFocus=document.activeElement; panel.view=typeof cur!=="undefined"?cur:null; panel.on=true; el.classList.add("on"); drawPanel(); const B=el.querySelector(".opbox"); B.scrollTop=0; try{ B.focus({preventScroll:true}); }catch(e){} }
-function closePanel(){ if(!panel.on) return; panel.on=false; panel.no=null; panel.line=null; panelEl().classList.remove("on");
+/* closing the panel goes back to where it was opened from: the board (focus back on the row) or - when it was opened from
+   a job card's Orders - that job card, same section, same scroll (Kyle's review, Nov 14). closePanel(false) = going on
+   somewhere else (another screen, the job card at a line, a new RFQ) so don't reopen anything. */
+function closePanel(restore){ if(!panel.on) return; const from=panel.from; panel.on=false; panel.no=null; panel.line=null; panel.from=null; panelEl().classList.remove("on");
+  if(restore!==false&&from&&typeof openJob==="function"&&(jobs.some(j=>j.id===from.jid)||archivedJobs.some(j=>j.id===from.jid))){
+    lastFocus=null; openJob(from.jid,from.tab);
+    requestAnimationFrame(()=>{ const sc=document.getElementById("scrim"); if(sc) sc.scrollTop=from.top||0; const t=document.querySelector(`#dlg [data-jtab="${from.tab}"]`); try{ if(t) t.focus({preventScroll:true}); }catch(e){} });
+    return; }
   try{ if(lastFocus&&document.contains(lastFocus)) lastFocus.focus({preventScroll:true}); }catch(e){} lastFocus=null; }
 window.closeOrderPanel=closePanel;
-const leaveJobCard=()=>{ const sc=document.getElementById("scrim"); if(sc&&sc.classList.contains("on")){ if(typeof window.closeJob==="function") window.closeJob(); else if(typeof closeDlg==="function") closeDlg(); } };
+const leaveJobCard=()=>{ const sc=document.getElementById("scrim"); if(sc&&sc.classList.contains("on")){
+    if(!panel.on&&typeof openId!=="undefined"&&openId) panel.from={jid:openId,tab:typeof dlgTab!=="undefined"?dlgTab:"orders",top:sc.scrollTop}; if(typeof window.closeJob==="function") window.closeJob(); else if(typeof closeDlg==="function") closeDlg(); } };
 window.openOrder=no=>{ leaveJobCard(); panel.no=no; panel.line=null; showPanel(); };
 // a supplier line from a job: its PO (or RFQ) if it has one, otherwise the line itself
 window.openOrderLine=(jid,sid)=>{ const j=jobOf(jid); const x=j&&(j.suppliers||[]).find(s=>s.id===sid);
@@ -361,13 +369,14 @@ window.openJobAt=(jid,o={})=>{
   if(!det&&o.no) det=[...D.querySelectorAll("details[data-sgk]")].find(d=>d.dataset.sgk===o.no)||null;
   if(!det) return;
   det.open=true; try{ supOpen.add(det.dataset.sgk); }catch(e){}
+  for(let p=det.parentElement&&det.parentElement.closest("details");p;p=p.parentElement&&p.parentElement.closest("details")) p.open=true;   // inside "Received & declined"
   if(o.edit&&k>=0){ const b=D.querySelector(`[data-sged="${k}"]`); if(b&&b.textContent.includes("Edit")) b.click(); }
   setTimeout(()=>{ try{ det.scrollIntoView({block:"start",behavior:"smooth"}); }catch(e){} },60);
 };
 function drawLine(B){
   const {jid,sid}=panel.line; const j=jobOf(jid); const x=j&&(j.suppliers||[]).find(s=>s.id===sid);
   const hd=`<div class="ophd"><button class="btn sm" type="button" id="pBack" aria-label="Close and go back">‹ Back</button><span style="flex:1"></span>${j?`<button class="btn sm" type="button" id="lJob">Open full job ›</button>`:""}</div>`;
-  if(!x){ B.innerHTML=hd+`<div class="empty" style="text-align:left">This order isn't on the job any more.</div>`; B.querySelector("#pBack").onclick=closePanel; const lj=B.querySelector("#lJob"); if(lj) lj.onclick=()=>{ closePanel(); openJob(jid); }; return; }
+  if(!x){ B.innerHTML=hd+`<div class="empty" style="text-align:left">This order isn't on the job any more.</div>`; B.querySelector("#pBack").onclick=closePanel; const lj=B.querySelector("#lJob"); if(lj) lj.onclick=()=>{ closePanel(false); openJob(jid); }; return; }
   const sts=typeof ST!=="undefined"?ST:{}; const st=sts[x.status]||sts.sent||{t:x.status,c:"#888"};
   const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim():j.name;
   const qt=!x.total&&window.quoteTotal?window.quoteTotal(x):null;
@@ -386,13 +395,13 @@ function drawLine(B){
       ${isKyle()&&["sent","replied","quote"].includes(x.status||"sent")?`<button class="btn" type="button" id="lRfq">Give it an RFQ number</button>`:""}
     </div><div class="lbl" style="margin-top:8px">Editing opens the job card at this order.</div></div></div>`;
   B.querySelector("#pBack").onclick=closePanel;
-  const toJob=o=>()=>{ closePanel(); window.openJobAt(jid,o); };
+  const toJob=o=>()=>{ if(!o.edit&&panel.from&&panel.from.jid===jid) return closePanel(); closePanel(false); window.openJobAt(jid,o); };
   B.querySelector("#lJob").onclick=toJob({sid}); B.querySelector("#lJob2").onclick=toJob({sid}); B.querySelector("#lEdit").onclick=toJob({sid,edit:true});
   const c=B.querySelector("#lCount"); if(c) c.onclick=()=>window.openCount(jid,sid);
-  const rq=B.querySelector("#lRfq"); if(rq) rq.onclick=()=>{ closePanel(); newSheet("rfq",{jobs:[jid],vendor:x.name,title:x.scope||""}); };
+  const rq=B.querySelector("#lRfq"); if(rq) rq.onclick=()=>{ closePanel(false); newSheet("rfq",{jobs:[jid],vendor:x.name,title:x.scope||""}); };
 }
 // keep an open panel up to date when the data changes (not while you're typing in it)
-GVC.on("render:after",()=>{ try{ if(panel.on&&typeof cur!=="undefined"&&panel.view&&cur!==panel.view){ closePanel(); } if(panel.on){ const a=document.activeElement; if(!(a&&PEL&&PEL.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) drawPanel(); } }catch(e){} });
+GVC.on("render:after",()=>{ try{ if(panel.on&&typeof cur!=="undefined"&&panel.view&&cur!==panel.view){ closePanel(false); } if(panel.on){ const a=document.activeElement; if(!(a&&PEL&&PEL.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) drawPanel(); } }catch(e){} });
 document.addEventListener("keydown",e=>{ if(e.key!=="Escape"||!panel.on) return; const sc=document.getElementById("scrim"); if((sc&&sc.classList.contains("on"))||document.querySelector(".shov")) return; e.stopImmediatePropagation(); closePanel(); },true);
 // keep Tab inside the panel while it's open (keyboard users)
 document.addEventListener("keydown",e=>{ if(e.key!=="Tab"||!panel.on||!PEL) return; const sc=document.getElementById("scrim"); if((sc&&sc.classList.contains("on"))||document.querySelector(".shov")) return;
