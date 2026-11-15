@@ -78,6 +78,7 @@ window.gvcBack=()=>{
     if(sh){ sh.dispatchEvent(new MouseEvent("click",{bubbles:true})); return true; }
     const cp=document.getElementById("chatP"); if(cp&&cp.classList.contains("on")){ const x=document.getElementById("chatX"); if(x) x.click(); else cp.classList.remove("on"); return true; }
     if(isOn()){ window.gvcDlgBack(); return true; }
+    if(window.gvcPanelBack&&window.gvcPanelBack()) return true;   // the order panel (redesign stage 2)
     if(window.ME&&ME.preview&&window.crewPreview){ window.crewPreview(false); return true; }
     const login=document.getElementById("app"); if(login&&login.hidden) return false;
     const atHome=cur==="home"||(window.gvcHomeView&&cur===window.gvcHomeView());   // Kyle's Home is To do, the crew's is their task list   // Kyle's Home is the To do list

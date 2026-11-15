@@ -20,7 +20,7 @@ const jobOf=id=>allJobs().find(j=>j.id===id);
 const jobTag=id=>{ const j=jobOf(id); if(!j) return id; const m=String(j.name).match(/^\s*([A-Z0-9]+)\b/i); return m?m[1]:j.name; };
 const linesOf=r=>{ const out=[]; (r.jobs||[]).forEach(jid=>{ const j=jobOf(jid); (j&&j.suppliers||[]).forEach(x=>{ if(x.po===r.no||x.rfq===r.no) out.push({j,x}); }); }); return out; };
 
-async function load(){ const r=await sb.from("gvc_pos").select("*").order("created_at",{ascending:false}); if(!r.error){ POS=r.data||[]; loaded=true; } await syncPos(); if(typeof cur!=="undefined"&&cur==="pos") render(); }
+async function load(){ const r=await sb.from("gvc_pos").select("*").order("created_at",{ascending:false}); if(!r.error){ POS=r.data||[]; loaded=true; } await syncPos(); if(typeof cur!=="undefined"&&cur==="pos") render(); if(panel.on) drawPanel(); }
 let started=false;
 setInterval(()=>{ if(!started&&typeof sb!=="undefined"&&sb&&window.ME){ started=true; load(); try{ sb.channel("gvc_pos").on("postgres_changes",{event:"*",schema:"public",table:"gvc_pos"},()=>load()).subscribe(); }catch(e){} } },1500);
 window.posByNo=no=>POS.find(r=>r.no===no);
@@ -68,6 +68,28 @@ css.textContent=`
 .posv .bar{height:8px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden;margin:6px 0}.posv .bar div{height:100%;background:#3ad06b}
 .posv .dl .dx{min-width:0;padding:0 10px}
 @media (max-width:600px){ .posv .dl{grid-template-columns:1fr 1fr 44px} .posv .dl [data-dr]{grid-column:1/2} .posv .dl [data-dw]{grid-column:2/4} .posv .dl select{grid-column:1/3} .posv .dl .dx{grid-column:3/4} .posv .rc{grid-template-columns:1fr auto} .posv .rc .no{grid-column:1/-1} }
+.posv .psc>h3{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.08em}
+.posv .chip{border:0;cursor:pointer;font:inherit;font-size:12px;font-weight:600;color:var(--text);background:var(--panel3);border-radius:6px;padding:3px 8px}
+.ojl{padding:10px 0;border-bottom:1px solid var(--line)}.ojl:last-child{border-bottom:0}
+.ojlh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ojls{font-size:13.5px;margin:6px 0 2px;line-height:1.4}
+@media (max-width:600px){ .posv table.vt,.posv table.vt tbody,.posv table.vt tr,.posv table.vt td{display:block;width:100%} .posv table.vt thead{display:none}
+  .posv table.vt tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;padding:10px 0;border-bottom:1px solid var(--line)} .posv table.vt td{border:0;padding:0}
+  .posv table.vt td:nth-child(1),.posv table.vt td:nth-child(2){grid-column:auto} .posv table.vt td:last-child{grid-column:1/-1;text-align:left!important} .posv table.vt td:last-child .btn{width:100%} }
+/* ---- order panel: one order (PO / RFQ / a plain supplier line) on top of the board (redesign stage 2) ---- */
+.opanel{position:fixed;inset:0;z-index:9;display:none}
+.opanel.on{display:block}
+.opscrim{position:absolute;inset:0;background:rgba(6,7,9,.62)}
+.opbox.posv{position:absolute;top:0;right:0;bottom:0;width:min(640px,100%);max-width:none;margin:0;background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow-3);overflow:auto;overscroll-behavior:contain;padding:0 20px calc(96px + env(safe-area-inset-bottom));outline:none}
+.ophd{position:sticky;top:0;z-index:2;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 -20px 8px;padding:calc(12px + env(safe-area-inset-top)) 20px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
+.opjob{display:inline-flex;align-items:center;gap:8px;margin-top:6px;font:inherit;font-size:13.5px;color:var(--text);background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.opjob .jnum{font-weight:600;font-size:12.5px;color:#ffd0a8;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:6px;padding:1px 6px}
+.opjob:hover span:last-child{text-decoration:underline}
+.ofacts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 16px;margin:16px 0 0}
+.ofacts div{min-width:0}.ofacts dt{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}.ofacts dd{margin:3px 0 0;font-size:14px;overflow-wrap:anywhere}
+.oacts{display:flex;gap:8px;flex-wrap:wrap}
+.onote{white-space:pre-wrap;font-size:13.5px;line-height:1.45;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+body:has(.opanel.on){overflow:hidden}
+@media (max-width:700px){ .opbox.posv{width:100%;border-left:0;padding:0 14px calc(96px + env(safe-area-inset-bottom))} .ophd{margin:0 -14px 8px;padding-left:14px;padding-right:14px} body:has(.opanel.on) .shnav{display:none} body:has(.opanel.on) .hereMic{bottom:calc(20px + env(safe-area-inset-bottom))} }
 .supchips{margin-top:3px}.supchips button{font:600 11.5px var(--font-display);letter-spacing:.04em;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);border-radius:6px;padding:2px 7px;margin-right:4px;cursor:pointer}
 `;
 document.head.appendChild(css);
@@ -110,27 +132,30 @@ function renderList(B){
 const toTop=()=>{ try{ window.scrollTo(0,0); let e=$("#board"); while(e){ if(e.scrollTop) e.scrollTop=0; e=e.parentElement; } $("#board").scrollIntoView({block:"start"}); }catch(x){} };
 
 /* ================= one record ================= */
-function head(r){
-  return `<button class="btn sm" type="button" id="pBack">‹ All RFQs & POs</button>
+function head(r,B){
+  const P=B&&B.dataset.panel; const J=r.jobs||[];
+  return `${P?`<div class="ophd"><button class="btn sm" type="button" id="pBack" aria-label="Close and go back">‹ Back</button><span style="flex:1"></span>
+      ${J.length===1?`<button class="btn sm" type="button" data-oj="${E(J[0])}">Open full job ›</button>`:""}
+      <button class="btn sm ghost" type="button" id="pAll">All RFQs & POs</button></div>`:`<button class="btn sm" type="button" id="pBack">‹ All RFQs & POs</button>`}
     <div style="display:flex;gap:10px;align-items:baseline;margin-top:10px;flex-wrap:wrap"><span class="no" style="font-size:26px">${E(r.no)}</span>
       <span class="st" style="--c:${recColor(r)};background:${recColor(r)}">${E(recStatus(r))}</span></div>
     <div style="font-size:16px;font-weight:700;margin-top:2px">${E(r.kind==="po"?r.vendor:r.title||"")}${r.kind==="po"&&r.title?` <span style="font-weight:400;color:var(--muted)">· ${E(r.title)}</span>`:""}</div>
-    <div class="lbl" style="margin-top:4px">${(r.jobs||[]).map(id=>`<span class="chip" style="cursor:pointer" data-oj="${E(id)}">${E(jobOf(id)?jobOf(id).name:id)}</span>`).join("")}</div>
+    <div class="lbl" style="margin-top:4px">${(r.jobs||[]).map(id=>`<button type="button" class="chip" data-oj="${E(id)}" title="Open the job">${E(jobOf(id)?jobOf(id).name:id)}</button>`).join("")}</div>
     <div class="lbl">${[r.rfq_no?"from "+r.rfq_no:"",r.vendor_ref?"vendor # "+r.vendor_ref:"","started "+day(r.created_at)].filter(Boolean).map(E).join(" · ")}${recTotal(r)!=null?` · <b style="color:var(--text)">Total ${money(recTotal(r))}</b>`:""}</div>`;
 }
 function renderRfq(B,r){
   const L=linesOf(r); const byV={}; L.forEach(({j,x})=>{ (byV[x.name]=byV[x.name]||[]).push({j,x}); });
   (r.vendors||[]).forEach(v=>{ byV[v]=byV[v]||[]; });
   const sts=typeof ST!=="undefined"?ST:{};
-  B.innerHTML=`<div class="pod">${head(r)}
+  B.innerHTML=`<div class="pod">${head(r,B)}
     <div class="psc"><h3>VENDORS ASKED</h3>
-      <div style="overflow-x:auto"><table><thead><tr><th>Vendor</th><th>Status</th><th>Their quote #</th><th>Total</th><th></th></tr></thead><tbody>
+      <div style="overflow-x:auto"><table class="vt"><thead><tr><th>Vendor</th><th>Status</th><th>Their quote #</th><th>Total</th><th></th></tr></thead><tbody>
       ${Object.entries(byV).map(([v,arr])=>{ const x=(arr[0]||{}).x||{}; const st=sts[x.status]||{t:x.status||"-",c:"#888"};
         return `<tr><td><b>${E(v)}</b>${arr.length>1?`<div class="lg">${arr.length} jobs</div>`:""}</td>
           <td><span style="color:${st.c};font-weight:700">${E(st.t)}</span>${x.po?`<div class="lg">${E(x.po)}</div>`:""}</td>
           <td><input data-vq="${E(v)}" value="${E(x.quoteNo||"")}" placeholder="quote #" ${isKyle()?"":"disabled"}></td>
           <td><input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${!x.total&&window.quoteTotal&&window.quoteTotal(x)?money(window.quoteTotal(x))+" on the quote":"$"}" ${isKyle()?"":"disabled"}></td>
-          <td style="text-align:right">${isKyle()&&r.status==="open"&&!x.po?`<button class="btn sm primary" type="button" data-ord="${E(v)}">Order from ${E(String(v).split(/\s/)[0])} →</button>`:""}</td></tr>`; }).join("")}
+          <td style="text-align:right">${isKyle()&&r.status==="open"&&!x.po?`<button class="btn sm primary" type="button" data-ord="${E(v)}">Order from ${E(String(v).split(/\s/)[0])} →</button>`:""}${window.openCount&&arr[0]&&["approved","production","ready","arrived"].includes(x.status)?` <button class="btn sm${["ready","arrived"].includes(x.status)?" primary":""}" type="button" data-rcnt="${E(arr[0].j.id)}|${E(x.id)}">☑ Count it</button>`:""}</td></tr>`; }).join("")}
       </tbody></table></div>
       ${isKyle()&&r.status==="open"?`<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" type="button" id="pAddV">+ Ask another vendor</button><button class="btn sm" type="button" id="pCmp">⚖ Compare their quotes</button><button class="btn sm" type="button" id="pClose">Close without ordering</button></div>`:""}
     </div>
@@ -140,6 +165,7 @@ function renderRfq(B,r){
   B.querySelectorAll("[data-vq]").forEach(i=>i.onchange=()=>saveV(i.dataset.vq,"quoteNo",i.value.trim()));
   B.querySelectorAll("[data-vt]").forEach(i=>i.onchange=()=>saveV(i.dataset.vt,"total",i.value.trim()));
   B.querySelectorAll("[data-ord]").forEach(b=>b.onclick=()=>orderFrom(r,b.dataset.ord));
+  B.querySelectorAll("[data-rcnt]").forEach(b=>b.onclick=()=>{ const [jid,sid]=b.dataset.rcnt.split("|"); window.openCount(jid,sid); });
   const av=B.querySelector("#pAddV"); if(av) av.onclick=()=>addVendor(r);
   const cm=B.querySelector("#pCmp"); if(cm) cm.onclick=()=>{ const jid=(r.jobs||[])[0]; if(jid&&window.compareQuotes) window.compareQuotes(jid); };
   const cl=B.querySelector("#pClose"); if(cl) cl.onclick=async()=>{ if(!confirm(`Close ${r.no} without ordering? The vendors' lines on the jobs are marked Declined.`)) return;
@@ -149,10 +175,14 @@ function renderRfq(B,r){
 function renderPo(B,r){
   const L=linesOf(r); const si=PST.findIndex(x=>x[0]===r.status); const D=r.deliveries||[];
   const inN=D.filter(d=>d.status==="received").length;
-  B.innerHTML=`<div class="pod">${head(r)}
+  B.innerHTML=`<div class="pod">${head(r,B)}
     <div class="psc"><div class="steps">${PST.map(([k,t,c],i)=>`<button class="btn sm ${k===r.status?"on":i<si?"past":""}" type="button" data-ps="${k}" style="--c:${c}" ${isKyle()?"":"disabled"}>${t}</button>`).join("")}</div>
       <div class="lbl" style="margin-top:6px">Moving this moves ${L.length===1?`the ${E(r.vendor)} line on ${E(jobTag(L[0].j.id))}`:`the ${E(r.vendor)} lines on ${L.length} jobs`} too (Orders board, Count).</div>
       ${["arrived","ready","production","approved"].includes(r.status)&&L.length&&window.openCount?`<div style="margin-top:8px"><button class="btn primary" type="button" id="pCount">☑ Count it</button></div>`:""}</div>
+    ${L.length?`<div class="psc"><h3>ON THE JOBS</h3>${L.map(({j,x})=>{ const st=(typeof ST!=="undefined"&&ST[x.status])||{t:x.status,c:"#888"};
+        return `<div class="ojl"><div class="ojlh"><button class="chip" type="button" data-oj="${E(j.id)}" title="Open ${E(j.name)}">${E(jobTag(j.id))}</button><span class="ostat" style="--c:${st.c}">${E(st.t)}</span></div>
+          ${x.scope?`<div class="ojls">${E(x.scope)}</div>`:""}
+          <div class="lbl">${[x.quoteNo?"Their # "+E(x.quoteNo):"",x.total?"Total "+E(x.total):"",x.sent?"Sent "+day(x.sent):"",x.receivedAt?"Received "+day(x.receivedAt):""].filter(Boolean).join(" · ")||"&nbsp;"}</div></div>`; }).join("")}</div>`:""}
     <div class="psc"><h3>DELIVERIES <span class="lbl" style="font-family:inherit;letter-spacing:0">${D.length?`${inN} of ${D.length} in`:"one delivery"}</span></h3>
       ${D.length?`<div class="bar"><div style="width:${Math.round(inN/D.length*100)}%"></div></div>`:`<div class="lbl">If ${E(r.vendor||"the vendor")} splits this order (separate order acks, part pickups), add each piece here so you can follow them one by one.</div>`}
       ${D.map((d,i)=>`<div class="dl"><input data-dr="${i}" value="${E(d.ref||"")}" placeholder="Their # (ack, packing slip)" ${isKyle()?"":"disabled"}>
@@ -179,8 +209,11 @@ function notesLog(r){
     <div style="margin-top:10px">${(r.log||[]).slice().reverse().slice(0,15).map(l=>`<div class="lg">${day(l.at)} · ${E(l.t)}</div>`).join("")}</div></div>`;
 }
 function wireCommon(B,r){
-  B.querySelector("#pBack").onclick=()=>{ selNo=null; render(); toTop(); };
-  B.querySelectorAll("[data-oj]").forEach(c=>c.onclick=()=>{ if(typeof openJob==="function") openJob(c.dataset.oj); });
+  if(B.dataset.panel){ B.querySelector("#pBack").onclick=closePanel;
+    const all=B.querySelector("#pAll"); if(all) all.onclick=()=>{ closePanel(); selNo=null; if(typeof cur!=="undefined"&&cur!=="pos") shellGo("pos"); else render(); toTop(); };
+    B.querySelectorAll("[data-oj]").forEach(c=>c.onclick=()=>{ closePanel(); openJobAt(c.dataset.oj,{no:r.no}); }); }
+  else { B.querySelector("#pBack").onclick=()=>{ selNo=null; render(); toTop(); };
+    B.querySelectorAll("[data-oj]").forEach(c=>c.onclick=()=>{ if(typeof openJob==="function") openJob(c.dataset.oj); }); }
   const n=B.querySelector("#pNotes"); if(n) n.onchange=()=>saveRec(r,{notes:n.value.trim()||null},"");
 }
 async function setPoStage(r,k){
@@ -248,7 +281,7 @@ async function orderFrom(r,v){
     const q=await sb.from("gvc_pos").insert(rec).select().single(); if(q.error) throw new Error(q.error.message); POS.unshift(q.data);
     await editLines(r.jobs,S=>{ let c=false; S.forEach(x=>{ if(x.rfq!==r.no) return; if(x.name===v){ x.po=no; x.status="approved"; x.updated=now; c=true; } else if(!x.po&&x.status!=="declined"){ x.status="declined"; x.updated=now; c=true; } }); return c; },`${r.no}: ordered from ${v} as ${no}`);
     await saveRec(r,{status:"ordered"},`ordered from ${v} → ${no}`);
-    selNo=no; render(); toTop(); say(`${no} made for ${v}`);
+    if(panel.no){ panel.no=no; drawPanel(); render(); } else { selNo=no; render(); toTop(); } say(`${no} made for ${v}`);
   }catch(e){ say("Couldn't make the PO: "+e.message); }
 }
 
@@ -274,7 +307,82 @@ window.openPo=no=>{ selNo=no; if(typeof closeDlg==="function") closeDlg(); if(ty
 window.newRfqFor=jid=>{ if(typeof closeDlg==="function") closeDlg(); newSheet("rfq",{jobs:[jid]}); };
 window.newPoFor=jid=>{ if(typeof closeDlg==="function") closeDlg(); newSheet("po",{jobs:[jid]}); };
 window.posOpen=()=>POS.filter(r=>r.kind==="rfq"?r.status==="open":!["received","cancelled"].includes(r.status)).length;
-document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-opo]"); if(b){ e.preventDefault(); e.stopPropagation(); window.openPo(b.dataset.opo); } },true);
+document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-opo]"); if(b){ e.preventDefault(); e.stopPropagation(); window.openOrder(b.dataset.opo); } },true);
 const _back=window.gvcBack;
-window.gvcBack=()=>{ try{ if(typeof cur!=="undefined"&&cur==="pos"&&selNo&&!document.querySelector(".shov.on")&&!document.querySelector("#scrim.on")){ selNo=null; render(); return true; } }catch(e){} return _back?_back():false; };
+window.gvcBack=()=>{ try{ if(panel.on){ closePanel(); return true; } if(typeof cur!=="undefined"&&cur==="pos"&&selNo&&!document.querySelector(".shov.on")&&!document.querySelector("#scrim.on")){ selNo=null; render(); return true; } }catch(e){} return _back?_back():false; };
+/* ================= order panel (redesign stage 2, Nov 14) =================
+   Tapping an order on the Orders board (or a PO / RFQ chip anywhere) opens THAT order on top of the screen - a side
+   panel on a computer, the full screen on a phone - instead of the whole job card. PO / RFQ = the same page as
+   More > RFQs & POs (stages, Count it, deliveries, notes). A supplier line with no number gets its own short view.
+   Back / Esc / tapping outside closes it and you're exactly where you were on the board. */
+const panel={on:false,no:null,line:null}; let PEL=null, lastFocus=null;
+function panelEl(){ if(PEL) return PEL;
+  PEL=document.createElement("div"); PEL.className="opanel"; PEL.innerHTML=`<div class="opscrim"></div><section class="opbox posv" data-panel="1" role="dialog" aria-modal="true" aria-label="Order" tabindex="-1"></section>`;
+  document.body.appendChild(PEL); PEL.querySelector(".opscrim").onclick=closePanel; return PEL; }
+function drawPanel(){
+  if(!panel.on) return; const B=panelEl().querySelector(".opbox"); const top=B.scrollTop;
+  const r=panel.no&&POS.find(x=>x.no===panel.no);
+  if(r) (r.kind==="rfq"?renderRfq:renderPo)(B,r);
+  else if(panel.line) drawLine(B);
+  else B.innerHTML=`<div class="ophd"><button class="btn sm" type="button" id="pBack">‹ Back</button></div><div class="empty" style="text-align:left">${loaded?`${E(panel.no)} isn't in RFQs & POs.`:"Loading…"}</div>`, B.querySelector("#pBack").onclick=closePanel;
+  B.setAttribute("aria-label",panel.no?`Order ${panel.no}`:"Order"); B.scrollTop=top;
+}
+function showPanel(){ const el=panelEl(); if(!panel.on) lastFocus=document.activeElement; panel.view=typeof cur!=="undefined"?cur:null; panel.on=true; el.classList.add("on"); drawPanel(); const B=el.querySelector(".opbox"); B.scrollTop=0; try{ B.focus({preventScroll:true}); }catch(e){} }
+function closePanel(){ if(!panel.on) return; panel.on=false; panel.no=null; panel.line=null; panelEl().classList.remove("on");
+  try{ if(lastFocus&&document.contains(lastFocus)) lastFocus.focus({preventScroll:true}); }catch(e){} lastFocus=null; }
+window.closeOrderPanel=closePanel;
+const leaveJobCard=()=>{ const sc=document.getElementById("scrim"); if(sc&&sc.classList.contains("on")){ if(typeof window.closeJob==="function") window.closeJob(); else if(typeof closeDlg==="function") closeDlg(); } };
+window.openOrder=no=>{ leaveJobCard(); panel.no=no; panel.line=null; showPanel(); };
+// a supplier line from a job: its PO (or RFQ) if it has one, otherwise the line itself
+window.openOrderLine=(jid,sid)=>{ const j=jobOf(jid); const x=j&&(j.suppliers||[]).find(s=>s.id===sid);
+  const no=x&&(x.po||x.rfq); if(no&&(!loaded||POS.some(r=>r.no===no))) return window.openOrder(no);
+  leaveJobCard(); panel.no=null; panel.line={jid,sid}; showPanel(); };
+/* open a job card at its Suppliers block for one order (and optionally the line's edit fields) */
+window.openJobAt=(jid,o={})=>{
+  if(typeof openJob!=="function") return; openJob(jid); const D=document.getElementById("dlg"); if(!D) return;
+  const j=jobOf(jid); const S=(j&&j.suppliers)||[];
+  const k=o.sid!=null?S.findIndex(x=>x.id===o.sid):S.findIndex(x=>o.no&&(x.po===o.no||x.rfq===o.no));
+  const eb=k>=0?D.querySelector(`[data-sged="${k}"]`):null; let det=eb?eb.closest("details"):null;
+  if(!det&&o.no) det=[...D.querySelectorAll("details[data-sgk]")].find(d=>d.dataset.sgk===o.no)||null;
+  if(!det) return;
+  det.open=true; try{ supOpen.add(det.dataset.sgk); }catch(e){}
+  if(o.edit&&k>=0){ const b=D.querySelector(`[data-sged="${k}"]`); if(b&&b.textContent.includes("Edit")) b.click(); }
+  setTimeout(()=>{ try{ det.scrollIntoView({block:"start",behavior:"smooth"}); }catch(e){} },60);
+};
+function drawLine(B){
+  const {jid,sid}=panel.line; const j=jobOf(jid); const x=j&&(j.suppliers||[]).find(s=>s.id===sid);
+  const hd=`<div class="ophd"><button class="btn sm" type="button" id="pBack" aria-label="Close and go back">‹ Back</button><span style="flex:1"></span>${j?`<button class="btn sm" type="button" id="lJob">Open full job ›</button>`:""}</div>`;
+  if(!x){ B.innerHTML=hd+`<div class="empty" style="text-align:left">This order isn't on the job any more.</div>`; B.querySelector("#pBack").onclick=closePanel; const lj=B.querySelector("#lJob"); if(lj) lj.onclick=()=>{ closePanel(); openJob(jid); }; return; }
+  const sts=typeof ST!=="undefined"?ST:{}; const st=sts[x.status]||sts.sent||{t:x.status,c:"#888"};
+  const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim():j.name;
+  const qt=!x.total&&window.quoteTotal?window.quoteTotal(x):null;
+  const f=(t,v)=>v?`<div><dt>${t}</dt><dd>${v}</dd></div>`:"";
+  const canCount=window.openCount&&!["sent","replied","quote","declined"].includes(x.status);
+  B.innerHTML=`<div class="pod">${hd}
+    <button class="opjob" type="button" id="lJob2">${num?`<span class="jnum">${E(num)}</span>`:""}<span>${E(rest)}</span></button>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><span class="no" style="font-size:22px">${E(x.name)}</span><span class="ostat" style="--c:${st.c}">${E(st.t)}</span></div>
+    <div class="lbl" style="margin-top:2px">No RFQ or PO number on this order${x.scope?` · ${E(x.scope)}`:""}</div>
+    <dl class="ofacts">${f(x.po?"Their #":"Quote #",E(x.quoteNo))}${f("Total",x.total?E(x.total):qt?money(qt)+" on the quote":"")}${f("Lead time",E(x.lead))}${f("Contact",E(x.contact))}
+      ${f("Sent",x.sent?E(fmt(x.sent)):"Not sent yet")}${f("Last update",x.updated&&E(fmt(x.updated)))}${f("Arrived",x.arrivedAt&&E(fmt(x.arrivedAt)))}${f("Received",x.receivedAt&&E(fmt(x.receivedAt)))}</dl>
+    ${x.note?`<div class="psc"><h3>LATEST</h3><div class="onote">${E(x.note)}</div></div>`:""}
+    <div class="psc"><h3>WHAT YOU CAN DO</h3><div class="oacts">
+      ${canCount?`<button class="btn${x.status==="arrived"||x.status==="ready"?" primary":""}" type="button" id="lCount">☑ Count it</button>`:""}
+      <button class="btn" type="button" id="lEdit">✎ Edit status, quote #, total…</button>
+      ${isKyle()&&["sent","replied","quote"].includes(x.status||"sent")?`<button class="btn" type="button" id="lRfq">Give it an RFQ number</button>`:""}
+    </div><div class="lbl" style="margin-top:8px">Editing opens the job card at this order.</div></div></div>`;
+  B.querySelector("#pBack").onclick=closePanel;
+  const toJob=o=>()=>{ closePanel(); window.openJobAt(jid,o); };
+  B.querySelector("#lJob").onclick=toJob({sid}); B.querySelector("#lJob2").onclick=toJob({sid}); B.querySelector("#lEdit").onclick=toJob({sid,edit:true});
+  const c=B.querySelector("#lCount"); if(c) c.onclick=()=>window.openCount(jid,sid);
+  const rq=B.querySelector("#lRfq"); if(rq) rq.onclick=()=>{ closePanel(); newSheet("rfq",{jobs:[jid],vendor:x.name,title:x.scope||""}); };
+}
+// keep an open panel up to date when the data changes (not while you're typing in it)
+{ const _r=render; render=function(){ const out=_r.apply(this,arguments); try{ if(panel.on&&typeof cur!=="undefined"&&panel.view&&cur!==panel.view){ closePanel(); } if(panel.on){ const a=document.activeElement; if(!(a&&PEL&&PEL.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) drawPanel(); } }catch(e){} return out; }; }
+document.addEventListener("keydown",e=>{ if(e.key!=="Escape"||!panel.on) return; const sc=document.getElementById("scrim"); if((sc&&sc.classList.contains("on"))||document.querySelector(".shov")) return; e.stopImmediatePropagation(); closePanel(); },true);
+// keep Tab inside the panel while it's open (keyboard users)
+document.addEventListener("keydown",e=>{ if(e.key!=="Tab"||!panel.on||!PEL) return; const sc=document.getElementById("scrim"); if((sc&&sc.classList.contains("on"))||document.querySelector(".shov")) return;
+  const F=[...PEL.querySelectorAll("button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex='-1'])")].filter(x=>x.offsetParent!==null);
+  if(!F.length) return; const i=F.indexOf(document.activeElement);
+  if(e.shiftKey&&(i<=0)){ e.preventDefault(); F[F.length-1].focus(); } else if(!e.shiftKey&&(i===-1||i===F.length-1)){ e.preventDefault(); F[0].focus(); } },true);
+window.gvcPanelBack=()=>{ if(!panel.on) return false; closePanel(); return true; };
 })();
