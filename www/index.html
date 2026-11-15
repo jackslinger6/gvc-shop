@@ -1246,8 +1246,10 @@ function stageName(s){ return `${s.bt} · ${s.t}`; }
 function stagePanel(to){
   const P=$("#stgPanel"), B=$("#back"); if(!P) return;
   const j=raw(openId); const was=SIDX[j.stage]??0, W=STAGES[was];
-  if(to===false){ P.hidden=true; P.innerHTML=""; B&&B.setAttribute("aria-expanded","false"); return; }
-  P.hidden=false; B&&B.setAttribute("aria-expanded","true");
+  const N=$("#next");
+  if(to===false){ P.hidden=true; P.innerHTML=""; if(B){ B.hidden=false; B.setAttribute("aria-expanded","false"); B.focus(); } if(N) N.hidden=false; return; }
+  // the review replaces the stage buttons while it's open (review Nov 15) - one set of controls at a time
+  P.hidden=false; if(B){ B.setAttribute("aria-expanded","true"); B.hidden=true; } if(N) N.hidden=true;
   if(to==null||to===was){
     P.innerHTML=`<div class="stgp" role="group" aria-label="Change stage"><div class="stgnow">Now: <b>${esc(stageName(W))}</b></div>
       <div class="lbl" style="margin:6px 0 4px">Move to…</div>

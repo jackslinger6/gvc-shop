@@ -133,10 +133,10 @@ css.textContent=`#gFlat{position:fixed;inset:0;z-index:8500;background:#0d0e10;d
 #gFlat .stage{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
 #gFlat .ct{padding:10px 14px calc(env(safe-area-inset-bottom,0px) + 12px)}
 #gFlat .ct .tt{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
-#gFlat .ct .tt b{font:600 22px var(--font-display)}#gFlat .ct .tt b.full{color:#3ad06b}
+#gFlat .ct .tt b{font:600 22px var(--font-display)}#gFlat .ct .tt b.full{color:#cfd8e3}
 #gFlat .bxs{display:flex;flex-wrap:wrap;gap:8px}
 #gFlat .pc{width:46px;height:46px;border-radius:10px;border:2px solid #5a5f68;background:transparent;color:transparent;font-size:24px;padding:0;min-height:0}
-#gFlat .pc.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}
+#gFlat .pc.on{background:#56657a;border-color:#7d8da3;color:#f2f5f8}
 #gFlat .acts{display:flex;gap:8px;margin-top:12px}#gFlat .acts button{flex:1;min-height:52px;border-radius:14px;font-size:15px}
 #gFlat .acts .go{background:#2f8ff0}#gFlat .acts .re{background:rgba(255,255,255,.12)}
 #gFlat .stp{display:flex;gap:8px;align-items:center}#gFlat .stp button{min-width:56px;height:48px;font-size:20px}#gFlat .stp .all{flex:1;font-size:16px}`;

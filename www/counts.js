@@ -16,7 +16,7 @@ css.textContent=`
 .cnt .hd{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .cnt .csub{font-size:12.5px;color:var(--muted);margin-top:2px}
 .cnt .bar{height:8px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden;margin:10px 0 4px}
-.cnt .bar div{height:100%;background:#3ad06b;transition:width .2s}
+.cnt .bar div{height:100%;background:#7d8da3;transition:width .2s}
 .cnt .tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0}
 .cnt input[type=search],.cnt .addrow input{font:inherit;font-size:14px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .cnt input[type=search]{flex:1;min-width:160px}
@@ -32,7 +32,7 @@ css.textContent=`
 .cnt .mt{font-size:12px;color:var(--muted);margin-top:1px}
 .cnt .boxes{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
 .cnt .bx{width:34px;height:34px;border-radius:7px;border:1.5px solid #5a5f68;background:transparent;color:transparent;font-size:18px;line-height:30px;padding:0;cursor:pointer}
-.cnt .bx.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}
+
 .cnt .step{display:flex;align-items:center;gap:8px;margin-top:7px}
 .cnt .step button{min-width:40px;height:34px;font-size:16px;white-space:nowrap}
 .cnt .step b{font-family:var(--font-display);font-size:18px;min-width:70px;text-align:center}
@@ -67,6 +67,16 @@ css.textContent=`
 .cnt .foot{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(20,22,25,0),#141619 30%);padding-top:14px;margin-top:10px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .cnt .saved{font-size:12px;color:var(--dim);align-self:center;margin-right:auto}
 .cnt .cserr{color:#ff8a7a;font-weight:600}
+.cnt .saved{line-height:2}
+.cnt .bx.on{background:#56657a;border-color:#7d8da3;color:#f2f5f8}
+.cnt .it.sv .bx.on{background:#3ad06b;border-color:#3ad06b;color:#0d1a10}
+.cnt .it.cfx{--c:#ff6b5a}
+.cnt .q.en{color:#cfd8e3}
+.cnt .q.us{color:#f5b041;font-weight:600}
+.cnt .q.cfq{color:#ff8a7a;font-weight:700}
+.cnt .cfl{font-size:13px;color:var(--muted);margin-top:4px}
+.cnt .cfl b{color:var(--text)}
+.cnt .foot #cDone:disabled{opacity:.45;filter:grayscale(.6)}
 .cnt .ccf{margin:10px 0 4px;padding:10px 12px;border:1px solid rgba(255,107,90,.55);background:rgba(255,107,90,.08);border-radius:10px;font-size:13px}
 .cnt .ccr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 0;border-top:1px solid var(--line);margin-top:8px}
 .cnt .ccn{font-weight:700;flex:1 1 100%}
@@ -143,7 +153,8 @@ window.openCount=async function(jobId,supId){
   }
   st={jobId, supId:sup.id, sets, items, q:"", f:"all", seeded, dirty:new Set(), timer:null, addQ:"", addG:0, flat:{},
       base:{}, conflicts:[], saveErr:"", flushing:null, restore:[]};
-  items.forEach(i=>{ if(st.sets[i.g].row) st.base[bk(i.g,i.k)]=snap(i); });
+  st.savedConf={}; st.leaving=false;
+  items.forEach(i=>{ if(st.sets[i.g].row){ st.base[bk(i.g,i.k)]=snap(i); st.savedConf[bk(i.g,i.k)]=(i.conf&&i.conf.at)||""; } });
   sets.forEach((S,g)=>{ const b=bkRead(S); if(!(b&&b.items&&b.items.length)) return;
     const cur=Object.fromEntries(items.filter(i=>i.g===g).map(i=>[i.k,i]));
     const differs=b.items.some(i=>!cur[i.k]||!same(snap(i),snap(cur[i.k])));
@@ -233,18 +244,33 @@ function head(){
   return `<div class="hd"><div><h3 style="margin:0">Count - ${multi?"combined order":esc(j.name)}</h3>${multi?`<div class="csub">One order for ${st.sets.map(S=>esc(jobOf(S.jobId).name)).join(" + ")}</div>`:""}
     <div class="csub">${esc(sup.name||"")}${sup.quoteNo?" · #"+esc(sup.quoteNo):""}${sup.scope?" · "+esc(sup.scope):""} · ${(ST[sup.status]||ST.sent).t}</div></div>
     <span style="display:flex;gap:6px"><button class="btn" type="button" id="cPrint" title="Print a paper checklist (or save it as a PDF)">🖨 Print</button><button class="btn ghost" type="button" id="cBack">Back to job</button></span></div>
-    ${!st.items.some(i=>!i.skip)?`<div class="cnol"><b>No checklist - nothing counted yet.</b> There's no parts list for this order. Add what was ordered below to count it, or receive it without a checklist.</div>`:`<div class="bar"><div style="width:${t.pcs?Math.round(t.got/t.pcs*100):0}%"></div></div>
-    <div class="csub"><b style="color:var(--text)">Confirmed: ${live().filter(confirmedOk).length} of ${live().length} parts</b> · ${t.got} of ${t.pcs} pcs · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`}`;
+    ${!st.items.some(i=>!i.skip)?`<div class="cnol"><b>No checklist - nothing counted yet.</b> There's no parts list for this order. Add what was ordered below to count it, or receive it without a checklist.</div>`:`<div class="bar" title="Pieces entered"><div style="width:${t.pcs?Math.round(t.got/t.pcs*100):0}%"></div></div>
+    <div class="csub"><b style="color:var(--text)">Confirmed${st.sets.some(S=>S.row)?" and saved":""}: ${live().filter(i=>confirmedOk(i)&&isSaved(i)).length} of ${live().length} parts</b>${live().some(i=>confirmedOk(i)&&!isSaved(i))?` · <b style="color:#f5b041">${live().filter(i=>confirmedOk(i)&&!isSaved(i)).length} not saved yet</b>`:""}${st.conflicts.length?` · <b style="color:#ff8a7a">${st.conflicts.length} conflict${st.conflicts.length>1?"s":""}</b>`:""} · ${t.got} of ${t.pcs} pcs · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`}`;
 }
+/* row state (review Nov 15): entered (boxes ticked, not confirmed) · confirmed, not saved yet · confirmed + saved (only
+   this one is green) · count conflict. Ticked boxes are grey-blue until the count is confirmed AND on the server. */
+function rowState(it){
+  if(st.conflicts.some(c=>c.g===it.g&&c.k===it.k)) return "conflict";
+  if(confirmedOk(it)) return isSaved(it)?"saved":"unsaved";
+  return got(it)>0?"entered":"none";
+}
+function isSaved(it){ const K=bk(it.g,it.k), b=st.base[K]; return !!b&&same(snap(it),b)&&(st.savedConf[K]||"")===((it.conf&&it.conf.at)||""); }
 function itemRow(it,ix){
-  const g=got(it), q=it.qty||0, cls=confirmedOk(it)&&g>=q&&q>0?"full":g>0?"part":"";
+  const g=got(it), q=it.qty||0, rs=rowState(it);
+  const cls=rs==="conflict"?"cfx":rs==="saved"&&g>=q&&q>0?"full sv":rs==="saved"?"part sv":g>0?"part":"";
+  const cf=rs==="conflict"?st.conflicts.find(c=>c.g===it.g&&c.k===it.k):null;
+  const qlab=rs==="conflict"?`<span class="q cfq">Count conflict - review required</span>`
+    :rs==="saved"?`<span class="q cf">✓ Confirmed ${g} of ${q} · saved</span>`
+    :rs==="unsaved"?`<span class="q us">Confirmed ${g} of ${q} · ${st.saveErr?"not saved":"saving…"}</span>`
+    :rs==="entered"?`<span class="q en">${g} of ${q} entered · not confirmed</span>`:`<span class="q">0 of ${q}</span>`;
+  const cfline=cf?`<div class="cfl">Saved count: <b>${cf.theirs.skip?"not on this order":cf.theirs.later?"still to come":cf.theirs.got+" of "+q}</b> · yours: <b>${cf.mine.skip?"not on this order":cf.mine.later?"still to come":cf.mine.got+" of "+q}</b> <button class="lnk" type="button" data-cfgo>Review at the top</button></div>`:"";
   const im=url(it.thumb||it.img); const fl=st.flat&&it.part_no&&st.flat[it.part_no];
   const boxes=`<button type="button" class="btn sm${confirmedOk(it)?"":" primary"} cnfb" data-cnf="${ix}">${confirmedOk(it)?"Change count":g?"Check & confirm":"Count this part"}</button>`+(q<=24?`<div class="boxes">${Array.from({length:q},(_,b)=>`<button class="bx ${b<g?"on":""}" type="button" data-bx="${ix}" data-b="${b}" aria-label="piece ${b+1}">✓</button>`).join("")}</div>`
     :`<div class="step"><button class="btn" type="button" data-dn="${ix}">−</button><b>${g} / ${q}</b><button class="btn" type="button" data-up="${ix}">+</button><button class="btn sm" type="button" data-all="${ix}">All here</button></div>`);
   const th=fl?`<div class="th fl" data-fl="${esc(it.part_no)}" data-fv="${ix}" role="button" aria-label="Enlarge the flat pattern">${FL[it.part_no]?FL[it.part_no].x.thumb:`<span>…</span>`}</div>`
     :`<div class="th" ${im?`data-fv="${ix}" role="button"`:""}>${im?`<img src="${esc(im)}" alt="" loading="lazy">`:esc(it.part_no||"")}</div>`;
   return `<div class="it ${cls}">${th}
-    <div><div class="nm"><span>${esc(it.part_no||it.name)}</span><span class="q ${confirmedOk(it)?"cf":""}">${confirmedOk(it)?`✓ Confirmed ${g} of ${q}`:g?`${g} / ${q} · not confirmed`:`0 / ${q}`}</span></div>
+    <div><div class="nm"><span>${esc(it.part_no||it.name)}</span>${qlab}</div>${cfline}
     <div class="mt">${it.mat?`<span class="mchip ${/alum|\bal\b/i.test(it.mat)?"al":/stainless|\bss\b/i.test(it.mat)?"ss":""}">${esc(matLabel(it.mat))}</span>`:""}${it.part_no&&it.name&&it.name!==it.part_no&&it.name!==matLabel(it.mat)&&!String(it.mat||"").includes(it.name)?" "+esc(it.name):""}</div>
     ${fl?`<div class="mt" data-dm>${flatDims(it.part_no)}</div>`:""}
     ${boxes}
@@ -306,7 +332,7 @@ function draw(){
     <div class="addbox"><b style="font-size:13px">Add an item to this order</b>
       <div class="addrow" style="margin-top:6px"><input id="cAddQ" placeholder="Search inventory or type a name" value="${esc(st.addQ)}" style="flex:1;min-width:160px"><input id="cAddN" type="number" min="1" value="1" style="width:70px" aria-label="Quantity">${st.sets.length>1?`<select id="cAddG" aria-label="Which job">${st.sets.map((S,g)=>`<option value="${g}" ${st.addG===g?"selected":""}>${esc(jobOf(S.jobId).name)}</option>`).join("")}</select>`:""}<button class="btn" type="button" id="cAdd">Add</button></div>
       <div class="pick" id="cPick"></div></div>
-    <div class="foot"><span class="saved" id="cSaved">${saveHtml()}</span><button class="btn ${st.items.some(i=>!i.skip)?"primary":""}" type="button" id="cDone">${st.items.some(i=>!i.skip)?"Done counting":"Receive without a checklist…"}</button></div></div>`;
+    <div class="foot"><span class="saved" id="cSaved" role="status" aria-live="polite">${saveHtml()}</span><button class="btn ${st.items.some(i=>!i.skip)?"primary":""}" type="button" id="cDone" aria-describedby="cSaved" ${blocked()?'disabled aria-disabled="true"':""}>${st.items.some(i=>!i.skip)?"Done counting":"Receive without a checklist…"}</button></div></div>`;
   wire(); drawPick();
 }
 function listHtml(vis){
@@ -369,7 +395,7 @@ function wire(){
   $("#cBack").onclick=async()=>{ const b=$("#cBack"); if(b.disabled) return; b.disabled=true;
     const ok=await flush(); b.disabled=false;
     if(ok&&!st.conflicts.length){ openJob(st.jobId); return; }
-    blockBox(ok?"conflict":"unsaved","leave"); };
+    st.leaving=true; setSaved(); const sv=$("#cSaved"); if(sv){ sv.scrollIntoView({block:"nearest"}); const f=sv.querySelector("button"); if(f) f.focus(); } };
   wireSaved(); wireAlerts();
   $("#cPrint").onclick=printSheet;
   D.querySelectorAll("[data-fv]").forEach(b=>b.onclick=()=>openFlat(+b.dataset.fv));
@@ -431,13 +457,25 @@ function bkWrite(g){ try{ const S=st.sets[g]; const base={}; st.items.filter(i=>
 function bkDrop(g){ try{ localStorage.removeItem(bkKey(st.sets[g])); }catch(e){} }
 const hm=t=>{ try{ return new Date(t).toLocaleString([], {weekday:"short",hour:"numeric",minute:"2-digit"}); }catch(e){ return ""; } };
 function who(c,fallbackAt){ const by=c&&c.by||"", at=c&&c.at||fallbackAt; return (by||"another phone")+(at?" · "+hm(at):""); }
+/* ONE save-status area (review Nov 15): saved / saving / not saved + Retry / conflicts to settle; "Leave anyway"
+   joins it when Back to job is tapped while something isn't saved. Done counting is disabled while blocked. */
+function blocked(){ return !!(st.saveErr||st.conflicts.length); }
 function saveHtml(){
-  if(st.saveErr) return `<span class="cserr" role="alert">Not saved - ${esc(st.saveErr)}. Kept on this phone.</span> <button class="btn sm" type="button" id="cRetry">Retry</button>`;
+  const parts=[];
+  if(st.saveErr) parts.push(`<span class="cserr">Not saved - ${esc(st.saveErr)}. Kept on this phone.</span> <button class="btn sm" type="button" id="cRetry">Retry</button>`);
+  if(st.conflicts.length) parts.push(`<span class="cserr">${st.conflicts.length} count conflict${st.conflicts.length>1?"s":""} to settle before Done.</span> <button class="btn sm" type="button" id="cCfGo">Review</button>`);
+  if(parts.length){ if(st.leaving) parts.push(`<span>${st.saveErr?"Leaving keeps them on this phone only.":"The saved counts stay as they are."}</span> <button class="btn sm ghost" type="button" id="cLeave">Leave anyway</button>`);
+    return parts.join("<br>"); }
   if(st.dirty.size||st.flushing) return "Saving…";
-  return st.sets.some(S=>S.row)?"Saved":"";
+  return st.sets.some(S=>S.row)?"✓ All counts saved":"";
 }
-function setSaved(){ const s=$("#cSaved"); if(s){ s.innerHTML=saveHtml(); wireSaved(); } }
-function wireSaved(){ const r=$("#cRetry"); if(r) r.onclick=async()=>{ r.disabled=true; r.textContent="Retrying…"; await flush(); }; }
+function setSaved(){ const s=$("#cSaved"); if(s){ s.innerHTML=saveHtml(); wireSaved(); }
+  const d=$("#cDone"); if(d){ const b=blocked(); d.disabled=b; d.setAttribute("aria-disabled",b?"true":"false"); d.title=b?(st.conflicts.length?"Settle the count conflicts first":"Waiting for the counts to save"):""; } }
+function wireSaved(){
+  const r=$("#cRetry"); if(r) r.onclick=async()=>{ r.disabled=true; r.textContent="Retrying…"; const ok=await flush(); if(ok&&!st.conflicts.length&&st.leaving){ st.leaving=false; openJob(st.jobId); } };
+  const c=$("#cCfGo"); if(c) c.onclick=()=>{ const al=$("#cAlerts"); if(al) al.scrollIntoView({behavior:"smooth",block:"start"}); };
+  const l=$("#cLeave"); if(l) l.onclick=()=>{ st.leaving=false; openJob(st.jobId); };
+}
 function alertsHtml(){
   let h="";
   if(st.restore.length){ const b=st.restore[0].b;
@@ -453,9 +491,15 @@ function alertsHtml(){
   }
   return h;
 }
+function updRows(){ const D=$("#dlg"); if(!D||document.getElementById("gFlat")) return; let n=0;
+  D.querySelectorAll("#cList .it").forEach(row=>{ const b=row.querySelector("[data-cnf]"); if(!b) return; const ix=+b.dataset.cnf; const it=st.items[ix]; if(!it) return;
+    const tmp=document.createElement("div"); tmp.innerHTML=itemRow(it,ix); row.replaceWith(tmp.firstElementChild); n++; });
+  const hd=D.querySelector(".cnt"); if(hd&&st.items.some(i=>!i.skip)){ const tmp=document.createElement("div"); tmp.innerHTML=head(); const old=[...hd.children].slice(0,tmp.children.length); old.forEach(e=>e.remove()); hd.prepend(...tmp.children); n++; }
+  if(n) wire(); }
 function updAlerts(){ const a=$("#cAlerts"); if(a){ a.innerHTML=alertsHtml(); wireAlerts(); } }
 function wireAlerts(){
   const D=$("#dlg");
+  D.querySelectorAll("[data-cfgo]").forEach(b=>b.onclick=()=>{ const al=$("#cAlerts"); if(al) al.scrollIntoView({behavior:"smooth",block:"start"}); });
   D.querySelectorAll("[data-rst]").forEach(b=>b.onclick=async()=>{ const {g,b:bk_}=st.restore.shift();
     if(b.dataset.rst==="1") await restoreBk(g,bk_); else bkDrop(g);
     draw(); });
@@ -479,15 +523,15 @@ function merge(g,theirsList,at){
   const theirs=Object.fromEntries((theirsList||[]).map(t=>[t.k,t]));
   for(const t of theirsList||[]){
     const i=st.items.find(x=>x.g===g&&x.k===t.k), K=bk(g,t.k), b=st.base[K], ts=snap(t);
-    if(!i){ st.items.push({...t,g}); st.base[K]=ts; st.remote=true; continue; }
+    if(!i){ st.items.push({...t,g}); st.base[K]=ts; st.savedConf[K]=(t.conf&&t.conf.at)||""; st.remote=true; continue; }
     const ms=snap(i), mc=!b||!same(ms,b), tc=!b||!same(ts,b);
-    if(same(ms,ts)){ st.base[K]=ts; continue; }
+    if(same(ms,ts)){ st.base[K]=ts; if((i.conf&&i.conf.at)===(t.conf&&t.conf.at)) st.savedConf[K]=(t.conf&&t.conf.at)||""; continue; }
     st.remote=true;
     if(tc&&!mc){ i.got=t.got; i.skip=t.skip; i.later=t.later; i.conf=t.conf; }
     else if(mc&&tc){ const old=st.conflicts.find(c=>c.g===g&&c.k===t.k); if(old) st.conflicts.splice(st.conflicts.indexOf(old),1);
       st.conflicts.push({g,k:t.k,at,mine:{...ms,conf:i.conf},theirs:{...ts,conf:t.conf}});
       i.got=t.got; i.skip=t.skip; i.later=t.later; i.conf=t.conf; }  // keep the saved value until someone picks
-    st.base[K]=ts;
+    st.base[K]=ts; if(!mc||same(ms,ts)||tc) st.savedConf[K]=(t.conf&&t.conf.at)||"";
   }
   return theirs;
 }
@@ -509,7 +553,7 @@ async function flush(){
   st.flushing=null;
   // another phone's counts were merged in: redraw the list (unless a part is open on top), keeping the scroll position
   if(st.remote){ st.remote=false; const ae=document.activeElement; if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName)) st.remote=true; else if(!document.getElementById("gFlat")){ const D=$("#dlg"), sc=D.scrollTop; draw(); D.scrollTop=sc; } }
-  setSaved(); updAlerts();
+  updRows(); setSaved(); updAlerts();
   return ok&&!st.dirty.size;
 }
 function todoFail(){ st.sets.forEach((S,g)=>st.dirty.add(g)); }
@@ -522,7 +566,7 @@ async function saveSet(g){
     else r=await sb.from("gvc_counts").insert({job_id:S.jobId,sup_id:S.supId,items,updated_at:now}).select().maybeSingle();
     const dup=r.error&&(r.error.code==="23505"||/duplicate key/i.test(r.error.message||""));
     if(r.error&&!dup){ st.saveErr=r.error.message||"save failed"; return false; }
-    if(!r.error&&r.data){ S.row=r.data; st.items.filter(i=>i.g===g).forEach(i=>st.base[bk(g,i.k)]=snap(i)); return true; }
+    if(!r.error&&r.data){ S.row=r.data; st.items.filter(i=>i.g===g).forEach(i=>{ st.base[bk(g,i.k)]=snap(i); st.savedConf[bk(g,i.k)]=(i.conf&&i.conf.at)||""; }); return true; }
     // nothing updated (someone saved after we loaded) or the row was created meanwhile: re-read, merge, try again
     const cur=await sb.from("gvc_counts").select("*").eq("job_id",S.jobId).eq("sup_id",S.supId).maybeSingle();
     if(cur.error){ st.saveErr=cur.error.message||"couldn't re-read the count"; return false; }
@@ -531,27 +575,10 @@ async function saveSet(g){
   }
   st.saveErr="another phone keeps saving this count - try again"; return false;
 }
-/* Done counting / Back to job while something isn't saved or a conflict is open */
-function blockBox(kind,what){
-  const D=$("#dlg"); D.querySelectorAll(".cfin").forEach(e=>e.remove());
-  const box=document.createElement("div"); box.className="addbox cfin"; box.style.borderColor="#ff6b5a"; box.setAttribute("role","alert");
-  const n=st.dirty.size;
-  box.innerHTML=kind==="conflict"
-    ?`<b>Settle the ${st.conflicts.length} count conflict${st.conflicts.length>1?"s":""} first.</b><div class="tnote">They're at the top of this count. ${what==="leave"?"You can leave - nothing is lost, the saved counts stay as they are.":"Done counting stays off until each one has a count."}</div>
-      <div class="row" style="gap:6px;margin-top:8px"><button class="btn primary" type="button" data-bx="top">Show them</button>${what==="leave"?`<button class="btn ghost" type="button" data-bx="go">Leave anyway</button>`:""}</div>`
-    :`<b>Not saved yet${st.saveErr?" - "+esc(st.saveErr):""}.</b><div class="tnote">${n>1?n+" sections":"This count"} didn't reach the server. Your counts are kept on this phone and will be offered again when you reopen this count. ${what==="leave"?"":"Done counting waits until everything is saved."}</div>
-      <div class="row" style="gap:6px;margin-top:8px"><button class="btn primary" type="button" data-bx="retry">Retry saving</button>${what==="leave"?`<button class="btn ghost" type="button" data-bx="go">Leave anyway</button>`:""}</div>`;
-  D.querySelector(".cnt .foot").before(box); box.scrollIntoView({block:"center"});
-  box.querySelectorAll("[data-bx]").forEach(b=>b.onclick=async()=>{ const a=b.dataset.bx;
-    if(a==="top"){ box.remove(); const al=$("#cAlerts"); if(al) al.scrollIntoView({behavior:"smooth",block:"start"}); return; }
-    if(a==="go"){ openJob(st.jobId); return; }
-    b.disabled=true; b.textContent="Retrying…"; const ok=await flush();
-    if(ok&&!st.conflicts.length){ box.remove(); if(what==="leave") openJob(st.jobId); else finish(); } else blockBox(ok?"conflict":"unsaved",what); });
-}
 async function finish(){
   const db=$("#cDone"); if(db&&db.dataset.busy) return; if(db){ db.dataset.busy="1"; db.disabled=true; }
-  const saved=await flush(); if(db){ delete db.dataset.busy; db.disabled=false; }
-  if(!saved||st.conflicts.length){ blockBox(saved?"conflict":"unsaved","finish"); return; }
+  const saved=await flush(); if(db){ delete db.dataset.busy; db.disabled=blocked(); }
+  if(!saved||st.conflicts.length){ setSaved(); const f=$("#cSaved button"); if(f) f.focus(); return; }
   const t=totals();
   const miss=live().filter(i=>got(i)<(i.qty||0));
   const nm=i=>(st.sets.length>1?(window.jobNum?window.jobNum(jobOf(st.sets[i.g].jobId).name)+" ":""):"")+(i.part_no||i.name);

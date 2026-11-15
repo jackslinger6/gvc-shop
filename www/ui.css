@@ -527,3 +527,8 @@ body.ovwv #allJobs{margin-top:8px}
 .stgarr{font-size:20px;color:var(--accent)}
 .stgn{margin:10px 0 0;padding-left:18px;font-size:13px;color:var(--muted)}
 .stgn li{margin:2px 0}
+@media (max-width:600px){
+  .stgcmp{flex-direction:column;align-items:stretch;gap:6px}
+  .stgcmp>div{min-width:0}
+  .stgarr{align-self:center;transform:rotate(90deg);line-height:1}
+}
