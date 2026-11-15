@@ -93,6 +93,11 @@ function themeRules(rules,out){
     for(let i=0;i<r.style.length;i++){ const prop=r.style[i]; const val=r.style.getPropertyValue(prop); if(!val) continue;
       if(CUR==="girly"&&/^font/.test(prop)&&/Oswald/.test(val)){ decl.push(`${prop}:${val.replace(/Oswald/g,"Quicksand")}!important`); continue; }
       const nv=mapValue(prop,val); if(nv) decl.push(`${prop}:${nv}${prop.startsWith("--")?"":"!important"}`); }
+    // shorthands that use var() (e.g. background:linear-gradient(color-mix(...var(--c)...),#15171a)) have no longhand
+    // values, so the loop above can't see them - re-map the shorthand text itself (Light mode review, Nov 14)
+    for(const sh of ["background","border","border-left","border-right","border-top","border-bottom","box-shadow","outline"]){
+      const v=r.style.getPropertyValue(sh); if(!v||!/var\(/.test(v)) continue;
+      const nv=mapValue(sh,v); if(nv) decl.push(`${sh}:${nv}!important`); }
     if(decl.length) out.push(`${prefix(r.selectorText)}{${decl.join(";")}}`);
   }
 }
@@ -137,7 +142,19 @@ body.light .shsheet{background:#ffffff!important;box-shadow:0 -10px 40px rgba(16
 body.light .shov.on{background:rgba(16,24,40,.35)!important}body.light .scrim{background:rgba(16,24,40,.40)!important}
 body.light .ti,body.light .dlg,body.light .jlrow,body.light .ncard,body.light .grp{box-shadow:none}
 body.light ::selection{background:rgba(184,77,0,.2)}
-body.light .pvtag{color:#111}`;
+body.light .pvtag{color:#111}
+body.light svg[stroke="#e9ebee"],body.light svg[stroke="#d6d9dd"]{stroke:#182230}
+body.light svg[stroke="#ffb36b"]{stroke:#b84d00}body.light svg[stroke="#3ad06b"]{stroke:#1b7f3b}
+body.light .shtop .ib{color:#182230}
+body.light .tnote,body.light .lbl,body.light .meta{color:#536174}
+body.light :focus-visible{outline:2px solid #b84d00;outline-offset:2px}
+body.light .shtop .ib.tk{color:#b84d00}
+body.light [style*="color:#ff9b91"],body.light [style*="color:#ff9b9b"],body.light [style*="color:#e5483b"]{color:#c62828!important}
+body.light [style*="color:#f5b041"],body.light [style*="color:#ffd28a"],body.light [style*="color:#8a6a2a"]{color:#8a5a00!important}
+body.light [style*="color:#7ff0a8"],body.light [style*="color:#3ad06b"],body.light [style*="color:#7be29b"]{color:#1b7f3b!important}
+body.light [style*="color:#ffb070"],body.light [style*="color:#ffb36b"]{color:#b84d00!important}
+body.light [style*="color:#e9e6e1"],body.light [style*="color:#aab0b8"],body.light [style*="color:#9aa1aa"]{color:#536174!important}
+body.light [style*="color:#22c3e6"]{color:#0b7285!important}`;
 let sheet=null;
 function build(){
   const out=[];

@@ -80,7 +80,7 @@ function renderPunch(){
 }
 
 /* ---- Drawings tab ---- */
-let counts=null, countsAt=0, dwQ="", showNone=false, showFin=false;
+let counts=null, countsAt=0, dwQ="", showNone=new Set(), showFin=false;
 function loadCounts(force){
   if(!force&&counts&&Date.now()-countsAt<60e3) return;
   countsAt=Date.now();
@@ -106,22 +106,29 @@ function renderDrawings(){
   // drawings loaded for a job number that has no job card yet
   const orphans=Object.keys(C).filter(no=>!known.has(no));
   const byNo=(a,b)=>String(num(a)).localeCompare(String(num(b)),undefined,{numeric:true});
-  const withD=live.filter(j=>C[num(j)]).sort(byNo), noD=live.filter(j=>!C[num(j)]).sort(byNo);
+  // same lifecycle as Jobs (Kyle's review, Nov 14): Active / Planned / Shop, each with its "no drawings yet" folded
+  const life=j=>window.lifeOf?window.lifeOf(j):"active";
   const finD=fin.sort((a,b)=>(C[num(b)]?1:0)-(C[num(a)]?1:0)||byNo(b,a));
   const list=(arr)=>arr.filter(j=>hit(j.name)).map(j=>card(num(j),j.name,j.id,C[num(j)])).join("");
-  const act=list(withD)+orphans.filter(hit).map(no=>card(no,no,null,C[no])).join("");
-  const none=list(noD), done=list(finD);
   const searching=words.length>0;
+  const SECT=[["active","ACTIVE JOBS"],["planned","PLANNED JOBS"],["shop","SHOP JOBS"]];
+  let html="";
+  SECT.forEach(([k,t])=>{ const L=live.filter(j=>life(j)===k), withD=L.filter(j=>C[num(j)]).sort(byNo), noD=L.filter(j=>!C[num(j)]).sort(byNo);
+    let act=list(withD); if(k==="active") act+=orphans.filter(hit).map(no=>card(no,no,null,C[no])).join("");
+    const none=list(noD), nn=(none.match(/data-dj=/g)||[]).length, open=showNone.has(k)||searching;
+    if(!act&&!nn&&k!=="active") return;
+    html+=`<h4><span>${t}</span><span>${k==="active"&&!counts?"LOADING…":""}</span></h4>`+
+      (act||(k==="active"?`<div class="empty2">${counts?(searching?"No active job with drawings matches.":"No drawings loaded on an active job yet. Open a job → Parts & drawings → More → Import ZIP."):""}</div>`:""))+
+      (nn?`<button class="fold ${open?"open":""}" type="button" data-dwn="${k}"><span>${t.split(" ")[0]} · NO DRAWINGS YET (${nn})</span><span>▶</span></button>${open?none:""}`:""); });
+  const done=list(finD);
   B.innerHTML=`<div class="dw shanim">
     <input type="search" id="dwQ" placeholder="Find a job - number or name…" value="${esc(dwQ)}">
-    <h4><span>ACTIVE JOBS</span><span>${counts?"":"LOADING…"}</span></h4>
-    ${act||`<div class="empty2">${counts?(searching?"No active job with drawings matches.":"No drawings loaded on any active job yet. Open a job → Parts & drawings → Import zip."):""}</div>`}
-    ${none?`<button class="fold ${showNone||searching?"open":""}" type="button" id="dwNone"><span>ACTIVE · NO DRAWINGS YET (${(none.match(/data-dj=/g)||[]).length})</span><span>▶</span></button>${showNone||searching?none:""}`:""}
+    ${html}
     <button class="fold ${showFin||searching?"open":""}" type="button" id="dwFin"><span>FINISHED JOBS (${(done.match(/data-dj=/g)||[]).length})</span><span>▶</span></button>
     ${showFin||searching?(done||`<div class="empty2">No finished jobs${searching?" match":""}.</div>`):""}
   </div>`;
   const qi=$("#dwQ"); qi.oninput=()=>{ dwQ=qi.value; const p=qi.selectionStart; renderDrawings(); const n=$("#dwQ"); n.focus(); n.setSelectionRange(p,p); };
-  const fn=$("#dwNone"); if(fn) fn.onclick=()=>{ showNone=!showNone; renderDrawings(); };
+  B.querySelectorAll("[data-dwn]").forEach(b=>b.onclick=()=>{ const k=b.dataset.dwn; showNone.has(k)?showNone.delete(k):showNone.add(k); renderDrawings(); });
   $("#dwFin").onclick=()=>{ showFin=!showFin; renderDrawings(); };
   B.querySelectorAll("[data-dj]").forEach(b=>b.onclick=()=>{ if(window.jpFresh) window.jpFresh(); openJobParts(b.dataset.dj,b.dataset.dn,"drawings"); });
 }

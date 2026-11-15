@@ -96,7 +96,7 @@ function section(j){
     // what's tracking this NCR, open items first (stage 7)
     const items=[...s.ts.map(a=>({open:a.status!=="done",h:`Rework: ${esc(a.name)} · ${a.who?esc(a.who):"<span class='nwarn'>nobody assigned</span>"} · ${a.status==="done"?"done":esc((typeof AST!=="undefined"&&AST[a.status]||{}).t||a.status)}`})),
       ...s.os.map(o=>({open:o.status!=="received",h:`Replacement: ${esc(o.name)}${o.po||o.rfq?" "+esc(o.po||o.rfq):""} · ${esc(SUPT(o))}`})),
-      ...rv.map(r=>({open:!["checked","dropped"].includes(r.status),h:`Model: ${window.revTag?window.revTag(r.n):"REV"} · ${window.revStatus?window.revStatus(r.status):r.status}`}))]
+      ...rv.map(r=>({open:!["checked","dropped"].includes(r.status),h:`Model: ${window.revTag?window.revTag(r):"REV"} · ${window.revStatus?window.revStatus(r.status):r.status}`}))]
       .sort((p,q)=>q.open-p.open);
     const next=s.st==="Deciding"?"Decide the fix":s.st==="Not tracked"?"":s.st==="In progress"?"Finish the work tracked below":s.st==="Tracked - unassigned"?"Assign the rework to someone":s.st==="Tracked - not started"?"Rework is assigned - not started yet":s.st==="To check"?(items.length?"Check the rework / replacement, then accept and close":"Accept and close when you're happy with it"):"";
     const tOpenNow=trk.has(tk)||tw===tk;
@@ -118,7 +118,7 @@ function section(j){
       ${admin&&s.st==="To check"?`<div class="nrow"><button class="btn sm primary" type="button" data-naccept="${x.n}">✓ Checked - accept &amp; close</button></div>`:""}
       <details ${openCards.has(j.id+":"+x.n)?"open":""} data-ndetails="${x.n}"><summary>Edit, rework &amp; details</summary><div class="nedit">
         <div class="nm">${esc(x.type)} · ${esc(x.fix)} · ${s.h?s.h+"h":"0h"} rework${s.unk?` (+${s.unk} task${s.unk>1?"s":""} with no estimate)`:""}${x.mat?` · ${money(x.mat)} material`:""} · logged ${fmt(x.at)}</div>
-        ${rv.map(r=>`<div class="nm">Model revision ${window.revTag(r.n)}: ${esc(r.what)} · <b>${window.revStatus(r.status)}</b></div>`).join("")}
+        ${rv.map(r=>`<div class="nm">Model revision ${window.revTag(r)}: ${esc(r.what)} · <b>${window.revStatus(r.status)}</b></div>`).join("")}
         ${s.ts.length?`<div class="nrw"><span class="nm" style="margin:0">Rework tasks</span>${s.ts.map(a=>`<span class="nrt">${a.status==="done"?"✓ ":""}${esc(a.name)}${planHours(j.id,a.id)!=null?" "+planHours(j.id,a.id)+"h":""}${a.who?` · ${esc(a.who)}`:""}<button type="button" class="rmb" data-nuntag="${esc(a.id)}" aria-label="Not rework for ${tag(x.n)}: ${esc(a.name)}" title="Not rework for this NCR">×</button></span>`).join("")}</div>`:""}
         <div class="nrow"><label class="nlab">Fix<select data-nfix="${x.n}">${FIXES.map(f=>`<option ${x.fix===f?"selected":""}>${f}</option>`).join("")}</select></label>
           <label class="nlab" style="flex:2;min-width:200px">Add a rework step<span style="display:flex;gap:6px"><input data-nstep="${x.n}" placeholder="e.g. Re-drill holes 1.5h" style="flex:1"><button class="btn sm" type="button" data-nstepgo="${x.n}">Add</button></span></label></div>
@@ -213,7 +213,7 @@ function detailHtml(r){
     +blk("What happened",esc(x.details||""))+(x.details?"":`<div class="lbl" style="margin-top:6px">No details written yet - open the job to add them.</div>`)
     +blk("Decided",esc(x.decision||""))
     +blk("Rework",s.ts.map(a=>`${a.status==="done"?"✓ ":"• "}${esc(a.name)}${planHours(j.id,a.id)!=null?" - "+planHours(j.id,a.id)+"h":""}`).join("\n"))
-    +blk("Model revisions",revs.map(v=>`${window.revTag(v.n)} ${esc(v.what)} - ${window.revStatus(v.status)}`).join("\n"))
+    +blk("Model revisions",revs.map(v=>`${window.revTag(v)} ${esc(v.what)} - ${window.revStatus(v.status)}`).join("\n"))
     +blk("What stops it happening again",esc(x.prevent||""))
     +`<div style="margin-top:10px"><button class="btn sm" type="button" data-nj="${esc(j.id)}">Open job</button></div>`;
 }

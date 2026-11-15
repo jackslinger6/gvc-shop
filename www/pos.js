@@ -342,6 +342,7 @@ window.openPo=no=>{ selNo=no; if(typeof closeDlg==="function") closeDlg(); if(ty
 window.newRfqFor=jid=>{ if(typeof closeDlg==="function") closeDlg(); newSheet("rfq",{jobs:[jid]}); };
 window.newPoFor=jid=>{ if(typeof closeDlg==="function") closeDlg(); newSheet("po",{jobs:[jid]}); };
 /* replacement order for an NCR (stage 7): a new RFQ / PO on that job whose line carries ncr = n, so the NCR shows it as tracking */
+window.posRec=no=>no?(POS.find(r=>r.no===no)||null):null;
 window.newOrderForNcr=(jid,n,kind,title)=>{ newSheet(kind==="po"?"po":"rfq",{jobs:[jid],title,ncr:{jid,n}}); };
 window.posOpen=()=>POS.filter(r=>r.kind==="rfq"?r.status==="open":!["received","cancelled"].includes(r.status)).length;
 document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("[data-opo]"); if(b){ e.preventDefault(); e.stopPropagation(); window.openOrder(b.dataset.opo); } },true);

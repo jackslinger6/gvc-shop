@@ -48,6 +48,16 @@ css.textContent=`
 #gFlat .cfpa{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 #gFlat .cfpa button{min-height:48px;border-radius:12px;border:1px solid #3a3e45;background:rgba(255,255,255,.06);color:#e9ebee;font:600 15px var(--font-ui,inherit);cursor:pointer}
 #gFlat .cfpa .go{background:#ff8a2a;border-color:#ff8a2a;color:#1b0f05}
+.cnt .opick{border-style:solid;border-color:var(--accent-line)}
+.cnt .pkh{font:600 11.5px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:12px 0 4px}
+.cnt .pkr{display:flex;gap:10px;align-items:center;padding:6px 2px;font-size:14px;cursor:pointer}
+.cnt .pkr input,.cnt .pkgh input{width:20px;height:20px;flex:none}
+.cnt .pkr small{color:var(--muted)}
+.cnt .pkg{border-top:1px solid var(--line);padding:6px 0}
+.cnt .pkgh{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.cnt .pkgh label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;min-width:0}
+.cnt .pkgh label span{overflow:hidden;text-overflow:ellipsis}
+.cnt .pkq{width:100%;box-sizing:border-box;margin:2px 0 6px}
 .cnt .addbox{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px}
 .cnt .addrow{display:flex;gap:6px;flex-wrap:wrap}
 .cnt .pick{display:grid;gap:4px;margin-top:6px;max-height:260px;overflow:auto}
@@ -79,11 +89,25 @@ const live=()=>st.items.filter(i=>!i.skip&&!i.later);
 const later=()=>st.items.filter(i=>!i.skip&&i.later);
 const totals=()=>{ const L=live(); return {pcs:L.reduce((a,i)=>a+(i.qty||0),0), got:L.reduce((a,i)=>a+got(i),0), lines:L.length, full:L.filter(i=>got(i)>=(i.qty||0)).length}; };
 
-async function seed(j){
+/* Stage 10 (Kyle's review, Nov 14): a count is built from THAT order, never the whole job by default.
+   jobParts() = the job's parts list (gvc_job_parts) for the picker; suggest() = parts the order itself names
+   (scope / note / title, e.g. "CENTERLOC.9 x2"), pre-ticked with that quantity. Nothing goes on the checklist
+   until someone picks it. */
+async function jobParts(j){
   const no=window.jobNum?window.jobNum(j.name):"";
   if(!no) return [];
-  const r=await sb.from("gvc_job_parts").select("part_no,name,assembly,material,thickness,qty,thumb_path").eq("job_no",no).order("assembly").order("part_no");
-  return (r.data||[]).map(p=>({k:"j:"+p.part_no, part_no:p.part_no, name:p.name&&p.name!==p.part_no?p.name:(p.assembly||""), mat:[p.thickness?n3(p.thickness)+'"':"",p.material].filter(Boolean).join(" "), qty:p.qty||1, got:0, thumb:p.thumb_path||"", src:"job"}));
+  const r=await sb.from("gvc_job_parts").select("part_no,name,assembly,material,thickness,qty,thumb_path,source").eq("job_no",no).order("assembly").order("part_no");
+  return (r.data||[]).map(p=>({k:"j:"+p.part_no, part_no:p.part_no, name:p.name&&p.name!==p.part_no?p.name:(p.assembly||""), mat:window.jpMatText?window.jpMatText(p):[p.thickness?n3(p.thickness)+'"':"",p.material].filter(Boolean).join(" "), qty:p.qty||1, got:0, thumb:p.thumb_path||"", src:"job", source:p.source||"No source"}));
+}
+function suggest(parts,sup,rec){
+  const text=[sup.scope,sup.note,rec&&rec.title].filter(Boolean).join(" \n ");
+  if(!text) return {};
+  const out={};
+  parts.forEach(p=>{ const pn=String(p.part_no||""); if(!pn) return;
+    const cands=[pn,pn.replace(/^[^.]*_[^.]*\./,""),pn.split(".").slice(-2).join(".")].filter(x=>x&&x.length>=4&&/\D/.test(x));
+    for(const c of new Set(cands)){ const re=new RegExp("(^|[^A-Za-z0-9_.])"+c.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![A-Za-z0-9_]|\\.\\d)(?:\\s*[x×]\\s*(\\d+))?","i"); const m=text.match(re);
+      if(m){ out[p.k]=m[2]?+m[2]:null; break; } } });
+  return out;
 }
 
 const fname=n=>String(n||"").trim().split(/\s+/)[0].toLowerCase();
@@ -105,7 +129,9 @@ window.openCount=async function(jobId,supId){
     const r=await sb.from("gvc_counts").select("*").eq("job_id",S.jobId).eq("sup_id",S.supId).maybeSingle();
     S.row=r.data||null;
     let its=S.row?S.row.items||[]:null;
-    if(!its){ its=await seed(jobOf(S.jobId)); if(its.length) seeded=true; }
+    if(!its||!its.length){ its=[]; const jj=jobOf(S.jobId), ss=(jj.suppliers||[]).find(x=>x.id===S.supId)||{};
+      const rec=window.posRec?window.posRec(ss.po||ss.rfq):null;
+      const parts=await jobParts(jj); if(parts.length){ const sg=suggest(parts,ss,rec); S.pick={parts,sug:sg,sel:new Set(Object.keys(sg)),q:"",open:new Set()}; } }
     its.forEach(i=>{ i.g=g; items.push(i); });
   }
   st={jobId, supId:sup.id, sets, items, q:"", f:"all", seeded, dirty:new Set(), timer:null, addQ:"", addG:0, flat:{}};
@@ -183,7 +209,9 @@ async function openPart(ix,scan){
 }
 async function openFlat(ix,scan){ return openPart(ix,scan); }
 // '0.125" 0.125 ALUMINUM' -> '0.125" ALUMINUM' (the material name repeats the thickness)
-function matLabel(m){ m=String(m||"").trim(); const x=m.match(/^([\d.]+)"\s+([\d.]+)\s+(.*)$/); return x&&Math.abs(+x[1]-+x[2])<1e-6?`${x[1]}" ${x[3]}`:m; }
+function matLabel(m){ m=String(m||"").trim(); if(!m) return ""; if(window.jpMatText){ const t=window.jpMatText({thickness:null,material:m}); if(t) return t; }
+  const x=m.match(/^([\d.]+)"\s+([\d.]+)\s+(.*)$/); return x&&Math.abs(+x[1]-+x[2])<1e-6?`${x[1]}" ${x[3]}`:m; }
+const MK=i=>matLabel(i.mat)||"Other";
 window.gvcCountFlatThumb=pn=>FL[pn]?"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(FL[pn].x.thumb):"";
 
 function head(){
@@ -214,7 +242,7 @@ function printSheet(){
   const j=jobOf(st.jobId), sup=(j.suppliers||[]).find(x=>x.id===st.supId)||{};
   const items=live().slice().sort((a,b)=>String(a.mat||"").localeCompare(String(b.mat||""))||String(a.part_no||a.name).localeCompare(String(b.part_no||b.name),undefined,{numeric:true}));
   const pcs=items.reduce((a,i)=>a+(i.qty||0),0);
-  const byMat={}; items.forEach(i=>(byMat[i.mat||"Other"]=byMat[i.mat||"Other"]||[]).push(i));
+  const byMat={}; items.forEach(i=>(byMat[MK(i)]=byMat[MK(i)]||[]).push(i));
   const row=i=>{ const q=i.qty||0, im=url(i.thumb||i.img);
     const boxes=q<=30?Array.from({length:q},()=>'<span class="b"></span>').join(""):`<span class="ln"></span> of ${q}`;
     return `<tr><td class="th">${im?`<img src="${esc(im)}" alt="">`:""}</td><td><b>${esc(i.part_no||i.name)}</b>${i.part_no&&i.name&&i.name!==i.part_no?`<div class="s">${esc(i.name)}</div>`:""}</td><td class="q">${q}</td><td>${boxes}</td><td class="nt"></td></tr>`; };
@@ -242,11 +270,11 @@ function printSheet(){
 }
 function draw(){
   const D=$("#dlg"); const words=st.q.toLowerCase().split(/\s+/).filter(Boolean);
-  const vis=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&!it.later&&words.every(w=>[it.part_no,it.name,it.mat].join(" ").toLowerCase().includes(w))
+  const vis=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&!it.later&&words.every(w=>[it.part_no,it.name,it.mat,matLabel(it.mat)].join(" ").toLowerCase().includes(w))
     &&(st.f==="all"||(st.f==="missing"?got(it)<(it.qty||0):got(it)>=(it.qty||0))));
   const skipped=st.items.map((it,ix)=>({it,ix})).filter(({it})=>it.skip);
-  const mats=[...new Set(live().map(i=>i.mat).filter(Boolean))];
-  const allMats=[...new Set(st.items.filter(i=>!i.skip).map(i=>i.mat||"Other"))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const mats=[...new Set(live().map(i=>matLabel(i.mat)).filter(Boolean))];
+  const allMats=[...new Set(st.items.filter(i=>!i.skip).map(MK))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const lat=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&it.later);
   D.innerHTML=`<div class="cnt">${head()}
     ${st.items.length?`<div class="tools">${window.gvcScan?`<button class="btn primary" type="button" id="cScan" style="min-height:40px">📷 Scan</button>`:""}<input type="search" id="cQ" placeholder="Find a part (number, name, material)" value="${esc(st.q)}">
@@ -255,12 +283,13 @@ function draw(){
     ${st.seeded&&st.items.length?`<div class="tnote">Started from the job's parts list (${st.items.length} parts). If this order is only part of the job, tap "Not on this order" on the rest.</div>`:""}
     ${allMats.length>1?`<details class="addbox" style="margin-top:8px" ${lat.length?"open":""}><summary style="cursor:pointer;font-size:13px;font-weight:600">Only part of the order came?</summary>
       <div class="tnote" style="margin-top:4px">Tap the materials that came in this delivery. The rest stays on the order as "still to come" and isn't counted short.</div>
-      <div class="tools">${allMats.map(m=>{ const on=st.items.some(i=>!i.skip&&!i.later&&(i.mat||"Other")===m); const n=st.items.filter(i=>!i.skip&&(i.mat||"Other")===m).reduce((a,i)=>a+(i.qty||0),0);
+      <div class="tools">${allMats.map(m=>{ const on=st.items.some(i=>!i.skip&&!i.later&&MK(i)===m); const n=st.items.filter(i=>!i.skip&&MK(i)===m).reduce((a,i)=>a+(i.qty||0),0);
         return `<button class="chip ${on?"on":""}" type="button" data-pm="${esc(m)}" style="${on?"border-color:#3ad06b;color:#3ad06b":"opacity:.6"}">${on?"✓ ":""}${esc(matLabel(m))} · ${n}</button>`; }).join("")}
         <button class="lnk" type="button" id="cPmAll">All came</button></div></details>`:""}
     <div id="cList">${listHtml(vis)}</div>
     ${lat.length?`<details style="margin-top:10px"><summary class="tnote" style="cursor:pointer;color:#f5b041">Still to come - later delivery (${lat.length} parts, ${lat.reduce((a,{it})=>a+(it.qty||0),0)} pcs)</summary>${lat.map(({it,ix})=>`<div class="tnote" style="display:flex;justify-content:space-between;gap:8px;margin:4px 0"><span>${esc(it.part_no||it.name)} · ${esc(it.mat||"")} · ${it.qty} pcs</span><button class="lnk" type="button" data-unlater="${ix}">It's here</button></div>`).join("")}</details>`:""}
     ${skipped.length?`<details style="margin-top:10px"><summary class="tnote" style="cursor:pointer">Not on this order (${skipped.length})</summary>${skipped.map(({it,ix})=>`<div class="tnote" style="display:flex;justify-content:space-between;gap:8px;margin:4px 0"><span>${esc(it.part_no||it.name)} · ${it.qty} pcs</span><button class="lnk" type="button" data-unskip="${ix}">Put back</button></div>`).join("")}</details>`:""}
+    ${pickHtml()}
     <div class="addbox"><b style="font-size:13px">Add an item to this order</b>
       <div class="addrow" style="margin-top:6px"><input id="cAddQ" placeholder="Search inventory or type a name" value="${esc(st.addQ)}" style="flex:1;min-width:160px"><input id="cAddN" type="number" min="1" value="1" style="width:70px" aria-label="Quantity">${st.sets.length>1?`<select id="cAddG" aria-label="Which job">${st.sets.map((S,g)=>`<option value="${g}" ${st.addG===g?"selected":""}>${esc(jobOf(S.jobId).name)}</option>`).join("")}</select>`:""}<button class="btn" type="button" id="cAdd">Add</button></div>
       <div class="pick" id="cPick"></div></div>
@@ -282,6 +311,34 @@ function drawPick(){
   P.innerHTML=inv.map(p=>`<button type="button" data-pk="${esc(p.part_no)}">${url(p.img_path)?`<img src="${esc(url(p.img_path))}" alt="">`:""}<span><b>${esc(p.part_no)}</b> ${esc(p.name||"")}</span></button>`).join("")||`<div class="tnote">Not in the inventory list - tap Add to add "${esc(st.addQ)}" as typed.</div>`;
   P.querySelectorAll("[data-pk]").forEach(b=>b.onclick=()=>{ const p=parts.find(x=>x.part_no===b.dataset.pk); addItem({k:"p:"+p.part_no, part_no:p.part_no, name:p.name||"", mat:[p.material,p.thickness].filter(Boolean).join(" "), img:p.img_path||"", src:"inv"}); });
 }
+/* "Which parts are on this order?" - suggested parts pre-ticked; the rest of the job's parts grouped by where they came from */
+function pickHtml(){
+  return st.sets.map((S,g)=>{ const P=S.pick; if(!P) return "";
+    const has=k=>P.sel.has(k), q=P.q.toLowerCase();
+    const row=p=>`<label class="pkr"><input type="checkbox" data-pk="${g}|${esc(p.k)}" ${has(p.k)?"checked":""}><span><b>${esc(p.part_no)}</b> <small>${esc(p.mat||"")}${P.sug[p.k]!=null?` · ×${P.sug[p.k]} on the order`:` · job qty ${p.qty}`}</small></span></label>`;
+    const sug=P.parts.filter(p=>p.k in P.sug);
+    const by={}; P.parts.filter(p=>!q||[p.part_no,p.name,p.mat,p.source].join(" ").toLowerCase().includes(q)).forEach(p=>{ (by[p.source]=by[p.source]||[]).push(p); });
+    const n=P.sel.size;
+    return `<div class="addbox opick"><b style="font-size:14px">Which parts are on this order?${st.sets.length>1?" - "+esc(jobOf(S.jobId).name):""}</b>
+      <div class="tnote">The checklist only has what you pick here. ${sug.length?"Parts the order names are ticked already.":"The order doesn't name any parts from the job's list - pick them, or add items by hand below."}</div>
+      ${sug.length?`<div class="pkh">Named on the order</div>${sug.map(row).join("")}`:""}
+      <div class="pkh">From the job's parts list (${P.parts.length})</div>
+      <input type="search" class="pkq" data-pkq="${g}" placeholder="Find a part" value="${esc(P.q)}">
+      ${Object.entries(by).map(([src,L])=>{ const all=L.every(p=>has(p.k)), some=L.some(p=>has(p.k)), op=P.open.has(src)||!!q;
+        return `<div class="pkg"><div class="pkgh"><label><input type="checkbox" data-pkall="${g}|${esc(src)}" ${all?"checked":""} ${!all&&some?"data-mixed":""}> <span>${esc(src.length>80?src.slice(0,78)+"…":src)}</span></label><button type="button" class="lnk" data-pko="${g}|${esc(src)}">${op?"Hide":"Show"} ${L.length}</button></div>
+          ${op?L.map(row).join(""):""}</div>`; }).join("")}
+      <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn primary" type="button" data-pkgo="${g}" ${n?"":"disabled"}>Add ${n} part${n===1?"":"s"} to the checklist</button></div></div>`; }).join("");
+}
+function wirePick(D){
+  const S=g=>st.sets[+g].pick;
+  D.querySelectorAll("[data-pk]").forEach(b=>b.onchange=()=>{ const [g,k]=b.dataset.pk.split(/\|(.*)/s); const P=S(g); b.checked?P.sel.add(k):P.sel.delete(k); draw(); });
+  D.querySelectorAll("[data-pkall]").forEach(b=>{ if(b.hasAttribute("data-mixed")) b.indeterminate=true; b.onchange=()=>{ const [g,src]=b.dataset.pkall.split(/\|(.*)/s); const P=S(g); P.parts.filter(p=>p.source===src).forEach(p=>b.checked?P.sel.add(p.k):P.sel.delete(p.k)); draw(); }; });
+  D.querySelectorAll("[data-pko]").forEach(b=>b.onclick=()=>{ const [g,src]=b.dataset.pko.split(/\|(.*)/s); const P=S(g); P.open.has(src)?P.open.delete(src):P.open.add(src); draw(); });
+  D.querySelectorAll("[data-pkq]").forEach(i=>i.oninput=()=>{ const P=S(i.dataset.pkq); P.q=i.value; const pos=i.selectionStart; draw(); const n=D.querySelector(`[data-pkq="${i.dataset.pkq}"]`); if(n){ n.focus(); n.setSelectionRange(pos,pos); } });
+  D.querySelectorAll("[data-pkgo]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; b.disabled=true; const g=+b.dataset.pkgo, P=S(g);
+    P.parts.filter(p=>P.sel.has(p.k)).forEach(p=>{ const {source,...it}=p; st.items.push({...it,qty:P.sug[p.k]!=null?P.sug[p.k]:it.qty,got:0,g}); });
+    st.sets[g].pick=null; changed(g); await loadFlat(st.items); await sign(st.items.filter(i=>!st.flat[i.part_no]).map(i=>i.thumb||i.img)); draw(); });
+}
 function addItem(base){
   const n=Math.max(1,parseInt($("#cAddN").value)||1);
   const gs=$("#cAddG"); const g=gs?+gs.value:0; st.addG=g;
@@ -298,7 +355,7 @@ function wire(){
     const L=st.items.map((it,ix)=>({it,ix})).filter(({it})=>!it.skip&&!it.later);
     window.gvcScan({title:"Scan a part number",
       items:L.map(({it,ix})=>({id:String(ix),keys:[it.part_no,it.part_no?"":it.name],label:it.part_no||it.name})),
-      info:id=>{ const it=st.items[+id]; return {label:it.part_no||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",it.mat].filter(Boolean).join(" · "),got:got(it),qty:it.qty||0,img:window.gvcCountFlatThumb(it.part_no)||url(it.thumb||it.img)}; },
+      info:id=>{ const it=st.items[+id]; return {label:it.part_no||it.name,sub:[it.part_no&&it.name&&it.name!==it.part_no?it.name:"",matLabel(it.mat)].filter(Boolean).join(" · "),got:got(it),qty:it.qty||0,img:window.gvcCountFlatThumb(it.part_no)||url(it.thumb||it.img)}; },
       open:(id,done)=>{ openPart(+id,done); return true; },
       act:()=>{},
       onClose:()=>draw()});
@@ -311,7 +368,7 @@ function wire(){
   D.querySelectorAll("[data-skip]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.skip]; it.skip=true; changed(it.g); draw(); });
   D.querySelectorAll("[data-later]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.later]; it.later=true; changed(it.g); draw(); });
   D.querySelectorAll("[data-unlater]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.unlater]; it.later=false; changed(it.g); draw(); });
-  D.querySelectorAll("[data-pm]").forEach(b=>b.onclick=()=>{ const m=b.dataset.pm; const its=st.items.filter(i=>!i.skip&&(i.mat||"Other")===m);
+  D.querySelectorAll("[data-pm]").forEach(b=>b.onclick=()=>{ const m=b.dataset.pm; const its=st.items.filter(i=>!i.skip&&MK(i)===m);
     const on=its.some(i=>!i.later); its.forEach(i=>{ i.later=on; changed(i.g); }); draw(); });
   const pa=$("#cPmAll"); if(pa) pa.onclick=()=>{ st.items.forEach(i=>{ if(i.later){ i.later=false; changed(i.g); } }); draw(); };
   D.querySelectorAll("[data-unskip]").forEach(b=>b.onclick=()=>{ const it=st.items[+b.dataset.unskip]; it.skip=false; changed(it.g); draw(); });
@@ -320,6 +377,7 @@ function wire(){
   $("#cAdd").onclick=()=>{ const t=st.addQ.trim(); if(!t) return; const p=(typeof parts!=="undefined"?parts:[]).find(x=>x.part_no.toLowerCase()===t.toLowerCase());
     if(p) addItem({k:"p:"+p.part_no, part_no:p.part_no, name:p.name||"", mat:"", img:p.img_path||"", src:"inv"}); else addItem({k:"m:"+t.toLowerCase(), part_no:"", name:t, mat:"", src:"manual"}); };
   $("#cDone").onclick=finish;
+  wirePick(D);
 }
 /* redraw one row + the header without losing scroll position */
 function refresh(ix){
@@ -399,8 +457,8 @@ async function finish(){
   }
   if(L.length){
     // partial delivery: save what came, keep the order open for the rest
-    const lp=L.reduce((a,i)=>a+(i.qty||0),0); const lm=[...new Set(L.map(i=>i.mat||"Other"))].join(", ");
-    const cm=[...new Set(live().map(i=>i.mat||"Other"))].join(", ");
+    const lp=L.reduce((a,i)=>a+(i.qty||0),0); const lm=[...new Set(L.map(MK))].join(", ");
+    const cm=[...new Set(live().map(MK))].join(", ");
     box.innerHTML=`<b>This delivery: ${t.got} of ${t.pcs} pcs here${miss.length?` - ${miss.length} part${miss.length>1?"s":""} short`:" - all here"}.</b>
       ${miss.length?`<div class="tnote">${esc(missTx)}</div>`:""}
       <div class="tnote">Still to come: ${L.length} part${L.length>1?"s":""}, ${lp} pcs (${esc(lm)}). The order stays open for those.</div>

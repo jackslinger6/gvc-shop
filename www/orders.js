@@ -21,9 +21,19 @@ const $$=n=>n==null||n===""||isNaN(n)?"":"$"+(+n).toLocaleString(undefined,{mini
 const ST=[["rfq","Asked for quotes","#9b7bff"],["compare","Comparing quotes","#22c3e6"],["ordered","On order","#ff8a2a"],["shipped","On its way","#f5b041"],["ready","Ready to pick up","#3ad06b"],["delivered","Delivered","#2f8ff0"],["received","Received ✓","#7d8794"]];
 const SL=Object.fromEntries(ST.map(([k,t,c])=>[k,{t,c}]));
 let PO=[], loaded=false, tab="active", poId=null, ch=null, BOX=null;
-window.pordersAttn=()=>PO.filter(o=>["compare","ready","delivered"].includes(o.status)).length;
-window.pordersOpen=()=>PO.filter(o=>!["received","cancelled"].includes(o.status)).length;
-window.pordersBy=k=>PO.filter(o=>o.status===k).length;
+/* practice orders (Kyle made PO-1004..1007 on Nov 8 so Robin could try the screens - "Not her real order") stay out of
+   every count, board and reminder; they're listed apart, marked Practice. A real `sample` flag would be better (review, Nov 14). */
+const isPractice=o=>o.sample===true||/^\s*PREVIEW for Robin|not her real order|\bpractice order\b/i.test(o.notes||"");
+const PR=()=>PO.filter(o=>!isPractice(o));
+{ const st=document.createElement("style"); st.textContent=`.pract summary{list-style:none;cursor:pointer}.pract summary::-webkit-details-marker{display:none}
+.card.practice{opacity:.75}.card.practice::before{content:"Practice - not a real order";display:block;font:600 11px var(--font-ui);color:var(--amber);margin-bottom:4px}
+.pracban{border:1px solid rgba(245,176,65,.5);background:rgba(245,176,65,.1);color:#ffd28a;border-radius:10px;padding:10px 12px;margin:0 0 10px;font-size:13px;font-weight:600}`; document.head.appendChild(st); }
+function practiceHTML(){ const L=PO.filter(isPractice); if(!L.length) return "";
+  return `<details class="list closed pract" style="margin-top:14px"><summary class="listhead"><h3>Practice orders <span class="n">${L.length} · not real, not counted</span></h3></summary>
+    <div class="pogrid">${L.map(o=>boardCard(o).replace('class="','class="practice ')).join("")}</div></details>`; }
+window.pordersAttn=()=>PR().filter(o=>["compare","ready","delivered"].includes(o.status)).length;
+window.pordersOpen=()=>PR().filter(o=>!["received","cancelled"].includes(o.status)).length;
+window.pordersBy=k=>PR().filter(o=>o.status===k).length;
 
 async function load(){
   const r=await sb.from("gvc_porders").select("*").order("created_at",{ascending:false});
@@ -168,9 +178,9 @@ function boardHTML(act){
 let allOpen=true; try{ allOpen=localStorage.getItem("gvc_allorders")!=="0"; }catch(e){}
 function allOrdersHTML(){
   const recent=o=>o.status!=="received"||Date.now()-new Date(o.updated_at||0)<14*864e5;
-  const L=PO.filter(o=>o.status!=="cancelled"&&recent(o)).sort((a,b)=>ST.findIndex(x=>x[0]===a.status)-ST.findIndex(x=>x[0]===b.status)||String(b.updated_at).localeCompare(String(a.updated_at)));
+  const L=PR().filter(o=>o.status!=="cancelled"&&recent(o)).sort((a,b)=>ST.findIndex(x=>x[0]===a.status)-ST.findIndex(x=>x[0]===b.status)||String(b.updated_at).localeCompare(String(a.updated_at)));
   const short={"Asked for quotes":"Asked","Comparing quotes":"Comparing","Ready to pick up":"Pick up","Received ✓":"Received"};
-  return `<section class="list ${allOpen?"":"closed"}" id="poAll"><div class="listhead" id="poAllH" role="button" tabindex="0"><h3><span class="caret">▾</span> All orders <span class="n">${L.length}${PO.filter(needsYou).length?` · ${PO.filter(needsYou).length} need attention`:""}</span></h3></div>
+  return `<section class="list ${allOpen?"":"closed"}" id="poAll"><div class="listhead" id="poAllH" role="button" tabindex="0"><h3><span class="caret">▾</span> All orders <span class="n">${L.length}${PR().filter(needsYou).length?` · ${PR().filter(needsYou).length} need attention`:""}</span></h3></div>
     <div class="trk"><div class="hdr"></div><div class="cells lbl" style="--n:${ST.length}">${ST.map(([k,t])=>`<div>${E(short[t]||t)}</div>`).join("")}</div><div class="hdr"></div>
     ${L.map(o=>{ const i=ST.findIndex(x=>x[0]===o.status), N=nums(o); return `<button class="jn" type="button" data-po="${o.id}" title="${E(N.name)}">${N.big?`<b style="color:${SL[o.status].c}">${E(N.big)}</b> - `:""}${E(N.name)}</button>
       <div class="cells" style="--n:${ST.length}">${ST.map(([k,t,c],xi)=>`<div class="cell ${xi<i?"past":xi===i?"now":""}" title="${E(t)}" style="${xi<=i?`background:${c};--cc:${c}`:""}"></div>`).join("")}</div>
@@ -178,20 +188,21 @@ function allOrdersHTML(){
 }
 /* ================= list ================= */
 function renderList(B){
-  const act=PO.filter(o=>!["received","cancelled"].includes(o.status));
-  const tabs=[["active","Open",act.length],...ST.map(([k,t])=>[k,t,PO.filter(o=>o.status===k).length])];
-  const list=tab==="active"?act:PO.filter(o=>o.status===tab);
+  const act=PR().filter(o=>!["received","cancelled"].includes(o.status));
+  const tabs=[["active","Open",act.length],...ST.map(([k,t])=>[k,t,PR().filter(o=>o.status===k).length])];
+  const list=tab==="active"?act:PR().filter(o=>o.status===tab);
   const box=BOX?`<div class="lbl" style="margin-top:6px">${BOX.box==="robin"?`📧 Reading quotes from ${E(BOX.email||"Robin's email")}`:`📧 Robin's email isn't connected yet - for now it reads the quote emails ${role()==="parts"?"you forward":"Robin forwards"} to Kyle. <button class="btn sm" type="button" id="poCon" style="margin-left:4px">Connect Robin's email</button>`}</div>`:"";
-  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2>${role()==="parts"?"My orders":"Robin's orders"}</h2><span class="lbl">${act.length} open${PO.filter(needsYou).length?` · ${PO.filter(needsYou).length} need attention`:""}</span><span style="flex:1"></span><button class="btn primary" type="button" id="poNew">+ New order</button></div>${box}
+  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2>${role()==="parts"?"My orders":"Robin's orders"}</h2><span class="lbl">${act.length} open${PR().filter(needsYou).length?` · ${PR().filter(needsYou).length} need attention`:""}</span><span style="flex:1"></span><button class="btn primary" type="button" id="poNew">+ New order</button></div>${box}
     <div class="stg potabs">${tabs.map(([k,t,n])=>`<button class="tab ${tab===k?"on":""}" style="--c:${k==="active"?"#ff8a2a":SL[k].c}" type="button" data-pot="${k}">${t}${n?`<span class="ct">${n}</span>`:""}</button>`).join("")}</div>
     ${tab==="active"?boardHTML(act):`<div class="pogrid">${list.map(boardCard).join("")}</div>`}
     ${!list.length&&tab!=="active"?`<div class="empty" style="text-align:left;margin-top:12px">${loaded?"Nothing here.":"Loading…"}</div>`:""}
-    ${PO.length?allOrdersHTML():""}`;
+    ${PR().length?allOrdersHTML():""}${practiceHTML()}`;
   B.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const o=PO.find(x=>x.id===el.dataset.cnt); if(o) countSheet(o); });
   B.querySelector("#poNew").onclick=newOrder;
   { const H=B.querySelector("#poAllH"); if(H) H.onclick=()=>{ allOpen=!allOpen; try{localStorage.setItem("gvc_allorders",allOpen?"1":"0")}catch(e){} B.querySelector("#poAll").classList.toggle("closed",!allOpen); }; }
   B.querySelectorAll("[data-pot]").forEach(b=>b.onclick=()=>{ tab=b.dataset.pot; render(); });
   B.querySelectorAll("[data-po]").forEach(b=>b.onclick=()=>{ poId=b.dataset.po; render(); toTop(); });
+  { const d=B.querySelector("details.pract"); if(d) d.ontoggle=()=>d.classList.toggle("closed",!d.open); }
   const cn=B.querySelector("#poCon"); if(cn) cn.onclick=connect;
 }
 /* the number that matters: RFQ while asking/comparing, PO once ordered (RFQ shown under it) */
@@ -483,7 +494,7 @@ function renderPorders(){
   const B=$("#board"); B.className="pov"; B.style.gridTemplateColumns="";
   if(!BOX&&!pv()){ BOX={box:"?"}; call({action:"rfq_box"}).then(r=>{ BOX=r; if(cur==="porders"&&!poId) render(); }).catch(()=>{ BOX=null; }); }
   const o=poId&&PO.find(x=>x.id===poId);
-  if(o) renderOrder(B,o); else { poId=null; renderList(B); }
+  if(o){ renderOrder(B,o); if(isPractice(o)) B.insertAdjacentHTML("afterbegin",`<div class="pracban">Practice order - made so Robin could try the screens. Not a real order; it isn't counted anywhere.</div>`); } else { poId=null; renderList(B); }
 }
 window.extraViews=Object.assign(window.extraViews||{},{porders:renderPorders});
 window.pordersGo=k=>{ tab=k||"active"; poId=null; shellGo("porders"); };
@@ -495,7 +506,7 @@ GVC.on("back",()=>{ try{ const sh=[...document.querySelectorAll(".shov.on")].len
 function robinNext(){
   const out=[], now=Date.now(), dd=t=>Math.floor((now-new Date(t||now))/864e5);
   const open=o=>()=>{ tab="active"; poId=o.id; shellGo("porders"); toTop(); };
-  PO.forEach(o=>{ const N=nums(o), Q=quotes(o), nm=(N.big?N.big+" · ":"")+N.name;
+  PR().forEach(o=>{ const N=nums(o), Q=quotes(o), nm=(N.big?N.big+" · ":"")+N.name;
     if(o.status==="ready") out.push({r:1,tag:"PICK UP",c:"#3ad06b",text:`Pick up at ${o.vendor||"the vendor"}`,sub:nm,act:{t:"PICKED UP - COUNT IT",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
     else if(o.status==="delivered") out.push({r:2,tag:"COUNT IT IN",c:"#2f8ff0",text:`Count in ${N.name}`,sub:[N.big,o.vendor].filter(Boolean).join(" · "),act:{t:"COUNT IT IN",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
     else if(o.status==="compare"&&Q.length) out.push({r:3,tag:"PICK A VENDOR",c:"#22c3e6",text:`Compare quotes: ${N.name}`,sub:`${N.big?N.big+" · ":""}${Q.length} quote${Q.length>1?"s":""} in${cheapest(o)?" · lowest "+$$(cheapest(o)):""}`,act:{t:"COMPARE QUOTES",fn:open(o)}});
@@ -528,7 +539,7 @@ window.partsHome=B=>{
     <div class="soon"><b>Hardware price comparison<i>COMING LATER</i></b>The same bolt at Fastenal, Resource and Gregg's side by side, with price history.</div>
     <div class="soon"><b>Time & payroll<i>COMING LATER</i></b>Everyone's punched hours by pay period (semi-monthly), approved and exported for QuickBooks.</div>`;
   hm.appendChild(right);
-  if(PO.length){ B.insertAdjacentHTML("beforeend",allOrdersHTML());
+  if(PR().length){ B.insertAdjacentHTML("beforeend",allOrdersHTML());
     const H=B.querySelector("#poAllH"); if(H) H.onclick=()=>{ allOpen=!allOpen; try{localStorage.setItem("gvc_allorders",allOpen?"1":"0")}catch(e){} B.querySelector("#poAll").classList.toggle("closed",!allOpen); };
     B.querySelectorAll("#poAll [data-po]").forEach(b=>b.onclick=()=>{ tab="active"; poId=b.dataset.po; shellGo("porders"); toTop(); }); }
   if(NU) NU.wire(B,items);
