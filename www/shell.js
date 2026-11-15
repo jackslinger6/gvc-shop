@@ -123,7 +123,10 @@ body.girly .trk .cell[style*="--cc"]{background:var(--cc)!important}body.girly .
 .shsheet{width:min(560px,100%);background:#17191d;border:1px solid var(--line);border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .26s cubic-bezier(.2,.8,.2,1);max-height:86vh;overflow:auto}
 .shov.on .shsheet{transform:none}
 @media (min-width:900px){ .shov{align-items:center} .shsheet{border-radius:20px;transform:translateY(20px) scale(.96);opacity:0;transition:transform .22s,opacity .22s} .shov.on .shsheet{transform:none;opacity:1} }
-.shsheet h3{margin:0 0 12px;font:600 18px var(--font-display);letter-spacing:.06em}
+.shsheet{position:relative}
+.shx{position:absolute;top:10px;right:10px;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+.shx:hover{color:var(--text);border-color:var(--line2)}
+.shsheet h3{padding-right:52px;margin:0 0 12px;font:600 18px var(--font-display);letter-spacing:.06em}
 .mmsec{margin:0 0 16px}
 .mmsh{font:600 11.5px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 2px 8px}
 .mmlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -131,7 +134,7 @@ body.girly .trk .cell[style*="--cc"]{background:var(--cc)!important}body.girly .
 .mmi{display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:500 14.5px var(--font-ui);text-align:left;cursor:pointer}
 .mmi svg{flex:none;color:var(--muted)}
 .mmi .mmt{flex:1;min-width:0;line-height:1.2}
-.mmi .mmc{flex:none;min-width:22px;height:22px;border-radius:11px;background:var(--red);color:#fff;font:700 12px var(--font-ui);display:flex;align-items:center;justify-content:center;padding:0 6px}
+.mmi .mmc{flex:none;min-width:22px;height:22px;border-radius:11px;background:var(--accent);color:var(--on-accent);font:700 12px var(--font-ui);display:flex;align-items:center;justify-content:center;padding:0 6px}
 .mmi .mmc.grey{background:none;color:var(--muted);font-weight:600}
 .mmi:hover{border-color:var(--line2);background:var(--panel2)}
 .mmi.out,.mmi.out svg{color:#ff9b9b}
@@ -425,10 +428,11 @@ GVC.on("render:after",()=>{
 
 /* ---- More menu ---- */
 function sheet(html,onReady){
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true">${html}</div>`;
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><button type="button" class="shx" aria-label="Close">${svg("plus","currentColor",20,2.2).replace("<path",'<path transform="rotate(45 12 12)"')}</button>${html}</div>`;
   document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
   const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
   ov.onclick=e=>{ if(e.target===ov) close(); };
+  ov.querySelector(".shx").onclick=close;
   if(onReady) onReady(ov.querySelector(".shsheet"),close);
   return close;
 }
@@ -443,18 +447,18 @@ function moreMenu(){
   const items2=role==="crew"?items.filter(x=>CREWOK.includes(x[0])):role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging"].includes(x[0]));
   /* grouped (redesign stage 6, Kyle Nov 14): everyday work first, then purchasing, then tools & settings.
      The "see the app as" previews and Girly mode sit at the bottom instead of the top. Same items and same roles as before. */
-  const GRP={todo:"day",msgs:"day",time:"day",mytime:"day",count:"day",supplies:"day",ncr:"day",revs:"day",inv:"day",newjob:"day",archive:"day",talks:"day",
+  const GRP={todo:"day",msgs:"day",time:"day",mytime:"day",count:"day",supplies:"day",newjob:"day",talks:"day",ncr:"jobs",revs:"jobs",inv:"jobs",archive:"jobs",
     pos:"buy",porders:"buy",requests:"buy",prices:"buy",staging:"buy",
     ideas:"set",undo:"set",theme:"set",signout:"set"};
-  if(role==="parts"){ GRP.porders="day"; GRP.staging="day"; }
+  if(role==="parts"){ GRP.porders="day"; GRP.staging="day"; GRP.inv="day"; GRP.archive="day"; }
   const ORD=["todo","msgs","time","mytime","count","supplies","newjob","ncr","revs","inv","staging","talks","archive","pos","porders","requests","prices","ideas","undo","theme","signout"];
   const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0]));
   const rest=items2.filter(x=>!PVK.includes(x[0])).sort((a,b)=>{ const ix=k=>role==="parts"&&k==="porders"?-1:ORD.indexOf(k); return ix(a[0])-ix(b[0]); });
-  const GT={day:role==="parts"?"Your work":"Everyday",buy:"Purchasing",set:"Tools & settings"};
-  const tile=([k,t,i,c,grey])=>`<button type="button" class="mmi${k==="signout"?" out":""}" data-m="${k}">${svg(i,"currentColor",22)}<span class="mmt">${t}</span>${c?`<span class="mmc${grey?" grey":""}">${c}</span>`:""}</button>`;
+  const GT={day:role==="parts"?"Your work":"Your day",jobs:"Jobs & records",buy:"Purchasing",set:"Tools & settings"};
+  const tile=([k,t,i,c,grey])=>`<button type="button" class="mmi${k==="signout"?" out":""}" data-m="${k}">${svg(i,"currentColor",22)}<span class="mmt">${t}</span>${c?`<span class="mmc${["msgs","time"].includes(k)?"":" grey"}">${c}</span>`:""}</button>`;
   const sec=g=>{ const L=rest.filter(x=>(GRP[x[0]]||"set")===g); if(g==="set"&&pvItems.length) L.splice(L.findIndex(x=>x[0]==="signout")>=0?L.findIndex(x=>x[0]==="signout"):L.length,0,...pvItems.map(([k])=>[k,`See the app as ${k==="partsview"?"Robin":"Colton"}`,"crew"]));
     return L.length?`<div class="mmsec"><div class="mmsh">${GT[g]}</div><div class="mmlist">${L.map(tile).join("")}</div></div>`:""; };
-  sheet(`<h3>Menu</h3>${sec("day")}${sec("buy")}${sec("set")}`,(el,close)=>{
+  sheet(`<h3>Menu</h3>${sec("day")}${sec("jobs")}${sec("buy")}${sec("set")}`,(el,close)=>{
     el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ const k=b.dataset.m; close();
       if(k==="msgs"){ window.openInbox&&window.openInbox(); }
       else if(k==="mytime"){ window.openMyTime&&window.openMyTime(); }
@@ -496,6 +500,9 @@ plus.addEventListener("pointermove",e=>{ if(!whl||!downAt) return; const el=docu
   if(b!==hot){ if(hot) hot.classList.remove("hot"); hot=b; if(b){ b.classList.add("hot"); slid=true; try{navigator.vibrate&&navigator.vibrate(8)}catch(_){} } } });
 plus.addEventListener("pointerup",()=>{ if(!downAt) return; downAt=0; if(hot&&slid){ const k=hot.dataset.w; wheelClose(); act(k); } });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") wheelClose(); });
+// Esc closes the top pop-up sheet (More menu, add to-do, messages...) - same as tapping outside it (stage 6 review)
+document.addEventListener("keydown",e=>{ if(e.key!=="Escape") return; const L=[...document.querySelectorAll(".shov.on")]; const ov=L[L.length-1]; if(!ov) return;
+  e.preventDefault(); e.stopImmediatePropagation(); const x=ov.querySelector(".shx"); if(x) x.click(); else ov.click(); },true);
 
 function act(k){
   if(window.crewAct&&window.crewAct(k)) return;

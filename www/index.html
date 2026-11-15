@@ -416,6 +416,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <span class="status" id="status">Loading…</span>
       <button class="btn undo" id="undoBtn" type="button" title="Undo (Ctrl+Z)">↶ Undo</button>
+      <button class="btn ghost" id="toList" type="button" title="Jump down to the All jobs list">All jobs ↓</button>
       <button class="btn primary" id="addJob" type="button">+ New job</button>
     </div>
   </div>
@@ -681,7 +682,8 @@ function drawTrack(){
   T.querySelectorAll("[data-ajx]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const id=el.dataset.ajx; ajOpen.has(id)?ajOpen.delete(id):ajOpen.add(id); drawTrack(); });
   F.querySelectorAll("[data-ajf]").forEach(el=>el.onclick=()=>{ ajF=el.dataset.ajf; drawTrack(); });
   const all=$("#ajAll"); if(all) all.onclick=()=>{ cur="archive"; try{history.replaceState(null,"","#archive")}catch(e){} render(); window.scrollTo({top:0}); };
-  const n=$("#allJobsN"); if(n) n.textContent=`${live.length} active${att.length?` · ${att.length} need attention`:""}`;
+  // the heading says what's listed (stage 6 review): "8 active · 2 need attention", "2 need attention", "6 completed"
+  const n=$("#allJobsN"); if(n) n.textContent=ajF==="done"?`${doneAll.length} completed${doneAll.length>CAP?` · newest ${CAP} shown`:""}`:ajF==="att"?`${att.length} of ${live.length} active need attention`:`${live.length} active${att.length?` · ${att.length} need attention`:""}`;
 }
 window.drawTrack=drawTrack;
 
@@ -1231,6 +1233,9 @@ $("#addJob").onclick=async()=>{
   try{ await saveJob(id,data); jobs.push({id,...data}); openJob(id); pushUndo(id,null,"Added a new job"); }catch(e){ $("#status").textContent="Couldn't add job: "+(e.message||e); }
 };
 
+/* jump from the top of a board straight to the All jobs list (opens it if folded) - stage 6 review */
+{ const b=$("#toList"); if(b) b.onclick=()=>{ const L=$("#allJobs"); if(!L) return; if(L.classList.contains("closed")) $("#allJobsHead").click();
+    L.scrollIntoView({behavior:"smooth",block:"start"}); }; }
 /* "All jobs" is on every board; let it fold away and remember that */
 { const L=$("#allJobs"), H=$("#allJobsHead"); const set=open=>{ L.classList.toggle("closed",!open); H.setAttribute("aria-expanded",open); try{localStorage.setItem("gvc_alljobs",open?"1":"0")}catch(e){} };
   let open=true; try{ open=localStorage.getItem("gvc_alljobs")!=="0"; }catch(e){} set(open);

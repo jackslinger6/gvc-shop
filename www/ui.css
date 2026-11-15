@@ -338,6 +338,9 @@ button.jnext{cursor:pointer}button.jnext:hover{background:var(--panel3)}
 .shnav .ni:hover{color:var(--text)}
 .shnav .ni.on{color:var(--accent-hi)}
 .shnav .ni .bd{font-size:10.5px;font-weight:700;border:2px solid var(--panel);height:20px;min-width:20px;border-radius:10px}
+/* nav counts mean "needs you", not "overdue" - orange, not red (stage 6 review); red stays for overdue only */
+.shnav .ni .bd{background:var(--accent);color:var(--on-accent)}
+#allJobs{scroll-margin-top:12px}
 .shnav .plus{background:var(--accent);border-color:var(--bg);box-shadow:var(--shadow-2)}
 .shnav .plus:hover{background:var(--accent-hi)}
 @media (min-width:900px){

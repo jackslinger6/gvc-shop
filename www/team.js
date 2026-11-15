@@ -102,10 +102,10 @@ window.teamReload=()=>{ loadMsgs(); loadTeam(); };
 /* ---- a person's card: status + messages ---- */
 let openThread=null;
 function sheetOpen(html){
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true">${html}</div>`;
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><button type="button" class="shx" aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${html}</div>`;
   document.body.appendChild(ov); requestAnimationFrame(()=>ov.classList.add("on"));
   const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); if(openThread&&openThread.ov===ov) openThread=null; };
-  ov.onclick=e=>{ if(e.target===ov) close(); };
+  ov.onclick=e=>{ if(e.target===ov) close(); }; ov.querySelector(".shx").onclick=close;
   return {ov,el:ov.querySelector(".shsheet"),close};
 }
 function threadHtml(n){
