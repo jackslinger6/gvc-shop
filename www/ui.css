@@ -499,3 +499,16 @@ body.girly .ti .tjb{color:#4a1430}
 .ti .tlate{flex:none;font:700 11px var(--font-ui);color:#ff9b91;background:rgba(229,72,59,.14);border:1px solid rgba(229,72,59,.45);border-radius:6px;padding:3px 6px}
 @media (max-width:600px){ .tgjh{flex-wrap:wrap;row-gap:2px} .tgjh .tgjt{flex-basis:calc(100% - 24px)} .tgjh .tgjn{order:3;padding-left:14px} }
 @media (max-width:600px){ .tgj .ti .txh{flex-wrap:nowrap} .tgj .ti .txh .tt{order:0;flex-basis:auto} .tgj .ti .tch,.tgj .ti .tlate{order:0;margin-left:0} }
+
+/* review Nov 15: folded job shows its next action; compact intake; Jobs overview; readable small text */
+.tgnext{margin:2px 0 0 14px}.tgnl{font:600 11px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--accent-hi)}
+.tgmore{background:none;border:0;color:var(--muted);font:600 12.5px var(--font-ui);cursor:pointer;padding:4px 0 6px 46px;min-height:32px}
+.tgmore:hover{color:var(--text)}
+@media (min-width:1000px){ #board.todo:has(.tbox.intake){grid-template-columns:minmax(0,1fr) 300px!important} }
+.tbox.intake .tnote:not(#aiMsg){display:none}
+.tbox.intake .tools{flex-direction:column;align-items:stretch}
+body.ovwv #allJobs{margin-top:8px}
+.shnav .ni .bd{font-size:11.5px!important;min-width:20px}
+.cw .p .ost{font-size:12px}
+@media (min-width:900px){ .shnav .railcrew .n{font-size:12px!important} }
+.jtn,.tgjh .tgjn,.jlsb{font-size:12.5px}

@@ -152,7 +152,7 @@ GVC.on("render:before",()=>{
 });
 GVC.on("render:after",()=>{
   if(cur===homeView()||["punch","drawings","mytodo","crewjobs","crew"].includes(cur)){ const sub=$("#subnav"); if(sub) sub.hidden=true; }
-  if(!(window.ME&&ME.role==="parts")){ const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",!(cur==="crewjobs"||["pipeline","ordering","build","archive"].includes(cur))); }
+  if(!(window.ME&&ME.role==="parts")){ const L=document.querySelector("#app>section.list"); if(L) L.classList.toggle("shhide",!(cur==="crewjobs"||["overview","pipeline","ordering","build","archive"].includes(cur))); }
   navState();
 });
 })();

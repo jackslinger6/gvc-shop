@@ -199,7 +199,7 @@ const ic={
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
 };
 const svg=(k,c="currentColor",s=24,w=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic[k]}</svg>`;
-const SECT=v=>v==="home"?"home":v==="porders"&&window.ME&&ME.role==="parts"?"orders":v==="inv"&&window.ME&&ME.role==="parts"?"inv":["pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
+const SECT=v=>v==="home"?"home":v==="porders"&&window.ME&&ME.role==="parts"?"orders":v==="inv"&&window.ME&&ME.role==="parts"?"inv":["overview","pipeline","ordering","build","archive"].includes(v)?"jobs":v==="crew"?"crew":"more";
 const go=v=>{ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0,behavior:"smooth"}); };
 window.shellGo=go;
 const lastJobs=()=>{ try{ const v=localStorage.getItem("gvc_last_jobs"); return ["pipeline","ordering","build"].includes(v)?v:"ordering"; }catch(e){ return "ordering"; } };
@@ -221,7 +221,7 @@ nav.innerHTML=`<button class="ni" type="button" data-n="home">${svg("home")}Home
   <button class="ni" type="button" data-n="more">${svg("more")}More<span class="bd" id="shMoreN" hidden></span></button>
   <div class="cw railcrew" id="railCrew" aria-label="The crew"></div>`;
 document.body.appendChild(nav);
-nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); if(n==="inv") return go("inv"); if(n==="orders") return window.pordersGo?window.pordersGo("active"):go("porders"); go(n==="jobs"?((window.ME&&(ME.role==="crew"||ME.role==="parts"))?"build":lastJobs()):n); });
+nav.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ const n=b.dataset.n; if(n==="more") return moreMenu(); if(n==="inv") return go("inv"); if(n==="orders") return window.pordersGo?window.pordersGo("active"):go("porders"); go(n==="jobs"?((window.ME&&(ME.role==="crew"||ME.role==="parts"))?"build":"overview"):n); });   // Jobs always opens the Overview (review, Nov 15)
 top.querySelector("#shChat").onclick=()=>openChat();
 top.querySelector("#shBell").onclick=()=>go("todo");
 function note(m){ todoToast(m,null); const u=$("#toastUndo"); if(u) u.style.display="none"; }
@@ -234,7 +234,7 @@ window.shellTalk=talk;
 /* "Talk about this": a mic that knows what's on screen. What Kyle is looking at (open job, count sheet, tab) goes to
    Claude with the message, so "move this job to done" just works. Snapshot is taken when the mic is pressed
    because the chat panel can cover the card. (Kyle, 2026-11-04) */
-const VIEWN={home:"Home",todo:"To do",pipeline:"Jobs - pipeline",ordering:"Jobs - ordering",build:"Jobs - shop floor",archive:"Finished jobs",crew:"Crew & week plan",time:"My time",inv:"Inventory",ncr:"NCRs",revs:"Revisions"};
+const VIEWN={overview:"Jobs - overview",home:"Home",todo:"To do",pipeline:"Jobs - pipeline",ordering:"Jobs - ordering",build:"Jobs - shop floor",archive:"Finished jobs",crew:"Crew & week plan",time:"My time",inv:"Inventory",ncr:"NCRs",revs:"Revisions"};
 function lookNow(){
   const sc=$("#scrim"), D=$("#dlg"), open=sc&&sc.classList.contains("on");
   if(open&&D){

@@ -3,7 +3,7 @@
    Jobs sub-tabs: Pipeline · Orders · Shop floor · Crew · NCRs · Revisions · Finished jobs (+ New job lives here)
    Inventory sub-tabs: Truck parts · Consumables */
 (()=>{
-const SECT={pos:"jobs",porders:"todo",requests:"todo",staging:"inv",todo:"todo",pipeline:"jobs",ordering:"jobs",build:"jobs",crew:"jobs",ncr:"jobs",revs:"jobs",archive:"jobs",time:"time",inv:"inv",ideas:"more"};
+const SECT={overview:"jobs",pos:"jobs",porders:"todo",requests:"todo",staging:"inv",todo:"todo",pipeline:"jobs",ordering:"jobs",build:"jobs",crew:"jobs",ncr:"jobs",revs:"jobs",archive:"jobs",time:"time",inv:"inv",ideas:"more"};
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 let lastJobs=ls.get("gvc_last_jobs")||"build";
 const css=document.createElement("style");
@@ -53,7 +53,7 @@ GVC.on("render:after",()=>{
   if(sec==="jobs"){
     const sn=(k,t,c,ct,at)=>`<button class="sn ${cur===k?"on":""}" style="--c:${c}" type="button" data-sv="${k}">${t}${ct!==""&&ct!=null?`<span class="ct">${ct}</span>`:""}${at||""}</button>`;
     const i=k=>info[k]||{};
-    h=sn("pipeline","Pipeline","var(--pipe)",i("pipeline").ct,i("pipeline").at)+sn("ordering","Orders","var(--order)",i("ordering").ct,i("ordering").at)+sn("build","Shop floor","var(--build)",i("build").ct,i("build").at)
+    h=sn("overview","Overview","#e9e6e1",jobs.filter(j=>!j.archived&&j.stage!=="done").length,"")+`<span class="sep"></span>`+sn("pipeline","Pipeline","var(--pipe)",i("pipeline").ct,i("pipeline").at)+sn("ordering","Orders","var(--order)",i("ordering").ct,i("ordering").at)+sn("build","Shop floor","var(--build)",i("build").ct,i("build").at)
       +`<span class="sep"></span>`+sn("crew","Crew & week plan","#e9e6e1",i("crew").ct,i("crew").at)
       +`<span class="sep"></span>`+sn("ncr","NCRs","#e5483b","",ncrN?`<span class="at">${ncrN} open</span>`:"")+sn("revs","Revisions","#2f8ff0","",revN?`<span class="at">${revN}</span>`:"")
       +`<span class="grow"></span>`+sn("archive","Finished jobs","#6c727a",archN||"","");
