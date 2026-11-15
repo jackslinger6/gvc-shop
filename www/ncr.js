@@ -57,10 +57,12 @@ function stats(j,x){
   const rv=window.revsFor?window.revsFor(j.id,x.n):[]; const rvOpen=rv.filter(r=>!["checked","dropped"].includes(r.status));
   const tOpen=ts.filter(a=>a.status!=="done"), oOpen=os.filter(s=>s.status!=="received");
   const tracked=ts.length+os.length+rv.length>0;
-  const st=x.closed?"Closed":x.fix==="Deciding"?"Deciding":(tOpen.length||oOpen.length||rvOpen.length)?"In progress":(tracked||x.fix==="Use as is")?"To check":"Not tracked";
+  // stage 7 review: tracked isn't underway - only a started task (In progress / Inspection), an open order or a revision counts as In progress
+  const underway=tOpen.some(a=>["prog","qc"].includes(a.status))||oOpen.length||rvOpen.length;
+  const st=x.closed?"Closed":x.fix==="Deciding"?"Deciding":underway?"In progress":tOpen.length?(tOpen.some(a=>!String(a.who||"").trim())?"Tracked - unassigned":"Tracked - not started"):(tracked||x.fix==="Use as is")?"To check":"Not tracked";
   return {ts,os,rv,rvOpen,tOpen,oOpen,h,unk,st};
 }
-const stColor={Closed:"#6c727a",Deciding:"#e5483b","Not tracked":"#e5483b","In progress":"#ff8a2a","To check":"#f5b041"};
+const stColor={Closed:"#6c727a",Deciding:"#e5483b","Not tracked":"#e5483b","Tracked - unassigned":"#e04fa0","Tracked - not started":"#2f8ff0","In progress":"#ff8a2a","To check":"#f5b041"};
 const isOpenSt=st=>st!=="Closed";
 const nextN=()=>jobs.reduce((m,j)=>Math.max(m,...(j.ncrs||[]).map(x=>x.n||0)),0)+1;
 const money=n=>"$"+(Number(n)||0).toLocaleString("en-CA",{maximumFractionDigits:0});
@@ -73,6 +75,7 @@ async function saveSteps(j,n,steps){
 }
 let form=null; // {jid, what,part,details,type,fix,steps,mat}
 let tw=null;   // "jobid:n" - the NCR whose + Rework task form is open
+const trk=new Set();   // NCR cards with the "Track corrective action" choices open
 const openCards=new Set();
 function section(j){
   const list=(j.ncrs||[]).slice().sort((a,b)=>a.n-b.n);
@@ -95,18 +98,19 @@ function section(j){
       ...s.os.map(o=>({open:o.status!=="received",h:`Replacement: ${esc(o.name)}${o.po||o.rfq?" "+esc(o.po||o.rfq):""} · ${esc(SUPT(o))}`})),
       ...rv.map(r=>({open:!["checked","dropped"].includes(r.status),h:`Model: ${window.revTag?window.revTag(r.n):"REV"} · ${window.revStatus?window.revStatus(r.status):r.status}`}))]
       .sort((p,q)=>q.open-p.open);
-    const next=s.st==="Deciding"?"Decide the fix":s.st==="Not tracked"?"":s.st==="In progress"?"Finish the work tracked below":s.st==="To check"?(items.length?"Check the rework / replacement, then accept and close":"Accept and close when you're happy with it"):"";
-    const trackRow=admin&&s.st!=="Closed"&&s.st!=="Deciding"?`<div class="ntrack"><span class="nm" style="margin:0">${items.length?"Track more:":"Track it:"}</span>
+    const next=s.st==="Deciding"?"Decide the fix":s.st==="Not tracked"?"":s.st==="In progress"?"Finish the work tracked below":s.st==="Tracked - unassigned"?"Assign the rework to someone":s.st==="Tracked - not started"?"Rework is assigned - not started yet":s.st==="To check"?(items.length?"Check the rework / replacement, then accept and close":"Accept and close when you're happy with it"):"";
+    const tOpenNow=trk.has(tk)||tw===tk;
+    const trackRow=admin&&s.st!=="Closed"&&s.st!=="Deciding"?(!tOpenNow?`<div class="ntrack"><button class="btn sm${s.st==="Not tracked"?" primary":""}" type="button" data-ntrk="${x.n}">${items.length?"Track more corrective action":"Track corrective action"} ▾</button></div>`:`<div class="ntrack"><button class="btn sm ghost" type="button" data-ntrk="${x.n}" aria-label="Hide">▴</button>
         <button class="btn sm" type="button" data-ntw="${x.n}">+ Rework task</button>
         <button class="btn sm" type="button" data-nord="${x.n}|rfq">+ Replacement RFQ</button><button class="btn sm" type="button" data-nord="${x.n}|po">+ Replacement PO</button>
         ${(j.suppliers||[]).some(o=>o.status!=="declined"&&o.ncr!==x.n)?`<select class="ntagsel" data-nlink="${x.n}" aria-label="Link an existing order"><option value="">Link an existing order…</option>${(j.suppliers||[]).filter(o=>o.status!=="declined"&&o.ncr!==x.n).map(o=>`<option value="${esc(o.id)}">${esc(o.name)}${o.po||o.rfq?" "+esc(o.po||o.rfq):""} · ${esc(SUPT(o))}${o.ncr?" (on "+tag(o.ncr)+")":""}</option>`).join("")}</select>`:""}
-        <button class="btn sm" type="button" data-nrev="${x.n}">Model change → Jessie</button></div>
+        <button class="btn sm" type="button" data-nrev="${x.n}">Model change → Jessie</button></div>`)+`
       ${tw===tk?`<div class="ntwf"><input data-ntwn="${x.n}" placeholder="What needs doing, e.g. Re-drill 6 holes 1.5h" style="flex:2;min-width:180px"><select data-ntwo="${x.n}" aria-label="Who"><option value="">Who - nobody yet</option>${CREW.map(c=>`<option>${c}</option>`).join("")}</select><button class="btn sm ghost" type="button" data-ntwx="${x.n}">Cancel</button><button class="btn sm primary" type="button" data-ntwgo="${x.n}">Add task</button></div>`:""}`:"";
     return `<div class="ncard" style="--c:${stColor[s.st]}">
       <div class="nh"><b>${tag(x.n)}</b><span class="ostat" style="--c:${stColor[s.st]}">${s.st}</span><span style="flex:1"></span><span class="nm" style="margin:0">${esc(x.type)}</span></div>
       <div class="nwhat">${esc(x.what)}${x.part?(x.part.length>90?`<details class="nparts"><summary class="nm">${esc(x.part.slice(0,x.part.lastIndexOf(",",80)>20?x.part.lastIndexOf(",",80):80))}… <u>show all ${x.part.split(",").length} affected parts</u></summary><span class="nm">${esc(x.part)}</span></details>`:`<span class="nm"> · ${esc(x.part)}</span>`):""}</div>
       <dl class="nkv"><dt>Decision</dt><dd>${x.decision?esc(x.decision):`<span style="color:var(--muted)">${x.fix==="Deciding"?"Not decided yet":esc(x.fix)}</span>`}</dd>
-        ${next?`<dt>Next</dt><dd><b>${esc(next)}</b> <span class="nm" style="display:inline">· ${s.st==="In progress"?"see below":"Kyle"}</span></dd>`:""}
+        ${next?`<dt>Next</dt><dd><b>${esc(next)}</b> <span class="nm" style="display:inline">· ${s.st==="In progress"||s.st==="Tracked - not started"?"see below":"Kyle"}</span></dd>`:""}
         ${s.st==="Not tracked"?`<dt>Next</dt><dd><span class="nwarn">Nothing tracks this yet.</span> <span class="nm" style="display:inline">A written decision isn't the fix - add the rework task, replacement order or model change that does it.</span></dd>`:""}
         ${items.length?`<dt>Tracking</dt><dd>${items.map(i=>`<div class="ntk${i.open?"":" done"}">${i.open?"○":"✓"} ${i.h}</div>`).join("")}</dd>`:""}
         ${x.closed&&x.acceptedBy?`<dt>Accepted</dt><dd>${esc(x.acceptedBy)} · ${fmt(x.acceptedAt)}</dd>`:""}</dl>
@@ -169,6 +173,7 @@ GVC.on("drawDlg:after",()=>{
   // stage 7: accept & close (only offered at "To check"), rework task with an owner, replacement orders, link an order
   D.querySelectorAll("[data-naccept]").forEach(b=>b.onclick=()=>{ if(b.disabled) return; b.disabled=true; const n=+b.dataset.naccept;
     mut(`${tag(n)} checked and accepted - closed`,jj=>{ const x=jj.ncrs.find(y=>y.n===n); if(!x||x.closed) return false; x.closed=true; x.acceptedBy=(window.ME&&ME.name)||""; x.acceptedAt=new Date().toISOString(); }); });
+  D.querySelectorAll("[data-ntrk]").forEach(b=>b.onclick=()=>{ const k=j.id+":"+b.dataset.ntrk; if(trk.has(k)||tw===k){ trk.delete(k); if(tw===k) tw=null; } else trk.add(k); drawDlg(); });
   D.querySelectorAll("[data-ntw]").forEach(b=>b.onclick=()=>{ tw=j.id+":"+b.dataset.ntw; drawDlg(); setTimeout(()=>{ const i=$(`[data-ntwn="${b.dataset.ntw}"]`); if(i) i.focus(); },30); });
   D.querySelectorAll("[data-ntwx]").forEach(b=>b.onclick=()=>{ tw=null; drawDlg(); });
   const addTw=n=>{ const el=D.querySelector(`[data-ntwn="${n}"]`), who=(D.querySelector(`[data-ntwo="${n}"]`)||{}).value||""; const go=D.querySelector(`[data-ntwgo="${n}"]`);

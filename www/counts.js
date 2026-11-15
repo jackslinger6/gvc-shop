@@ -37,6 +37,8 @@ css.textContent=`
 .cnt .step button{min-width:40px;height:34px;font-size:16px;white-space:nowrap}
 .cnt .step b{font-family:var(--font-display);font-size:18px;min-width:70px;text-align:center}
 .cnt .lnk{font:inherit;font-size:11.5px;color:var(--dim);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
+.cnt .cnol{margin:10px 0 4px;padding:10px 12px;border:1px solid rgba(245,176,65,.5);background:rgba(245,176,65,.08);border-radius:10px;font-size:13px;color:#ffd28a}
+.cnt .cnol b{color:#ffd28a}
 .cnt .addbox{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px}
 .cnt .addrow{display:flex;gap:6px;flex-wrap:wrap}
 .cnt .pick{display:grid;gap:4px;margin-top:6px;max-height:260px;overflow:auto}
@@ -154,8 +156,8 @@ function head(){
   return `<div class="hd"><div><h3 style="margin:0">Count - ${multi?"combined order":esc(j.name)}</h3>${multi?`<div class="csub">One order for ${st.sets.map(S=>esc(jobOf(S.jobId).name)).join(" + ")}</div>`:""}
     <div class="csub">${esc(sup.name||"")}${sup.quoteNo?" · #"+esc(sup.quoteNo):""}${sup.scope?" · "+esc(sup.scope):""} · ${(ST[sup.status]||ST.sent).t}</div></div>
     <span style="display:flex;gap:6px"><button class="btn" type="button" id="cPrint" title="Print a paper checklist (or save it as a PDF)">🖨 Print</button><button class="btn ghost" type="button" id="cBack">Back to job</button></span></div>
-    <div class="bar"><div style="width:${t.pcs?Math.round(t.got/t.pcs*100):0}%"></div></div>
-    <div class="csub"><b style="color:var(--text)">${t.got} of ${t.pcs} pcs</b> · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`;
+    ${!st.items.some(i=>!i.skip)?`<div class="cnol"><b>No checklist - nothing counted yet.</b> There's no parts list for this order. Add what was ordered below to count it, or receive it without a checklist.</div>`:`<div class="bar"><div style="width:${t.pcs?Math.round(t.got/t.pcs*100):0}%"></div></div>
+    <div class="csub"><b style="color:var(--text)">${t.got} of ${t.pcs} pcs</b> · ${t.full} of ${t.lines} parts complete${st.items.some(i=>i.skip)?` · ${st.items.filter(i=>i.skip).length} set aside (not on this order)`:""}${later().length?` · <b style="color:#f5b041">${later().length} part${later().length>1?"s":""} (${later().reduce((a,i)=>a+(i.qty||0),0)} pcs) still to come</b>`:""}</div>`}`;
 }
 function itemRow(it,ix){
   const g=got(it), q=it.qty||0, cls=g>=q&&q>0?"full":g>0?"part":"";
@@ -215,7 +217,6 @@ function draw(){
       ${[["all","All"],["missing","Missing"],["done","Counted"]].map(([k,t])=>`<button class="chip ${st.f===k?"on":""}" type="button" data-cf="${k}" style="${st.f===k?"border-color:#3ad06b;color:#3ad06b":""}">${t}</button>`).join("")}</div>
       ${mats.length>1?`<div class="tools">${mats.map(m=>`<button class="chip" type="button" data-cq="${esc(m)}">${esc(matLabel(m))}</button>`).join("")}</div>`:""}`:""}
     ${st.seeded&&st.items.length?`<div class="tnote">Started from the job's parts list (${st.items.length} parts). If this order is only part of the job, tap "Not on this order" on the rest.</div>`:""}
-    ${!st.items.length?`<div class="tnote">No parts list for this order yet. Add what was ordered below - pick from the inventory list or type it in.</div>`:""}
     ${allMats.length>1?`<details class="addbox" style="margin-top:8px" ${lat.length?"open":""}><summary style="cursor:pointer;font-size:13px;font-weight:600">Only part of the order came?</summary>
       <div class="tnote" style="margin-top:4px">Tap the materials that came in this delivery. The rest stays on the order as "still to come" and isn't counted short.</div>
       <div class="tools">${allMats.map(m=>{ const on=st.items.some(i=>!i.skip&&!i.later&&(i.mat||"Other")===m); const n=st.items.filter(i=>!i.skip&&(i.mat||"Other")===m).reduce((a,i)=>a+(i.qty||0),0);
@@ -227,7 +228,7 @@ function draw(){
     <div class="addbox"><b style="font-size:13px">Add an item to this order</b>
       <div class="addrow" style="margin-top:6px"><input id="cAddQ" placeholder="Search inventory or type a name" value="${esc(st.addQ)}" style="flex:1;min-width:160px"><input id="cAddN" type="number" min="1" value="1" style="width:70px" aria-label="Quantity">${st.sets.length>1?`<select id="cAddG" aria-label="Which job">${st.sets.map((S,g)=>`<option value="${g}" ${st.addG===g?"selected":""}>${esc(jobOf(S.jobId).name)}</option>`).join("")}</select>`:""}<button class="btn" type="button" id="cAdd">Add</button></div>
       <div class="pick" id="cPick"></div></div>
-    <div class="foot"><span class="saved" id="cSaved">${st.sets.some(S=>S.row)?"Saved":""}</span><button class="btn primary" type="button" id="cDone">Done counting</button></div></div>`;
+    <div class="foot"><span class="saved" id="cSaved">${st.sets.some(S=>S.row)?"Saved":""}</span><button class="btn ${st.items.some(i=>!i.skip)?"primary":""}" type="button" id="cDone">${st.items.some(i=>!i.skip)?"Done counting":"Receive without a checklist…"}</button></div></div>`;
   wire(); drawPick();
 }
 function listHtml(vis){
@@ -341,6 +342,7 @@ async function finish(){
     D.querySelector(".foot").before(box); box.scrollIntoView({behavior:"smooth",block:"center"});
     $("#cAddFirst").onclick=()=>{ box.remove(); const q=$("#cAddQ"); if(q){ q.scrollIntoView({behavior:"smooth",block:"center"}); q.focus(); } };
     $("#cNoList").onclick=()=>{ $("#cNoListF").hidden=false; $("#cNoWhat").focus(); };
+    $("#cNoList").click();   // the footer button already said "Receive without a checklist…"
     $("#cNoCancel").onclick=()=>box.remove();
     $("#cNoSave").onclick=async()=>{
       const b=$("#cNoSave"); if(b.disabled) return;

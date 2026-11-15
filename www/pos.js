@@ -116,6 +116,8 @@ const money=n=>"$"+n.toLocaleString("en-CA",{minimumFractionDigits:2,maximumFrac
 const recTotal=r=>{ const L=linesOf(r).filter(o=>r.kind==="po"?o.x.po===r.no:o.x.status!=="declined"); let t=0,n=0;
   L.forEach(o=>{ const v=parseFloat(String(o.x.total||"").replace(/[^0-9.]/g,"")); const q=!isNaN(v)&&v>0?v:(window.quoteTotal?window.quoteTotal(o.x):null); if(q){ t+=q; n++; } });
   return n?(r.kind==="rfq"&&n>1?null:t):null; };
+const recRev=r=>r.kind==="rfq"&&!!window.quoteRev&&linesOf(r).some(o=>window.quoteRev(o.x));
+const totLbl=r=>recRev(r)?"Previous quote total":"Total";
 const delivSum=r=>{ const D=r.deliveries||[]; return D.length?`${D.filter(d=>d.status==="received").length} of ${D.length} deliveries in`:""; };
 
 /* ================= list ================= */
@@ -124,7 +126,7 @@ function renderList(B){
   const L=tab==="open"?open:POS;
   const card=r=>`<button type="button" class="rc" data-no="${E(r.no)}" style="--c:${recColor(r)}"><span class="no">${E(r.no)}</span>
     <span class="t"><b>${E(r.kind==="po"?r.vendor||"":r.title||"")}${r.kind==="po"&&r.title?` <span style="font-weight:400">· ${E(r.title)}</span>`:""}</b>
-    <span>${(r.jobs||[]).map(id=>`<span class="chip">${E(jobTag(id))}</span>`).join("")}${r.kind==="rfq"?`asked ${E((r.vendors||[]).join(", ")||"-")}`:""}${r.rfq_no?` · from ${E(r.rfq_no)}`:""}${r.vendor_ref?` · ${E(r.vendor_ref)}`:""}${recTotal(r)!=null?` · <b>${money(recTotal(r))}</b>`:""}${delivSum(r)?` · ${delivSum(r)}`:""}</span></span>
+    <span>${(r.jobs||[]).map(id=>`<span class="chip">${E(jobTag(id))}</span>`).join("")}${r.kind==="rfq"?`asked ${E((r.vendors||[]).join(", ")||"-")}`:""}${r.rfq_no?` · from ${E(r.rfq_no)}`:""}${r.vendor_ref?` · ${E(r.vendor_ref)}`:""}${recTotal(r)!=null?` · <b>${recRev(r)?"previous quote ":""}${money(recTotal(r))}</b>`:""}${delivSum(r)?` · ${delivSum(r)}`:""}</span></span>
     <span class="st">${E(recStatus(r))}</span></button>`;
   const rf=L.filter(r=>r.kind==="rfq"), po=L.filter(r=>r.kind==="po");
   B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2>RFQs & POs</h2><span style="flex:1"></span>
@@ -151,7 +153,7 @@ function head(r,B){
       <span class="st" style="--c:${recColor(r)};background:${recColor(r)}">${E(recStatus(r))}</span></div>
     <div style="font-size:16px;font-weight:700;margin-top:2px">${E(r.kind==="po"?r.vendor:r.title||"")}${r.kind==="po"&&r.title?` <span style="font-weight:400;color:var(--muted)">· ${E(r.title)}</span>`:""}</div>
     <div class="lbl" style="margin-top:4px">${(r.jobs||[]).map(id=>`<button type="button" class="chip" data-oj="${E(id)}" title="Open the job">${E(jobOf(id)?jobOf(id).name:id)}</button>`).join("")}</div>
-    <div class="lbl">${[r.rfq_no?"from "+r.rfq_no:"",r.vendor_ref?"vendor # "+r.vendor_ref:"","started "+day(r.created_at)].filter(Boolean).map(E).join(" · ")}${recTotal(r)!=null?` · <b style="color:var(--text)">Total ${money(recTotal(r))}</b>`:""}</div>`;
+    <div class="lbl">${[r.rfq_no?"from "+r.rfq_no:"",r.vendor_ref?"vendor # "+r.vendor_ref:"","started "+day(r.created_at)].filter(Boolean).map(E).join(" · ")}${recTotal(r)!=null?` · <b style="color:var(--text)">${totLbl(r)} ${money(recTotal(r))}</b>`:""}</div>`;
 }
 function renderRfq(B,r){
   const L=linesOf(r); const byV={}; L.forEach(({j,x})=>{ (byV[x.name]=byV[x.name]||[]).push({j,x}); });
@@ -163,14 +165,14 @@ function renderRfq(B,r){
         const canRev=isKyle()&&r.status==="open"&&!x.po&&!done&&!!(x.quoteNo||x.total)&&["quote","sent","replied"].includes(x.status);
         const qt=!x.total&&window.quoteTotal?window.quoteTotal(x):null;
         const acts=[window.openCount&&arr[0]&&["approved","production","ready","arrived"].includes(x.status)?`<button class="btn${["ready","arrived"].includes(x.status)?" primary":""}" type="button" data-rcnt="${E(arr[0].j.id)}|${E(x.id)}">☑ Count it</button>`:"",
-          isKyle()&&r.status==="open"&&!x.po?(done?`<button class="btn" type="button" data-ord="${E(v)}">Give it a PO number</button>`:`<button class="btn primary" type="button" data-ord="${E(v)}">Order from ${E(String(v).split(/\s/)[0])} →</button>`):"",
+          isKyle()&&r.status==="open"&&!x.po?(done?`<button class="btn" type="button" data-ord="${E(v)}">Give it a PO number</button>`:window.quoteRev&&window.quoteRev(x)?`<button class="btn" type="button" data-ord="${E(v)}">Order on the previous quote…</button>`:`<button class="btn primary" type="button" data-ord="${E(v)}">Order from ${E(String(v).split(/\s/)[0])} →</button>`):"",
           x.po?`<button class="btn" type="button" data-opo="${E(x.po)}">Open ${E(x.po)} ›</button>`:"",
           canRev?(window.quoteRev&&window.quoteRev(x)?`<button class="btn" type="button" data-revin="${E(v)}">Revised quote is in</button>`:`<button class="btn ghost" type="button" data-rev="${E(v)}">Ask for a revised quote</button>`):""].filter(Boolean);
         return `<div class="vrow"><div class="vrh"><b>${E(v)}</b><span class="ostat" style="--c:${st.c}">${E(st.t)}</span>${arr.length>1?`<span class="lbl">${arr.length} jobs</span>`:""}</div>
           ${done&&!x.po?`<div class="lbl">${E(String(v).split(/\s/)[0])} already confirmed this order - give it a PO number to follow pickup and deliveries.</div>`:""}
           ${window.supExtraHTML?window.supExtraHTML(x):""}
-          <div class="vrf"><label>Their quote #<input data-vq="${E(v)}" value="${E(x.quoteNo||"")}" placeholder="quote #" ${isKyle()?"":"disabled"}></label>
-            <label>Total<input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${qt?money(qt)+" on the quote":"$"}" ${isKyle()?"":"disabled"}></label></div>
+          <div class="vrf"><label>${window.quoteRev&&window.quoteRev(x)?"Revised quote #":"Their quote #"}<input data-vq="${E(v)}" value="${window.quoteRev&&window.quoteRev(x)?"":E(x.quoteNo||"")}" placeholder="${window.quoteRev&&window.quoteRev(x)?"when it comes in":"quote #"}" ${isKyle()?"":"disabled"}></label>
+            <label>Total${window.quoteRev&&window.quoteRev(x)?" (previous quote)":""}<input data-vt="${E(v)}" value="${E(x.total||"")}" placeholder="${qt?money(qt)+" on the quote":"$"}" ${isKyle()?"":"disabled"}></label></div>
           ${acts.length?`<div class="oacts">${acts.join("")}</div>`:""}</div>`; }).join("")}
       ${isKyle()&&r.status==="open"?(()=>{ const btns=`<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm ghost" type="button" id="pAddV">+ Ask another vendor</button><button class="btn sm ghost" type="button" id="pCmp">⚖ Compare their quotes</button><button class="btn sm ghost" type="button" id="pClose">Close without ordering</button></div>`;
         // a vendor already confirmed this order: shopping around is unusual now, so those actions fold away (Kyle's review, Nov 14)
@@ -178,7 +180,7 @@ function renderRfq(B,r){
     </div>
     ${notesLog(r)}</div>`;
   wireCommon(B,r);
-  const saveV=async(v,f,val)=>{ await editLines(L.filter(o=>o.x.name===v).map(o=>o.j.id),S=>{ let c=false; S.forEach(x=>{ if(x.rfq===r.no&&x.name===v&&(x[f]||"")!==val){ x[f]=val; x.updated=new Date().toISOString(); if(f==="quoteNo"&&val&&["sent","replied"].includes(x.status)){ x.status="quote"; delete x.reqAt; } c=true; } }); return c; },`${r.no}: ${v} ${f==="quoteNo"?"quote # "+val:"total "+val}`); };
+  const saveV=async(v,f,val)=>{ await editLines(L.filter(o=>o.x.name===v).map(o=>o.j.id),S=>{ let c=false; S.forEach(x=>{ if(x.rfq===r.no&&x.name===v&&(x[f]||"")!==val){ if(f==="quoteNo"&&val&&window.quoteRev&&window.quoteRev(x)&&!x.prevQuote) x.prevQuote={no:x.quoteNo||"",total:x.total||"",at:x.updated||x.sent||""}; x[f]=val; x.updated=new Date().toISOString(); if(f==="quoteNo"&&val&&["sent","replied"].includes(x.status)){ x.status="quote"; delete x.reqAt; } c=true; } }); return c; },`${r.no}: ${v} ${f==="quoteNo"?"quote # "+val:"total "+val}`); };
   B.querySelectorAll("[data-vq]").forEach(i=>i.onchange=()=>saveV(i.dataset.vq,"quoteNo",i.value.trim()));
   B.querySelectorAll("[data-vt]").forEach(i=>i.onchange=()=>saveV(i.dataset.vt,"total",i.value.trim()));
   B.querySelectorAll("[data-ord]").forEach(b=>b.onclick=()=>orderFrom(r,b.dataset.ord));
@@ -303,6 +305,10 @@ function addVendor(r){
 async function orderFrom(r,v){
   const L=linesOf(r), mine=L.filter(o=>o.x.name===v), others=[...new Set(L.filter(o=>o.x.name!==v&&!o.x.po).map(o=>o.x.name))];
   const ahead=mine.map(o=>o.x.status).filter(k=>PAST.includes(k)).sort((a,b)=>PAST.indexOf(b)-PAST.indexOf(a))[0]||null;   // already ordered with the vendor
+  // stage 7 review: ordering while a revised quote is still outstanding has to be a conscious choice
+  const rv=!ahead&&window.quoteRev&&mine.find(o=>window.quoteRev(o.x));
+  if(rv){ const x=rv.x, q=x.prevQuote||{no:x.quoteNo,total:x.total}; const at=window.askedAt?window.askedAt(x):null;
+    if(!confirm(`${v}'s REVISED quote is still outstanding${at?" (asked "+day(at)+")":""}.\n\nOrder on the PREVIOUS quote${q.no?" #"+q.no:""}${q.total?" ("+q.total+")":""} anyway?\n\nCancel to wait for the revision.`)) return; }
   if(!confirm(ahead?`${v} already confirmed this order (${(PL[ahead]||{}).t||ahead}).\n\nGive it a PO number? It stays at ${(PL[ahead]||{}).t||ahead}${others.length?`, and ${others.join(", ")} ${others.length>1?"are":"is"} marked Declined on this RFQ`:""}.`
     :`Order from ${v}?\n\nThis makes a new PO number for ${v}${others.length?` and marks ${others.join(", ")} Declined on this RFQ`:""}.`)) return;
   try{ const no=await nextNo("po"); const now=new Date().toISOString(); const qn=(mine[0]&&mine[0].x.quoteNo)||null;
