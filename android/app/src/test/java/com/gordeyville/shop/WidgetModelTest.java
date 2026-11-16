@@ -82,4 +82,9 @@ public class WidgetModelTest {
         in.errKind = ""; in.snapshot = ADMIN.replace("\"at\":1000", "\"at\":" + (now - 5 * 3600_000L));
         assertTrue(WidgetModel.from(in).statusLine(now)[0].startsWith("Not updated since "));
     }
+    @Test public void acronymsStayCapital() {
+        assertEquals("NCR", WidgetModel.sentence("NCR"));
+        assertEquals("No job #", WidgetModel.sentence("NO JOB #"));
+        assertEquals("Count PO-1009", WidgetModel.sentence("COUNT po-1009"));
+    }
 }

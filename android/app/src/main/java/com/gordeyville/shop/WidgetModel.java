@@ -121,7 +121,10 @@ public final class WidgetModel {
         return c;
     }
     static String linkStr(Object o) { return o instanceof JSONObject ? o.toString() : ""; }
-    static String sentence(String t) { t = t == null ? "" : t.trim().toLowerCase(Locale.CANADA); return t.isEmpty() ? t : Character.toUpperCase(t.charAt(0)) + t.substring(1); }
+    static String sentence(String t) { t = t == null ? "" : t.trim().toLowerCase(Locale.CANADA); if (t.isEmpty()) return t;
+        t = Character.toUpperCase(t.charAt(0)) + t.substring(1);
+        for (String a : new String[]{"NCR", "PO", "RFQ", "DXF", "INV"}) t = t.replaceAll("(?i)\\b" + a + "\\b", a);   // "NCR" stays NCR
+        return t; }
     static int color(String h, int dflt) {
         try { if (h != null && h.startsWith("#")) { String x = h.substring(1); if (x.length() == 3) x = "" + x.charAt(0) + x.charAt(0) + x.charAt(1) + x.charAt(1) + x.charAt(2) + x.charAt(2); return 0xFF000000 | Integer.parseInt(x.substring(0, 6), 16); } } catch (Exception ignored) {}
         return dflt;
@@ -140,6 +143,16 @@ public final class WidgetModel {
                 if (dataAt <= 0) return new String[]{"", "muted"};
                 if (now - dataAt > 3 * 3600_000L) return new String[]{"Not updated since " + when, "amber"};
                 return new String[]{now - dataAt < 90_000L ? "Updated just now" : "Updated " + when, "muted"};
+        }
+    }
+    /** the same status, short enough for a narrow header */
+    public String statusShort(long now) {
+        switch (sync) {
+            case OFFLINE: return "Offline";
+            case AUTH: return "Sign in again";
+            case FAILED: return "Couldn't update";
+            case UPDATING: return "Updating…";
+            default: String[] s = statusLine(now); return s[0].replace("Not updated since ", "Old: ").replace("Updated ", "");
         }
     }
     /** "2:15 pm" today, "Mon 2:15 pm" this week, "Nov 3" older */

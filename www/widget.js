@@ -11,7 +11,8 @@
    screen where the person confirms. */
 (()=>{
 const W=()=>window.gvcWidgetBridge;   // set in index.html when running in the Android app
-const sc=t=>{ t=String(t||"").trim().toLowerCase(); return t.charAt(0).toUpperCase()+t.slice(1); };
+const ACR=/\b(ncr|po|rfq|dxf|inv|pdf|step|hw)\b/gi;
+const sc=t=>{ t=String(t||"").trim().toLowerCase(); t=t.charAt(0).toUpperCase()+t.slice(1); return t.replace(ACR,m=>m.toUpperCase()); };   // "NCR" stays NCR
 const roleOf=()=>{ const r=window.ME&&ME.role; return r==="admin"||r==="crew"||r==="parts"?r:null; };
 const theme=()=>{ try{ return window.gvcTheme?gvcTheme.active():"dark"; }catch(e){ return "dark"; } };
 const hex=c=>{ c=String(c||""); if(/^#[0-9a-f]{6}$/i.test(c)) return c; if(/^#[0-9a-f]{3}$/i.test(c)) return "#"+[...c.slice(1)].map(x=>x+x).join("");

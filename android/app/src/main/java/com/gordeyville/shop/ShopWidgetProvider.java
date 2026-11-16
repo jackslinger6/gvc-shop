@@ -178,14 +178,14 @@ public class ShopWidgetProvider extends AppWidgetProvider {
 
     /** what fits at this size and text size. Estimated from the real labels and text sizes (the emulator test
      *  renders every size at text sizes 100-200% and checks nothing is clipped, cut off or too small). */
-    static final class Fit { boolean tag = true, status = true, sub = true, more = true, list = true, act2 = true, act2Stack = false, recLabel = true, hdrActs = true, overflow = false, narrowHdr = false, shortAct = false; int titleLines = 2, nav = 0; }
+    static final class Fit { boolean tag = true, status = true, sub = true, more = true, list = true, act2 = true, act2Stack = false, recLabel = true, hdrActs = true, overflow = false, narrowHdr = false, shortAct = false, statusShort = false; int titleLines = 2, nav = 0; }
     static float line(float sp, float fs) { return sp * fs * 1.32f; }
     /** rough width of a label in dp (Roboto medium averages a bit over half an em per character) */
     static float textW(String t, float sp, float fs) { return t == null ? 0 : t.length() * sp * fs * 0.58f; }
     static int linesFor(String t, float sp, float fs, float width) { if (width <= 0) return 2; return Math.max(1, Math.min(2, (int) Math.ceil(textW(t, sp, fs) / width))); }
     static float btnH(int lines, float fs) { return Math.max(48, lines * line(15, fs) + 14); }
 
-    static Fit fit(WidgetModel.Bucket b, float fs, String act1, String act2, List<WidgetModel.Nav> navAll, String role, boolean retry, boolean recording) {
+    static Fit fit(WidgetModel.Bucket b, float fs, String act1, String act2, List<WidgetModel.Nav> navAll, String role, boolean retry, boolean recording, String title, String status) {
         Fit f = new Fit();
         boolean compact = b.mode == WidgetModel.Mode.COMPACT || b.mode == WidgetModel.Mode.COMPACT_WIDE;
         if (compact) {
@@ -200,10 +200,11 @@ public class ShopWidgetProvider extends AppWidgetProvider {
                 f.hdrActs = b.headerActions && btn + 6 + 48 <= b.h - 16;
                 h = b.h - 16;
             }
-            float row = line(12, fs) + 2, title = line(15, fs), sub = line(12, fs);
-            float need = row + 4 + 2 * title + sub;
+            float row = line(12, fs) + 2, titleH = line(15, fs), sub = line(12, fs);
+            int tl = linesFor(title, 15, fs, b.mode == WidgetModel.Mode.COMPACT ? b.w - 20 : b.w - 22 - 10 - Math.max(150, b.w * 0.42f));
+            float need = row + 4 + tl * titleH + sub;
             if (need > h) { f.sub = false; need -= sub; }
-            if (need > h) { f.titleLines = 1; need -= title; }
+            if (need > h && tl > 1) { f.titleLines = 1; need -= titleH; }
             if (need > h) { f.tag = false; f.status = false; need -= row + 4; }
             if (need > h && b.mode == WidgetModel.Mode.COMPACT && btn > 48) f.shortAct = true;   // last resort: a one-line "Open" button leaves room for the title
             return f;
@@ -212,7 +213,8 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         f.narrowHdr = b.w < 260;           // narrow: the header keeps the brand/status and one button (Retry or Refresh)
         float hdrAvail = b.w - 20 - (retry ? textW("Retry", 14, fs) + 30 : 54);
         float recW = textW("Record", 14, fs) + 22 + 6 + 30;
-        f.recLabel = !recording && hdrAvail - recW >= Math.max(90, textW("GVC Vault", 15, fs));
+        f.recLabel = !recording && hdrAvail - recW >= Math.max(90, Math.max(textW("GVC Vault", 15, fs), textW(status, 12, fs)));
+        f.statusShort = textW(status, 12, fs) > hdrAvail - (f.recLabel ? recW : (recording || f.narrowHdr ? 0 : 54)) - 10;
         // hero buttons: side by side if both labels fit, else stacked
         float inner = b.w - 20 - 5 - 24;
         boolean two = act2 != null && !act2.isEmpty();
@@ -221,8 +223,9 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         int l1 = linesFor(act1, 15, fs, (two && !f.act2Stack ? half : inner - 20));
         float buttons = 10 + btnH(l1, fs) + (f.act2Stack ? 8 + btnH(linesFor(act2, 15, fs, inner - 20), fs) : 0);
         float header = Math.max(48, line(15, fs) + line(12, fs) + 4);
-        float tagRow = line(12, fs) + 6, title = line(17, fs), subH = line(13, fs) + 2;
-        float hero = 22 + tagRow + 6 + 2 * title + subH + buttons;
+        float tagRow = line(12, fs) + 6, titleH = line(17, fs), subH = line(13, fs) + 2;
+        int tl = linesFor(title, 17, fs, inner);
+        float hero = 22 + tagRow + 6 + tl * titleH + subH + buttons;
         float more = 6 + Math.max(48, line(14, fs) + 14);
         float listMin = 14 + line(13, fs) + Math.max(52, line(12, fs) + 2 * line(14, fs) + line(12, fs) + 16);
         float navH = 8 + Math.max(48, line(13, fs) + 12);
@@ -245,7 +248,7 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         } else { f.list = false; f.nav = 0; }
         float need = hero + (f.more ? more : 0) + (f.list ? listMin : 0) + (f.nav > 0 ? navH : 0);
         if (need > avail && f.more) { f.more = false; need -= more; }
-        if (need > avail) { f.titleLines = 1; need -= title; }
+        if (need > avail && tl > 1) { f.titleLines = 1; need -= titleH; }
         if (need > avail) { f.sub = false; need -= subH; }
         if (need > avail) { f.tag = false; need -= tagRow; }
         if (need > avail && f.act2Stack) { f.act2 = false; f.act2Stack = false; need -= 8 + btnH(2, fs); }   // the second button is also in the app
@@ -285,12 +288,13 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         if (recBtn) act2 = "";
         float density = ctx.getResources().getDisplayMetrics().density;
         boolean retry = ready && m.needsRetry() && main;
-        Fit f = fit(b, fs, act1, act2, m.nav, m.role, retry, m.recording);
+        String stFull = ready ? m.statusLine(now)[0] : "";
+        Fit f = fit(b, fs, act1, act2, m.nav, m.role, retry, m.recording, title, stFull);
         if (main && f.overflow) {          // e.g. a short wide widget with very large text: the small layout fits better
             WidgetModel.Bucket nb = new WidgetModel.Bucket(b.w >= 300 ? WidgetModel.Mode.COMPACT_WIDE : WidgetModel.Mode.COMPACT, 0, b.w >= 340, b.w, b.h);
             return build(ctx, wid, m, nb, fs);
         }
-        if (main && f.narrowHdr && m.recording && ready && !recBtn) { act1 = "Stop recording"; link1 = LINK_REC; act2 = ""; recBtn = true; f = fit(b, fs, act1, act2, m.nav, m.role, retry, m.recording); }
+        if (main && f.narrowHdr && m.recording && ready && !recBtn) { act1 = "Stop recording"; link1 = LINK_REC; act2 = ""; recBtn = true; f = fit(b, fs, act1, act2, m.nav, m.role, retry, m.recording, title, stFull); }
         // a button label that won't fit on two lines says "Open" (it opens the same thing)
         float bw = b.mode == WidgetModel.Mode.COMPACT ? b.w - 36 : b.mode == WidgetModel.Mode.COMPACT_WIDE ? Math.max(150, b.w * 0.42f) - 24 : (act2 != null && !act2.isEmpty() && !f.act2Stack ? (b.w - 57) / 2f - 24 : b.w - 69);
         if ((textW(act1, 15, fs) > 2 * bw || f.shortAct) && !recBtn) act1 = "Open";
@@ -303,6 +307,7 @@ public class ShopWidgetProvider extends AppWidgetProvider {
 
         // ---- header: brand + sync status, Retry, Record, Refresh
         String[] st = ready ? m.statusLine(now) : new String[]{"", "muted"};
+        if (main && f.statusShort && ready) st[0] = m.statusShort(now);       // narrow header: "Offline", "Sign in again"...
         int stc = "red".equals(st[1]) ? p.red : "amber".equals(st[1]) ? p.amber : p.muted;
         v.setTextViewText(R.id.w_status, st[0]);
         v.setTextColor(R.id.w_status, stc);
