@@ -224,7 +224,7 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         float buttons = 10 + btnH(l1, fs) + (f.act2Stack ? 8 + btnH(linesFor(act2, 15, fs, inner - 20), fs) : 0);
         float header = Math.max(48, line(15, fs) + line(12, fs) + 4);
         float tagRow = line(12, fs) + 6, titleH = line(17, fs), subH = line(13, fs) + 2;
-        int tl = linesFor(title, 17, fs, inner);
+        int tl = Math.max(1, Math.min(2, (int) Math.ceil(title.length() * 17 * fs * 0.5f / inner)));   // body text runs narrower than button labels
         float hero = 22 + tagRow + 6 + tl * titleH + subH + buttons;
         float more = 6 + Math.max(48, line(14, fs) + 14);
         float listMin = 14 + line(13, fs) + Math.max(52, line(12, fs) + 2 * line(14, fs) + line(12, fs) + 16);
@@ -244,7 +244,9 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         if (b.mode == WidgetModel.Mode.LARGE) {
             f.more = false;
             if (hero + listMin + (f.nav > 0 ? navH : 0) > avail) f.nav = 0;
-            if (hero + listMin > avail) { f.list = false; f.more = true; }
+            // the list takes whatever room is left (it scrolls); only swap it for the one-line preview when almost none is left
+            if (avail - hero - (f.nav > 0 ? navH : 0) < 14 + line(13, fs) + 48) { f.list = false; f.more = true; }
+            else listMin = 0;
         } else { f.list = false; f.nav = 0; }
         float need = hero + (f.more ? more : 0) + (f.list ? listMin : 0) + (f.nav > 0 ? navH : 0);
         if (need > avail && f.more) { f.more = false; need -= more; }

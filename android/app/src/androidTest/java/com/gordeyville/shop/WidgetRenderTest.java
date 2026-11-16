@@ -86,7 +86,7 @@ public class WidgetRenderTest {
         String[][] r = {{"Quote", "Review the quote for the deck steel", "Job 1234 · Truck deck", "#ff8a2a", "{\"job\":\"j1\"}"},
                 {"Count", "Count in the hardware order", "INV · Inventory", "#f5b041", "{\"count\":[\"inv\",\"s2\"]}"},
                 {"Crew", "Give work to Sam", "From the board", "#ff8a2a", "{\"v\":\"crew\"}"},
-                {"Ncr", "Decide the fix for NCR-004", "Job 1234 · Truck deck", "#e5483b", "{\"job\":\"j1\",\"sec\":\"ncr\"}"},
+                {"NCR", "Decide the fix for NCR-004", "Job 1234 · Truck deck", "#e5483b", "{\"job\":\"j1\",\"sec\":\"ncr\"}"},
                 {"To do", "Call the paint shop about Friday", "Your to-do", "#ffd28a", "{\"v\":\"todo\"}"},
                 {"Follow up", "Follow up with the steel supplier", "Job 5678 · Tote box", "#e5483b", "{\"job\":\"j2\"}"}};
         JSONArray a = new JSONArray();
