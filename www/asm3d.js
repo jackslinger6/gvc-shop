@@ -60,6 +60,51 @@ function buildTree(items){
   ord(roots); nodes.forEach(n=>ord(n.kids));
   return {nodes,roots,leafOf};
 }
+/* --- tidy the tree for the shop (Kyle, Nov 15): the list only - the 3D file and Fusion are not changed, and every
+   part still shows / hides / measures the same. Fusion's own nesting is kept underneath.
+   - Loose fasteners at the top -> "Hardware". Inside an assembly with 3+ fastener rows -> a "Hardware" folder in it.
+     A fastener = Fusion name with bolt / nut / washer / screw / pin / rivet / stud... (bought, "_ai" imports etc.),
+     never a name starting with our job/part number (e.g. "1086_7- 2301-5th wheel pin" is a GVC part).
+     An assembly counts as hardware only if everything in it is.
+   - The truck and loose tools (truck chassis, plastic fenders, broom, pry bar, shovel, sledgehammer, fuel nozzle)
+     -> "Truck & tools", so everything that isn't fabricated hides in one tap.
+   - A top-level logo goes into the assembly whose box it sits inside (needs boxOf; on 1086WT: Front Headache Rack).
+   - Top-level "skirt" reads "Skirt / rear apron".
+   Group rows are kind "group" with ids "(hardware)", "(truck)", "<parent id>›(hardware)"; real Fusion parents are
+   kept in n.fparent for "Hide assembly" etc. */
+const HW_RE=/\b(bolts?|nuts?|washers?|screws?|pins?|rivets?|studs?|clevis|cotter|shcs|hhcs|fasteners?|lock ?nuts?|nylocks?|u-?bolts?|grommets?|gromets?)\b/i;
+const OURS_RE=/^#?\(?\d{3,4}[_(]|^(passenger|driver)[- ]\d{3,4}_/i;
+const TRUCK_RE=/kenworth|peterbilt|freightliner|western ?star|\bmack\b|\bchassis\b|plastic fenders?|\bbroom\b|pry ?bar|\bshovel\b|sledge|hose nozzle|fuel nozzle/i;
+function organize(T,boxOf){
+  const N=T.nodes, nm=n=>occName(n.raw).replace(/_/g," ");
+  const isHwPart=n=>n.kind!=="body"&&!OURS_RE.test(n.raw)&&HW_RE.test(nm(n));
+  const isHw=id=>{ const n=N.get(id); if(n.kind==="group") return false; if(!n.kids.length||n.kind==="part") return isHwPart(n);
+    return n.kids.every(k=>N.get(k).kind==="body"||isHw(k))&&n.kids.some(k=>N.get(k).kind!=="body"); };
+  N.forEach(n=>{ n.fparent=n.parent; });
+  const mkGroup=(id,name,parent,kids)=>{ const g={id,raw:name,kind:"group",name,parent,fparent:parent,kids:[],meshes:[],own:[]}; N.set(id,g);
+    kids.forEach(k=>{ const c=N.get(k); c.parent=id; g.kids.push(k); g.meshes.push(...c.meshes); }); return g; };
+  // 1. logo into the assembly it sits in
+  if(boxOf){ T.roots.slice().forEach(r=>{ const n=N.get(r); if(!/logo/i.test(n.raw)) return; const lb=boxOf(n.meshes); if(!lb) return;
+      const c=[0,1,2].map(k=>(lb[k]+lb[k+3])/2); let best=null, bv=Infinity;
+      T.roots.forEach(o=>{ if(o===r) return; const on=N.get(o); if(/logo/i.test(on.raw)||TRUCK_RE.test(on.raw)||isHw(o)) return; const b=boxOf(on.meshes); if(!b) return;
+        if([0,1,2].every(k=>c[k]>=b[k]&&c[k]<=b[k+3])){ const v=(b[3]-b[0])*(b[4]-b[1])*(b[5]-b[2]); if(v<bv){ bv=v; best=o; } } });
+      if(best){ T.roots.splice(T.roots.indexOf(r),1); n.parent=best; const B=N.get(best); B.kids.push(r); B.meshes.push(...n.meshes); } }); }
+  // 2/3. top-level groups
+  const truck=T.roots.filter(r=>TRUCK_RE.test(N.get(r).raw)), hw=T.roots.filter(r=>!truck.includes(r)&&isHw(r));
+  T.roots=T.roots.filter(r=>!truck.includes(r)&&!hw.includes(r));
+  if(hw.length) { mkGroup("(hardware)","Hardware",null,hw); T.roots.push("(hardware)"); }
+  if(truck.length){ mkGroup("(truck)","Truck & tools",null,truck); T.roots.push("(truck)"); }
+  // 4. hardware folders inside assemblies
+  [...N.values()].forEach(n=>{ if(n.kind==="group"||n.kind==="body"||!n.kids.length) return; const h=n.kids.filter(k=>isHw(k)); if(h.length<3||h.length===n.kids.length) return;
+    n.kids=n.kids.filter(k=>!h.includes(k)); mkGroup(n.id+"›(hardware)","Hardware",n.id,h); n.kids.push(n.id+"›(hardware)"); });
+  // 5. names
+  T.roots.forEach(r=>{ const n=N.get(r); if(/\bskirt\b/i.test(n.raw)) n.name="Skirt / rear apron"; });
+  // order: assemblies, then parts, then groups (Hardware before Truck & tools)
+  const rank=n=>n.kind==="asm"?0:n.kind==="group"?(n.id.endsWith("(truck)")?3:2):1;
+  const ord=ids=>ids.sort((a,b)=>{ const A=N.get(a), B=N.get(b); return rank(A)-rank(B)||A.name.localeCompare(B.name,undefined,{numeric:true}); });
+  ord(T.roots); N.forEach(n=>ord(n.kids));
+  return T;
+}
 const ancestors=(T,id)=>{ const a=[]; let n=T.nodes.get(id); while(n&&n.parent){ a.unshift(n.parent); n=T.nodes.get(n.parent); } return a; };
 const crumbs=(T,id)=>ancestors(T,id).map(a=>T.nodes.get(a).name);
 
@@ -169,7 +214,7 @@ function frac32(inch){ const s=inch<0?"-":""; const n=Math.round(Math.abs(inch)*
 function fmtLen(mm,u){ return u==="mm"?(mm).toFixed(1)+" mm":(mm/25.4).toFixed(2)+'" ('+frac32(mm/25.4)+")"; }
 const ACC_MM=0.1;   // stated reading accuracy for flat faces from this mesh (worst vertex error 0.058 mm + plane fit)
 
-const core={buildTree,ancestors,crumbs,visModel,topo,flatFace,faceToFace,dimLine,fmtLen,frac32,pretty,TOL,ACC_MM,eigMin};
+const core={buildTree,organize,HW_RE,ancestors,crumbs,visModel,topo,flatFace,faceToFace,dimLine,fmtLen,frac32,pretty,TOL,ACC_MM,eigMin};
 (typeof window!=="undefined"?window:globalThis).GVCASM=core;
 if(typeof document==="undefined") return;   // node tests stop here
 
@@ -330,7 +375,8 @@ window.openAsm3D=async function(url,title,opts){
   const root=gltf.scene; scene.add(root); root.updateMatrixWorld(true);
   const meshes=[]; root.traverse(o=>{ if(o.isMesh){ o.userData=Object.assign({},o.parent&&o.parent.userData,o.userData); o.userData._i=meshes.length; meshes.push(o); } });
   const items=meshes.map((m,i)=>({i,path:m.userData.path||m.name||("Part "+i),comp:m.userData.comp||m.name,body:m.userData.body,pn:m.userData.pn||null,mat:m.userData.mat}));
-  const T=buildTree(items), VIS=visModel(T);
+  const bb3=meshes.map(m=>new THREE.Box3().setFromObject(m));
+  const T=organize(buildTree(items),ms=>{ const b=new THREE.Box3(); ms.forEach(i=>b.union(bb3[i])); return b.isEmpty()?null:[b.min.x,b.min.y,b.min.z,b.max.x,b.max.y,b.max.z]; }), VIS=visModel(T);
   // materials: neutral metal (flat shading - the file has no normals) or one colour per top assembly
   const neutral=new THREE.MeshStandardMaterial({color:0xb9c0c8,metalness:0.15,roughness:0.62,flatShading:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
   const PAL=[0xd98b5f,0x6fa8dc,0x93c47d,0xc27ba0,0xe0c060,0x76a5af,0xb4a7d6,0xf6b26b,0x8fbc8f,0xd5a6bd,0x9fc5e8,0xb6d7a8];
@@ -425,7 +471,9 @@ window.openAsm3D=async function(url,title,opts){
     draw(); }
   function setSel(id,from){ sel=id; selCentre=id?boxOf(T.nodes.get(id).meshes.map(i=>meshes[i])).getCenter(new THREE.Vector3()):null; paint(); renderFoot(); if(from!=="tree") renderPanel(true); }
   const leafFor=mi=>T.leafOf[mi];
-  const parentAsm=id=>{ let n=T.nodes.get(id); if(n.kind==="body") n=T.nodes.get(n.parent); const p=n.parent; return p||n.id; };
+  // the real Fusion assembly above a row (skips the app's Hardware / Truck & tools groups)
+  const realParent=id=>{ let n=T.nodes.get(id); if(n.kind==="body") n=T.nodes.get(n.parent); return n.fparent||null; };
+  const parentAsm=id=>{ const n=T.nodes.get(id); if(n.kind==="group") return id; return realParent(id)||(n.kind==="body"?n.parent:id); };
 
   /* ---- measurement graphics ---- */
   const mg=new THREE.Group(); scene.add(mg);
@@ -457,7 +505,7 @@ window.openAsm3D=async function(url,title,opts){
   T.roots.forEach(r=>{ if(T.roots.length<=3) openRows.add(r); });
   const ST_LABEL={visible:"Showing",hidden:"Hidden",partial:"Partly showing"};
   function rowHtml(id,d){ const n=T.nodes.get(id), st=VIS.state(id), kids=n.kids.length;
-    const kindTxt=n.kind==="asm"?`${n.meshes.length} part${n.meshes.length===1?"":"s"}`:n.kind==="body"?"":"";
+    const kindTxt=n.kind==="asm"||n.kind==="group"?`${n.meshes.length} part${n.meshes.length===1?"":"s"}`:n.kind==="body"?"":"";
     return `<div class="a3row${sel===id?" sel":""}${st==="hidden"?" hid":""}" role="treeitem" aria-level="${d+1}" ${kids?`aria-expanded="${openRows.has(id)}"`:""} aria-selected="${sel===id}" style="padding-left:${d*14}px" data-id="${E(id)}">
       ${kids?`<button class="ex" type="button" data-ex="1" aria-expanded="${openRows.has(id)}" aria-label="${openRows.has(id)?"Collapse":"Expand"} ${E(n.name)}">${svg("chev",16)}</button>`:`<span></span>`}
       <button class="nm" type="button" data-pick="1" title="Select ${E(n.name)}">${E(n.name)}${kindTxt?`<small>${kindTxt}</small>`:""}</button>
@@ -504,31 +552,31 @@ window.openAsm3D=async function(url,title,opts){
       if(!visibleMeshes().length){ foot.innerHTML=`<div class="a3warn">Nothing is showing - every part is hidden.</div><div class="a3acts"><button class="a3b pri" type="button" data-fa="showall">Show all</button></div>`;
         foot.querySelector('[data-fa="showall"]').onclick=()=>{ VIS.showAll(); applyVis(); fitVisible(); }; } }
     else { const n=T.nodes.get(sel), cr=ancestors(T,sel), mi=n.meshes[0], u=mi!=null?meshes[mi].userData:{};
-      const isAsm=n.kind==="asm"||(n.kind==="part"&&n.kids.length), pns=n.meshes.length===1?(u.pn||[]):[];
-      const asmId=n.kind==="body"?n.parent:(n.parent||null);
+      const isAsm=n.kind==="asm"||n.kind==="group"||(n.kind==="part"&&n.kids.length), pns=n.meshes.length===1?(u.pn||[]):[];
+      const asmId=n.kind==="group"?null:realParent(sel);
       const drw=pns.length&&opts.drawingFor?pns.filter(pn=>opts.drawingFor(pn,true)):[];
       foot.innerHTML=`${segSel}
-        <div><div class="a3lab">${n.kind==="asm"?"Assembly":n.kind==="body"?"Part (body)":"Part"}${isAsm?` · ${n.meshes.length} parts`:""}</div>
+        <div><div class="a3lab">${n.kind==="group"?"Group (in the app only)":n.kind==="asm"?"Assembly":n.kind==="body"?"Part (body)":"Part"}${isAsm?` · ${n.meshes.length} parts`:""}</div>
           <div class="a3name" id="a3selname">${E(n.name)}</div>
           ${cr.length?`<nav class="a3crumb" aria-label="Assembly levels">${cr.map((a,k)=>`${k?"<span aria-hidden=true>›</span>":""}<button type="button" data-lvl="${E(a)}" title="Select this whole assembly">${E(T.nodes.get(a).name)}</button>`).join("")}</nav>`:""}</div>
         <div class="a3acts">
-          <button class="a3b" type="button" data-fa="hide">${isAsm?"Hide assembly":"Hide part"}</button>
+          <button class="a3b" type="button" data-fa="hide">${n.kind==="group"?"Hide group":isAsm?"Hide assembly":"Hide part"}</button>
           ${!isAsm&&asmId?`<button class="a3b" type="button" data-fa="hideasm" title="Hide ${E(T.nodes.get(asmId).name)}">Hide assembly</button>`:""}
-          <button class="a3b" type="button" data-fa="only">${isAsm?"Show only assembly":"Show only part"}</button>
+          <button class="a3b" type="button" data-fa="only">${n.kind==="group"?"Show only group":isAsm?"Show only assembly":"Show only part"}</button>
           ${!isAsm&&asmId?`<button class="a3b" type="button" data-fa="onlyasm">Show only assembly</button>`:""}
           <button class="a3b" type="button" data-fa="zoom">Zoom to</button>
           ${drw.length?drw.map(pn=>`<button class="a3b" type="button" data-dr="${E(pn)}">Open drawing${drw.length>1?" "+E(pn):""}</button>`).join(""):""}
           ${pns.length&&opts.onPart?pns.map(pn=>`<button class="a3b" type="button" data-p3="${E(pn)}">Exact 3D${pns.length>1?" "+E(pn):""}</button>`).join(""):""}
         </div>
         ${!isAsm&&!pns.length?`<div class="a3note">No drawing linked: this part isn't matched to a laser part on the parts list (bought part, tube, hardware, or not confidently matched). Nothing is guessed from the name.</div>`:pns.length&&!drw.length?`<div class="a3note">${E(pns.join(", "))} has no drawing uploaded yet.</div>`:""}
-        <details class="a3det"><summary>Details</summary><div>Imported name: ${E(u.comp||n.raw)}${u.body?" · "+E(u.body):""}<br>Fusion path: ${E(n.kind==="body"?n.parent:n.id)}${u.mat?"<br>Material: "+E(u.mat):""}${pns.length?"<br>Part number: "+E(pns.join(", ")):""}</div></details>`; }
-    foot.querySelectorAll("[data-sm]").forEach(b=>b.onclick=()=>{ selMode=b.dataset.sm; if(sel){ const n=T.nodes.get(sel); if(selMode==="asm"&&n.kind!=="asm") setSel(parentAsm(sel)); } renderFoot(); });
+        ${n.kind==="group"?`<div class="a3note">${n.id.endsWith("(truck)")?"The truck and loose tools - not fabricated. Hide this to see only what we build.":"Bolts, nuts, washers, screws and pins, gathered here by the app so the list stays short. In Fusion they sit where the breadcrumb shows."}</div>`:""}<details class="a3det"${n.kind==="group"?" hidden":""}><summary>Details</summary><div>Imported name: ${E(u.comp||n.raw)}${u.body?" · "+E(u.body):""}<br>Fusion path: ${E(n.kind==="body"?n.parent:n.id)}${u.mat?"<br>Material: "+E(u.mat):""}${pns.length?"<br>Part number: "+E(pns.join(", ")):""}</div></details>`; }
+    foot.querySelectorAll("[data-sm]").forEach(b=>b.onclick=()=>{ selMode=b.dataset.sm; if(sel){ const n=T.nodes.get(sel); if(selMode==="asm"&&n.kind!=="asm"&&n.kind!=="group") setSel(parentAsm(sel)); } renderFoot(); });
     foot.querySelectorAll("[data-lvl]").forEach(b=>b.onclick=()=>{ revealInTree(b.dataset.lvl); setSel(b.dataset.lvl); });
     const fa=k=>foot.querySelector(`[data-fa="${k}"]`);
     if(fa("hide")) fa("hide").onclick=()=>{ VIS.hide(sel); applyVis(); };
-    if(fa("hideasm")) fa("hideasm").onclick=()=>{ const n=T.nodes.get(sel); VIS.hide(n.kind==="body"?n.parent:n.parent); applyVis(); };
+    if(fa("hideasm")) fa("hideasm").onclick=()=>{ const a=realParent(sel); if(a){ VIS.hide(a); applyVis(); } };
     if(fa("only")) fa("only").onclick=()=>{ VIS.isolate(sel); applyVis(); fitVisible(); };
-    if(fa("onlyasm")) fa("onlyasm").onclick=()=>{ const n=T.nodes.get(sel); VIS.isolate(n.kind==="body"?n.parent:n.parent); applyVis(); fitVisible(); };
+    if(fa("onlyasm")) fa("onlyasm").onclick=()=>{ const a=realParent(sel); if(a){ VIS.isolate(a); applyVis(); fitVisible(); } };
     if(fa("zoom")) fa("zoom").onclick=zoomSel;
     foot.querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>showDrawing(b.dataset.dr));
     foot.querySelectorAll("[data-p3]").forEach(b=>b.onclick=()=>opts.onPart(b.dataset.p3));
