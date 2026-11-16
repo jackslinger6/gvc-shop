@@ -140,12 +140,31 @@ public class WidgetRenderTest {
 
     /* ------------------------------------------------------------ render + check */
     static final class Shot { View root; FrameLayout host; Bitmap bmp; }
-    Shot render(Context c, RemoteViews rv, int wpx, int hpx) {
+    /** a real window to draw in (lists only fill in when attached): the app's own screen, with the widget laid over it */
+    static Activity window() throws InterruptedException {
+        final Activity[] a = {null};
+        for (int tries = 0; tries < 60 && a[0] == null; tries++) {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                for (Activity x : ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)) a[0] = x; });
+            if (a[0] == null) {
+                if (tries == 0) { Context t = InstrumentationRegistry.getInstrumentation().getTargetContext();
+                    t.startActivity(new Intent(t, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+                Thread.sleep(500);
+            }
+        }
+        return a[0];
+    }
+    Shot render(Context c, RemoteViews rv, int wpx, int hpx) throws InterruptedException {
         final Shot s = new Shot();
+        final Activity act = window();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             s.host = new FrameLayout(c);
             s.root = rv.apply(c, s.host);
             s.host.addView(s.root, new FrameLayout.LayoutParams(wpx, hpx));
+            if (act != null) act.addContentView(s.host, new ViewGroup.LayoutParams(wpx, hpx));
+        });
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             for (int pass = 0; pass < 3; pass++) {      // lists fill in on layout - lay out a few times
                 s.host.measure(View.MeasureSpec.makeMeasureSpec(wpx, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(hpx, View.MeasureSpec.EXACTLY));
                 s.host.layout(0, 0, wpx, hpx);
@@ -156,6 +175,7 @@ public class WidgetRenderTest {
             cv.drawColor(0xFF5B6B7A);                 // a plain mid-tone "wallpaper" around it
             cv.translate(pad, pad);
             s.host.draw(cv);
+            if (s.host.getParent() instanceof ViewGroup) ((ViewGroup) s.host.getParent()).removeView(s.host);   // off the window again (taps still work)
         });
         return s;
     }
@@ -272,6 +292,7 @@ public class WidgetRenderTest {
                     else target[0] = s.root.findViewById(ctx.getResources().getIdentifier(t[1], "id", ctx.getPackageName()));
                 });
                 String got = "(no view)";
+                finishAll();
                 if (target[0] != null) {
                     synchronized (seen) { seen.clear(); }
                     InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> target[0].performClick());

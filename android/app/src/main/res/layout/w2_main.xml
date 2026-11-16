@@ -194,7 +194,7 @@
                     android:textSize="15sp"
                     android:fontFamily="sans-serif-medium"
                     android:textColor="#1B0F05"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:ellipsize="end"
                     android:background="@drawable/w2_btn1_dark"/>
                 <TextView
@@ -210,11 +210,28 @@
                     android:textSize="15sp"
                     android:fontFamily="sans-serif-medium"
                     android:textColor="#ECEBE8"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:ellipsize="end"
                     android:background="@drawable/w2_btn2_dark"
                     android:visibility="gone"/>
             </LinearLayout>
+            <!-- narrow widgets: the second button goes under the first instead of beside it -->
+            <TextView
+                android:id="@+id/w_act2b"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:textSize="15sp"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="#ECEBE8"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:background="@drawable/w2_btn2_dark"
+                android:visibility="gone"/>
         </LinearLayout>
     </LinearLayout>
 

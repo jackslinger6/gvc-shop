@@ -18,6 +18,7 @@
         android:layout_weight="1"
         android:orientation="vertical">
         <LinearLayout
+            android:id="@+id/w_toprow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -77,7 +78,7 @@
         android:textSize="15sp"
         android:fontFamily="sans-serif-medium"
         android:textColor="#1B0F05"
-        android:maxLines="1"
+        android:maxLines="2"
         android:ellipsize="end"
         android:background="@drawable/w2_btn1_dark"/>
 </LinearLayout>

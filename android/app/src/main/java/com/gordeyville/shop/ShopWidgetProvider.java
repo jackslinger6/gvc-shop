@@ -176,93 +176,89 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         return build(ctx, widgetId, m, WidgetModel.bucket(w, h), fs);
     }
 
-    /** what fits at this size and text size (estimated from the text sizes; tests check the real layout) */
-    static final class Fit { boolean tag = true, sub = true, more = true, list = true, nav = true; int titleLines = 2; }
-    static float line(float sp, float fs) { return sp * fs * 1.2f; }
-    static Fit fit(WidgetModel.Bucket b, float fs) {
+    /** what fits at this size and text size. Estimated from the real labels and text sizes (the emulator test
+     *  renders every size at text sizes 100-200% and checks nothing is clipped, cut off or too small). */
+    static final class Fit { boolean tag = true, status = true, sub = true, more = true, list = true, act2 = true, act2Stack = false, recLabel = true, hdrActs = true; int titleLines = 2, nav = 0; }
+    static float line(float sp, float fs) { return sp * fs * 1.25f; }
+    /** rough width of a label in dp (Roboto medium averages a bit over half an em per character) */
+    static float textW(String t, float sp, float fs) { return t == null ? 0 : t.length() * sp * fs * 0.58f; }
+    static int linesFor(String t, float sp, float fs, float width) { if (width <= 0) return 2; return Math.max(1, Math.min(2, (int) Math.ceil(textW(t, sp, fs) / width))); }
+    static float btnH(int lines, float fs) { return Math.max(48, lines * line(15, fs) + 14); }
+
+    static Fit fit(WidgetModel.Bucket b, float fs, String act1, String act2, List<WidgetModel.Nav> navAll, String role, boolean retry, boolean recording) {
         Fit f = new Fit();
-        float btn = Math.max(48, line(15, fs) + 10);
-        if (b.mode == WidgetModel.Mode.COMPACT || b.mode == WidgetModel.Mode.COMPACT_WIDE) {
-            f.list = false; f.nav = false; f.more = false;
-            float avail = b.h - 18 - (b.mode == WidgetModel.Mode.COMPACT ? btn + 6 : 0);
-            float need = line(12, fs) + 6 + 2 * line(15, fs) + 4 + line(12, fs);
-            if (need > avail) { f.sub = false; need -= line(12, fs); }
-            if (need > avail) { f.titleLines = 1; need -= line(15, fs); }
-            if (need > avail) { f.tag = false; }
+        boolean compact = b.mode == WidgetModel.Mode.COMPACT || b.mode == WidgetModel.Mode.COMPACT_WIDE;
+        if (compact) {
+            f.list = false; f.more = false; f.act2 = false;
+            float h = b.h - 16;
+            float btn;
+            if (b.mode == WidgetModel.Mode.COMPACT) {
+                btn = btnH(linesFor(act1, 15, fs, b.w - 20 - 16), fs);
+                h -= btn + 6;
+            } else {   // the button sits on the right; Record + Refresh under it only if both rows fit
+                btn = btnH(linesFor(act1, 15, fs, 150 - 24), fs);
+                f.hdrActs = b.headerActions && btn + 6 + 48 <= b.h - 16;
+                h = b.h - 16;
+            }
+            float row = line(12, fs) + 2, title = line(15, fs), sub = line(12, fs);
+            float need = row + 4 + 2 * title + sub;
+            if (need > h) { f.sub = false; need -= sub; }
+            if (need > h) { f.titleLines = 1; need -= title; }
+            if (need > h) { f.tag = false; f.status = false; need -= row + 4; }
             return f;
         }
+        // header: keep the brand readable - drop the "Record" word first if the row is tight
+        float hdrAvail = b.w - 20 - 54 - (retry ? textW("Retry", 14, fs) + 30 : 0);
+        float recW = textW("Record", 14, fs) + 22 + 6 + 30;
+        f.recLabel = !recording && hdrAvail - recW >= Math.max(90, textW("GVC Vault", 15, fs));
+        // hero buttons: side by side if both labels fit, else stacked
+        float inner = b.w - 20 - 5 - 24;
+        boolean two = act2 != null && !act2.isEmpty();
+        float half = (inner - 8) / 2 - 20;
+        f.act2Stack = two && (textW(act1, 15, fs) > half || textW(act2, 15, fs) > half);
+        int l1 = linesFor(act1, 15, fs, (two && !f.act2Stack ? half : inner - 20));
+        float buttons = 10 + btnH(l1, fs) + (f.act2Stack ? 8 + btnH(linesFor(act2, 15, fs, inner - 20), fs) : 0);
         float header = Math.max(48, line(15, fs) + line(12, fs) + 4);
-        float hero = 22 + line(12, fs) + 8 + 6 + 2 * line(17, fs) + 2 + line(13, fs) + 10 + btn;
-        float more = 6 + Math.max(48, line(14, fs) + 12);
+        float tagRow = line(12, fs) + 6, title = line(17, fs), subH = line(13, fs) + 2;
+        float hero = 22 + tagRow + 6 + 2 * title + subH + buttons;
+        float more = 6 + Math.max(48, line(14, fs) + 14);
         float listMin = 14 + line(13, fs) + Math.max(52, line(12, fs) + 2 * line(14, fs) + line(12, fs) + 16);
-        float nav = 8 + Math.max(48, line(13, fs) + 10);
+        float navH = 8 + Math.max(48, line(13, fs) + 12);
+        // destinations: as many as fit with whole labels (the longest label of the ones shown decides)
+        int n = b.navCount;
+        while (n > 0) {
+            float each = (b.w - 20 - 6 * (n - 1)) / n - 8;
+            float longest = 0;
+            for (WidgetModel.Nav x : navFor(navAll, n, role)) longest = Math.max(longest, textW(x.label, 13, fs));
+            if (longest <= each) break;
+            n--;
+        }
+        if (n == 1) n = 0;
+        f.nav = n;
         float avail = b.h - 20 - header - 8;
         if (b.mode == WidgetModel.Mode.LARGE) {
             f.more = false;
-            if (hero + listMin + (b.navCount > 0 ? nav : 0) > avail) f.nav = false;
+            if (hero + listMin + (f.nav > 0 ? navH : 0) > avail) f.nav = 0;
             if (hero + listMin > avail) { f.list = false; f.more = true; }
-        } else { f.list = false; f.nav = false; }
-        if (f.nav && b.navCount == 0) f.nav = false;
-        float need = hero + (f.more ? more : 0) + (f.list ? listMin : 0) + (f.nav ? nav : 0);
+        } else { f.list = false; f.nav = 0; }
+        float need = hero + (f.more ? more : 0) + (f.list ? listMin : 0) + (f.nav > 0 ? navH : 0);
         if (need > avail && f.more) { f.more = false; need -= more; }
-        if (need > avail) { f.titleLines = 1; need -= line(17, fs); }
-        if (need > avail) { f.sub = false; need -= line(13, fs) + 2; }
-        if (need > avail) { f.tag = false; }
+        if (need > avail) { f.titleLines = 1; need -= title; }
+        if (need > avail) { f.sub = false; need -= subH; }
+        if (need > avail) { f.tag = false; need -= tagRow; }
+        if (need > avail && f.act2Stack) { f.act2 = false; f.act2Stack = false; need -= 8 + btnH(2, fs); }   // the second button is also in the app
         return f;
     }
+    /** the role's destinations that fit (see WidgetModel.navFor) */
+    static List<WidgetModel.Nav> navFor(List<WidgetModel.Nav> all, int n, String role) { WidgetModel t = new WidgetModel(); t.role = role; t.nav.addAll(all); return t.navFor(n); }
 
     static RemoteViews build(Context ctx, int wid, WidgetModel m, WidgetModel.Bucket b, float fs) {
         Pal p = pal(m.state == WidgetModel.State.READY ? m.theme : "dark");
-        Fit f = fit(b, fs);
         boolean main = b.mode == WidgetModel.Mode.MEDIUM || b.mode == WidgetModel.Mode.LARGE;
-        int layout = b.mode == WidgetModel.Mode.COMPACT ? R.layout.w2_compact : b.mode == WidgetModel.Mode.COMPACT_WIDE ? R.layout.w2_compact_wide : R.layout.w2_main;
-        RemoteViews v = new RemoteViews(ctx.getPackageName(), layout);
-        v.setInt(R.id.w_root, "setBackgroundResource", p.bg);
+        boolean ready = m.state == WidgetModel.State.READY;
         long now = System.currentTimeMillis();
 
-        // ---- header: brand + sync status, Retry, Record, Refresh
-        String[] st = m.state == WidgetModel.State.READY ? m.statusLine(now) : new String[]{"", "muted"};
-        int stc = "red".equals(st[1]) ? p.red : "amber".equals(st[1]) ? p.amber : p.muted;
-        v.setTextViewText(R.id.w_status, st[0]);
-        v.setTextColor(R.id.w_status, stc);
-        v.setViewVisibility(R.id.w_status, st[0].isEmpty() ? View.GONE : View.VISIBLE);
-        if (main) {
-            v.setTextColor(R.id.w_brand_t, p.text);
-            v.setOnClickPendingIntent(R.id.w_brand, open(ctx, wid, 1, home(m)));
-            v.setContentDescription(R.id.w_brand, "Open GVC Vault" + (st[0].isEmpty() ? "" : ". " + st[0]));
-            boolean retry = m.state == WidgetModel.State.READY && m.needsRetry() && b.w >= 250;
-            v.setViewVisibility(R.id.w_retry, retry ? View.VISIBLE : View.GONE);
-            if (retry) { v.setInt(R.id.w_retry, "setBackgroundResource", p.btn2); v.setTextColor(R.id.w_retry, p.text); v.setOnClickPendingIntent(R.id.w_retry, refresh(ctx, wid)); v.setContentDescription(R.id.w_retry, "Retry updating the widget"); }
-        }   // small widget: no Retry button (no room for a full-size one) - it retries on its next update or when the app opens
-        boolean hdrActs = main || b.headerActions;
-        if (b.mode == WidgetModel.Mode.COMPACT_WIDE) v.setViewVisibility(R.id.w_hdr_acts, hdrActs ? View.VISIBLE : View.GONE);
-        if (hdrActs) {
-            boolean ready = m.state == WidgetModel.State.READY;
-            v.setViewVisibility(R.id.w_rec, ready ? View.VISIBLE : View.GONE);
-            if (ready) {
-                v.setOnClickPendingIntent(R.id.w_rec, open(ctx, wid, 2, LINK_REC));
-                if (m.recording) {
-                    v.setInt(R.id.w_rec, "setBackgroundResource", R.drawable.w2_rec_on);
-                    v.setImageViewResource(R.id.w_rec_i, R.drawable.ic_w2_stop); v.setInt(R.id.w_rec_i, "setColorFilter", 0xFFFFFFFF);
-                    v.setViewVisibility(R.id.w_rec_t, View.VISIBLE); v.setTextViewText(R.id.w_rec_t, "Stop recording"); v.setTextColor(R.id.w_rec_t, 0xFFFFFFFF);
-                    v.setContentDescription(R.id.w_rec, "Stop recording. Opens the app to stop and save it.");
-                } else {
-                    v.setInt(R.id.w_rec, "setBackgroundResource", p.btn2);
-                    v.setImageViewResource(R.id.w_rec_i, R.drawable.ic_w2_mic); v.setInt(R.id.w_rec_i, "setColorFilter", p.recIcon);
-                    boolean label = main && b.w >= 300;
-                    v.setViewVisibility(R.id.w_rec_t, label ? View.VISIBLE : View.GONE);
-                    v.setTextViewText(R.id.w_rec_t, "Record"); v.setTextColor(R.id.w_rec_t, p.text);
-                    v.setContentDescription(R.id.w_rec, "Record a voice note. Opens the app to start recording.");
-                }
-            }
-            v.setInt(R.id.w_refresh, "setBackgroundResource", p.btn2);
-            v.setInt(R.id.w_refresh_i, "setColorFilter", p.icon);
-            v.setOnClickPendingIntent(R.id.w_refresh, refresh(ctx, wid));
-            v.setContentDescription(R.id.w_refresh, m.sync == WidgetModel.Sync.UPDATING ? "Updating" : "Refresh the widget");
-            v.setViewVisibility(R.id.w_refresh, m.state == WidgetModel.State.NO_USER ? View.GONE : View.VISIBLE);
-        }
-
-        // ---- the one thing to do now
+        // ---- what the top card says (worked out first: the layout depends on how long the labels are)
         String tag, title, sub, count = "", act1, link1, act2 = "", link2 = ""; int col;
         if (m.state == WidgetModel.State.NO_USER) {
             tag = "Not signed in"; title = "Sign in to GVC Vault"; sub = "Your next job shows here after you sign in."; act1 = "Open GVC Vault"; link1 = ""; col = p.muted;
@@ -275,22 +271,77 @@ public class ShopWidgetProvider extends AppWidgetProvider {
             if (!m.timerDraw.isEmpty()) { act2 = "Drawings"; link2 = m.timerDraw; }
         } else if (m.hero != null) {
             tag = m.hero.tag; title = m.hero.title; sub = m.hero.sub; col = m.hero.color;
-            int more = Math.max(0, m.total - 1);
-            count = more > 0 && !(main && f.list) ? "+" + more + " more" : "";
             act1 = m.hero.act; link1 = m.hero.link; act2 = m.hero.act2; link2 = m.hero.link2;
         } else {
             tag = "All clear"; title = m.emptyTitle; sub = m.emptySub; col = 0xFF3AD06B; act1 = "Open GVC Vault"; link1 = home(m);
         }
-        if (m.recording && !hdrActs) { act1 = "Stop recording"; link1 = LINK_REC; }
-        if (m.state == WidgetModel.State.READY && m.sync == WidgetModel.Sync.AUTH && (m.hero == null && m.timer == null)) { act1 = "Open GVC Vault to sign in"; link1 = ""; }
+        boolean hdrPossible = main || b.headerActions;
+        if (m.recording && !hdrPossible) { act1 = "Stop recording"; link1 = LINK_REC; act2 = ""; }
+        if (ready && m.sync == WidgetModel.Sync.AUTH && m.hero == null && m.timer == null) { act1 = "Open GVC Vault to sign in"; link1 = ""; }
+        boolean recBtn = LINK_REC.equals(link1);
+        if (recBtn) act2 = "";
+        boolean retry = ready && m.needsRetry() && main;
+        Fit f = fit(b, fs, act1, act2, m.nav, m.role, retry, m.recording);
+        if (m.hero != null && m.timer == null) { int more = Math.max(0, m.total - 1); count = more > 0 && !(main && f.list) ? "+" + more + " more" : ""; }
+
+        int layout = b.mode == WidgetModel.Mode.COMPACT ? R.layout.w2_compact : b.mode == WidgetModel.Mode.COMPACT_WIDE ? R.layout.w2_compact_wide : R.layout.w2_main;
+        RemoteViews v = new RemoteViews(ctx.getPackageName(), layout);
+        v.setInt(R.id.w_root, "setBackgroundResource", p.bg);
+
+        // ---- header: brand + sync status, Retry, Record, Refresh
+        String[] st = ready ? m.statusLine(now) : new String[]{"", "muted"};
+        int stc = "red".equals(st[1]) ? p.red : "amber".equals(st[1]) ? p.amber : p.muted;
+        v.setTextViewText(R.id.w_status, st[0]);
+        v.setTextColor(R.id.w_status, stc);
+        v.setViewVisibility(R.id.w_status, st[0].isEmpty() ? View.GONE : View.VISIBLE);
+        if (main) {
+            v.setTextColor(R.id.w_brand_t, p.text);
+            v.setOnClickPendingIntent(R.id.w_brand, open(ctx, wid, 1, home(m)));
+            v.setContentDescription(R.id.w_brand, "Open GVC Vault" + (st[0].isEmpty() ? "" : ". " + st[0]));
+            v.setViewVisibility(R.id.w_retry, retry ? View.VISIBLE : View.GONE);
+            if (retry) { v.setInt(R.id.w_retry, "setBackgroundResource", p.btn2); v.setTextColor(R.id.w_retry, p.text); v.setOnClickPendingIntent(R.id.w_retry, refresh(ctx, wid)); v.setContentDescription(R.id.w_retry, "Retry updating the widget"); }
+        } else {
+            v.setViewVisibility(R.id.w_toprow, f.tag || f.status ? View.VISIBLE : View.GONE);
+        }   // small widget: no Retry button (no room for a full-size one) - it retries on its next update or when the app opens
+        boolean hdrActs = main || (b.headerActions && f.hdrActs);
+        if (b.mode == WidgetModel.Mode.COMPACT_WIDE) v.setViewVisibility(R.id.w_hdr_acts, hdrActs ? View.VISIBLE : View.GONE);
+        if (hdrActs) {
+            v.setViewVisibility(R.id.w_rec, ready ? View.VISIBLE : View.GONE);
+            if (ready) {
+                v.setOnClickPendingIntent(R.id.w_rec, open(ctx, wid, 2, LINK_REC));
+                if (m.recording) {
+                    // recording: the button says so in words (and Refresh steps aside on narrow widgets to make room)
+                    v.setInt(R.id.w_rec, "setBackgroundResource", R.drawable.w2_rec_on);
+                    v.setImageViewResource(R.id.w_rec_i, R.drawable.ic_w2_stop); v.setInt(R.id.w_rec_i, "setColorFilter", 0xFFFFFFFF);
+                    v.setViewVisibility(R.id.w_rec_t, View.VISIBLE); v.setTextViewText(R.id.w_rec_t, "Stop recording"); v.setTextColor(R.id.w_rec_t, 0xFFFFFFFF);
+                    v.setContentDescription(R.id.w_rec, "Stop recording. Opens the app to stop and save it.");
+                } else {
+                    v.setInt(R.id.w_rec, "setBackgroundResource", p.btn2);
+                    v.setImageViewResource(R.id.w_rec_i, R.drawable.ic_w2_mic); v.setInt(R.id.w_rec_i, "setColorFilter", p.recIcon);
+                    v.setViewVisibility(R.id.w_rec_t, main && f.recLabel ? View.VISIBLE : View.GONE);
+                    v.setTextViewText(R.id.w_rec_t, "Record"); v.setTextColor(R.id.w_rec_t, p.text);
+                    v.setContentDescription(R.id.w_rec, "Record a voice note. Opens the app to start recording.");
+                }
+            }
+            boolean recWide = m.recording && ready;
+            float recW = textW("Stop recording", 14, fs) + 22 + 6 + 30;
+            boolean refreshFits = !recWide || (main && (b.w - 20 - 6 - recW - 54) >= Math.max(70, textW("GVC", 15, fs) + 10));
+            v.setInt(R.id.w_refresh, "setBackgroundResource", p.btn2);
+            v.setInt(R.id.w_refresh_i, "setColorFilter", p.icon);
+            v.setOnClickPendingIntent(R.id.w_refresh, refresh(ctx, wid));
+            v.setContentDescription(R.id.w_refresh, m.sync == WidgetModel.Sync.UPDATING ? "Updating" : "Refresh the widget");
+            v.setViewVisibility(R.id.w_refresh, m.state == WidgetModel.State.NO_USER || !refreshFits ? View.GONE : View.VISIBLE);
+        }
+
+        // ---- the one thing to do now
         int tc = tagColor(p, col);
         v.setTextViewText(R.id.w_hero_tag, tag); v.setTextColor(R.id.w_hero_tag, tc); v.setInt(R.id.w_hero_tag, "setBackgroundResource", p.tagBg);
         v.setViewVisibility(R.id.w_hero_tag, f.tag ? View.VISIBLE : View.GONE);
+        if (!f.status) v.setViewVisibility(R.id.w_status, View.GONE);
         v.setTextViewText(R.id.w_hero_title, title); v.setTextColor(R.id.w_hero_title, p.text); v.setInt(R.id.w_hero_title, "setMaxLines", f.titleLines);
         v.setTextViewText(R.id.w_hero_sub, sub == null ? "" : sub); v.setTextColor(R.id.w_hero_sub, p.muted);
         v.setViewVisibility(R.id.w_hero_sub, f.sub && sub != null && !sub.isEmpty() ? View.VISIBLE : View.GONE);
         v.setTextViewText(R.id.w_act1, act1);
-        boolean recBtn = LINK_REC.equals(link1);
         v.setInt(R.id.w_act1, "setBackgroundResource", recBtn ? R.drawable.w2_rec_on : p.btn1);
         v.setTextColor(R.id.w_act1, recBtn ? 0xFFFFFFFF : p.onAccent);
         v.setOnClickPendingIntent(R.id.w_act1, open(ctx, wid, 3, link1));
@@ -301,18 +352,19 @@ public class ShopWidgetProvider extends AppWidgetProvider {
             v.setInt(R.id.w_hero, "setBackgroundResource", p.card);
             v.setInt(R.id.w_hero_bar, "setBackgroundColor", col);
             v.setTextViewText(R.id.w_hero_count, count); v.setTextColor(R.id.w_hero_count, p.muted);
-            boolean two = act2 != null && !act2.isEmpty() && !recBtn;
-            v.setViewVisibility(R.id.w_act2, two ? View.VISIBLE : View.GONE);
-            if (two) { v.setTextViewText(R.id.w_act2, act2); v.setTextColor(R.id.w_act2, p.text); v.setInt(R.id.w_act2, "setBackgroundResource", p.btn2);
-                v.setOnClickPendingIntent(R.id.w_act2, open(ctx, wid, 5, link2)); v.setContentDescription(R.id.w_act2, act2 + ": " + title); }
-        } else if (b.mode == WidgetModel.Mode.COMPACT && f.tag) {
-            // small widget: the time-on-the-clock or "+N more" goes on the status line if there's no sync message
+            boolean two = act2 != null && !act2.isEmpty() && f.act2;
+            int id2 = f.act2Stack ? R.id.w_act2b : R.id.w_act2;
+            v.setViewVisibility(R.id.w_act2, two && !f.act2Stack ? View.VISIBLE : View.GONE);
+            v.setViewVisibility(R.id.w_act2b, two && f.act2Stack ? View.VISIBLE : View.GONE);
+            if (two) { v.setTextViewText(id2, act2); v.setTextColor(id2, p.text); v.setInt(id2, "setBackgroundResource", p.btn2);
+                v.setOnClickPendingIntent(id2, open(ctx, wid, 5, link2)); v.setContentDescription(id2, act2 + ": " + title); }
+        } else if (b.mode == WidgetModel.Mode.COMPACT && f.status) {
+            // small widget: the time on the clock or "+N more" goes on the status line if there's no sync message
             if (st[0].isEmpty() && !count.isEmpty()) { v.setTextViewText(R.id.w_status, count); v.setViewVisibility(R.id.w_status, View.VISIBLE); }
         }
         if (!main) return v;
 
         // ---- the rest
-        boolean ready = m.state == WidgetModel.State.READY;
         List<WidgetModel.Card> items = m.items;
         v.setTextColor(R.id.w_list_h, p.muted); v.setTextColor(R.id.w_none, p.muted);
         boolean showMore = ready && f.more && !items.isEmpty();
@@ -347,7 +399,7 @@ public class ShopWidgetProvider extends AppWidgetProvider {
             }
         }
         // ---- destinations
-        List<WidgetModel.Nav> nav = ready && f.nav ? m.navFor(b.navCount) : new java.util.ArrayList<>();
+        List<WidgetModel.Nav> nav = ready && f.nav > 0 ? m.navFor(f.nav) : new java.util.ArrayList<>();
         v.setViewVisibility(R.id.w_nav, nav.isEmpty() ? View.GONE : View.VISIBLE);
         int[] ids = {R.id.w_nav0, R.id.w_nav1, R.id.w_nav2, R.id.w_nav3};
         for (int i = 0; i < ids.length; i++) {
