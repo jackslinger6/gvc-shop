@@ -56,7 +56,7 @@ public class WidgetRenderTest {
         ctx = InstrumentationRegistry.getInstrumentation().getTargetContext();
         ShopWidgetProvider.NO_NETWORK = true;
         String dir = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir");
-        out = dir != null ? new File(dir) : new File(ctx.getExternalFilesDir(null), "w2");
+        out = new File(ctx.getExternalMediaDirs()[0], "w2");      // /sdcard/Android/media/<app>/w2 - readable by adb on every Android version
         out.mkdirs();
     }
 
@@ -138,6 +138,33 @@ public class WidgetRenderTest {
         ShopWidgetProvider.FORCE_RECORDING = "rec".equals(sc[2]);
     }
 
+    /* ------------------------------------------------------------ a real widget host (like a launcher) */
+    // The emulator run grants this app the right to bind widgets (adb shell appwidget grantbind) so the test can be
+    // its own launcher: a real widget id bound to ShopWidgetProvider, updated through AppWidgetManager and shown in an
+    // AppWidgetHostView - the same path the home screen uses, lists (and the Android 11 list service) included.
+    static android.appwidget.AppWidgetHost host;
+    static int hostId = -1;
+    static boolean realHost = false;
+    static int renders = 0;
+    void ensureHost() {
+        if (hostId >= 0) return;
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            host = new android.appwidget.AppWidgetHost(ctx, 4242);
+            host.startListening();
+            hostId = host.allocateAppWidgetId();
+            realHost = android.appwidget.AppWidgetManager.getInstance(ctx).bindAppWidgetIdIfAllowed(hostId, new android.content.ComponentName(ctx, ShopWidgetProvider.class));
+        });
+    }
+    android.appwidget.AppWidgetHostView hostView(Context c) {
+        final android.appwidget.AppWidgetHostView[] hv = {null};
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            android.appwidget.AppWidgetProviderInfo info = android.appwidget.AppWidgetManager.getInstance(ctx).getAppWidgetInfo(hostId);
+            hv[0] = host.createView(c, hostId, info);
+            hv[0].setPadding(0, 0, 0, 0);
+        });
+        return hv[0];
+    }
+
     /* ------------------------------------------------------------ render + check */
     static final class Shot { View root; FrameLayout host; Bitmap bmp; }
     /** a real window to draw in (lists only fill in when attached): the app's own screen, with the widget laid over it */
@@ -157,16 +184,40 @@ public class WidgetRenderTest {
     Shot render(Context c, RemoteViews rv, int wpx, int hpx) throws InterruptedException {
         final Shot s = new Shot();
         final Activity act = window();
+        ensureHost();
+        final android.appwidget.AppWidgetHostView hv = realHost ? hostView(c) : null;
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             s.host = new FrameLayout(c);
-            // the launcher gets the views through a Parcel - do the same round trip
-            android.os.Parcel pa = android.os.Parcel.obtain();
-            rv.writeToParcel(pa, 0); pa.setDataPosition(0);
-            RemoteViews got = RemoteViews.CREATOR.createFromParcel(pa); pa.recycle();
-            s.root = got.apply(c, s.host);
-            s.host.addView(s.root, new FrameLayout.LayoutParams(wpx, hpx));
+            if (hv != null) s.host.addView(hv, new FrameLayout.LayoutParams(wpx, hpx));
+            else {   // no bind permission: apply the views directly (lists stay empty this way)
+                android.os.Parcel pa = android.os.Parcel.obtain();
+                rv.writeToParcel(pa, 0); pa.setDataPosition(0);
+                RemoteViews got = RemoteViews.CREATOR.createFromParcel(pa); pa.recycle();
+                s.root = got.apply(c, s.host);
+                s.host.addView(s.root, new FrameLayout.LayoutParams(wpx, hpx));
+            }
             if (act != null) act.addContentView(s.host, new ViewGroup.LayoutParams(wpx, hpx));
         });
+        final String marker = "render-" + (++renders);
+        if (hv != null) {
+            rv.setContentDescription(R.id.w_root, marker);       // to tell this update from the host's earlier one
+            android.appwidget.AppWidgetManager.getInstance(ctx).updateAppWidget(hostId, rv);     // through the system, like a real update
+            for (int i = 0; i < 40; i++) {
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+                final boolean[] ready = {false};
+                InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                    hv.measure(View.MeasureSpec.makeMeasureSpec(wpx, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(hpx, View.MeasureSpec.EXACTLY));
+                    hv.layout(0, 0, wpx, hpx);
+                    View r = hv.getChildCount() > 0 ? hv.getChildAt(0) : null;
+                    ListView lv = r == null ? null : r.findViewById(R.id.w_list);
+                    boolean listWanted = lv != null && lv.getVisibility() == View.VISIBLE;
+                    ready[0] = r != null && marker.contentEquals(String.valueOf(r.getContentDescription())) && (!listWanted || lv.getChildCount() > 0 || i > 25);
+                    if (ready[0]) s.root = r;
+                });
+                if (ready[0]) break;
+                Thread.sleep(100);
+            }
+        }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             for (int pass = 0; pass < 3; pass++) {      // lists fill in on layout - lay out a few times
@@ -261,6 +312,7 @@ public class WidgetRenderTest {
             }
         }
         ShopWidgetProvider.FORCE_RECORDING = null;
+        tsv.append("# rendered through ").append(realHost ? "a real AppWidgetHost (bound widget id, updates via AppWidgetManager)" : "RemoteViews.apply (no bind permission)").append('\n');
         try (FileOutputStream o = new FileOutputStream(new File(out, "results.tsv"))) { o.write(tsv.toString().getBytes("UTF-8")); }
         assertTrue(fails + " layouts with problems - see results.tsv", fails == 0);
     }

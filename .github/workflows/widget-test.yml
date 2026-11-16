@@ -67,10 +67,11 @@ jobs:
           script: |
             adb install -r -g android/app/build/outputs/apk/debug/app-debug.apk
             adb install -r -g android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell appwidget grantbind --package com.gordeyville.shop --user 0 || true
             mkdir -p shots/api${{ matrix.api }}
             adb shell am instrument -w -r com.gordeyville.shop.test/androidx.test.runner.AndroidJUnitRunner > shots/api${{ matrix.api }}/instrument.txt 2>&1 || true
             tail -40 shots/api${{ matrix.api }}/instrument.txt
-            adb pull /sdcard/Android/data/com.gordeyville.shop/files/w2 shots/api${{ matrix.api }}/ || true
+            adb pull /sdcard/Android/media/com.gordeyville.shop/w2 shots/api${{ matrix.api }}/ || true
             adb shell getprop ro.build.version.release > shots/api${{ matrix.api }}/android-version.txt
       - name: Publish screenshots
         if: always()
