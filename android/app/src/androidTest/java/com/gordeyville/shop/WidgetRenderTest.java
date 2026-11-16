@@ -209,10 +209,12 @@ public class WidgetRenderTest {
                     Layout l = t.getLayout();
                     if (l != null) for (int i = 0; i < l.getLineCount(); i++) if (l.getEllipsisCount(i) > 0) bad.add("cut label " + name(c, v) + " '" + t.getText() + "'");
                 }
-                if (name(c, v).equals("w_hero_title") && t.getLayout() != null && t.getLayout().getLineCount() > 0 && t.getHeight() + 1 < t.getLayout().getLineBottom(Math.min(t.getLayout().getLineCount(), t.getMaxLines()) - 1))
+                if (name(c, v).equals("w_hero_title") && t.getLayout() != null && t.getLayout().getLineCount() > 0 && t.getHeight() - t.getTotalPaddingTop() - t.getTotalPaddingBottom() + d < t.getLayout().getLineBottom(Math.min(t.getLayout().getLineCount(), t.getMaxLines()) - 1))
                     bad.add("title cut mid-line");
             }
             if (v.hasOnClickListeners()) taps.add(v);
+            if (v instanceof ListView) { ListView lv = (ListView) v; if (lv.getAdapter() == null || lv.getChildCount() == 0)
+                bad.add("list empty (adapter " + (lv.getAdapter() == null ? "none" : lv.getAdapter().getClass().getSimpleName() + " " + lv.getAdapter().getCount()) + ", " + Math.round(lv.getHeight() / d) + "dp tall)"); }
         }
         for (View v : taps) {
             if (v.getHeight() < 48 * d - 1 || v.getWidth() < 48 * d - 1) bad.add("small tap target " + name(c, v) + " " + Math.round(v.getWidth() / d) + "x" + Math.round(v.getHeight() / d) + "dp");

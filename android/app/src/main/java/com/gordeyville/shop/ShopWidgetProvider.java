@@ -178,8 +178,8 @@ public class ShopWidgetProvider extends AppWidgetProvider {
 
     /** what fits at this size and text size. Estimated from the real labels and text sizes (the emulator test
      *  renders every size at text sizes 100-200% and checks nothing is clipped, cut off or too small). */
-    static final class Fit { boolean tag = true, status = true, sub = true, more = true, list = true, act2 = true, act2Stack = false, recLabel = true, hdrActs = true; int titleLines = 2, nav = 0; }
-    static float line(float sp, float fs) { return sp * fs * 1.25f; }
+    static final class Fit { boolean tag = true, status = true, sub = true, more = true, list = true, act2 = true, act2Stack = false, recLabel = true, hdrActs = true, overflow = false, narrowHdr = false; int titleLines = 2, nav = 0; }
+    static float line(float sp, float fs) { return sp * fs * 1.32f; }
     /** rough width of a label in dp (Roboto medium averages a bit over half an em per character) */
     static float textW(String t, float sp, float fs) { return t == null ? 0 : t.length() * sp * fs * 0.58f; }
     static int linesFor(String t, float sp, float fs, float width) { if (width <= 0) return 2; return Math.max(1, Math.min(2, (int) Math.ceil(textW(t, sp, fs) / width))); }
@@ -208,7 +208,8 @@ public class ShopWidgetProvider extends AppWidgetProvider {
             return f;
         }
         // header: keep the brand readable - drop the "Record" word first if the row is tight
-        float hdrAvail = b.w - 20 - 54 - (retry ? textW("Retry", 14, fs) + 30 : 0);
+        f.narrowHdr = b.w < 260;           // narrow: the header keeps the brand/status and one button (Retry or Refresh)
+        float hdrAvail = b.w - 20 - (retry ? textW("Retry", 14, fs) + 30 : 54);
         float recW = textW("Record", 14, fs) + 22 + 6 + 30;
         f.recLabel = !recording && hdrAvail - recW >= Math.max(90, textW("GVC Vault", 15, fs));
         // hero buttons: side by side if both labels fit, else stacked
@@ -247,6 +248,7 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         if (need > avail) { f.sub = false; need -= subH; }
         if (need > avail) { f.tag = false; need -= tagRow; }
         if (need > avail && f.act2Stack) { f.act2 = false; f.act2Stack = false; need -= 8 + btnH(2, fs); }   // the second button is also in the app
+        f.overflow = need > avail + 2;     // still too much for this size at this text size: use the small layout instead
         return f;
     }
     /** the role's destinations that fit (see WidgetModel.navFor) */
@@ -280,8 +282,18 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         if (ready && m.sync == WidgetModel.Sync.AUTH && m.hero == null && m.timer == null) { act1 = "Open GVC Vault to sign in"; link1 = ""; }
         boolean recBtn = LINK_REC.equals(link1);
         if (recBtn) act2 = "";
+        float density = ctx.getResources().getDisplayMetrics().density;
         boolean retry = ready && m.needsRetry() && main;
         Fit f = fit(b, fs, act1, act2, m.nav, m.role, retry, m.recording);
+        if (main && f.overflow) {          // e.g. a short wide widget with very large text: the small layout fits better
+            WidgetModel.Bucket nb = new WidgetModel.Bucket(b.w >= 300 ? WidgetModel.Mode.COMPACT_WIDE : WidgetModel.Mode.COMPACT, 0, b.w >= 340, b.w, b.h);
+            return build(ctx, wid, m, nb, fs);
+        }
+        if (main && f.narrowHdr && m.recording && ready && !recBtn) { act1 = "Stop recording"; link1 = LINK_REC; act2 = ""; recBtn = true; f = fit(b, fs, act1, act2, m.nav, m.role, retry, m.recording); }
+        // a button label that won't fit on two lines says "Open" (it opens the same thing)
+        float bw = b.mode == WidgetModel.Mode.COMPACT ? b.w - 36 : b.mode == WidgetModel.Mode.COMPACT_WIDE ? Math.max(150, b.w * 0.42f) - 24 : (act2 != null && !act2.isEmpty() && !f.act2Stack ? (b.w - 57) / 2f - 24 : b.w - 69);
+        if (textW(act1, 15, fs) > 2 * bw && !recBtn) act1 = "Open";
+        if (act2 != null && !act2.isEmpty() && textW(act2, 15, fs) > 2 * (f.act2Stack ? b.w - 69 : bw)) act2 = "";
         if (m.hero != null && m.timer == null) { int more = Math.max(0, m.total - 1); count = more > 0 && !(main && f.list) ? "+" + more + " more" : ""; }
 
         int layout = b.mode == WidgetModel.Mode.COMPACT ? R.layout.w2_compact : b.mode == WidgetModel.Mode.COMPACT_WIDE ? R.layout.w2_compact_wide : R.layout.w2_main;
@@ -304,9 +316,10 @@ public class ShopWidgetProvider extends AppWidgetProvider {
             v.setViewVisibility(R.id.w_toprow, f.tag || f.status ? View.VISIBLE : View.GONE);
         }   // small widget: no Retry button (no room for a full-size one) - it retries on its next update or when the app opens
         boolean hdrActs = main || (b.headerActions && f.hdrActs);
+        if (b.mode == WidgetModel.Mode.COMPACT_WIDE) v.setInt(R.id.w_act1, "setMaxWidth", Math.round(Math.max(150, b.w * 0.42f) * density));
         if (b.mode == WidgetModel.Mode.COMPACT_WIDE) v.setViewVisibility(R.id.w_hdr_acts, hdrActs ? View.VISIBLE : View.GONE);
         if (hdrActs) {
-            v.setViewVisibility(R.id.w_rec, ready ? View.VISIBLE : View.GONE);
+            v.setViewVisibility(R.id.w_rec, ready && !(main && f.narrowHdr) ? View.VISIBLE : View.GONE);   // narrow: recording is on the card's button instead
             if (ready) {
                 v.setOnClickPendingIntent(R.id.w_rec, open(ctx, wid, 2, LINK_REC));
                 if (m.recording) {
@@ -330,7 +343,7 @@ public class ShopWidgetProvider extends AppWidgetProvider {
             v.setInt(R.id.w_refresh_i, "setColorFilter", p.icon);
             v.setOnClickPendingIntent(R.id.w_refresh, refresh(ctx, wid));
             v.setContentDescription(R.id.w_refresh, m.sync == WidgetModel.Sync.UPDATING ? "Updating" : "Refresh the widget");
-            v.setViewVisibility(R.id.w_refresh, m.state == WidgetModel.State.NO_USER || !refreshFits ? View.GONE : View.VISIBLE);
+            v.setViewVisibility(R.id.w_refresh, m.state == WidgetModel.State.NO_USER || !refreshFits || retry ? View.GONE : View.VISIBLE);   // Retry does the same job
         }
 
         // ---- the one thing to do now
@@ -346,9 +359,9 @@ public class ShopWidgetProvider extends AppWidgetProvider {
         v.setTextColor(R.id.w_act1, recBtn ? 0xFFFFFFFF : p.onAccent);
         v.setOnClickPendingIntent(R.id.w_act1, open(ctx, wid, 3, link1));
         v.setContentDescription(R.id.w_act1, act1 + (title.isEmpty() ? "" : ": " + title));
-        v.setOnClickPendingIntent(R.id.w_hero, open(ctx, wid, 4, m.timer != null ? m.timer.link : link1));
-        v.setContentDescription(R.id.w_hero, (tag.isEmpty() ? "" : tag + ". ") + title + (sub == null || sub.isEmpty() ? "" : ". " + sub));
         if (main) {
+            v.setOnClickPendingIntent(R.id.w_hero, open(ctx, wid, 4, m.timer != null ? m.timer.link : link1));
+            v.setContentDescription(R.id.w_hero, (tag.isEmpty() ? "" : tag + ". ") + title + (sub == null || sub.isEmpty() ? "" : ". " + sub));
             v.setInt(R.id.w_hero, "setBackgroundResource", p.card);
             v.setInt(R.id.w_hero_bar, "setBackgroundColor", col);
             v.setTextViewText(R.id.w_hero_count, count); v.setTextColor(R.id.w_hero_count, p.muted);
