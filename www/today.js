@@ -208,6 +208,11 @@ function taskDetail(jid,aid){
   });
 }
 window.openTaskDetail=taskDetail;
+/* the Today screen's own model, for the home-screen widget (widget.js): what's running, the next ready task, the rest */
+window.todayModel=()=>{ if(!P()) return null; const o=P().open(); const R=rows();
+  const curJ=o&&jobOf(o.job_id), curA=o&&o.task_id&&taskOf(curJ,o.task_id);
+  const others=R.today.filter(r=>!(o&&r.jid===o.job_id&&r.aid===o.task_id));
+  return {open:o, curJ, curA, ready:others.filter(r=>!r.why.length), blocked:others.filter(r=>r.why.length), later:R.later, num, rest}; };
 { const s3=document.createElement("style"); s3.textContent=`
 .tdd .lab{font:700 11.5px var(--font-ui,Inter,sans-serif);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .tdd h2.tdh2{margin:4px 0 6px;font:700 20px/1.25 var(--font-ui,Inter,sans-serif);text-transform:none;letter-spacing:0;padding:0;border:0;background:none;word-break:break-word}

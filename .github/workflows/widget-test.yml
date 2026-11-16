@@ -1,0 +1,86 @@
+name: Widget test (emulator)
+
+# Widget redesign (Nov 15 2026): builds the app, runs the widget unit tests, then renders the real home-screen
+# widget on an Android emulator for every role / state / size / text size, checks the layouts, taps the buttons,
+# and publishes the screenshots + results as the pre-release "widget-shots" (never "latest"; test images only,
+# made-up content). Nothing signs in, so nothing live is read or written.
+on:
+  push:
+    branches: [widget-wip]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: widget-test
+  cancel-in-progress: true
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [33, 30]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Web app into Android
+        run: |
+          npm ci
+          npm run vendor
+          npx cap sync android
+      - name: Unit tests (widget model)
+        if: matrix.api == 33
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --no-daemon --stacktrace
+      - name: Build app + test APKs
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run on the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: |
+            adb install -r -g android/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r -g android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            mkdir -p shots/api${{ matrix.api }}
+            adb shell am instrument -w -r com.gordeyville.shop.test/androidx.test.runner.AndroidJUnitRunner > shots/api${{ matrix.api }}/instrument.txt 2>&1 || true
+            tail -40 shots/api${{ matrix.api }}/instrument.txt
+            adb pull /sdcard/Android/data/com.gordeyville.shop/files/w2 shots/api${{ matrix.api }}/ || true
+            adb shell getprop ro.build.version.release > shots/api${{ matrix.api }}/android-version.txt
+      - name: Publish screenshots
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls -R shots | head -50
+          (cd shots && zip -qr ../widget-shots-api${{ matrix.api }}.zip .)
+          gh release view widget-shots >/dev/null 2>&1 || gh release create widget-shots --prerelease --latest=false --target "${GITHUB_SHA}" --title "Widget test screenshots (made-up data)" --notes "Emulator renders of the redesigned widget from the widget test workflow. Test images only."
+          gh release upload widget-shots widget-shots-api${{ matrix.api }}.zip --clobber
+      - name: Fail if the tests failed
+        run: |
+          grep -q "FAILURES!!!\|INSTRUMENTATION_FAILED\|Process crashed" shots/api${{ matrix.api }}/instrument.txt && exit 1 || exit 0

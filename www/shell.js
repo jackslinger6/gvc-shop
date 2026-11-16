@@ -298,27 +298,29 @@ function nextUp(){
   const out=[];
   const auto=(typeof liveAuto==="function"?liveAuto():[]).filter(t=>!/^Add job numbers|^Archive finished/.test(t.text));
   auto.forEach(t=>{ const k=KIND.find(([re])=>re.test(t.text))||[null,"BOARD","#9aa1aa"];
-    let act=null;
-    if(t.count&&window.openCount) act={t:"COUNT IT",fn:()=>window.openCount(t.job,t.count)};
+    let act=null, link=null;
+    if(t.count&&window.openCount){ act={t:"COUNT IT",fn:()=>window.openCount(t.job,t.count)}; link={count:[t.job,t.count]}; }
     else if(/^Pick up/i.test(t.text)&&t.job){ const j=jobs.find(x=>x.id===t.job); const s=j&&(j.suppliers||[]).find(x=>ACTIVE(x)&&(x.status==="ready"||x.status==="arrived")); act=s&&window.openCount?{t:"PICKED UP - COUNT IT",fn:()=>window.openCount(j.id,s.id)}:{t:"OPEN JOB",fn:()=>openJob(t.job)}; }
     else if(/^Log your time/i.test(t.text)) act={t:"LOG TIME",fn:()=>go("time")};
     else if(t.view) act={t:"OPEN "+String(t.view).toUpperCase(),fn:()=>go(t.view)};
     else if(t.job) act={t:"OPEN JOB",fn:()=>openJob(t.job,t.ncr?"ncr":undefined)};
+    if(!link&&/^Pick up/i.test(t.text)&&t.job){ const j=jobs.find(x=>x.id===t.job); const s=j&&(j.suppliers||[]).find(x=>ACTIVE(x)&&(x.status==="ready"||x.status==="arrived")); link=s?{count:[j.id,s.id]}:{job:t.job}; }
+    if(!link) link=/^Log your time/i.test(t.text)?{v:"time"}:t.view?{v:t.view}:t.job?{job:t.job,sec:t.ncr?"ncr":undefined}:{v:"todo"};
     const jn0=t.job?jname(t.job):""; const title=jn0&&t.text.endsWith(" - "+jn0)?t.text.slice(0,-(jn0.length+3)):t.text;
-    out.push({...t,text:title||t.text,tag:k[1],c:t.c&&!/^var/.test(t.c)?t.c:k[2],act,sub:t.job?jname(t.job):"From the board",later:{text:t.text,job:t.job}}); });
+    out.push({...t,text:title||t.text,tag:k[1],c:t.c&&!/^var/.test(t.c)?t.c:k[2],act,link,sub:t.job?jname(t.job):"From the board",later:{text:t.text,job:t.job}}); });
   // orders ready for pickup that no reminder covers yet (e.g. on INV or a received job)
   jobs.forEach(j=>(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status==="ready").forEach(x=>{
     const txt=`Pick up ${first(x.name)}${x.quoteNo?" #"+x.quoteNo:""}`;
     if(out.some(o=>o.job===j.id&&/^Pick up/i.test(o.text))) return;
     if(typeof snoozedAuto==="function"&&snoozedAuto(txt)) return;
     out.push({text:txt,tag:"PICK UP",c:"#22c3e6",job:j.id,sub:j.name+(x.scope?" · "+x.scope.slice(0,80):""),
-      act:window.openCount?{t:"PICKED UP - COUNT IT",fn:()=>window.openCount(j.id,x.id)}:{t:"OPEN JOB",fn:()=>openJob(j.id)},later:{text:txt,job:j.id}}); }));
+      act:window.openCount?{t:"PICKED UP - COUNT IT",fn:()=>window.openCount(j.id,x.id)}:{t:"OPEN JOB",fn:()=>openJob(j.id)},link:window.openCount?{count:[j.id,x.id]}:{job:j.id},later:{text:txt,job:j.id}}); }));
   // jobs with no job number - one card each, with who's on it and who gave it
   jobs.filter(j=>!jobNum(j.name)&&!j.sample&&j.id!=="inventory").forEach(j=>{
     const who=[...new Set((j.assemblies||[]).flatMap(a=>String(a.who||"").split(",").map(s=>s.trim()).filter(Boolean)))].join(", ");
-    out.push({text:`Get a job number: ${j.name}`,tag:"NO JOB #",c:"#f5b041",nonum:true,job:j.id,sub:[who?who+" is on it":"",j.from?"from "+j.from:""].filter(Boolean).join(" · ")||"Ask Robin or Randy",
+    out.push({text:`Get a job number: ${j.name}`,tag:"NO JOB #",c:"#f5b041",nonum:true,job:j.id,link:{job:j.id},sub:[who?who+" is on it":"",j.from?"from "+j.from:""].filter(Boolean).join(" · ")||"Ask Robin or Randy",
       act:{t:"EMAIL ROBIN",fn:()=>mailNum(j,ROBIN)},act2:{t:"RANDY",fn:()=>mailNum(j,RANDY)}}); });
-  (typeof liveMine==="function"?liveMine():[]).forEach(t=>out.push({text:t.text,tag:"TO DO",c:"#ffd28a",mine:true,id:t.id,job:t.job_id,sub:[t.from_name,t.job_id?jname(t.job_id):""].filter(Boolean).join(" · ")||"Your to-do",
+  (typeof liveMine==="function"?liveMine():[]).forEach(t=>out.push({text:t.text,tag:"TO DO",c:"#ffd28a",mine:true,id:t.id,job:t.job_id,link:t.job_id?{job:t.job_id}:{v:"todo"},sub:[t.from_name,t.job_id?jname(t.job_id):""].filter(Boolean).join(" · ")||"Your to-do",
     act:{t:"DONE",fn:()=>{ setTodo(t.id,true); todoToast("Done: "+t.text,()=>setTodo(t.id,false)); }},later:{id:t.id,text:t.text}}));
   return out.sort((a,b)=>RANK(a)-RANK(b));
 }

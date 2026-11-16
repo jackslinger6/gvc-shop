@@ -1419,6 +1419,7 @@ const SB_URL="https://bfbhosvkzdxjcmvofotk.supabase.co", SB_KEY="sb_publishable_
 const Widget = (window.capacitorExports && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.capacitorExports.registerPlugin("WidgetBridge") : null;
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: !Widget, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
 let channel=null;
+window.gvcWidgetBridge=Widget;   // widget.js hands the home-screen widget this person's own list (kept on the phone)
 function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 /* The home-screen widget shows the app's own To do list (it used to work it out separately and drifted).
    Every device with the app open publishes what its To do tab shows to gvc_widget_state 'todo' when it changes;
@@ -1426,7 +1427,7 @@ function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 let wsLast="", wsT=null, wsAt=0;
 function cssCol(c){ const m=String(c||"").match(/var\((--[a-z0-9-]+)\)/i); const v=m?getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim():String(c||""); return /^#[0-9a-f]{3,8}$/i.test(v)?v:"#ffd28a"; }
 function publishTodo(){
-  if(window.ME&&ME.role!=='admin') return;   // the widget shows Kyle's list - a crew/parts phone must not overwrite it
+  if(!window.ME||ME.role!=='admin') return;   // the widget shows Kyle's list - a crew/parts phone must not overwrite it (also before the role is known - preview fix Nov 15)
   clearTimeout(wsT); wsT=setTimeout(async()=>{
     if(!db||!jobs.length) return;
     let items=[];
@@ -2288,7 +2289,8 @@ async function widgetRec(){
   if(typeof cur!=="undefined"){ cur="todo"; render(); }
   toggleRec();
 }
-if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.act==="rec"&&Native){ widgetRec(); return; } if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
+if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.act==="rec"&&Native){ widgetRec(); return; }
+  if(d&&d.link&&window.gvcWidgetLink){ try{ const l=JSON.parse(d.link); if(l&&l.rec&&Native){ widgetRec(); return; } if(window.gvcWidgetLink(l)) return; }catch(e){} } if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden && db){ loadJobs(); loadSide(); checkTexts(false); } });
 render();
 (async()=>{
@@ -2334,6 +2336,7 @@ render();
 <script src="tabs.js"></script>
 <script src="purchasing.js"></script>
 <script src="back.js"></script>
+<script src="widget.js"></script>
 <script src="a11y.js"></script>
 <script>/* shared look goes last so it wins ties with the screens' own styles (redesign stage 1) */
 try{ document.head.appendChild(document.getElementById("gvcUi")); }catch(e){}</script>

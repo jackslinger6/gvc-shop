@@ -36,7 +36,8 @@ jobs:
           sed -i 's/"appId": "com.gordeyville.shop"/"appId": "com.gordeyville.shop.preview"/; s/"appName": "GVC Vault"/"appName": "GVC Vault Preview"/' capacitor.config.json
           sed -i 's/applicationId "com.gordeyville.shop"/applicationId "com.gordeyville.shop.preview"/' android/app/build.gradle
           sed -i 's#<string name="app_name">GVC Vault</string>#<string name="app_name">GVC Preview</string>#; s#<string name="title_activity_main">GVC Vault</string>#<string name="title_activity_main">GVC Preview</string>#' android/app/src/main/res/values/strings.xml
-          sed -i 's#android:label="GVC Vault board"#android:label="GVC Preview board"#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#android:label="GVC Vault"#android:label="GVC Preview"#' android/app/src/main/AndroidManifest.xml
+          grep -c 'android:label="GVC Preview"' android/app/src/main/AndroidManifest.xml
           sed -i "s#<title>GVC Vault</title>#<title>GVC Vault Preview</title><script>window.GVC_PREVIEW='${{ github.run_number }} (${SHA})'</script>#" www/index.html
           grep -c GVC_PREVIEW www/index.html
 

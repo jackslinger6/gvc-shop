@@ -26,10 +26,14 @@
 
         <receiver
             android:name=".ShopWidgetProvider"
-            android:label="GVC Vault board"
+            android:label="GVC Vault"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <!-- redraw the widget after the app is updated -->
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

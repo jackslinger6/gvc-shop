@@ -505,23 +505,26 @@ GVC.on("back",()=>{ try{ const sh=[...document.querySelectorAll(".shov.on")].len
 
 /* Robin's Home: only what needs her right now, as Next up cards like Kyle's (Kyle, Nov 8).
    Stock numbers live on the Inventory tab, order counts on the Orders tab - not repeated here. */
+/* for the home-screen widget: Robin's list and the receiving count sheet by order id */
+window.robinNextList=()=>robinNext();
+window.robinCountOrder=id=>{ const o=PO.find(x=>x.id===id); if(!o) return false; countSheet(o); return true; };
 function robinNext(){
   const out=[], now=Date.now(), dd=t=>Math.floor((now-new Date(t||now))/864e5);
   const open=o=>()=>{ tab="active"; poId=o.id; shellGo("porders"); toTop(); };
   PR().forEach(o=>{ const N=nums(o), Q=quotes(o), nm=(N.big?N.big+" · ":"")+N.name;
-    if(o.status==="ready") out.push({r:1,tag:"PICK UP",c:"#3ad06b",text:`Pick up at ${o.vendor||"the vendor"}`,sub:nm,act:{t:"PICKED UP - COUNT IT",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
-    else if(o.status==="delivered") out.push({r:2,tag:"COUNT IT IN",c:"#2f8ff0",text:`Count in ${N.name}`,sub:[N.big,o.vendor].filter(Boolean).join(" · "),act:{t:"COUNT IT IN",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
-    else if(o.status==="compare"&&Q.length) out.push({r:3,tag:"PICK A VENDOR",c:"#22c3e6",text:`Compare quotes: ${N.name}`,sub:`${N.big?N.big+" · ":""}${Q.length} quote${Q.length>1?"s":""} in${cheapest(o)?" · lowest "+$$(cheapest(o)):""}`,act:{t:"COMPARE QUOTES",fn:open(o)}});
-    else if(o.status==="rfq"&&!Q.length&&dd(o.created_at)>=2) out.push({r:5,tag:"NO REPLY",c:"#e5483b",text:`No quotes back: ${N.name}`,sub:`${N.big?N.big+" · ":""}asked ${(o.asked||[]).join(", ")||"vendors"} ${dd(o.created_at)} days ago`,act:{t:"OPEN",fn:open(o)}});
-    else if(o.status==="shipped"&&o.eta&&/today/i.test(o.eta)) out.push({r:6,tag:"COMING TODAY",c:"#f5b041",text:`${N.name} should show up today`,sub:nm,act:{t:"OPEN",fn:open(o)}});
+    if(o.status==="ready") out.push({r:1,link:{po:o.id,count:1},tag:"PICK UP",c:"#3ad06b",text:`Pick up at ${o.vendor||"the vendor"}`,sub:nm,act:{t:"PICKED UP - COUNT IT",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="delivered") out.push({r:2,link:{po:o.id,count:1},tag:"COUNT IT IN",c:"#2f8ff0",text:`Count in ${N.name}`,sub:[N.big,o.vendor].filter(Boolean).join(" · "),act:{t:"COUNT IT IN",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="compare"&&Q.length) out.push({r:3,link:{po:o.id},tag:"PICK A VENDOR",c:"#22c3e6",text:`Compare quotes: ${N.name}`,sub:`${N.big?N.big+" · ":""}${Q.length} quote${Q.length>1?"s":""} in${cheapest(o)?" · lowest "+$$(cheapest(o)):""}`,act:{t:"COMPARE QUOTES",fn:open(o)}});
+    else if(o.status==="rfq"&&!Q.length&&dd(o.created_at)>=2) out.push({r:5,link:{po:o.id},tag:"NO REPLY",c:"#e5483b",text:`No quotes back: ${N.name}`,sub:`${N.big?N.big+" · ":""}asked ${(o.asked||[]).join(", ")||"vendors"} ${dd(o.created_at)} days ago`,act:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="shipped"&&o.eta&&/today/i.test(o.eta)) out.push({r:6,link:{po:o.id},tag:"COMING TODAY",c:"#f5b041",text:`${N.name} should show up today`,sub:nm,act:{t:"OPEN",fn:open(o)}});
   });
   // supply requests Kyle approved - she orders them
-  (window.reqList?window.reqList():[]).filter(r=>r.status==="approved").forEach(r=>out.push({r:4,tag:"TO ORDER",c:"#ff8a2a",text:`Order ${window.reqLine(r)}`,sub:[r.how==="out"?"OUT":"",r.who?r.who+" asked":"",r.note||""].filter(Boolean).join(" · ")||"On the order list",act:{t:"OPEN",fn:()=>window.reqGo("approved")}}));
+  (window.reqList?window.reqList():[]).filter(r=>r.status==="approved").forEach(r=>out.push({r:4,link:{req:"approved"},tag:"TO ORDER",c:"#ff8a2a",text:`Order ${window.reqLine(r)}`,sub:[r.how==="out"?"OUT":"",r.who?r.who+" asked":"",r.note||""].filter(Boolean).join(" · ")||"On the order list",act:{t:"OPEN",fn:()=>window.reqGo("approved")}}));
   const hw=window.hwLowCount?window.hwLowCount():0, cl=window.invMode&&window.invMode.low?window.invMode.low():0;
-  if(hw) out.push({r:7,tag:"LOW STOCK",c:"#e5483b",text:`${hw} hardware item${hw>1?"s":""} running low`,sub:"Hardware · bolts, lights, electrical",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("hw"); shellGo("inv"); }}});
-  if(cl) out.push({r:7,tag:"LOW STOCK",c:"#e5483b",text:`${cl} consumable${cl>1?"s":""} running low`,sub:"Wire, gas, discs",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("cons"); shellGo("inv"); }}});
+  if(hw) out.push({r:7,link:{inv:"hw"},tag:"LOW STOCK",c:"#e5483b",text:`${hw} hardware item${hw>1?"s":""} running low`,sub:"Hardware · bolts, lights, electrical",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("hw"); shellGo("inv"); }}});
+  if(cl) out.push({r:7,link:{inv:"cons"},tag:"LOW STOCK",c:"#e5483b",text:`${cl} consumable${cl>1?"s":""} running low`,sub:"Wire, gas, discs",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("cons"); shellGo("inv"); }}});
   // her own to-dos
-  (typeof liveMine==="function"?liveMine():[]).forEach(t=>out.push({r:8,tag:"TO DO",c:"#ffd28a",text:t.text,sub:t.from_name||"Your to-do",
+  (typeof liveMine==="function"?liveMine():[]).forEach(t=>out.push({r:8,link:t.job_id?{job:t.job_id}:{v:"home"},tag:"TO DO",c:"#ffd28a",text:t.text,sub:t.from_name||"Your to-do",
     act:{t:"DONE",fn:()=>{ if(typeof setTodo==="function"){ setTodo(t.id,true); if(typeof todoToast==="function") todoToast("Done: "+t.text,()=>setTodo(t.id,false)); } }},later:{id:t.id,text:t.text}}));
   return out.sort((a,b)=>a.r-b.r);
 }
