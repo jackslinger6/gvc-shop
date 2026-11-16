@@ -204,14 +204,14 @@ public class WidgetRenderTest {
             android.appwidget.AppWidgetManager.getInstance(ctx).updateAppWidget(hostId, rv);     // through the system, like a real update
             for (int i = 0; i < 40; i++) {
                 InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-                final boolean[] ready = {false};
+                final boolean[] ready = {false}; final boolean late = i > 25;
                 InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
                     hv.measure(View.MeasureSpec.makeMeasureSpec(wpx, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(hpx, View.MeasureSpec.EXACTLY));
                     hv.layout(0, 0, wpx, hpx);
                     View r = hv.getChildCount() > 0 ? hv.getChildAt(0) : null;
                     ListView lv = r == null ? null : r.findViewById(R.id.w_list);
                     boolean listWanted = lv != null && lv.getVisibility() == View.VISIBLE;
-                    ready[0] = r != null && marker.contentEquals(String.valueOf(r.getContentDescription())) && (!listWanted || lv.getChildCount() > 0 || i > 25);
+                    ready[0] = r != null && marker.contentEquals(String.valueOf(r.getContentDescription())) && (!listWanted || lv.getChildCount() > 0 || late);
                     if (ready[0]) s.root = r;
                 });
                 if (ready[0]) break;
