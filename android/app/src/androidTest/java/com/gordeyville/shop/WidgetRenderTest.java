@@ -145,7 +145,7 @@ public class WidgetRenderTest {
     static android.appwidget.AppWidgetHost host;
     static int hostId = -1;
     static boolean realHost = false;
-    static int renders = 0;
+    static int renders = 0, hostMisses = 0;
     void ensureHost() {
         if (hostId >= 0) return;
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
@@ -204,9 +204,9 @@ public class WidgetRenderTest {
             android.appwidget.AppWidgetManager.getInstance(ctx).updateAppWidget(hostId, rv);     // through the system, like a real update
             if (android.os.Build.VERSION.SDK_INT < 31)      // Android 11 and older: the list comes from ShopWidgetService - tell it, as ShopWidgetProvider.redraw does
                 android.appwidget.AppWidgetManager.getInstance(ctx).notifyAppWidgetViewDataChanged(hostId, R.id.w_list);
-            for (int i = 0; i < 40; i++) {
+            for (int i = 0; i < 200; i++) {   // the Android 11 emulator can take several seconds to deliver an update
                 InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-                final boolean[] ready = {false}; final boolean late = i > 25;
+                final boolean[] ready = {false}; final boolean late = i > 120;
                 InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
                     hv.measure(View.MeasureSpec.makeMeasureSpec(wpx, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(hpx, View.MeasureSpec.EXACTLY));
                     hv.layout(0, 0, wpx, hpx);
@@ -219,6 +219,11 @@ public class WidgetRenderTest {
                 if (ready[0]) break;
                 Thread.sleep(100);
             }
+        }
+        if (s.root == null) {   // the update never arrived: say so in the results rather than crash
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> { s.host.removeAllViews();
+                s.root = rv.apply(c, s.host); s.host.addView(s.root, new FrameLayout.LayoutParams(wpx, hpx)); });
+            hostMisses++;
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
@@ -314,7 +319,8 @@ public class WidgetRenderTest {
             }
         }
         ShopWidgetProvider.FORCE_RECORDING = null;
-        tsv.append("# rendered through ").append(realHost ? "a real AppWidgetHost (bound widget id, updates via AppWidgetManager)" : "RemoteViews.apply (no bind permission)").append('\n');
+        tsv.append("# rendered through ").append(realHost ? "a real AppWidgetHost (bound widget id, updates via AppWidgetManager)" : "RemoteViews.apply (no bind permission)")
+           .append(hostMisses > 0 ? "; " + hostMisses + " updates didn't arrive in 20 s and were applied directly" : "").append('\n');
         try (FileOutputStream o = new FileOutputStream(new File(out, "results.tsv"))) { o.write(tsv.toString().getBytes("UTF-8")); }
         assertTrue(fails + " layouts with problems - see results.tsv", fails == 0);
     }
