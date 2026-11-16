@@ -1419,6 +1419,35 @@ const SB_URL="https://bfbhosvkzdxjcmvofotk.supabase.co", SB_KEY="sb_publishable_
 const Widget = (window.capacitorExports && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.capacitorExports.registerPlugin("WidgetBridge") : null;
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: !Widget, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
 let channel=null;
+/* View only (Nov 15): a 'viewer' login (role set in gvc_members) always gets this; opening the app with ?viewonly=1 turns it on for this browser (kept in
+   localStorage, so it stays on after the sign-in link redirects). Every write the app can make is refused here before
+   it reaches the server: table inserts/updates/upserts/deletes, write RPCs (numbers, punch in/out, seen, undo),
+   file uploads/removes and the server functions (Ask Claude, mail files, quotes). Reading works as normal.
+   This is a safeguard in the app, not a server permission - the account itself can still write. */
+try{ if(/[?&]viewonly=1\b/.test(location.search)) localStorage.setItem("gvc_viewonly","1"); }catch(e){}
+window.GVC_VIEWONLY=(()=>{ try{ return localStorage.getItem("gvc_viewonly")==="1"; }catch(e){ return false; } })();
+window.gvcViewOnlyOn=function(){
+  if(window.__gvcVOon) return; window.__gvcVOon=1; window.GVC_VIEWONLY=true;
+  const no={data:null,error:{message:"View only - changes are switched off on this device",code:"viewonly"}};
+  let warned=0; const say=()=>{ if(Date.now()-warned<4000) return; warned=Date.now();
+    try{ const t=document.createElement("div"); t.textContent="View only - nothing you change is saved"; t.style.cssText="position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#e5483b;color:#fff;padding:10px 16px;border-radius:12px;font:600 14px sans-serif;z-index:2147483647";
+      document.body.appendChild(t); setTimeout(()=>t.remove(),2500); }catch(e){} };
+  // a stand-in for a query that never runs: any chained call (.select().eq().single()...) returns itself, awaiting it gives the refusal
+  const dead=()=>{ say(); const p=Promise.resolve(no); const px=new Proxy(function(){},{get:(t,k)=>k==="then"?p.then.bind(p):k==="catch"?p.catch.bind(p):k==="finally"?p.finally.bind(p):()=>px,apply:()=>px}); return px; };
+  const from0=sb.from.bind(sb);
+  sb.from=name=>{ const q=from0(name); ["insert","update","upsert","delete"].forEach(m=>{ q[m]=()=>dead(); }); return q; };
+  const rpc0=sb.rpc.bind(sb), READ_RPC=["gvc_me","gvc_team","gvc_widget_key","gvc_jessie_key"];
+  sb.rpc=(fn,args,o)=>READ_RPC.includes(fn)?rpc0(fn,args,o):dead();
+  if(sb.storage&&sb.storage.from){ const st0=sb.storage.from.bind(sb.storage);
+    sb.storage.from=b=>{ const s2=st0(b); ["upload","update","remove","move","copy"].forEach(m=>{ s2[m]=()=>dead(); }); return s2; }; }
+  if(sb.functions) sb.functions.invoke=()=>dead();
+  const bar=()=>{ if(document.getElementById("gvcVO")) return; const b=document.createElement("div"); b.id="gvcVO";
+    b.textContent="View only - you can look around; nothing you change is saved";
+    b.style.cssText="position:fixed;top:0;left:0;right:0;z-index:2147483646;background:#e5483b;color:#fff;text-align:center;font:600 13px sans-serif;padding:4px 8px;pointer-events:none";
+    document.body.appendChild(b); };
+  if(document.body) bar(); else document.addEventListener("DOMContentLoaded",bar);
+};
+if(window.GVC_VIEWONLY) window.gvcViewOnlyOn();
 window.gvcWidgetBridge=Widget;   // widget.js hands the home-screen widget this person's own list (kept on the phone)
 function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 /* The home-screen widget shows the app's own To do list (it used to work it out separately and drifted).
@@ -1561,6 +1590,7 @@ async function startApp(){
   try{ Widget && await Widget.setKey({ key }); }catch(e){}
   // who's signed in: Kyle (admin) or crew (Colton) - crew gets the shop-floor side only (Nov 5)
   try{ const r=await sb.rpc("gvc_me"); window.ME=r.data||{name:"Kyle",role:"admin"}; }catch(e){ window.ME={name:"Kyle",role:"admin"}; }
+  if(window.ME.role==="viewer") window.gvcViewOnlyOn();   // observer login (Saad): look, don't touch - the server refuses writes too (supabase/viewer-role.sql)
   document.body.classList.toggle("crew",window.ME.role==="crew"||window.ME.role==="parts");   // crew + parts (Robin) share the shop-side layout
   document.body.classList.toggle("parts",window.ME.role==="parts");
   // Robin's phone starts in girly mode (she can switch it off in More); an explicit choice is kept
