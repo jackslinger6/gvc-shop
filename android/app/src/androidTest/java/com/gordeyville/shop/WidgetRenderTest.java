@@ -202,6 +202,8 @@ public class WidgetRenderTest {
         if (hv != null) {
             rv.setContentDescription(R.id.w_root, marker);       // to tell this update from the host's earlier one
             android.appwidget.AppWidgetManager.getInstance(ctx).updateAppWidget(hostId, rv);     // through the system, like a real update
+            if (android.os.Build.VERSION.SDK_INT < 31)      // Android 11 and older: the list comes from ShopWidgetService - tell it, as ShopWidgetProvider.redraw does
+                android.appwidget.AppWidgetManager.getInstance(ctx).notifyAppWidgetViewDataChanged(hostId, R.id.w_list);
             for (int i = 0; i < 40; i++) {
                 InstrumentationRegistry.getInstrumentation().waitForIdleSync();
                 final boolean[] ready = {false}; final boolean late = i > 25;
