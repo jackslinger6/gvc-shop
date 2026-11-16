@@ -10,6 +10,10 @@ const ST={review:["Waiting for Kyle","#9b7bff"],question:["Jessie has a question
 const FILES=[["model","Model"],["drawing","Drawings / PDF"],["dxf","DXFs"]];
 let revs=[], loaded=false, ch=null, filt="active", jf="", form=null, sel=new Set(), photoUrls={}, edit=null, sentBar=null;
 const tag=n=>"REV-"+String(n).padStart(3,"0");
+/* two revisions ended up with the same number (REV-002 on 1086WT, Nov 11). The later one shows as REV-002-B so they
+   can be told apart; the stored number and every link stay the same (Kyle's review, Nov 14) */
+const tagOf=r=>{ if(!r||typeof r!=="object") return tag(r); const same=revs.filter(x=>x.n===r.n).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
+  const i=same.findIndex(x=>x.id===r.id); return tag(r.n)+(i>0?"-"+String.fromCharCode(65+i):""); };
 const css=document.createElement("style");
 css.textContent=`
 .rvv{margin-top:12px;max-width:1000px}
@@ -69,7 +73,7 @@ window.renderRevs=function(){
   const cnt=k=>revs.filter(r=>(!jf||r.job_id===jf)&&r.status===k).length;
   const jobOpts=(v,blank)=>`${blank?`<option value="">${blank}</option>`:""}${jobs.map(j=>`<option value="${esc(j.id)}" ${v===j.id?"selected":""}>${esc(j.name)}</option>`).join("")}`;
   const openSel=list.filter(r=>r.status==="open");
-  let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">Model revisions</h2><span style="flex:1"></span>
+  let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">Model revisions</h2><span style="flex:1"></span>
      <button class="btn primary" type="button" id="rvAdd">+ Revision</button></div>
    <div class="lbl" style="margin-top:4px">${isAdm()?"Things found in the shop that need changing in the model. The crew's go to you first (For Kyle). Send the approved ones to Jessie as one list - he marks them done himself from his link, then you check his update.":"Something in the shop that should change in the model? Log it with a photo. Kyle looks it over and sends it to Jessie."}</div>
    <div class="row"><select id="rvJob">${jobOpts(jf,"All jobs")}</select>
@@ -88,10 +92,10 @@ window.renderRevs=function(){
      <div class="row" style="justify-content:flex-end"><button class="btn sm" type="button" id="rfX">Cancel</button><button class="btn sm primary" type="button" id="rfSave">Save revision</button></div></div>`;
   if(openSel.length&&isAdm()) h+=`<div class="row"><button class="btn sm" type="button" id="rvMail">✉ Email Jessie the ${sel.size?sel.size+" selected":openSel.length+" not sent"}</button><button class="btn sm" type="button" id="rvShow">Show list</button><span class="lbl">Tick revisions to send only some.</span></div>`;
   h+=list.map(r=>{ const s=ST[r.status]||ST.open; const f=r.files||{};
-    return `<div class="rc" style="--c:${s[1]}"><div class="rh">${r.status==="open"&&isAdm()?`<input type="checkbox" data-rsel="${r.id}" ${sel.has(r.id)?"checked":""} aria-label="Select ${tag(r.n)}">`:""}<b>${tag(r.n)}</b><span>${esc(jobName(r.job_id))}</span><span class="lbl">${r.kind==="fix"?"Fix":"Improvement"}${r.ncr?` · from NCR-${String(r.ncr).padStart(3,"0")}`:""}</span>${r.part?`<span class="lbl">· ${esc(r.part)}</span>`:""}<span style="flex:1"></span><span class="pill">${s[0]}</span></div>
+    return `<div class="rc" style="--c:${s[1]}"><div class="rh">${r.status==="open"&&isAdm()?`<input type="checkbox" data-rsel="${r.id}" ${sel.has(r.id)?"checked":""} aria-label="Select ${tagOf(r)}">`:""}<b>${tagOf(r)}</b><span>${esc(jobName(r.job_id))}</span><span class="lbl">${r.kind==="fix"?"Fix":"Improvement"}${r.ncr?` · from NCR-${String(r.ncr).padStart(3,"0")}`:""}</span>${r.part?`<span class="lbl">· ${esc(r.part)}</span>`:""}<span style="flex:1"></span><span class="pill">${s[0]}</span></div>
       ${edit===r.id?`<textarea data-rwhat="${r.id}">${esc(r.what)}</textarea><div class="row"><input data-rpart="${r.id}" value="${esc(r.part||"")}" placeholder="Part / area" style="flex:1"><button class="btn sm primary" type="button" data-rsave="${r.id}">Save</button></div>`
         :`<div style="margin-top:6px;white-space:pre-wrap">${esc(r.what)}</div>`}
-      ${(r.photos||[]).length?`<div class="ph">${r.photos.map(p=>photoUrls[p]?`<img src="${photoUrls[p]}" alt="Photo for ${tag(r.n)}" data-rzoom="${esc(p)}">`:"").join("")}</div>`:""}
+      ${(r.photos||[]).length?`<div class="ph">${r.photos.map(p=>photoUrls[p]?`<img src="${photoUrls[p]}" alt="Photo for ${tagOf(r)}" data-rzoom="${esc(p)}">`:"").join("")}</div>`:""}
       ${r.jesse_note?`<div class="lbl" style="margin-top:6px;color:var(--text)">${r.status==="question"?"<b>Jessie asks:</b> ":"Jessie: "}${esc(r.jesse_note)}</div>`:""}
       <div class="lbl" style="margin-top:6px">Logged ${fmt(r.created_at)}${r.sent_at?" · sent "+fmt(r.sent_at):""}${r.done_at?" · Jessie done "+fmt(r.done_at):""}${r.checked_at?" · checked "+fmt(r.checked_at):""}</div>
       ${["done","checked"].includes(r.status)||Object.values(f).some(Boolean)?`<div class="row"><span class="lbl">Updated:</span>${FILES.map(([k,t])=>`<label class="chk"><input type="checkbox" data-rfile="${r.id}|${k}" ${f[k]?"checked":""}>${t}</label>`).join("")}</div>`:""}
@@ -122,12 +126,12 @@ window.renderRevs=function(){
       const {data,error}=await sb.from("gvc_revisions").insert({job_id:f.job||null,part:f.part.trim()||null,what:f.what.trim(),kind:f.kind||"improvement",ncr:f.ncr||null}).select().single();
       if(error){ say("Couldn't save: "+error.message); $("#rfSave").disabled=false; return; }
       if(f.files.length){ const ps=await uploadPhotos(data.id,f.files); if(ps.length) await sb.from("gvc_revisions").update({photos:ps}).eq("id",data.id); }
-      form=null; if(f.job) jf=f.job; await load(); say(isAdm()?`${tag(data.n)} saved.`:`${tag(data.n)} saved - Kyle will look at it before it goes to Jessie.`); };
+      form=null; if(f.job) jf=f.job; await load(); say(isAdm()?`${tagOf(data)} saved.`:`${tagOf(data)} saved - Kyle will look at it before it goes to Jessie.`); };
   }
   B.querySelectorAll("[data-rsel]").forEach(c=>c.onchange=()=>{ c.checked?sel.add(c.dataset.rsel):sel.delete(c.dataset.rsel); render(); });
   B.querySelectorAll("[data-rst]").forEach(b=>b.onclick=()=>{ const [id,st]=b.dataset.rst.split("|"); const now=new Date().toISOString(); const r=revs.find(x=>x.id===id);
     if(window.ME&&ME.preview){ say("Preview - nothing is saved."); return; }
-    const p={status:st}; if(st==="sent") p.sent_at=now; if(st==="checked"){ p.checked_at=now; const f=r.files||{}; if(!FILES.every(([k])=>f[k])) say(`${tag(r.n)} checked. Not every file is ticked as updated yet - tick Model / Drawings / DXFs when they are.`); }
+    const p={status:st}; if(st==="sent") p.sent_at=now; if(st==="checked"){ p.checked_at=now; const f=r.files||{}; if(!FILES.every(([k])=>f[k])) say(`${tagOf(r)} checked. Not every file is ticked as updated yet - tick Model / Drawings / DXFs when they are.`); }
     upd(id,p); });
   B.querySelectorAll("[data-rfile]").forEach(c=>c.onchange=()=>{ const [id,k]=c.dataset.rfile.split("|"); const r=revs.find(x=>x.id===id); upd(id,{files:{...(r.files||{}),[k]:c.checked}}); });
   B.querySelectorAll("[data-rph]").forEach(i=>i.onchange=async()=>{ const id=i.dataset.rph; const r=revs.find(x=>x.id===id); say("Uploading photo…"); const ps=await uploadPhotos(id,[...i.files]); if(ps.length){ await upd(id,{photos:[...(r.photos||[]),...ps]}); await signPhotos(); render(); say("Photo added."); } });
@@ -147,7 +151,7 @@ async function mailJessie(list){
   const byJob={}; list.forEach(r=>(byJob[jobName(r.job_id)]=byJob[jobName(r.job_id)]||[]).push(r));
   let link=""; try{ const k=await sb.rpc("gvc_jessie_key"); if(k.data) link=`${JESSIE_PAGE}#k=${k.data}`; }catch(e){}
   let body=`Hi Jessie,\n\nA few model changes from the shop:\n`;
-  for(const [jn,rs] of Object.entries(byJob)){ body+=`\n${jn}\n`; for(const r of rs){ const ls=await photoLinks(r); body+=`- ${tag(r.n)}${r.part?" - "+r.part:""}: ${r.what}${ls.length?"\n  Photos: "+ls.join("\n  "):""}\n`; } }
+  for(const [jn,rs] of Object.entries(byJob)){ body+=`\n${jn}\n`; for(const r of rs){ const ls=await photoLinks(r); body+=`- ${tagOf(r)}${r.part?" - "+r.part:""}: ${r.what}${ls.length?"\n  Photos: "+ls.join("\n  "):""}\n`; } }
   body+=link?`\nWhen one is updated (model, drawings and DXFs), tick it off on your list - or ask me a question there:\n${link}\n(Keep this link - it always shows your current list.)\n\nThanks,\nKyle`:`\nCan you let me know when they're updated (model, drawings and DXFs)?\n\nThanks,\nKyle`;
   const subj=`Model revisions - ${Object.keys(byJob).join(", ")}`;
   sentBar=list.map(r=>r.id); render();
@@ -156,7 +160,7 @@ async function mailJessie(list){
 function showSheet(list){
   openId=null; const D=$("#dlg");
   D.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Revisions for Jessie</h3><button class="btn" type="button" onclick="closeDlg()">Close</button></div>
-   ${list.map(r=>`<div style="border-top:1px solid var(--line);padding:10px 0"><b>${tag(r.n)}</b> · ${esc(jobName(r.job_id))}${r.part?" · "+esc(r.part):""}<div style="margin-top:4px;white-space:pre-wrap">${esc(r.what)}</div>
+   ${list.map(r=>`<div style="border-top:1px solid var(--line);padding:10px 0"><b>${tagOf(r)}</b> · ${esc(jobName(r.job_id))}${r.part?" · "+esc(r.part):""}<div style="margin-top:4px;white-space:pre-wrap">${esc(r.what)}</div>
      ${(r.photos||[]).map(p=>photoUrls[p]?`<img src="${photoUrls[p]}" alt="" style="width:100%;max-width:520px;border-radius:8px;margin-top:6px;display:block">`:"").join("")}</div>`).join("")}`;
   $("#scrim").classList.add("on");
 }
@@ -165,20 +169,18 @@ function showSheet(list){
 const b=document.createElement("button"); b.className="btn"; b.type="button"; b.id="revBtn"; b.textContent="Revisions";
 const anchor=document.getElementById("ncrBtn")||document.getElementById("addJob"); anchor.parentNode.insertBefore(b,anchor);
 b.onclick=()=>{ cur="revs"; try{history.replaceState(null,"","#revs")}catch(e){} render(); };
-const _render=render;
-render=function(){ _render(); const n=revs.filter(r=>["review","open","done","question"].includes(r.status)).length; b.textContent=n?`Revisions (${n})`:"Revisions"; b.classList.toggle("primary",cur==="revs"); };
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
+GVC.on("render:after",()=>{ const n=revs.filter(r=>["review","open","done","question"].includes(r.status)).length; b.textContent=n?`Revisions (${n})`:"Revisions"; b.classList.toggle("primary",cur==="revs"); },{core:true});
+GVC.on("autoTodos",out=>{ try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   const rv=revs.filter(r=>r.status==="review");
   if(rv.length){ const text=`Look over ${rv.length} model revision${rv.length>1?"s":""} from the crew before they go to Jessie`; if(!hidden.has(text)) out.push({text,c:"#9b7bff",view:"revs"}); }
-  revs.filter(r=>r.status==="question").forEach(r=>{ const text=`Jessie has a question on ${tag(r.n)}: ${(r.jesse_note||"").slice(0,80)}`; if(!hidden.has(text)) out.push({text,c:"#f5b041",view:"revs"}); });
+  revs.filter(r=>r.status==="question").forEach(r=>{ const text=`Jessie has a question on ${tagOf(r)}: ${(r.jesse_note||"").slice(0,80)}`; if(!hidden.has(text)) out.push({text,c:"#f5b041",view:"revs"}); });
   const un=revs.filter(r=>r.status==="open"&&Date.now()-new Date(r.created_at).getTime()>12*3600e3);
   if(un.length){ const text=`Send ${un.length} model revision${un.length>1?"s":""} to Jessie (${[...new Set(un.map(r=>jobName(r.job_id)))].join(", ")})`; if(!hidden.has(text)) out.push({text,c:"#ff8a2a",view:"revs"}); }
-  revs.filter(r=>r.status==="done").forEach(r=>{ const text=`Check Jessie's revision ${tag(r.n)} (${jobName(r.job_id)}): ${r.what.slice(0,80)}`; if(!hidden.has(text)) out.push({text,c:"#2f8ff0",view:"revs"}); });
-}catch(e){} return out; };
+  revs.filter(r=>r.status==="done").forEach(r=>{ const text=`Check Jessie's revision ${tagOf(r)} (${jobName(r.job_id)}): ${r.what.slice(0,80)}`; if(!hidden.has(text)) out.push({text,c:"#2f8ff0",view:"revs"}); });
+}catch(e){} return out; });
 window.newRevision=pre=>{ form={job:pre.job||"",part:pre.part||"",what:pre.what||"",files:[],kind:pre.kind||(pre.ncr?"fix":"improvement"),ncr:pre.ncr||null}; jf=pre.job||jf; filt="active"; cur="revs"; try{history.replaceState(null,"","#revs")}catch(e){} closeDlg(); render(); };
 window.addRevisionQuick=async row=>{ const {data,error}=await sb.from("gvc_revisions").insert(row).select().single(); if(!error){ await load(); return data; } };
 window.revsFor=(jid,n)=>revs.filter(r=>r.job_id===jid&&r.ncr===n);
-window.revTag=tag; window.revStatus=s=>(ST[s]||ST.open)[0];
-window.revLines=()=>revs.filter(r=>!["checked","dropped"].includes(r.status)).map(r=>`[model revision] ${tag(r.n)} ${jobName(r.job_id)}${r.part?" - "+r.part:""}: ${r.what} (${(ST[r.status]||ST.open)[0]})`);
+window.revTag=x=>tagOf(x); window.revStatus=s=>(ST[s]||ST.open)[0];
+window.revLines=()=>revs.filter(r=>!["checked","dropped"].includes(r.status)).map(r=>`[model revision] ${tagOf(r)} ${jobName(r.job_id)}${r.part?" - "+r.part:""}: ${r.what} (${(ST[r.status]||ST.open)[0]})`);
 })();

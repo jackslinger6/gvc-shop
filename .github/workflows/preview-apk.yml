@@ -1,0 +1,70 @@
+name: Preview APK (redesign)
+
+# Builds a separate "GVC Vault Preview" app from the redesign branch.
+# Different app id (com.gordeyville.shop.preview), so it installs next to the regular app and never replaces it.
+# Published as the pre-release "preview" - never marked latest, so the regular app's updater ignores it.
+on:
+  push:
+    branches: [redesign]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: preview-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Make it the Preview app
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          sed -i 's/"appId": "com.gordeyville.shop"/"appId": "com.gordeyville.shop.preview"/; s/"appName": "GVC Vault"/"appName": "GVC Vault Preview"/' capacitor.config.json
+          sed -i 's/applicationId "com.gordeyville.shop"/applicationId "com.gordeyville.shop.preview"/' android/app/build.gradle
+          sed -i 's#<string name="app_name">GVC Vault</string>#<string name="app_name">GVC Preview</string>#; s#<string name="title_activity_main">GVC Vault</string>#<string name="title_activity_main">GVC Preview</string>#' android/app/src/main/res/values/strings.xml
+          sed -i 's#android:label="GVC Vault"#android:label="GVC Preview"#' android/app/src/main/AndroidManifest.xml
+          grep -c 'android:label="GVC Preview"' android/app/src/main/AndroidManifest.xml
+          sed -i "s#<title>GVC Vault</title>#<title>GVC Vault Preview</title><script>window.GVC_PREVIEW='${{ github.run_number }} (${SHA})'</script>#" www/index.html
+          grep -c GVC_PREVIEW www/index.html
+
+      - name: Install and copy the web app into Android
+        run: |
+          npm ci
+          npm run vendor
+          echo "${GITHUB_SHA}" > www/version.txt
+          npx cap sync android
+
+      - name: Build the APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Publish as the "preview" pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk gvc-vault-preview.apk
+          gh release delete preview --cleanup-tag -y || true
+          gh release create preview gvc-vault-preview.apk --prerelease --latest=false --target "${GITHUB_SHA}" \
+            --title "GVC Vault Preview (redesign) build ${{ github.run_number }}" \
+            --notes "Preview of the redesign branch. Installs as a separate app (GVC Preview) next to the regular GVC Vault - it does not replace it. Same live data as the regular app."
+
+      - name: Refresh the web preview (jackslinger6.github.io/gvc-shop/preview/)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run pages.yml --ref main --repo "${{ github.repository }}"

@@ -10,7 +10,7 @@ css.textContent=`
 .invmode{display:flex;gap:6px;margin:10px 0 2px}
 .csv{margin-top:6px;max-width:900px}
 .csv .lbl{font-size:12px;color:var(--muted)}
-.csv h3{font-family:Oswald,sans-serif;letter-spacing:.05em;font-size:15px;margin:14px 0 4px;color:var(--muted)}
+.csv h3{font-family:var(--font-display);letter-spacing:.05em;font-size:15px;margin:14px 0 4px;color:var(--muted)}
 .csv .ci{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--c,#555);border-radius:8px;padding:8px 10px;margin:5px 0;background:rgba(0,0,0,.28)}
 .csv .cq{display:flex;gap:4px;align-items:center}
 .csv .cq input{width:64px;text-align:center;font:inherit;font-size:15px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px}
@@ -37,7 +37,7 @@ function renderCons(){
   const B=$("#board"); B.className="csv"; B.style.gridTemplateColumns="";
   const cats=[...new Set([...CATS.filter(c=>items.some(i=>i.category===c)),...items.map(i=>i.category||"Other")])];
   const lows=items.filter(low);
-  let h=modeBar()+`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">Consumables</h2><span style="flex:1"></span>
+  let h=modeBar()+`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">Consumables</h2><span style="flex:1"></span>
      <button class="btn sm" type="button" id="csAdd">+ Item</button></div>
    <div class="lbl" style="margin-top:4px">${items.length?`${items.length} items · oldest count ${ago(lastCount())}${lows.length?` · <span style="color:#ff9b91">${lows.length} low</span>`:""}. Change a number to record a count. Count every ${COUNT_DAYS} days or so.`:`Nothing tracked yet. Easiest way to set it up: walk the shop and tell Ask Claude what you've got, e.g. "we have 3 spools of T91 flux core, keep at least 4" - it adds them here. Or tap + Item.`}</div>`;
   if(adding) h+=`<div class="form"><label>Name<input id="csN" placeholder="e.g. T91 flux core .045" style="min-width:200px"></label>
@@ -69,13 +69,12 @@ window.invModeBar=()=>modeBar(); window.invModeWire=()=>wireMode();
 function wireMode(){ document.querySelectorAll("[data-im]").forEach(b=>b.onclick=()=>{ mode=b.dataset.im; try{localStorage.setItem("gvc_inv_mode",mode)}catch(e){} render(); }); }
 try{ mode=localStorage.getItem("gvc_inv_mode")||"parts"; }catch(e){}
 window.invMode={get:()=>mode,set:m=>{ mode=m; try{localStorage.setItem("gvc_inv_mode",m)}catch(e){} render(); },low:()=>items.filter(low).length};
-const _inv=renderInv;
-renderInv=function(){ if(mode==="hw"&&window.renderHw) return window.renderHw(); if(mode==="cons") return renderCons(); _inv(); const B=$("#board"); B.insertAdjacentHTML("afterbegin",modeBar()); wireMode(); };
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{ if(!loaded||!items.length) return out; const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
+GVC.on("renderInv",()=>{ if(mode==="hw"&&window.renderHw){ window.renderHw(); return true; } if(mode==="cons"){ renderCons(); return true; } return false; });
+GVC.on("renderInv:after",()=>{ const B=$("#board"); B.insertAdjacentHTML("afterbegin",modeBar()); wireMode(); });
+GVC.on("autoTodos",out=>{ try{ if(!loaded||!items.length) return out; const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   const lows=items.filter(low); if(lows.length){ const text=`Low on consumables: ${lows.map(i=>`${i.name} (${+i.qty}${i.unit?" "+i.unit:""}, keep ${+i.min_qty})`).join(", ")}`; if(!hidden.has(text)) out.unshift({text,c:"#e5483b",view:"inv"}); }
   const lc=lastCount(); const stale=items.some(i=>!i.counted_at||Date.now()-new Date(i.counted_at).getTime()>COUNT_DAYS*864e5);
   if(stale){ const text=`Do the consumables count (oldest count ${ago(lc)})`; if(!hidden.has(text)) out.push({text,c:"#f5b041",view:"inv",low:true}); }
-}catch(e){} return out; };
+}catch(e){} return out; });
 window.consLines=()=>items.map(i=>`[consumable] ${i.name} (${i.category||"Other"}): ${i.qty??"?"} ${i.unit||""}${i.min_qty!=null?`, keep at least ${+i.min_qty}`:""}, counted ${ago(i.counted_at)}${low(i)?" - LOW":""}`);
 })();

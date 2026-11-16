@@ -7,10 +7,10 @@
 (()=>{
 const css=document.createElement("style");
 css.textContent=`
-.rcp h3{margin:0 0 2px;font:600 20px Oswald,sans-serif;letter-spacing:.06em}
+.rcp h3{margin:0 0 2px;font:600 20px var(--font-display);letter-spacing:.06em}
 .rcp .when{font-size:12px;color:var(--muted);margin-bottom:10px}
 .rcp .body{white-space:pre-wrap;font-size:15px;line-height:1.55;background:rgba(0,0,0,.25);border:1px solid var(--line);border-left:4px solid #ff8a2a;border-radius:10px;padding:12px 14px}
-.rcp .body b{display:block;font:600 12px Oswald,sans-serif;letter-spacing:.14em;color:#ffb36b;margin:10px 0 2px}
+.rcp .body b{display:block;font:600 12px var(--font-display);letter-spacing:.14em;color:#ffb36b;margin:10px 0 2px}
 .rcp .body b:first-child{margin-top:0}
 .rcp details{margin-top:10px}.rcp summary{cursor:pointer;color:var(--muted);font-size:13px}
 .rcp .tx{white-space:pre-wrap;font-size:13px;color:#b9bec6;max-height:50vh;overflow:auto;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:8px}
@@ -36,7 +36,7 @@ function show(r){
 }
 window.showRecap=async d=>{ await load(); const r=recaps.find(x=>x.id===d.recap_id)||{title:d.title,recap:d.recap,transcript:d.transcript,at:new Date().toISOString()}; show(r); if(typeof render==="function") render(); };
 window.openRecaps=async()=>{ await load();
-  dlg(`<div class="rcl"><h3 style="margin:0 0 10px;font:600 20px Oswald,sans-serif;letter-spacing:.06em">TALKS</h3>
+  dlg(`<div class="rcl"><h3 style="margin:0 0 10px;font:600 20px var(--font-display);letter-spacing:.06em">TALKS</h3>
     ${recaps.length?recaps.map((r,i)=>`<button class="it" type="button" data-rc="${i}"><b>${esc(r.title||"Conversation")}</b><small>${fmt(r.at||r.created_at)}</small></button>`).join(""):`<div class="tnote">No recorded conversations yet. Tap Record (or Rec on the widget) before you talk to Randy.</div>`}
     <div class="row" style="margin-top:10px"><span style="flex:1"></span><button class="btn" type="button" onclick="closeDlg()">Close</button></div></div>`);
   document.querySelectorAll("[data-rc]").forEach(b=>b.onclick=()=>show(recaps[+b.dataset.rc]));

@@ -70,15 +70,21 @@ window.gvcDlgBack=()=>{
 document.addEventListener("click",e=>{ const s=S(); if(s&&e.target===s){ e.stopImmediatePropagation(); window.gvcDlgBack(); } },true);
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&isOn()&&!document.querySelector(".shov")){ e.stopImmediatePropagation(); window.gvcDlgBack(); } },true);
 
-/* phone Back button. Returns true when it handled it (false = nothing left, let the app go to the background) */
+/* phone Back button. Returns true when it handled it (false = nothing left, let the app go to the background).
+   Each step is a "back" hook (GVC in index.html), tried lowest order first - screens add their own:
+     10 a full-screen viewer (flat.js bend view, scan.js)   20 the + wheel   30 a sheet / menu   40 Ask Claude
+     50 the pop-up (job card, drawing, count - one step back)   60 the order panel (pos.js)
+     70 a page inside a tab (an RFQ/PO in RFQs & POs, an order in Robin's orders)   80 leave the crew preview
+   then: Home if you're on another tab, else let the phone put the app in the background. (Stage 3: before this the
+   pos.js / orders.js steps were wiped out when this file loaded, so Back on a PO page went straight Home.) */
+GVC.on("back",()=>{ const whl=document.querySelector(".whl.on"); if(whl){ whl.dispatchEvent(new MouseEvent("click",{bubbles:true})); return true; } return false; },{order:20});
+GVC.on("back",()=>{ const sh=[...document.querySelectorAll(".shov")].filter(x=>x.classList.contains("on")).pop(); if(sh){ sh.dispatchEvent(new MouseEvent("click",{bubbles:true})); return true; } return false; },{order:30});
+GVC.on("back",()=>{ const cp=document.getElementById("chatP"); if(cp&&cp.classList.contains("on")){ const x=document.getElementById("chatX"); if(x) x.click(); else cp.classList.remove("on"); return true; } return false; },{order:40});
+GVC.on("back",()=>{ if(isOn()){ window.gvcDlgBack(); return true; } return false; },{order:50});
+GVC.on("back",()=>{ if(window.ME&&ME.preview&&window.crewPreview){ window.crewPreview(false); return true; } return false; },{order:80});
 window.gvcBack=()=>{
   try{
-    const whl=document.querySelector(".whl.on"); if(whl){ whl.dispatchEvent(new MouseEvent("click",{bubbles:true})); return true; }
-    const sh=[...document.querySelectorAll(".shov")].filter(x=>x.classList.contains("on")).pop();
-    if(sh){ sh.dispatchEvent(new MouseEvent("click",{bubbles:true})); return true; }
-    const cp=document.getElementById("chatP"); if(cp&&cp.classList.contains("on")){ const x=document.getElementById("chatX"); if(x) x.click(); else cp.classList.remove("on"); return true; }
-    if(isOn()){ window.gvcDlgBack(); return true; }
-    if(window.ME&&ME.preview&&window.crewPreview){ window.crewPreview(false); return true; }
+    for(const h of [...GVC.list("back")].sort((a,b)=>a.order-b.order)) if(h.fn()) return true;
     const login=document.getElementById("app"); if(login&&login.hidden) return false;
     const atHome=cur==="home"||(window.gvcHomeView&&cur===window.gvcHomeView());   // Kyle's Home is To do, the crew's is their task list   // Kyle's Home is the To do list
     if(typeof cur!=="undefined"&&!atHome){ if(typeof shellGo==="function") shellGo("home"); else { cur="home"; render(); } return true; }

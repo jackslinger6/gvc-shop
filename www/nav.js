@@ -3,7 +3,7 @@
    Jobs sub-tabs: Pipeline · Orders · Shop floor · Crew · NCRs · Revisions · Finished jobs (+ New job lives here)
    Inventory sub-tabs: Truck parts · Consumables */
 (()=>{
-const SECT={pos:"jobs",porders:"todo",requests:"todo",staging:"inv",todo:"todo",pipeline:"jobs",ordering:"jobs",build:"jobs",crew:"jobs",ncr:"jobs",revs:"jobs",archive:"jobs",time:"time",inv:"inv",ideas:"more"};
+const SECT={overview:"jobs",pos:"jobs",porders:"todo",requests:"todo",staging:"inv",todo:"todo",pipeline:"jobs",ordering:"jobs",build:"jobs",crew:"jobs",ncr:"jobs",revs:"jobs",archive:"jobs",time:"time",inv:"inv",ideas:"more"};
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 let lastJobs=ls.get("gvc_last_jobs")||"build";
 const css=document.createElement("style");
@@ -28,14 +28,8 @@ const bar=document.querySelector("#app .bar");
 const sub=document.createElement("div"); sub.className="subnav"; sub.id="subnav"; bar.after(sub);
 const num=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
 function go(v){ cur=v; try{history.replaceState(null,"","#"+v)}catch(e){} render(); window.scrollTo({top:0}); }
-// autoTodos() is asked for several times per render (tab counts, the To do list, My time); answer once per render.
-const _auto=autoTodos; let autoCache=null;
-autoTodos=function(){ if(!autoCache) autoCache=_auto(); return autoCache; };
-autoTodos.reset=()=>{ autoCache=null; };
-const _render=render;
-render=function(){
-  autoCache=null;
-  _render();
+// autoTodos() is worked out once per render - that cache lives in index.html now (hooks, stage 3).
+GVC.on("render:after",()=>{
   const T=$("#tabs"); const info={};
   T.querySelectorAll(".tab").forEach(b=>{ info[b.dataset.b]={ct:(b.querySelector(".ct")||{}).textContent||"",at:(b.querySelector(".at")||{}).outerHTML||"",atN:parseInt(((b.querySelector(".at")||{}).textContent||"0"))||0}; });
   const sec=SECT[cur]||"jobs"; if(sec==="jobs"&&lastJobs!==cur){ lastJobs=cur; ls.set("gvc_last_jobs",cur); }
@@ -59,7 +53,7 @@ render=function(){
   if(sec==="jobs"){
     const sn=(k,t,c,ct,at)=>`<button class="sn ${cur===k?"on":""}" style="--c:${c}" type="button" data-sv="${k}">${t}${ct!==""&&ct!=null?`<span class="ct">${ct}</span>`:""}${at||""}</button>`;
     const i=k=>info[k]||{};
-    h=sn("pipeline","Pipeline","var(--pipe)",i("pipeline").ct,i("pipeline").at)+sn("ordering","Orders","var(--order)",i("ordering").ct,i("ordering").at)+sn("build","Shop floor","var(--build)",i("build").ct,i("build").at)
+    h=sn("overview","Overview","#e9e6e1",jobs.filter(j=>!j.archived&&j.stage!=="done").length,"")+`<span class="sep"></span>`+sn("pipeline","Pipeline","var(--pipe)",i("pipeline").ct,i("pipeline").at)+sn("ordering","Orders","var(--order)",i("ordering").ct,i("ordering").at)+sn("build","Shop floor","var(--build)",i("build").ct,i("build").at)
       +`<span class="sep"></span>`+sn("crew","Crew & week plan","#e9e6e1",i("crew").ct,i("crew").at)
       +`<span class="sep"></span>`+sn("ncr","NCRs","#e5483b","",ncrN?`<span class="at">${ncrN} open</span>`:"")+sn("revs","Revisions","#2f8ff0","",revN?`<span class="at">${revN}</span>`:"")
       +`<span class="grow"></span>`+sn("archive","Finished jobs","#6c727a",archN||"","");
@@ -70,5 +64,5 @@ render=function(){
   sub.innerHTML=h; sub.hidden=!h;
   sub.querySelectorAll("[data-sv]").forEach(b=>b.onclick=()=>go(b.dataset.sv));
   sub.querySelectorAll("[data-im2]").forEach(b=>b.onclick=()=>window.invMode.set(b.dataset.im2));
-};
+},{core:true});
 })();

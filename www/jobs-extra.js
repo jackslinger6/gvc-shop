@@ -18,16 +18,15 @@ css.textContent=`
 .arv .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0}
 .arv .aj{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin:6px 0;background:rgba(0,0,0,.28);cursor:pointer}
 .arv .aj:hover{border-color:#5a5f68}
-.arv .num{font-family:Oswald,sans-serif;font-size:16px;letter-spacing:.04em}
+.arv .num{font-family:var(--font-display);font-size:16px;letter-spacing:.04em}
 .arv .meta{font-size:12px;color:var(--muted);margin-top:3px}
 .numrow{display:flex;gap:10px}
 `;
 document.head.appendChild(css);
 
 /* job dialog: Job # field + Archive/Restore */
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw(); const j=job(); if(!j) return; const D=$("#dlg");
+GVC.on("drawDlg:after",()=>{
+  const j=job(); if(!j) return; const D=$("#dlg");
   const nameIn=$("#fName"); if(nameIn){ const lab=nameIn.closest("label");
     const box=document.createElement("label"); box.style.maxWidth="130px"; box.innerHTML=`Job #<input id="fNum" value="${esc(jobNum(j.name))}" placeholder="e.g. 2015G" style="${jobNum(j.name)?"":"border-color:#f5b041"}">`;
     lab.before(box);
@@ -43,22 +42,19 @@ drawDlg=function(){
       else { jj.archived=true; jj.archivedAt=now; jj.log=[...(jj.log||[]),{at:now,text:"Archived - job finished"}]; }
       const ok=await put(jj,(jj.archived?"Archived ":"Restored ")+jj.name); if(ok&&jj.archived) closeDlg(); };
   }
-};
+});
 
 /* cards: flag missing job numbers */
-const _render=render;
-render=function(){
-  _render();
+GVC.on("render:after",()=>{
   document.querySelectorAll("#board .card[data-id]").forEach(c=>{ const j=jobs.find(x=>x.id===c.dataset.id); if(j&&!jobNum(j.name)&&!c.querySelector(".nonum")) c.insertAdjacentHTML("beforeend",`<span class="flag nonum">No job #</span>`); });
   ab.textContent=archivedJobs.length?`Finished jobs (${archivedJobs.length})`:"Finished jobs"; ab.classList.toggle("primary",cur==="archive");
-};
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{
+},{core:true});
+GVC.on("autoTodos",out=>{ try{
   const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   const nn=jobs.filter(j=>!jobNum(j.name)&&!j.sample);
   if(nn.length){ const text=`Add job numbers: ${nn.map(j=>j.name).join(", ")}`; if(!hidden.has(text)) out.push({text,c:"#f5b041",low:true,job:nn[0].id}); }
   // no "Archive finished job" to-do any more: Done jobs archive themselves after 3 days (Kyle, Nov 10)
-}catch(e){} return out; };
+}catch(e){} return out; });
 
 /* Done jobs move to Finished jobs on their own 3 days after they reached Done (Kyle, Nov 10: "I thought that was automatic").
    Kyle's app only (crew/Robin can't save jobs that way). Restore from Finished jobs still works. */
@@ -83,14 +79,14 @@ window.renderArchive=function(){
   const types=[...new Set(archivedJobs.map(j=>jtype(j.name)).filter(Boolean))].sort();
   const words=aq.toLowerCase().split(/\s+/).filter(Boolean);
   const list=archivedJobs.filter(j=>(!atype||jtype(j.name)===atype)&&words.every(w=>hay(j).includes(w))).sort((a,b)=>String(b.archivedAt||"").localeCompare(String(a.archivedAt||"")));
-  B.innerHTML=`<h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">Finished jobs</h2>
-   <div class="lbl" style="margin-top:4px">Archived jobs with everything that happened: tasks and who did them, suppliers and quotes, NCRs, notes. Tap one to open it (you can restore it to the board from there).</div>
+  B.innerHTML=`<h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">Finished jobs</h2>
+   <div class="lbl" style="margin-top:4px">Archived jobs with everything that happened: tasks and who did them, suppliers and quotes, NCRs, notes. Done jobs move here automatically ${AUTO_ARCH_DAYS} days after they're marked Done. Tap one to open it - Restore puts it back on the board with everything it had.</div>
    <div class="row"><input id="aQ" type="search" placeholder="Search number, name, person, supplier, quote #, note…" value="${esc(aq)}"></div>
    ${types.length?`<div class="row"><span class="lbl">Type</span><button class="btn sm ${atype?"":"primary"}" data-at="">All</button>${types.map(t=>`<button class="btn sm ${atype===t?"primary":""}" data-at="${t}">${t}</button>`).join("")}</div>`:""}
    ${list.map(j=>{ const who=[...new Set((j.assemblies||[]).flatMap(a=>whoList(a)))]; const done=(j.assemblies||[]).filter(a=>a.status==="done").length;
      return `<div class="aj" data-aj="${esc(j.id)}"><div class="num">${esc(jobNum(j.name)||"No #")}</div><div><b>${esc(rest(j.name)||j.name)}</b>
        <div class="meta">${(j.assemblies||[]).length?`${done}/${j.assemblies.length} tasks`:"No tasks"}${who.length?" · "+who.join(", "):""}${(j.suppliers||[]).length?" · "+j.suppliers.map(s=>s.name).join(", "):""}${(j.ncrs||[]).length?` · ${j.ncrs.length} NCR${j.ncrs.length>1?"s":""}`:""}</div>
-       ${j.summary?`<div class="meta">${esc(j.summary)}</div>`:""}</div><div class="lbl">${j.archivedAt?fmt(j.archivedAt).split(" ").slice(0,2).join(" "):""}</div></div>`; }).join("")||`<div class="empty" style="text-align:left">${archivedJobs.length?"Nothing matches.":"No finished jobs yet. Open a job and tap \"Archive job (finished)\" when it's done."}</div>`}`;
+       ${j.summary?`<div class="meta">${esc(j.summary)}</div>`:""}</div><div class="lbl">${j.archivedAt?fmt(j.archivedAt).split(" ").slice(0,2).join(" "):""}</div></div>`; }).join("")||`<div class="empty" style="text-align:left">${archivedJobs.length?"Nothing matches.":`No finished jobs yet. Jobs move here on their own ${AUTO_ARCH_DAYS} days after they're marked Done (or right away with \"Archive job (finished)\" on the job). Restore puts a job back on the board with everything it had.`}</div>`}`;
   const q=$("#aQ"); q.oninput=()=>{ aq=q.value; const pos=q.selectionStart; render(); const n=$("#aQ"); if(n){ n.focus(); n.setSelectionRange(pos,pos); } };
   B.querySelectorAll("[data-at]").forEach(b=>b.onclick=()=>{ atype=b.dataset.at; render(); });
   B.querySelectorAll("[data-aj]").forEach(el=>el.onclick=()=>openJob(el.dataset.aj));

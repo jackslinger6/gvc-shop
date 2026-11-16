@@ -45,7 +45,7 @@ css.textContent=`
 .wkv .pblk.nr{opacity:.5;border-left-style:dotted}
 .wkv .pwrap{overflow-x:auto;margin-top:8px}
 .wkv table.pg{width:100%;min-width:640px;border-collapse:separate;border-spacing:4px;table-layout:fixed}
-.wkv table.pg th{font-family:Oswald,sans-serif;font-weight:500;letter-spacing:.04em;font-size:13px;color:var(--muted);text-align:left;padding:2px 4px}
+.wkv table.pg th{font-family:var(--font-display);font-weight:500;letter-spacing:.04em;font-size:13px;color:var(--muted);text-align:left;padding:2px 4px}
 .wkv table.pg th.day{font-family:Inter,sans-serif;font-size:12px;vertical-align:top;padding-top:8px;width:80px}
 .wkv table.pg th.day.today{color:#ffd28a}
 .wkv table.pg td{vertical-align:top;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:4px;height:86px}
@@ -53,6 +53,7 @@ css.textContent=`
 .wkv table.pg td.hot,.wkv .ppool.hot{outline:2px dashed var(--orange)}
 .wkv .ld{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);margin-bottom:3px}
 .wkv .ld.over{color:#ff9b91}
+.wkv .pest{display:inline-block;font-size:10.5px;font-weight:600;color:#f5b041;border:1px dashed rgba(245,176,65,.6);border-radius:5px;padding:0 4px;margin-left:4px;line-height:1.5;vertical-align:1px}
 .wkv .ld button{background:none;border:0;color:var(--dim);cursor:pointer;font-size:11px;padding:0 2px}
 .wkv .ld button:hover{color:var(--text)}
 .wkv .pblk{background:rgba(255,255,255,.06);border-radius:5px;padding:3px 6px;margin-bottom:3px;line-height:1.25;overflow:hidden;font-size:11.5px;cursor:grab;touch-action:none;background:color-mix(in srgb,var(--c) 18%,transparent);border-left:3px solid var(--c);color:var(--text)}
@@ -66,10 +67,10 @@ css.textContent=`
 .wkv .psplit{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;align-items:start;margin-top:8px}
 .wkv .psplit .pwrap{margin-top:0}
 .wkv .ppanel{position:sticky;top:10px;border:1px solid var(--line);border-radius:10px;background:rgba(0,0,0,.3);padding:10px 12px;font-size:13px}
-.wkv .pph{font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:13px;color:var(--muted);margin-bottom:6px}
+.wkv .pph{font-family:var(--font-display);letter-spacing:.06em;text-transform:uppercase;font-size:13px;color:var(--muted);margin-bottom:6px}
 .wkv .pjob{border-radius:6px;padding:5px 7px;margin-bottom:3px;line-height:1.25;font-size:12px;cursor:grab;touch-action:none;background:color-mix(in srgb,var(--c) 22%,transparent);border-left:4px solid var(--c);color:var(--text)}
 .wkv .pjob .pjh{display:flex;justify-content:space-between;gap:6px;font-weight:600}
-.wkv .pjob .pjn{font-family:Oswald,sans-serif;font-weight:500;letter-spacing:.04em;color:#fff;background:var(--c);border-radius:4px;padding:0 4px;font-size:11px}
+.wkv .pjob .pjn{font-family:var(--font-display);font-weight:500;letter-spacing:.04em;color:#fff;background:var(--c);border-radius:4px;padding:0 4px;font-size:11px}
 .wkv .pjob .pjc{color:var(--muted)}
 .wkv .pjob small{display:block;color:var(--muted);font-size:10.5px;margin-top:2px}
 .wkv .pjob.sel{outline:1.5px solid #fff}.wkv .pjob.bad{box-shadow:inset 0 0 0 1.5px #e5483b}.wkv .pjob.done{opacity:.6;filter:grayscale(1)}
@@ -365,10 +366,10 @@ function blk(M,t,p,d,r,bad){
   const after=t.needs.map(n=>M.T[n]&&M.T[n].name).filter(Boolean);
   const today=iso(new Date()); const past=r&&(d<today||(d===today&&r.e<=nowH()+1e-6));
   const pauses=r&&t.at==null&&(r.e-r.s)>r.w+1e-6;
-  if(!p&&t.why) return `<div class="pblk nr ${sel===(t.base||t.key)?"sel":""}" style="--c:${t.color}" data-k="${esc(t.key)}">${esc(t.name)} · ${fh(H(t))}${t.h==null?"?":""}<small>${esc(t.why)}${t.who.length?" · "+t.who.join(", "):""}</small></div>`;
+  if(!p&&t.why) return `<div class="pblk nr ${sel===(t.base||t.key)?"sel":""}" style="--c:${t.color}" data-k="${esc(t.key)}">${esc(t.name)} · ${t.h==null?"~":""}${fh(H(t))}${t.h==null?`<span class="pest" title="No time estimate - counted as 2h for now">estimate needed</span>`:""}<small>${esc(t.why)}${t.who.length?" · "+t.who.join(", "):""}</small></div>`;
   if(r&&p&&others.length&&r.w<0.05) return `<div class="pblk ${sel===(t.base||t.key)?"sel":""}" style="--c:${t.color};opacity:.5" data-k="${esc(t.key)}" data-p="${p}" data-d="${d}">🔗 ${esc(t.name)} <small>${others.join(", ")} finish${others.length>1?"":"es"} it before ${p} gets there</small></div>`;
   return `<div class="pblk ${sel===(t.base||t.key)?"sel":""} ${bad?"bad":""} ${t.done?"done":""} ${t.at!=null?"fx":""}" style="--c:${t.color};${p?`min-height:${Math.max(24,share*9)}px`:""}${past&&!t.done?";opacity:.65":""}" data-k="${esc(t.key)}" ${p?`data-p="${p}" data-d="${d}"`:""}>
-   ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${t.cont?"↳ ":""}${esc(t.name)} · ${fh(share)}${t.h==null&&!t.cont?"?":""}${t.split?` <span style="opacity:.7">of ${fh(t.full)} →</span>`:t.cont?` <span style="opacity:.7">(${fh(t.full)} total, cont'd)</span>`:""}
+   ${t.done?"✓ ":""}${others.length?"🔗 ":""}${after.length?"🔒 ":""}${t.cont?"↳ ":""}${esc(t.name)} · ${t.h==null&&!t.cont?"~":""}${fh(share)}${t.h==null&&!t.cont?`<span class="pest" title="No time estimate - counted as 2h for now">estimate needed</span>`:""}${t.split?` <span style="opacity:.7">of ${fh(t.full)} →</span>`:t.cont?` <span style="opacity:.7">(${fh(t.full)} total, cont'd)</span>`:""}
    <small>${t.ncr?`<b style="color:#ff9b91">NCR-${String(t.ncr).padStart(3,"0")}</b> · `:""}${r?`${clock(r.s)}–${clock(r.e)}${pauses?" (paused)":""} · `:""}${p?esc(t.job):""}${solo?(p?" · ":"")+solo:""}${others.length?(p?" · with ":"")+others.join(", "):""}${after.length?" · after "+esc(after.join(", ")):""}</small></div>`;
 }
 /* A person's day shows one block per JOB (height = hours), not every task. Tap it to see and tick off the tasks.
@@ -393,7 +394,7 @@ function dayCell(M,R,p,d,ids,bad){
       <div class="pjh"><span>${num?`<b class="pjn">${esc(num)}</b> `:""}${esc(nm)}</span><span class="pjc">${open?"▾":"▸"}</span></div>
       <small>${allDay?"All day":`${clock(s0)}–${clock(e0)}`} · ${fh(hrs)} · ${done?`${done} of ${G.keys.length} done`:`${G.keys.length} tasks`}${anyBad?" · ⚠ clash":""}</small></div>`
       +(open?`<div class="pjsub">${G.keys.map(k=>{ const t=M.T[k], r=R[p][k]; const oth=t.who.filter(w=>w!==p);
-        return `<div class="pjrow"><button class="pck ${t.done?"on":""}" type="button" data-pck="${esc(k)}" title="${t.done?"Not done":"Done"}">✓</button><div class="pblk psub ${sel===baseK(k)?"sel":""} ${bad.has(k)?"bad":""} ${t.done?"done":""}" style="--c:${t.color}" data-k="${esc(k)}" data-p="${p}" data-d="${d}">${oth.length?"🔗 ":""}${t.needs.length?"🔒 ":""}${esc(t.name)} · ${fh(r?r.w:H(t))}${t.h==null?"?":""}${oth.length?`<small>with ${esc(oth.join(", "))}</small>`:""}</div></div>`; }).join("")}</div>`:"");
+        return `<div class="pjrow"><button class="pck ${t.done?"on":""}" type="button" data-pck="${esc(k)}" title="${t.done?"Not done":"Done"}">✓</button><div class="pblk psub ${sel===baseK(k)?"sel":""} ${bad.has(k)?"bad":""} ${t.done?"done":""}" style="--c:${t.color}" data-k="${esc(k)}" data-p="${p}" data-d="${d}">${oth.length?"🔗 ":""}${t.needs.length?"🔒 ":""}${esc(t.name)} · ${t.h==null?"~":""}${fh(r?r.w:H(t))}${t.h==null?`<span class="pest" title="No time estimate - counted as 2h for now">estimate needed</span>`:""}${oth.length?`<small>with ${esc(oth.join(", "))}</small>`:""}</div></div>`; }).join("")}</div>`:"");
   }).join("");
 }
 function renderWeek(){
@@ -427,7 +428,9 @@ function renderWeek(){
   D.forEach(d=>{ h+=`<tr><th class="day ${d===today?"today":""}">${dlabel(d).replace(", ","<br>")}${d===today?"<br>today":""}</th>`+CREW.map(p=>{
     if(isOff(p,d)) return `<td class="off" data-p="${p}" data-d="${d}"><div class="ld"><span>Day off</span><button data-off="${p}|${d}" title="Working this day">undo</button></div></td>`;
     const ids=M.S[p][d]||[]; const used=ids.reduce((a,k)=>a+(R[p][k]?R[p][k].w:0),0);
-    return `<td data-p="${p}" data-d="${d}"><div class="ld ${used>8.01?"over":""}"><span>${used?fh(used)+" / 8h":"Open"}</span><button data-off="${p}|${d}" title="Mark ${p} off ${dlabel(d)}">off</button></div>${dayCell(M,R,p,d,ids,bad)}</td>`; }).join("")+`</tr>`; });
+    // UX audit 20: hours from tasks with no estimate are assumed (2h each) - say so instead of a firm total
+    const guess=ids.filter(k=>{ const t=M.T[k]; return t&&t.h==null&&!t.cont; }).length;
+    return `<td data-p="${p}" data-d="${d}"><div class="ld ${used>8.01?"over":""}"><span>${used?(guess?"~":"")+fh(used)+" / 8h"+(guess?` <span class="pest" title="${guess} task${guess>1?"s have":" has"} no estimate - counted as 2h each">${guess} assumed</span>`:""):"Open"}</span><button data-off="${p}|${d}" title="Mark ${p} off ${dlabel(d)}">off</button></div>${dayCell(M,R,p,d,ids,bad)}</td>`; }).join("")+`</tr>`; });
   h+=`</tbody></table></div><div class="ppanel" id="pPanel"></div></div>`;
   B.innerHTML=h;
   panel(M);
@@ -448,7 +451,7 @@ function panel(M){
   const el=$("#pPanel"); const t=M.T[sel];
   if(!t){ el.innerHTML=`<div class="pph">Assignment</div><span class="lbl">Tap a task - in Not scheduled, or inside a job block on someone's day - to set who's on it, how long it takes and what it waits for. Tap a job block to open its task list; tick tasks off there.<br><br>🔗 shared (crew-hours split so everyone finishes together) · 🔒 waits on another task · dashed = fixed-time errand · "?" = no estimate yet (counted as 2h).</span>`; return; }
   const others=Object.values(M.T).filter(x=>x.key!==t.key&&!x.done).sort((a,b)=>a.job.localeCompare(b.job));
-  el.innerHTML=`<div class="pph">Assignment</div><div><span style="color:${t.color}">${esc(t.job)}</span> · <b style="font-weight:600">${esc(t.name)}</b>${t.jid?` <button class="btn sm ghost" id="pOpen">Open job</button>`:""}</div>
+  el.innerHTML=`<div class="pph">Assignment</div><div><span style="color:${t.color}">${esc(t.job)}${(()=>{ const gj=(typeof jobs!=='undefined'?jobs:[]).find(y=>y.id===t.jid); const ga=gj&&(gj.assemblies||[]).find(y=>y.id===t.aid); const n=gj&&ga&&window.taskGroupName?window.taskGroupName(gj,ga):''; return n?' · '+esc(n):''; })()}</span> · <b style="font-weight:600">${esc(t.name)}</b>${t.jid?` <button class="btn sm ghost" id="pOpen">Open job</button>`:""}</div>
    <div class="row"><span class="lbl">${t.who.length>1?"Crew-hours":"Hours"}</span><button class="btn sm" data-ph="-0.5">−</button><b>${t.h==null?"?":(t.full??t.h)}</b><button class="btn sm" data-ph="0.5">+</button>${[1,2,4,8].map(x=>`<button class="btn sm ${(t.full??t.h)===x?"primary":""}" data-phs="${x}">${x}h</button>`).join("")}</div>
    <div class="row"><span class="lbl">On it</span>${CREW.map(c=>`<button class="wc ${t.who.includes(c)?"on":""}" data-pw="${c}">${c}</button>`).join("")}</div>
    <div class="row"><span class="lbl">Has to wait for</span><select id="pNd"><option value="">Nothing</option>${others.map(o=>`<option value="${esc(o.key)}" ${t.needs.includes(o.key)?"selected":""}>${esc(o.job)} · ${esc(o.name)}</option>`).join("")}</select></div>
@@ -465,7 +468,7 @@ function panel(M){
   $("#pDone").onclick=()=>edit((M2,t2)=>{ t2.done=!t2.done; },`${t.name}: ${t.done?"not done":"done"}`);
   const bp=$("#pPool"); if(bp) bp.onclick=()=>edit((M2,t2)=>{ t2.who.forEach(w=>rmK(M2,w,dayOf(M2,w,t2.key),t2.key)); t2.who=[]; t2.at=null; },`${t.name} back to the pool`);
   const bd=$("#pDel"); if(bd) bd.onclick=()=>{ edit((M2,t2)=>{ CREW.forEach(w=>rmK(M2,w,dayOf(M2,w,t2.key),t2.key)); delete M2.T[t2.key]; },`Deleted ${t.name}`); sel=null; };
-  const bo=$("#pOpen"); if(bo) bo.onclick=()=>openJob(t.jid);
+  const bo=$("#pOpen"); if(bo) bo.onclick=()=>window.openJobTask?window.openJobTask(t.jid,t.aid):openJob(t.jid,"tasks");
   $("#pX").onclick=()=>{ sel=null; render(); };
 }
 
@@ -514,19 +517,17 @@ const bar=document.createElement("div"); bar.id="crewBar"; bar.style.display="no
 bar.innerHTML=`<button class="btn sm" data-cv="week">Week plan</button><button class="btn sm" data-cv="lanes">Lanes</button>`;
 const board=document.getElementById("board"); board.parentNode.insertBefore(bar,board);
 bar.querySelectorAll("[data-cv]").forEach(b=>b.onclick=()=>{ view=b.dataset.cv; lsSet("gvc_crew_view",view); render(); });
-const _renderCrew=renderCrew;
-renderCrew=function(items){ if(view==="week") renderWeek(); else _renderCrew(items); };
-const _render=render;
-render=function(){ mc=null; _render(); try{ syncAssign(); }catch(e){ console.warn("auto-place",e); } bar.style.display=cur==="crew"?"":"none"; bar.querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===view)); };
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); if(!planLoaded) return out;
+GVC.on("renderCrew",()=>{ if(view==="week"){ renderWeek(); return true; } return false; });
+GVC.on("render:before",()=>{ mc=null; });
+GVC.on("render:after",()=>{ try{ syncAssign(); }catch(e){ console.warn("auto-place",e); } bar.style.display=cur==="crew"?"":"none"; bar.querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===view)); },{core:true});
+GVC.on("autoTodos",out=>{ if(!planLoaded) return out;
   try{ const {M,R}=MC(),today=iso(new Date()),lim=iso(new Date(Date.now()+2*86400000));
     const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
     conflicts(M,R).forEach(c=>{ const t=M.T[c.id],p=M.T[c.pid]; const d=dayOf(M,t.who[0],c.id); if(!d||d<today||d>lim) return;
       const text=`Schedule clash ${dlabel(d)}: ${t.name} (${t.who.join(", ")} ${clock(c.ds)}) needs ${p.name} first`;
       if(!hidden.has(text)) out.unshift({text,c:"var(--red)",view:"crew"}); });
   }catch(e){}
-  return out; };
+  return out; });
 window.planLines=function(){ if(!planLoaded) return [];
   try{ const {M,R}=MC(),today=iso(new Date()),out=[];
     weekDays().filter(d=>d>=today).forEach(d=>CREW.forEach(p=>{ if(isOff(p,d)){ out.push(`[crew schedule] ${dlabel(d)} · ${p}: day off`); return; }

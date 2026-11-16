@@ -21,9 +21,19 @@ const $$=n=>n==null||n===""||isNaN(n)?"":"$"+(+n).toLocaleString(undefined,{mini
 const ST=[["rfq","Asked for quotes","#9b7bff"],["compare","Comparing quotes","#22c3e6"],["ordered","On order","#ff8a2a"],["shipped","On its way","#f5b041"],["ready","Ready to pick up","#3ad06b"],["delivered","Delivered","#2f8ff0"],["received","Received ✓","#7d8794"]];
 const SL=Object.fromEntries(ST.map(([k,t,c])=>[k,{t,c}]));
 let PO=[], loaded=false, tab="active", poId=null, ch=null, BOX=null;
-window.pordersAttn=()=>PO.filter(o=>["compare","ready","delivered"].includes(o.status)).length;
-window.pordersOpen=()=>PO.filter(o=>!["received","cancelled"].includes(o.status)).length;
-window.pordersBy=k=>PO.filter(o=>o.status===k).length;
+/* practice orders (Kyle made PO-1004..1007 on Nov 8 so Robin could try the screens - "Not her real order") stay out of
+   every count, board and reminder; they're listed apart, marked Practice. A real `sample` flag would be better (review, Nov 14). */
+const isPractice=o=>o.sample===true||/^\s*PREVIEW for Robin|not her real order|\bpractice order\b/i.test(o.notes||"");
+const PR=()=>PO.filter(o=>!isPractice(o));
+{ const st=document.createElement("style"); st.textContent=`.pract summary{list-style:none;cursor:pointer}.pract summary::-webkit-details-marker{display:none}
+.card.practice{opacity:.75}.card.practice::before{content:"Practice - not a real order";display:block;font:600 11px var(--font-ui);color:var(--amber);margin-bottom:4px}
+.pracban{border:1px solid rgba(245,176,65,.5);background:rgba(245,176,65,.1);color:#ffd28a;border-radius:10px;padding:10px 12px;margin:0 0 10px;font-size:13px;font-weight:600}`; document.head.appendChild(st); }
+function practiceHTML(){ const L=PO.filter(isPractice); if(!L.length) return "";
+  return `<details class="list closed pract" style="margin-top:14px"><summary class="listhead"><h3>Practice orders <span class="n">${L.length} · not real, not counted</span></h3></summary>
+    <div class="pogrid">${L.map(o=>boardCard(o).replace('class="','class="practice ')).join("")}</div></details>`; }
+window.pordersAttn=()=>PR().filter(o=>["compare","ready","delivered"].includes(o.status)).length;
+window.pordersOpen=()=>PR().filter(o=>!["received","cancelled"].includes(o.status)).length;
+window.pordersBy=k=>PR().filter(o=>o.status===k).length;
 
 async function load(){
   const r=await sb.from("gvc_porders").select("*").order("created_at",{ascending:false});
@@ -46,7 +56,7 @@ async function save(o,patch,note){
 const css=document.createElement("style");
 css.textContent=`
 .pov{max-width:1000px;margin-top:6px}
-.pov h2{font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0}
+.pov h2{font-family:var(--font-display);letter-spacing:.05em;margin:0}
 .pov .lbl{font-size:12.5px;color:var(--muted)}
 .pov .stg{display:flex;gap:6px;overflow-x:auto;margin:10px 0 4px;padding-bottom:4px}
 .pov .stg button{flex:none}
@@ -61,10 +71,10 @@ css.textContent=`
 #poAll .trk{grid-template-columns:minmax(150px,280px) minmax(0,1fr) 150px}
 #poAll .cell[style*='--cc']{background:var(--cc)!important}#poAll .cell.past{opacity:.4}
 @media (max-width:760px){ .potabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.potabs .tab{flex:0 0 auto;font-size:12.5px;padding:5px 10px} #poAll .trk{grid-template-columns:1fr} #poAll .where{margin-bottom:8px} }
-.pno{font:600 20px/1.1 Oswald,sans-serif;letter-spacing:.04em;color:var(--c,#2f8ff0);margin-bottom:2px}.pno.big{font-size:28px;--c:#2f8ff0}
+.pno{font:600 20px/1.1 var(--font-display);letter-spacing:.04em;color:var(--c,#2f8ff0);margin-bottom:2px}.pno.big{font-size:28px;--c:#2f8ff0}
 .pno small{display:block;font-family:system-ui,sans-serif;font-size:12.5px;font-weight:500;line-height:1.3;letter-spacing:0;color:var(--muted);margin-top:2px}.poc .m{font-size:12.5px;color:var(--muted);margin-top:3px}
 .pod .psec{margin-top:16px}
-.pod .psec>h3{font-family:Oswald,sans-serif;letter-spacing:.08em;font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.pod .psec>h3{font-family:var(--font-display);letter-spacing:.08em;font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
 .pod .steps{display:flex;gap:5px;flex-wrap:wrap}
 .pod .steps button{border-radius:999px}
 .pod .steps button.on{background:var(--c);border-color:var(--c);color:#fff}
@@ -98,12 +108,12 @@ body.girly .poc,body.girly .pod .qc{background:#fffafd}
 .pod .plc{font:inherit;font-size:13px;padding:4px 11px;border-radius:99px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer}
 .pod .plc[aria-pressed="true"]{background:#2f8ff0;border-color:#2f8ff0;color:#fff}
 .pod .pltot{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
-.pod .plt{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel)}.pod .plt b{display:block;font:600 22px Oswald,sans-serif}.pod .plt span{display:block;font-size:11.5px;color:var(--muted);line-height:1.35}
+.pod .plt{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel)}.pod .plt b{display:block;font:600 22px var(--font-display)}.pod .plt span{display:block;font-size:11.5px;color:var(--muted);line-height:1.35}
 .pod .plt.low{border-color:#3ad06b}.pod .plt.low b{color:#3ad06b}.pod .plt.ord{box-shadow:0 0 0 2px #3ad06b inset}
 .pod .pll{display:grid;gap:6px;margin-top:8px}
 .pod .plr{display:grid;grid-template-columns:56px minmax(0,1fr) 70px 130px auto;gap:6px 12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
 .pod .plr.win{border-left-color:#3ad06b}.pod .plr.miss{border-left-color:#e5483b}
-.pod .plth{width:56px;height:46px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font:600 15px Oswald,sans-serif}
+.pod .plth{width:56px;height:46px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#888;font:600 15px var(--font-display)}
 .pod .plth .hwpic{width:46px;height:46px;background:none;border:0}.pod .plth .hwpic svg{width:100%;height:100%}
 .pod .pln{font-weight:600;font-size:14px;line-height:1.3;word-break:break-word}
 .pod .plm{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);margin-top:2px}
@@ -111,8 +121,8 @@ body.girly .poc,body.girly .pod .qc{background:#fffafd}
 .pod .plp i{display:block;font-style:normal;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .pod .plp b{font-size:14px}.pod .plp small{display:block;font-size:11px;color:var(--muted)}.pod .plp em{color:var(--muted)}
 .pod .plp .lo b{color:#3ad06b}
-.pod .plq{text-align:center;line-height:1.05}.pod .plq b{display:block;font:600 24px Oswald,sans-serif}.pod .plq small,.pod .plb small{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-.pod .plb{line-height:1.15;border-left:1px solid var(--line);padding-left:10px;min-height:34px}.pod .plb b{display:block;font:600 16px Oswald,sans-serif;color:#3ad06b;letter-spacing:.03em}.pod .plb small{text-transform:none;letter-spacing:0;color:#3ad06b;font-size:12px}
+.pod .plq{text-align:center;line-height:1.05}.pod .plq b{display:block;font:600 24px var(--font-display)}.pod .plq small,.pod .plb small{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.pod .plb{line-height:1.15;border-left:1px solid var(--line);padding-left:10px;min-height:34px}.pod .plb b{display:block;font:600 16px var(--font-display);color:#3ad06b;letter-spacing:.03em}.pod .plb small{text-transform:none;letter-spacing:0;color:#3ad06b;font-size:12px}
 .pod .plx{grid-column:1/-1;font-size:13px;border-top:1px dashed var(--line);padding-top:6px;line-height:1.45}
 .pod .srcq>summary{cursor:pointer;list-style:none}.pod .srcq>summary::-webkit-details-marker{display:none}
 @media (max-width:640px){ .pod .plr{grid-template-columns:48px minmax(0,1fr) 54px} .pod .plq b{font-size:20px} .pod .plb{grid-column:1/-1;border:0;padding:0;min-height:0;display:flex;gap:8px;align-items:baseline} .pod .plb:empty{display:none} .pod .plth{width:48px;height:40px} .pod .plp{grid-column:1/-1;grid-template-columns:repeat(var(--n),1fr);text-align:left;border-top:1px solid var(--line);padding-top:6px} }
@@ -168,9 +178,9 @@ function boardHTML(act){
 let allOpen=true; try{ allOpen=localStorage.getItem("gvc_allorders")!=="0"; }catch(e){}
 function allOrdersHTML(){
   const recent=o=>o.status!=="received"||Date.now()-new Date(o.updated_at||0)<14*864e5;
-  const L=PO.filter(o=>o.status!=="cancelled"&&recent(o)).sort((a,b)=>ST.findIndex(x=>x[0]===a.status)-ST.findIndex(x=>x[0]===b.status)||String(b.updated_at).localeCompare(String(a.updated_at)));
+  const L=PR().filter(o=>o.status!=="cancelled"&&recent(o)).sort((a,b)=>ST.findIndex(x=>x[0]===a.status)-ST.findIndex(x=>x[0]===b.status)||String(b.updated_at).localeCompare(String(a.updated_at)));
   const short={"Asked for quotes":"Asked","Comparing quotes":"Comparing","Ready to pick up":"Pick up","Received ✓":"Received"};
-  return `<section class="list ${allOpen?"":"closed"}" id="poAll"><div class="listhead" id="poAllH" role="button" tabindex="0"><h3><span class="caret">▾</span> All orders <span class="n">${L.length}${PO.filter(needsYou).length?` · ${PO.filter(needsYou).length} need attention`:""}</span></h3></div>
+  return `<section class="list ${allOpen?"":"closed"}" id="poAll"><div class="listhead" id="poAllH" role="button" tabindex="0"><h3><span class="caret">▾</span> All orders <span class="n">${L.length}${PR().filter(needsYou).length?` · ${PR().filter(needsYou).length} need attention`:""}</span></h3></div>
     <div class="trk"><div class="hdr"></div><div class="cells lbl" style="--n:${ST.length}">${ST.map(([k,t])=>`<div>${E(short[t]||t)}</div>`).join("")}</div><div class="hdr"></div>
     ${L.map(o=>{ const i=ST.findIndex(x=>x[0]===o.status), N=nums(o); return `<button class="jn" type="button" data-po="${o.id}" title="${E(N.name)}">${N.big?`<b style="color:${SL[o.status].c}">${E(N.big)}</b> - `:""}${E(N.name)}</button>
       <div class="cells" style="--n:${ST.length}">${ST.map(([k,t,c],xi)=>`<div class="cell ${xi<i?"past":xi===i?"now":""}" title="${E(t)}" style="${xi<=i?`background:${c};--cc:${c}`:""}"></div>`).join("")}</div>
@@ -178,20 +188,21 @@ function allOrdersHTML(){
 }
 /* ================= list ================= */
 function renderList(B){
-  const act=PO.filter(o=>!["received","cancelled"].includes(o.status));
-  const tabs=[["active","Open",act.length],...ST.map(([k,t])=>[k,t,PO.filter(o=>o.status===k).length])];
-  const list=tab==="active"?act:PO.filter(o=>o.status===tab);
+  const act=PR().filter(o=>!["received","cancelled"].includes(o.status));
+  const tabs=[["active","Open",act.length],...ST.map(([k,t])=>[k,t,PR().filter(o=>o.status===k).length])];
+  const list=tab==="active"?act:PR().filter(o=>o.status===tab);
   const box=BOX?`<div class="lbl" style="margin-top:6px">${BOX.box==="robin"?`📧 Reading quotes from ${E(BOX.email||"Robin's email")}`:`📧 Robin's email isn't connected yet - for now it reads the quote emails ${role()==="parts"?"you forward":"Robin forwards"} to Kyle. <button class="btn sm" type="button" id="poCon" style="margin-left:4px">Connect Robin's email</button>`}</div>`:"";
-  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2>${role()==="parts"?"My orders":"Robin's orders"}</h2><span class="lbl">${act.length} open${PO.filter(needsYou).length?` · ${PO.filter(needsYou).length} need attention`:""}</span><span style="flex:1"></span><button class="btn primary" type="button" id="poNew">+ New order</button></div>${box}
+  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2>${role()==="parts"?"My orders":"Robin's orders"}</h2><span class="lbl">${act.length} open${PR().filter(needsYou).length?` · ${PR().filter(needsYou).length} need attention`:""}</span><span style="flex:1"></span><button class="btn primary" type="button" id="poNew">+ New order</button></div>${box}
     <div class="stg potabs">${tabs.map(([k,t,n])=>`<button class="tab ${tab===k?"on":""}" style="--c:${k==="active"?"#ff8a2a":SL[k].c}" type="button" data-pot="${k}">${t}${n?`<span class="ct">${n}</span>`:""}</button>`).join("")}</div>
     ${tab==="active"?boardHTML(act):`<div class="pogrid">${list.map(boardCard).join("")}</div>`}
     ${!list.length&&tab!=="active"?`<div class="empty" style="text-align:left;margin-top:12px">${loaded?"Nothing here.":"Loading…"}</div>`:""}
-    ${PO.length?allOrdersHTML():""}`;
+    ${PR().length?allOrdersHTML():""}${practiceHTML()}`;
   B.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const o=PO.find(x=>x.id===el.dataset.cnt); if(o) countSheet(o); });
   B.querySelector("#poNew").onclick=newOrder;
   { const H=B.querySelector("#poAllH"); if(H) H.onclick=()=>{ allOpen=!allOpen; try{localStorage.setItem("gvc_allorders",allOpen?"1":"0")}catch(e){} B.querySelector("#poAll").classList.toggle("closed",!allOpen); }; }
   B.querySelectorAll("[data-pot]").forEach(b=>b.onclick=()=>{ tab=b.dataset.pot; render(); });
   B.querySelectorAll("[data-po]").forEach(b=>b.onclick=()=>{ poId=b.dataset.po; render(); toTop(); });
+  { const d=B.querySelector("details.pract"); if(d) d.ontoggle=()=>d.classList.toggle("closed",!d.open); }
   const cn=B.querySelector("#poCon"); if(cn) cn.onclick=connect;
 }
 /* the number that matters: RFQ while asking/comparing, PO once ordered (RFQ shown under it) */
@@ -221,7 +232,7 @@ function renderOrder(B,o){
   const si=ST.findIndex(x=>x[0]===o.status);
   B.innerHTML=`<div class="pod">
     <button class="btn sm" type="button" id="poBack">‹ All orders</button>
-    <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px">${(N=>N.big?`<div class="pno big">${E(N.big)}${N.sub?`<small>${E(N.sub)}</small>`:""}</div>`:"")(nums(o))}<h2 style="font-family:Oswald,sans-serif;letter-spacing:.04em;margin:0">${E(nums(o).name)}</h2>
+    <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px">${(N=>N.big?`<div class="pno big">${E(N.big)}${N.sub?`<small>${E(N.sub)}</small>`:""}</div>`:"")(nums(o))}<h2 style="font-family:var(--font-display);letter-spacing:.04em;margin:0">${E(nums(o).name)}</h2>
       <div class="lbl">${[o.job?"Job "+o.job:"","started "+day(o.created_at)+(o.created_by?" by "+o.created_by:"")].filter(Boolean).map(E).join(" · ")}</div></div>
       <button class="btn sm" type="button" id="poEd">✎ Edit</button></div>
     <div class="psec"><div class="steps">${ST.map(([k,t,c],i)=>`<button class="btn sm ${k===o.status?"on":i<si?"past":""}" type="button" data-pst="${k}" style="--c:${c}">${t}</button>`).join("")}</div>
@@ -233,7 +244,7 @@ function renderOrder(B,o){
       ${I.length?priceListShell(o):`<div class="lbl">No items yet - add them, or read a quote from email and the items come from it.</div>`}</div>
     <div class="psec"><details class="srcq"><summary><h3 style="display:inline-flex;margin:0">SOURCE QUOTES <span class="lbl" style="font-family:inherit;letter-spacing:0;margin-left:6px">${Q.length} - the emails these prices came from</span></h3></summary>
       <div style="margin-top:8px">${Q.map((q,i)=>quoteCard(o,q,i)).join("")||`<div class="lbl">No quotes yet.</div>`}</div></details></div>
-    <div class="psec"><h3>HISTORY</h3>${(o.log||[]).slice().reverse().slice(0,12).map(l=>`<div class="lg">${day(l.at)} · ${E(l.who)}: ${E(l.t)}</div>`).join("")||`<div class="lg">-</div>`}
+    <div class="psec"><h3>History</h3>${(o.log||[]).slice().reverse().slice(0,12).map(l=>`<div class="lg">${day(l.at)} · ${E(l.who)}: ${E(l.t)}</div>`).join("")||`<div class="lg">-</div>`}
       <div style="margin-top:12px"><button class="btn sm" type="button" id="poDel" style="color:#e5483b">Delete order</button></div></div>
   </div>`;
   if(I.length) wirePriceList(B,o);
@@ -363,7 +374,7 @@ function sheetUI(html,onReady,cls=""){
 const jobNames=()=>(typeof jobs!=="undefined"?jobs:[]).filter(j=>j.stage!=="done"&&!j.archived).map(j=>j.name);
 function newOrder(pre={}){
   if(pv()){ say(PV); return; }
-  sheetUI(`<h3>NEW ORDER</h3>
+  sheetUI(`<h3>New order</h3>
     <label>What's it for<input id="noT" value="${E(pre.title||"")}" placeholder="e.g. Steel for 1086 / 1087, Grade 8 bolt restock"></label>
     <label>Job (optional)<input id="noJ" list="noJL" placeholder="e.g. 1086WT"><datalist id="noJL">${jobNames().map(n=>`<option value="${E(n)}">`).join("")}</datalist></label>
     <label>Items - one per line (optional - they can come from the first quote)<textarea id="noI" rows="5" placeholder="10 pcs 1/2-13 x 1-1/2 Gr 8 bolt&#10;2x2x1/8 HSS 24' (qty 2)"></textarea></label>
@@ -378,7 +389,7 @@ function newOrder(pre={}){
   });
 }
 function editOrder(o){
-  sheetUI(`<h3>EDIT ORDER</h3><label>What's it for<input id="eoT" value="${E(nums(o).name)}"></label>
+  sheetUI(`<h3>Edit order</h3><label>What's it for<input id="eoT" value="${E(nums(o).name)}"></label>
     <label>Job (optional)<input id="eoJ" list="eoJL" value="${E(o.job||"")}"><datalist id="eoJL">${jobNames().map(n=>`<option value="${E(n)}">`).join("")}</datalist></label>
     <label>Who you asked for quotes<input id="eoA" value="${E((o.asked||[]).join(", "))}"></label>
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn" type="button" id="eoX">Cancel</button><button class="btn primary" type="button" id="eoGo">Save</button></div>`,(el,close)=>{
@@ -388,7 +399,7 @@ function editOrder(o){
   });
 }
 function addItems(o){
-  sheetUI(`<h3>ADD ITEMS</h3><label>One per line<textarea id="aiI" rows="6" placeholder="10 pcs 1/2-13 x 1-1/2 Gr 8 bolt"></textarea><div class="lbl">Quantity first with pcs (10 pcs …) or at the end (… qty 10).</div></label>
+  sheetUI(`<h3>Add items</h3><label>One per line<textarea id="aiI" rows="6" placeholder="10 pcs 1/2-13 x 1-1/2 Gr 8 bolt"></textarea><div class="lbl">Quantity first with pcs (10 pcs …) or at the end (… qty 10).</div></label>
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn" type="button" id="aiX">Cancel</button><button class="btn primary" type="button" id="aiGo">Add</button></div>`,(el,close)=>{
     el.querySelector("#aiX").onclick=close;
     el.querySelector("#aiGo").onclick=async()=>{ const n=el.querySelector("#aiI").value.split("\n").map(parseLine).filter(Boolean); if(!n.length){ close(); return; }
@@ -415,7 +426,7 @@ function pickVendor(o,q){ infoSheet(o,"ordered",{vendor:q.vendor,po:o.po||q.quot
 function countSheet(o){
   if(pv()){ say(PV); return; }
   const I=items(o);
-  sheetUI(`<h3>COUNT IT IN</h3><div class="tnote" style="margin:-4px 0 8px">${E(o.title)}${o.vendor?" · "+E(o.vendor):""} - put in what actually came. Leave it as is if it all came.</div>
+  sheetUI(`<h3>Count it in</h3><div class="tnote" style="margin:-4px 0 8px">${E(o.title)}${o.vendor?" · "+E(o.vendor):""} - put in what actually came. Leave it as is if it all came.</div>
     ${I.map((it,i)=>`<div class="it" style="display:grid;grid-template-columns:1fr 80px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div>${E(it.desc)}${it.qty!=null?` <span class="lbl">ordered ${E(it.qty)}</span>`:""}</div>
       <input type="number" inputmode="decimal" min="0" data-cg="${i}" value="${E(it.got!=null?it.got:(it.qty!=null?it.qty:""))}" style="font-size:16px;text-align:right"></div>`).join("")||`<div class="lbl">No item list on this order - it'll just be marked received.</div>`}
     <label style="margin-top:8px">Note (back-ordered, damaged, wrong part…)<input id="cgN" placeholder="optional"></label>
@@ -433,7 +444,7 @@ function mailPicker(o){
   if(pv()){ say(PV); return; }
   const used=new Set(PO.flatMap(x=>quotes(x).map(q=>q.src&&q.src.msg)).filter(Boolean));
   let q="", all=false;
-  sheetUI(`<div class="pom"><h3>READ A QUOTE FROM EMAIL</h3>
+  sheetUI(`<div class="pom"><h3>Read a quote from email</h3>
     <div class="tnote" style="margin:-4px 0 8px">Tap the supplier's quote email. Claude reads the prices (from the email and any PDF) and lines them up with this order's items.</div>
     <div class="row" style="gap:6px"><input id="pmQ" type="search" placeholder="Search: Fastenal, steel, quote #…" style="flex:1"><button class="btn sm" type="button" id="pmGo">Search</button></div>
     <label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px"><input type="checkbox" id="pmAll" style="width:auto"> Show all emails, not just ones that look like quotes</label>
@@ -483,59 +494,87 @@ function renderPorders(){
   const B=$("#board"); B.className="pov"; B.style.gridTemplateColumns="";
   if(!BOX&&!pv()){ BOX={box:"?"}; call({action:"rfq_box"}).then(r=>{ BOX=r; if(cur==="porders"&&!poId) render(); }).catch(()=>{ BOX=null; }); }
   const o=poId&&PO.find(x=>x.id===poId);
-  if(o) renderOrder(B,o); else { poId=null; renderList(B); }
+  if(o){ renderOrder(B,o); if(isPractice(o)) B.insertAdjacentHTML("afterbegin",`<div class="pracban">Practice order - made so Robin could try the screens. Not a real order; it isn't counted anywhere.</div>`); } else { poId=null; renderList(B); }
 }
 window.extraViews=Object.assign(window.extraViews||{},{porders:renderPorders});
 window.pordersGo=k=>{ tab=k||"active"; poId=null; shellGo("porders"); };
-const _back=window.gvcBack;
-window.gvcBack=()=>{ try{ const sh=[...document.querySelectorAll(".shov.on")].length; if(!sh&&typeof cur!=="undefined"&&cur==="porders"&&poId&&!document.querySelector("#scrim.on")){ poId=null; render(); return true; } }catch(e){} return _back?_back():false; };
+window.pordersAll=()=>({list:PO,loaded,isPractice,SL});   // Purchasing view - read only
+window.pordersOpenId=id=>{ tab="active"; poId=id; shellGo("porders"); };
+// Back on one of Robin's orders goes to her order list (a "back" hook - see back.js)
+GVC.on("back",()=>{ try{ const sh=[...document.querySelectorAll(".shov.on")].length; if(!sh&&typeof cur!=="undefined"&&cur==="porders"&&poId&&!document.querySelector("#scrim.on")){ poId=null; render(); return true; } }catch(e){} return false; },{order:70});
 
 /* Robin's Home: only what needs her right now, as Next up cards like Kyle's (Kyle, Nov 8).
    Stock numbers live on the Inventory tab, order counts on the Orders tab - not repeated here. */
+/* for the home-screen widget: Robin's list and the receiving count sheet by order id */
+window.robinNextList=()=>robinNext();
+window.robinCountOrder=id=>{ const o=PO.find(x=>x.id===id); if(!o) return false; countSheet(o); return true; };
 function robinNext(){
   const out=[], now=Date.now(), dd=t=>Math.floor((now-new Date(t||now))/864e5);
   const open=o=>()=>{ tab="active"; poId=o.id; shellGo("porders"); toTop(); };
-  PO.forEach(o=>{ const N=nums(o), Q=quotes(o), nm=(N.big?N.big+" · ":"")+N.name;
-    if(o.status==="ready") out.push({r:1,tag:"PICK UP",c:"#3ad06b",text:`Pick up at ${o.vendor||"the vendor"}`,sub:nm,act:{t:"PICKED UP - COUNT IT",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
-    else if(o.status==="delivered") out.push({r:2,tag:"COUNT IT IN",c:"#2f8ff0",text:`Count in ${N.name}`,sub:[N.big,o.vendor].filter(Boolean).join(" · "),act:{t:"COUNT IT IN",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
-    else if(o.status==="compare"&&Q.length) out.push({r:3,tag:"PICK A VENDOR",c:"#22c3e6",text:`Compare quotes: ${N.name}`,sub:`${N.big?N.big+" · ":""}${Q.length} quote${Q.length>1?"s":""} in${cheapest(o)?" · lowest "+$$(cheapest(o)):""}`,act:{t:"COMPARE QUOTES",fn:open(o)}});
-    else if(o.status==="rfq"&&!Q.length&&dd(o.created_at)>=2) out.push({r:5,tag:"NO REPLY",c:"#e5483b",text:`No quotes back: ${N.name}`,sub:`${N.big?N.big+" · ":""}asked ${(o.asked||[]).join(", ")||"vendors"} ${dd(o.created_at)} days ago`,act:{t:"OPEN",fn:open(o)}});
-    else if(o.status==="shipped"&&o.eta&&/today/i.test(o.eta)) out.push({r:6,tag:"COMING TODAY",c:"#f5b041",text:`${N.name} should show up today`,sub:nm,act:{t:"OPEN",fn:open(o)}});
+  PR().forEach(o=>{ const N=nums(o), Q=quotes(o), nm=(N.big?N.big+" · ":"")+N.name;
+    if(o.status==="ready") out.push({r:1,link:{po:o.id,count:1},tag:"PICK UP",c:"#3ad06b",text:`Pick up at ${o.vendor||"the vendor"}`,sub:nm,act:{t:"PICKED UP - COUNT IT",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="delivered") out.push({r:2,link:{po:o.id,count:1},tag:"COUNT IT IN",c:"#2f8ff0",text:`Count in ${N.name}`,sub:[N.big,o.vendor].filter(Boolean).join(" · "),act:{t:"COUNT IT IN",fn:()=>countSheet(o)},act2:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="compare"&&Q.length) out.push({r:3,link:{po:o.id},tag:"PICK A VENDOR",c:"#22c3e6",text:`Compare quotes: ${N.name}`,sub:`${N.big?N.big+" · ":""}${Q.length} quote${Q.length>1?"s":""} in${cheapest(o)?" · lowest "+$$(cheapest(o)):""}`,act:{t:"COMPARE QUOTES",fn:open(o)}});
+    else if(o.status==="rfq"&&!Q.length&&dd(o.created_at)>=2) out.push({r:5,link:{po:o.id},tag:"NO REPLY",c:"#e5483b",text:`No quotes back: ${N.name}`,sub:`${N.big?N.big+" · ":""}asked ${(o.asked||[]).join(", ")||"vendors"} ${dd(o.created_at)} days ago`,act:{t:"OPEN",fn:open(o)}});
+    else if(o.status==="shipped"&&o.eta&&/today/i.test(o.eta)) out.push({r:6,link:{po:o.id},tag:"COMING TODAY",c:"#f5b041",text:`${N.name} should show up today`,sub:nm,act:{t:"OPEN",fn:open(o)}});
   });
   // supply requests Kyle approved - she orders them
-  (window.reqList?window.reqList():[]).filter(r=>r.status==="approved").forEach(r=>out.push({r:4,tag:"TO ORDER",c:"#ff8a2a",text:`Order ${window.reqLine(r)}`,sub:[r.how==="out"?"OUT":"",r.who?r.who+" asked":"",r.note||""].filter(Boolean).join(" · ")||"On the order list",act:{t:"OPEN",fn:()=>window.reqGo("approved")}}));
+  (window.reqList?window.reqList():[]).filter(r=>r.status==="approved").forEach(r=>out.push({r:4,link:{req:"approved"},tag:"TO ORDER",c:"#ff8a2a",text:`Order ${window.reqLine(r)}`,sub:[r.how==="out"?"OUT":"",r.who?r.who+" asked":"",r.note||""].filter(Boolean).join(" · ")||"On the order list",act:{t:"OPEN",fn:()=>window.reqGo("approved")}}));
   const hw=window.hwLowCount?window.hwLowCount():0, cl=window.invMode&&window.invMode.low?window.invMode.low():0;
-  if(hw) out.push({r:7,tag:"LOW STOCK",c:"#e5483b",text:`${hw} hardware item${hw>1?"s":""} running low`,sub:"Hardware · bolts, lights, electrical",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("hw"); shellGo("inv"); }}});
-  if(cl) out.push({r:7,tag:"LOW STOCK",c:"#e5483b",text:`${cl} consumable${cl>1?"s":""} running low`,sub:"Wire, gas, discs",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("cons"); shellGo("inv"); }}});
+  if(hw) out.push({r:7,link:{inv:"hw"},tag:"LOW STOCK",c:"#e5483b",text:`${hw} hardware item${hw>1?"s":""} running low`,sub:"Hardware · bolts, lights, electrical",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("hw"); shellGo("inv"); }}});
+  if(cl) out.push({r:7,link:{inv:"cons"},tag:"LOW STOCK",c:"#e5483b",text:`${cl} consumable${cl>1?"s":""} running low`,sub:"Wire, gas, discs",act:{t:"SEE THEM",fn:()=>{ window.invMode.set("cons"); shellGo("inv"); }}});
   // her own to-dos
-  (typeof liveMine==="function"?liveMine():[]).forEach(t=>out.push({r:8,tag:"TO DO",c:"#ffd28a",text:t.text,sub:t.from_name||"Your to-do",
+  (typeof liveMine==="function"?liveMine():[]).forEach(t=>out.push({r:8,link:t.job_id?{job:t.job_id}:{v:"home"},tag:"TO DO",c:"#ffd28a",text:t.text,sub:t.from_name||"Your to-do",
     act:{t:"DONE",fn:()=>{ if(typeof setTodo==="function"){ setTodo(t.id,true); if(typeof todoToast==="function") todoToast("Done: "+t.text,()=>setTodo(t.id,false)); } }},later:{id:t.id,text:t.text}}));
   return out.sort((a,b)=>a.r-b.r);
 }
+/* Robin's Today (usability review, Nov 15): every action visible in one ordered list - no carousel, long text wraps,
+   the main action of each item first; for her own to-dos "Mark done" is a quiet secondary button next to Open/Later.
+   "Coming later" features moved off Today into More -> Coming later. */
+const RT_CSS=document.createElement("style"); RT_CSS.textContent=`
+.rtd{max-width:860px;display:flex;flex-direction:column;gap:14px}
+.rtd h2.rtt{margin:0;font:700 22px var(--font-ui);text-transform:none;letter-spacing:0;background:none;border:0;padding:0}
+.rtd .rts{color:var(--muted);font-size:14px;margin-top:2px}
+.rtd .rtl{display:flex;flex-direction:column;gap:8px}
+.rtd .rti{display:grid;grid-template-columns:4px minmax(0,1fr);gap:12px;padding:12px 12px 12px 0;border:1px solid var(--line);border-radius:12px;background:var(--panel2);overflow:hidden}
+.rtd .rti .cb{background:var(--c)}
+.rtd .rtg{display:inline-block;font:700 12px var(--font-ui);color:var(--c);border:1px solid var(--c);border-radius:999px;padding:2px 9px;line-height:1.4}
+.rtd .rtx{font:600 16px/1.35 var(--font-ui);margin:6px 0 2px;word-break:break-word;white-space:normal}
+.rtd .rtsub{font-size:13.5px;color:var(--muted);word-break:break-word}
+.rtd .rta{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.rtd .rta .btn{min-height:44px}
+.rtd .qk{display:flex;gap:8px;flex-wrap:wrap}.rtd .qk .btn{min-height:44px;flex:1 1 140px}
+.rtd .rtempty{padding:16px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:14px}
+`; document.head.appendChild(RT_CSS);
+const sc2=t=>{ t=String(t||"").toLowerCase(); return t.charAt(0).toUpperCase()+t.slice(1); };
 window.partsHome=B=>{
-  B.innerHTML=`<div class="hm shanim"></div>`; const hm=B.querySelector(".hm");
-  const items=robinNext(), NU=window.shellNu;
-  const left=document.createElement("section"); left.setAttribute("aria-label","Next up");
-  left.innerHTML=`<h4><span>NEXT UP${items.length?" · "+items.length:""}</span>${items.length>1?`<span style="letter-spacing:.08em">SWIPE FOR MORE</span>`:""}</h4>
-    ${NU?NU.html(items,"No quotes to compare, nothing to order, pick up or count."):""}
-    <div class="row" style="gap:8px;margin-top:12px"><button class="btn" type="button" id="poHN" style="flex:1">+ New order</button><button class="btn" type="button" id="poHA" style="flex:1">My orders ›</button><button class="btn" type="button" id="poHI" style="flex:1">Inventory ›</button></div>`;
-  hm.appendChild(left);
-  const right=document.createElement("section"); right.setAttribute("aria-label","Coming later");
-  const COL={Kyle:"#2f8ff0",Colton:"#3ad06b",Aaron:"#c9a46a",Cooper:"#e04fa0",Robin:"#9b7bff"};
-  right.innerHTML=`<div class="homecrew"><h4><span>THE CREW</span><span>TAP TO MESSAGE</span></h4><div class="cw tmrow" style="margin-bottom:14px">${[...(typeof CREW!=="undefined"?CREW:["Kyle","Colton","Aaron","Cooper"]),"Robin"].map(p=>`<button class="p" type="button" data-cw="${E(p)}"><span class="av" style="background:${COL[p]||"#9aa1aa"}">${E(p[0])}</span><span class="n">${E(p)}</span></button>`).join("")}</div></div>
-    <h4><span>COMING LATER</span></h4>
-    <button class="soon" type="button" data-pg="staging" style="display:block;width:100%;text-align:left;background:none;font:inherit;cursor:pointer"><b>Staging kits<i>COMING LATER</i></b>Parts for upcoming jobs, pulled and ready before the build starts.</button>
-    <div class="soon"><b>Hardware price comparison<i>COMING LATER</i></b>The same bolt at Fastenal, Resource and Gregg's side by side, with price history.</div>
-    <div class="soon"><b>Time & payroll<i>COMING LATER</i></b>Everyone's punched hours by pay period (semi-monthly), approved and exported for QuickBooks.</div>`;
-  hm.appendChild(right);
-  if(PO.length){ B.insertAdjacentHTML("beforeend",allOrdersHTML());
+  const items=robinNext();
+  const todo=it=>it.tag==="TO DO";
+  B.innerHTML=`<div class="rtd shanim">
+    <div><h2 class="rtt">Today</h2><div class="rts">${items.length?`${items.length} thing${items.length>1?"s":""} for you, most urgent first`:"Nothing needs you right now."}</div></div>
+    <div class="rtl" role="list">${items.map((t,i)=>`<article class="rti" role="listitem" style="--c:${t.c}"><span class="cb"></span><div>
+      <span class="rtg">${E(sc2(t.tag))}</span><div class="rtx">${E(t.text)}</div>${t.sub?`<div class="rtsub">${E(t.sub)}</div>`:""}
+      <div class="rta">${todo(t)
+        ?`${t.later?`<button class="btn" type="button" data-rtl="${i}">Later</button>`:""}<button class="btn ghost" type="button" data-rta="${i}" aria-label="Mark done: ${E(t.text)}">Mark done</button>`
+        :`${t.act?`<button class="btn primary" type="button" data-rta="${i}">${E(sc2(t.act.t))}</button>`:""}${t.act2?`<button class="btn" type="button" data-rtb="${i}">${E(sc2(t.act2.t))}</button>`:""}`}</div>
+    </div></article>`).join("")||`<div class="rtempty">You're all caught up - no quotes to compare, nothing to order, pick up or count.</div>`}</div>
+    <div class="qk"><button class="btn" type="button" id="poHN">+ New order</button><button class="btn" type="button" id="poHA">My orders</button><button class="btn" type="button" id="poHI">Inventory</button></div>
+  </div>`;
+  if(PR().length){ B.insertAdjacentHTML("beforeend",allOrdersHTML());
     const H=B.querySelector("#poAllH"); if(H) H.onclick=()=>{ allOpen=!allOpen; try{localStorage.setItem("gvc_allorders",allOpen?"1":"0")}catch(e){} B.querySelector("#poAll").classList.toggle("closed",!allOpen); };
     B.querySelectorAll("#poAll [data-po]").forEach(b=>b.onclick=()=>{ tab="active"; poId=b.dataset.po; shellGo("porders"); toTop(); }); }
-  if(NU) NU.wire(B,items);
-  if(window.teamDecorate) window.teamDecorate();
+  B.querySelectorAll("[data-rta]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.rta]; if(b.disabled||!t||!t.act) return; b.disabled=true; t.act.fn(); });
+  B.querySelectorAll("[data-rtb]").forEach(b=>b.onclick=()=>{ const t=items[+b.dataset.rtb]; t&&t.act2&&t.act2.fn(); });
+  B.querySelectorAll("[data-rtl]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const t=items[+b.dataset.rtl]; if(t&&t.later&&typeof laterMenu==="function") laterMenu(b,t.later); });
   B.querySelector("#poHN").onclick=()=>newOrder();
   B.querySelector("#poHA").onclick=()=>window.pordersGo("active");
   B.querySelector("#poHI").onclick=()=>shellGo("inv");
-  right.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>shellGo(b.dataset.pg));
 };
+/* the "coming later" features, now in More -> Coming later (not on Today) */
+window.comingLater=()=>{ if(!window.gvcSheet) return;
+  window.gvcSheet(`<h3>Coming later</h3><div class="tnote" style="margin:-2px 0 10px">Planned for the app - not working yet.</div>
+    <button class="add" type="button" data-pg="staging" style="text-align:left;display:block;width:100%;min-height:52px"><b>Staging kits</b><span style="display:block;color:var(--muted);font-size:13px">Parts for upcoming jobs, pulled and ready before the build starts.</span></button>
+    <div class="add" style="text-align:left;margin-top:6px"><b>Hardware price comparison</b><span style="display:block;color:var(--muted);font-size:13px">The same bolt at Fastenal, Resource and Gregg's side by side, with price history.</span></div>
+    <div class="add" style="text-align:left;margin-top:6px"><b>Time &amp; payroll</b><span style="display:block;color:var(--muted);font-size:13px">Everyone's punched hours by pay period, approved and exported for QuickBooks.</span></div>`,
+    (el,close)=>{ el.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>{ close(); shellGo(b.dataset.pg); }); }); };
 })();

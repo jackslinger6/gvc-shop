@@ -6,6 +6,19 @@
 const css=document.createElement("style");
 css.textContent=`
 .jp .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.jp .jpbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.jp .jpgb{display:flex!important;flex-direction:row!important;gap:6px;align-items:center;font-size:12.5px;color:var(--muted);margin:0!important;white-space:nowrap}
+.jp .jpgb select{font:inherit;font-size:13.5px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-height:36px}
+.jp .jpmore{position:relative}.jp .jpmore summary{list-style:none;cursor:pointer}.jp .jpmore summary::-webkit-details-marker{display:none}
+.jp .jpmm{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:180px;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-2);padding:4px;display:flex;flex-direction:column}
+.jp .jpmm button{background:none;border:0;color:var(--text);font:inherit;font-size:14px;text-align:left;padding:10px 12px;border-radius:8px;cursor:pointer;min-height:40px}
+.jp .jpmm button:hover{background:var(--panel2)}
+.jp .jpfs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;padding:6px 6px 6px 12px;border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--r-pill);font-size:13px;font-weight:600}
+.jp .jpfs .jpfn{font-weight:400;color:var(--muted);margin-right:auto}
+.jpfov .jpfh{font:600 11.5px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:14px 2px 6px}
+.jpfov .chip small{color:var(--muted);font-size:11px;margin-left:2px}
+.jpfov .chip.on small{color:inherit;opacity:.75}
+.jp input[type=search]#jpQ{flex:1 1 220px}
 .jp input[type=search]{font:inherit;font-size:14px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;flex:1;min-width:180px}
 .jp .chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 .jp .list{display:grid;gap:6px;margin-top:8px}
@@ -27,7 +40,7 @@ css.textContent=`
 .jp .gh .gt img{max-width:100%;max-height:100%;object-fit:contain}
 .jp .gh .gn{font-weight:700;font-size:14.5px;letter-spacing:.02em;word-break:break-word}
 .jp .gh .gs{font-size:12px;color:var(--muted);margin-top:2px}
-.jp .gh .gc{font:600 13px Oswald,sans-serif;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+.jp .gh .gc{font:600 13px var(--font-display);background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:8px;padding:3px 8px}
 .jp .gb{display:grid;gap:6px;padding:0 8px 8px}
 .jp .grp:not(.open) .gb{display:none}
 
@@ -37,7 +50,7 @@ document.head.appendChild(css);
 
 const cache={};          // job_no -> rows
 const urls={};           // storage path -> signed url
-let q="", flt="all", mat="", grouped="name", openG=new Set(), origin=null, scrollTo=null;
+let q="", flt="all", mk="", th="", grouped="asm", openG=new Set(), origin=null, scrollTo=null;   // stage 8: material kind + thickness filters, Assembly by default
 
 async function load(jobNo,force){
   if(!force&&cache[jobNo]) return cache[jobNo];
@@ -66,8 +79,10 @@ function matKind(m){ m=String(m||"");
   if(/alum/i.test(m)) return "Aluminum";
   if(/\bss\b|stainless|\b30[34]\b|\b316\b/i.test(m)) return /316/.test(m)?"316 SS":"304 SS";
   if(/steel|\bms\b|p&o|\bhr\b|\bcr\b/i.test(m)) return "Mild steel";
-  return m.replace(/^[\s\d.\/"()ga-]+/i,"").trim(); }
-function matText(p){ return [thick(+p.thickness,p.material),matKind(p.material)].filter(Boolean).join(" "); }
+  if(/galv/i.test(m)) return "Galvanized";
+  if(/hrpo|p\s*&\s*o/i.test(m)) return "Mild steel";
+  return "Other / not recognized"; }   // stage 8 review: never show a part number (e.g. RECUT.1) as a material
+function matText(p){ const k=matKind(p.material); if(k==="Other / not recognized") return k; return [thick(+p.thickness,p.material),k].filter(Boolean).join(" "); }
 function matSort(a,b){ const ka=a.split(" ").slice(-1)[0], kb=b.split(" ").slice(-1)[0]; return ka.localeCompare(kb)||thVal(a)-thVal(b); }
 function thVal(l){ const g=l.match(/^(\d+) ga/); if(g) return [0,0,0,0,0,0,0,0,.1644,.1495,.1345,.1196,.1046,.0897,.0747,.0673,.0598,.0538,.0478][+g[1]]||0;
   const f=l.match(/^(?:(\d+)-)?(\d+)\/(\d+)"/); if(f) return (+f[1]||0)+f[2]/f[3]; return parseFloat(l)||0; }
@@ -99,7 +114,7 @@ function partRow(p){
   return `<div class="pt" data-id="${p.id}">
       <div class="th" data-jv="${p.id}">${p.thumb_path&&urls[p.thumb_path]?`<img src="${urls[p.thumb_path]}" alt="" loading="lazy">`:(p.bends>0?"drawing":"flat part")}</div>
       <div><div class="nm">${esc(p.part_no)}${p.name&&p.name!==p.part_no?` <span style="font-weight:400;color:var(--muted)">· ${esc(p.name)}</span>`:""}</div>
-        <div class="mt">${[grouped==="none"&&realAsm(p.assembly)?p.assembly:"",matText(p),p.flat_w?`flat ${n3(p.flat_w)} × ${n3(p.flat_h)}`:"",p.bends>0?`${p.bends} bend${p.bends>1?"s":""}`:"flat",p.qty?`qty ${p.qty}`:""].filter(Boolean).join(" · ")}${p.notes?`<div>${esc(p.notes)}</div>`:""}</div>
+        <div class="mt">${[grouped==="mat"&&realAsm(p.assembly)?p.assembly:"",matText(p),p.flat_w?`flat ${n3(p.flat_w)} × ${n3(p.flat_h)}`:"",p.bends>0?`${p.bends} bend${p.bends>1?"s":""}`:"flat",p.qty?`qty ${p.qty}`:""].filter(Boolean).join(" · ")}${p.notes?`<div>${esc(p.notes)}</div>`:""}</div>
         <div class="bt">${p.pdf_path?`<button class="btn sm" type="button" data-jv="${p.id}">Bend drawing</button><button class="btn sm" type="button" data-jo="${esc(p.pdf_path)}" data-jn="${esc(p.part_no)}.pdf">PDF</button>`:""}${p.dxf_path?`<button class="btn sm" type="button" data-jo="${esc(p.dxf_path)}" data-jn="${esc(p.part_no)}.dxf" data-dl="1">DXF</button>`:""}${p.model_path?`<button class="btn sm" type="button" data-j3="${p.id}">3D</button>`:""}</div></div>
     </div>`;
 }
@@ -107,6 +122,10 @@ const realAsm=a=>!!a&&!/^\s*[\d.\/]+\s*"?\s*(?:\(|ga\b|alum|steel|ss\b|qt|stain)
 const asmName=a=>String(a).replace(/^\d{3,5}(?:_\d+)?[A-Z]{0,2}\s*-\s*/i,"").replace(/\s*\(\d+\)$/,"").replace(/\s*_\d+_*\s*Body\s*\d+$/i,"").replace(/\s+/g," ").trim().toUpperCase();
 function groups(list,all){
   let key;
+  if(grouped==="mat"){
+    const by={}; list.forEach(p=>{ const k=matText(p)||"￿NONE"; (by[k]=by[k]||[]).push(p); });
+    return Object.keys(by).sort((a,b)=>a==="￿NONE"?1:b==="￿NONE"?-1:matSort(a,b)).map(k=>({k,name:k==="￿NONE"?"NO MATERIAL GIVEN":k,parts:by[k].sort((x,y)=>natural(x.part_no,y.part_no))}));
+  }
   if(grouped==="asm"){
     // assembly from the model; a part without one goes where its same-named parts are (CHAINBASKET.4 flat -> with CHAINBASKET.1's assembly)
     const vote={}; all.forEach(p=>{ if(!realAsm(p.assembly)) return; const k=grpKey(p), a=asmName(p.assembly); (vote[k]=vote[k]||{})[a]=(vote[k][a]||0)+1; });
@@ -123,39 +142,67 @@ function groups(list,all){
 }
 function draw(jobNo,jobName,rows){
   const D=$("#dlg"); const words=q.toLowerCase().split(/\s+/).filter(Boolean);
-  const mats=[...new Set(rows.map(matText).filter(Boolean))].sort(matSort);
-  if(mat&&!mats.includes(mat)) mat="";
-  const list=rows.filter(p=>{
-    if(flt==="bent"&&!(p.bends>0)) return false; if(flt==="flat"&&p.bends>0) return false;
-    if(mat&&matText(p)!==mat) return false;
+  const kinds=[...new Set(rows.map(p=>matKind(p.material)).filter(Boolean))];
+  if(mk&&!kinds.includes(mk)){ mk=""; th=""; }
+  const pass=(p,f)=>{ f=f||{flt,mk,th};
+    if(f.flt==="bent"&&!(p.bends>0)) return false; if(f.flt==="flat"&&p.bends>0) return false;
+    if(f.mk&&matKind(p.material)!==f.mk) return false; if(f.th&&thick(+p.thickness,p.material)!==f.th) return false;
+    return true; };
+  const list=rows.filter(p=>{ if(!pass(p)) return false;
     const hay=[p.part_no,p.name,p.assembly,grpKey(p),matText(p),p.material,p.notes].join(" ").toLowerCase();
-    return words.every(w=>hay.includes(w));
-  });
+    return words.every(w=>hay.includes(w)); });
   const bent=rows.filter(p=>p.bends>0).length;
-  const narrowed=!!(words.length||flt!=="all"||mat);   // searching or filtering opens every group that still has a match
+  const nF=(mk?1:0)+(th?1:0)+(flt!=="all"?1:0);
+  const narrowed=!!(words.length||nF);   // searching or filtering opens every group that still has a match
   let body="";
-  if(!list.length) body=`<div class="empty" style="text-align:left">${rows.length?"Nothing matches.":"No parts loaded for this job yet. Use Import zip with a package from the bend-drawing generator."}</div>`;
-  else if(grouped==="none") body=list.slice().sort((x,y)=>natural(x.part_no,y.part_no)).map(partRow).join("");
+  if(!list.length) body=`<div class="empty" style="text-align:left">${rows.length?"Nothing matches.":"No parts loaded for this job yet. Use More → Import ZIP with a package from the bend-drawing generator."}</div>`;
   else body=groups(list,rows).map(g=>{ const open=narrowed||openG.has(g.k); const pcs=g.parts.reduce((a,p)=>a+(p.qty||0),0), gb=g.parts.filter(p=>p.bends>0).length;
-    const th=g.parts.find(p=>p.thumb_path&&urls[p.thumb_path]);
-    return `<div class="grp ${open?"open":""}"><button class="gh" type="button" data-g="${esc(g.k)}" aria-expanded="${open}"><span class="ar">▶</span><span class="gt">${th?`<img src="${urls[th.thumb_path]}" alt="" loading="lazy">`:""}</span>
-      <span><div class="gn">${esc(g.name)}</div><div class="gs">${g.parts.length} part${g.parts.length>1?"s":""}${pcs?` · ${pcs} pcs`:""} · ${gb?`${gb} bent`:"all flat"}</div></span><span class="gc">${g.parts.length}</span></button>
+    const th0=g.parts.find(p=>p.thumb_path&&urls[p.thumb_path]);
+    return `<div class="grp ${open?"open":""}"><button class="gh" type="button" data-g="${esc(g.k)}" aria-expanded="${open}"><span class="ar">▶</span><span class="gt">${th0?`<img src="${urls[th0.thumb_path]}" alt="" loading="lazy">`:""}</span>
+      <span><div class="gn">${esc(g.name)}</div><div class="gs">${g.parts.length} part${g.parts.length>1?"s":""}${pcs?` · ${pcs} pcs`:""} · ${gb?`${gb} with bends`:"all flat parts"}</div></span><span class="gc">${g.parts.length}</span></button>
       <div class="gb">${open?g.parts.map(partRow).join(""):""}</div></div>`; }).join("");
+  const fsum=[mk,th,flt==="bent"?"Needs bending":flt==="flat"?"Flat":""].filter(Boolean);
   D.innerHTML=`<div class="jp">
     <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${esc(jobNo)} · Parts & drawings</h3><button class="btn ghost" type="button" id="jpBack">${origin?"Close":"Back to job"}</button></div>
-    <div class="sum">${rows.length} parts · ${bent} bent · ${rows.length-bent} flat${rows.length?` · ${rows.reduce((a,p)=>a+(p.qty||0),0)} pcs`:""}</div>
-    <div class="top" style="margin-top:8px"><input id="jpQ" type="search" placeholder="Search part number, name, assembly, material…" value="${esc(q)}"><button class="btn sm" type="button" id="jpImp">Import zip</button><button class="btn sm" type="button" id="jpImp3">Add 3D models</button><button class="btn sm" type="button" id="jpAsm" hidden>3D assembly</button><button class="btn sm" type="button" id="jpRefresh">Refresh</button></div>
-    <div class="chips">${[["name","By name"],["asm","By assembly"],["none","All parts"]].map(([k,t])=>`<button class="btn sm ${grouped===k?"primary":""}" data-jg="${k}">${t}</button>`).join("")}${grouped!=="none"&&!narrowed?`<button class="btn sm ghost" type="button" data-jx="1">${openG.size?"Collapse all":"Expand all"}</button>`:""}</div>
-    <div class="chips">${[["all","Bent + flat"],["bent","Bent"],["flat","Flat"]].map(([k,t])=>`<button class="btn sm ${flt===k?"primary":""}" data-jf="${k}">${t}</button>`).join("")}</div>
-    ${mats.length>1?`<div class="chips"><button class="btn sm ${mat?"":"primary"}" data-jm="">Any material</button>${mats.map(m=>`<button class="btn sm ${mat===m?"primary":""}" data-jm="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}
+    <div class="sum">${rows.length} parts · ${bent} with bends · ${rows.length-bent} flat parts${rows.length?` · ${rows.reduce((a,p)=>a+(p.qty||0),0)} pcs`:""}</div>
+    <div class="jpbar"><input id="jpQ" type="search" placeholder="Search part number, name, assembly, material…" value="${esc(q)}">
+      <button class="btn sm${nF?" primary":""}" type="button" id="jpF" aria-haspopup="dialog">Filter${nF?` · ${nF}`:""}</button>
+      <label class="jpgb">Group by<select id="jpG">${[["asm","Assembly"],["mat","Material"],["name","Name"]].map(([k,t])=>`<option value="${k}" ${grouped===k?"selected":""}>${t}</option>`).join("")}</select></label>
+      <button class="btn sm" type="button" id="jpAsm" hidden>3D assembly</button>
+      <details class="jpmore"><summary class="btn sm">More ▾</summary><div class="jpmm">
+        <button type="button" id="jpImp">Import ZIP</button><button type="button" id="jpImp3">Add 3D models</button><button type="button" id="jpRefresh">Refresh</button>
+        ${!narrowed?`<button type="button" data-jx="1">${openG.size?"Collapse all":"Expand all"}</button>`:""}</div></details></div>
+    ${fsum.length?`<div class="jpfs"><span>${fsum.map(esc).join(" · ")}</span><span class="jpfn">${list.length} of ${rows.length} parts</span><button class="btn sm ghost" type="button" id="jpClr">Clear</button></div>`:""}
     <div id="jpImpBox"></div>
     <div class="list">${body}</div></div>`;
+  /* Filter sheet: Material -> Thickness (only the thicknesses that material has), Bending. Nothing changes until Apply. */
+  const filterSheet=()=>{ let f={flt,mk,th};
+    const ov=document.createElement("div"); ov.className="shov jpfov"; document.body.appendChild(ov);
+    const close=()=>{ ov.classList.remove("on"); setTimeout(()=>ov.remove(),260); };
+    const paint=()=>{ const ths=f.mk?[...new Set(rows.filter(p=>matKind(p.material)===f.mk).map(p=>thick(+p.thickness,p.material)).filter(Boolean))].sort((a,b)=>thVal(a)-thVal(b)):[];
+      if(f.th&&!ths.includes(f.th)) f.th="";
+      const n=rows.filter(p=>pass(p,f)).length, cnt=(k,v)=>rows.filter(p=>pass(p,{...f,[k]:v})).length;
+      const chip=(k,v,t)=>`<button type="button" class="chip${f[k]===v?" on":""}" data-fk="${k}" data-fv="${esc(v)}" aria-pressed="${f[k]===v}">${esc(t)} <small>${cnt(k,v)}</small></button>`;
+      ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" aria-label="Filter parts"><button type="button" class="shx" aria-label="Close">✕</button><h3>Filter parts</h3>
+        <div class="jpfh">Material</div><div class="chips">${chip("mk","","Any")}${kinds.sort().map(k=>chip("mk",k,k)).join("")}</div>
+        <div class="jpfh">Thickness</div>${f.mk?`<div class="chips">${chip("th","","Any")}${ths.map(t=>chip("th",t,t)).join("")}</div>`:`<div class="tnote">Pick a material first.</div>`}
+        <div class="jpfh">Bending</div><div class="chips">${chip("flt","all","All")}${chip("flt","bent","Needs bending")}${chip("flt","flat","Flat")}</div>
+        <div class="row" style="justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn" type="button" id="jpfClr">Clear</button><button class="btn primary" type="button" id="jpfGo" style="min-height:44px">Show ${n} part${n===1?"":"s"}</button></div></div>`;
+      if(!ov.classList.contains("on")) requestAnimationFrame(()=>ov.classList.add("on"));
+      ov.querySelector(".shsheet").style.transform="none";
+      ov.querySelector(".shx").onclick=close;
+      ov.querySelectorAll("[data-fk]").forEach(b=>b.onclick=()=>{ f={...f,[b.dataset.fk]:b.dataset.fv}; if(b.dataset.fk==="mk") f.th=""; paint(); });
+      ov.querySelector("#jpfClr").onclick=()=>{ f={flt:"all",mk:"",th:""}; paint(); };
+      ov.querySelector("#jpfGo").onclick=()=>{ flt=f.flt; mk=f.mk; th=f.th; close(); redraw(); }; };
+    ov.onclick=e=>{ if(e.target===ov) close(); };
+    paint(); };
   const redraw=()=>{ const y=D.scrollTop; draw(jobNo,jobName,rows); D.scrollTop=y; };
   $("#jpBack").onclick=()=>backOut(jobNo);
   const qi=$("#jpQ"); qi.oninput=()=>{ q=qi.value; const pos=qi.selectionStart; draw(jobNo,jobName,rows); const n=$("#jpQ"); n.focus(); n.setSelectionRange(pos,pos); };
-  D.querySelectorAll("[data-jf]").forEach(b=>b.onclick=()=>{ flt=b.dataset.jf; redraw(); });
-  D.querySelectorAll("[data-jm]").forEach(b=>b.onclick=()=>{ mat=b.dataset.jm; redraw(); });
-  D.querySelectorAll("[data-jg]").forEach(b=>b.onclick=()=>{ grouped=b.dataset.jg; openG.clear(); try{localStorage.setItem("gvc_jp_grouped",grouped)}catch(e){} redraw(); });
+  $("#jpF").onclick=filterSheet;
+  const clr=$("#jpClr"); if(clr) clr.onclick=()=>{ flt="all"; mk=""; th=""; redraw(); };
+  $("#jpG").onchange=e=>{ grouped=e.target.value; openG.clear(); try{localStorage.setItem("gvc_jp_group2",grouped)}catch(x){} redraw(); };
+  D.querySelectorAll(".jpmm button").forEach(b=>b.addEventListener("click",()=>{ const d=b.closest("details"); if(d) d.open=false; }));
   D.querySelectorAll("[data-jx]").forEach(b=>b.onclick=()=>{ if(openG.size) openG.clear(); else groups(list,rows).forEach(g=>openG.add(g.k)); redraw(); });
   D.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{ if(narrowed) return; const k=b.dataset.g; openG.has(k)?openG.delete(k):openG.add(k); redraw(); });
   $("#jpRefresh").onclick=async()=>{ const r=await load(jobNo,true); await sign(r.map(x=>x.thumb_path)); draw(jobNo,jobName,r); };
@@ -172,7 +219,12 @@ function draw(jobNo,jobName,rows){
     const r=await sb.storage.from("gvc-parts").createSignedUrl(p.model_path,60*60); if(r.data&&r.data.signedUrl) open3D(r.data.signedUrl,p.part_no+" · 3D",{part:p}); };
   asmPath(jobNo).then(path=>{ const b=$("#jpAsm"); if(!b||!path) return; b.hidden=false;
     b.onclick=async()=>{ b.disabled=true; const r=await sb.storage.from("gvc-parts").createSignedUrl(path,60*60); b.disabled=false;
-      if(r.data&&r.data.signedUrl) openAsm3D(r.data.signedUrl,jobNo+" · whole assembly",{up:"y",onPart:pn=>{ const p=rows.find(x=>x.part_no===pn); if(p&&p.model_path) openPart3D(pn); else alert("No 3D model for "+pn+" yet"); }}); }; });
+      if(r.data&&r.data.signedUrl) openAsm3D(r.data.signedUrl,jobNo+" · whole assembly",{up:"y",
+        onPart:pn=>{ const p=rows.find(x=>x.part_no===pn); if(p&&p.model_path) openPart3D(pn); else alert("No 3D model for "+pn+" yet"); },
+        /* Open drawing: only an exact part-number match to this job's parts list (the export matched the body to the part by
+           geometry), never a name guess. drawingFor(pn,true) = is there one; drawingFor(pn) = {url,title} */
+        drawingFor:(pn,check)=>{ const p=rows.find(x=>x.part_no===pn&&x.thumb_path); if(check) return !!p; if(!p) return null;
+          return sign([p.thumb_path]).then(()=>urls[p.thumb_path]?{url:urls[p.thumb_path],title:"Bend drawing - "+p.part_no}:null); }}); }; });
   D.querySelectorAll("[data-j3]").forEach(el=>el.onclick=async()=>{ const p=rows.find(x=>x.id===el.dataset.j3); if(!p||!p.model_path) return;
     el.disabled=true; const r=await sb.storage.from("gvc-parts").createSignedUrl(p.model_path,60*60); el.disabled=false;
     if(!r.data||!r.data.signedUrl){ alert("Couldn't open the 3D model"); return; }
@@ -218,10 +270,10 @@ function import3dBox(jobNo,jobName,rows){
     }catch(e){ msg.textContent="Upload failed: "+(e.message||e); $("#jp3Go").disabled=false; }
   };
 }
-try{ const g=localStorage.getItem("gvc_jp_grouped"); if(["name","asm","none"].includes(g)) grouped=g; }catch(e){}
+try{ const g=localStorage.getItem("gvc_jp_group2"); if(["name","asm","mat"].includes(g)) grouped=g; }catch(e){}
 window.jpCount=async()=>{ if(typeof sb==="undefined") return {}; const r=await sb.from("gvc_job_parts").select("job_no,bends"); const o={};
   (r.data||[]).forEach(x=>{ const c=o[x.job_no]=o[x.job_no]||{n:0,bent:0}; c.n++; if(x.bends>0) c.bent++; }); return o; };
-window.jpFresh=()=>{ q=""; flt="all"; mat=""; openG.clear(); scrollTo=null; };
+window.jpFresh=()=>{ q=""; flt="all"; mk=""; th=""; openG.clear(); scrollTo=null; };
 window.jpGroups=(l,mode)=>{ grouped=mode; return groups(l,l); }; window.jpThick=thick; window.jpMatText=matText; window.jpGrpKey=grpKey;
 
 /* ---- import a generator zip: manifest.json + dxf/*.dxf + pdf/*.pdf + thumb/*.png ---- */
@@ -286,14 +338,14 @@ async function unzip(buf){
 }
 
 /* ---- button in the job dialog ---- */
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw(); const j=job(); if(!j) return; const D=$("#dlg"); const no=jobNum(j.name); if(!no) return;
+GVC.on("drawDlg:after",()=>{
+  const j=job(); if(!j) return; const D=$("#dlg"); const no=jobNum(j.name); if(!no) return;
   const bar=D.querySelector(".stagebar"); if(!bar) return;
   const b=document.createElement("button"); b.className="btn sm"; b.type="button"; b.id="jpBtn"; b.textContent="Parts & drawings";
   const cnt=cache[no]; if(cnt) b.textContent=`Parts & drawings (${cnt.length})`;
   else if(typeof sb!=="undefined") sb.from("gvc_job_parts").select("id",{count:"exact",head:true}).eq("job_no",no).then(r=>{ if(r.count) b.textContent=`Parts & drawings (${r.count})`; });
-  b.onclick=()=>{ q=""; flt="all"; mat=""; openG.clear(); scrollTo=null; openJobParts(no,j.name); };
+  b.onclick=()=>{ q=""; flt="all"; mk=""; th=""; openG.clear(); scrollTo=null; openJobParts(no,j.name); };
+  const q2=D.querySelector("#jQuick"); if(q2){ q2.appendChild(b); return; }   // job card Overview (stage 4)
   const row=document.createElement("div"); row.className="row"; row.style.marginTop="8px"; row.appendChild(b); bar.after(row);
-};
+});
 })();

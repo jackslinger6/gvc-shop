@@ -31,7 +31,7 @@ css.textContent=`
 #gScan .card img{width:84px;height:60px;object-fit:contain;background:#fff;border-radius:8px}
 #gScan .card .nm{font-weight:700;font-size:16px;word-break:break-word}
 #gScan .card .sb{font-size:12.5px;opacity:.75}
-#gScan .card .ct{font:600 30px Oswald,sans-serif;text-align:center}
+#gScan .card .ct{font:600 30px var(--font-display);text-align:center}
 #gScan .card .ct.full{color:#3ad06b}
 #gScan .card .bt{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:8px}
 #gScan .card .bt button{font-size:18px;min-height:52px;border-radius:12px}
@@ -221,7 +221,7 @@ window.gvcScan=async function(o){
   let ev=new Map(), shown=[], shownAt=0, hold=false, holdT=0;
   const GUESS_KEEP=8000;   // a guess stays up this long after it was last read
   const close=()=>{ alive=false; try{ stream&&stream.getTracks().forEach(t=>t.stop()); }catch(e){} ov.remove(); window.gvcScanClose=null; o.onClose&&o.onClose(); };
-  if(!window.__gsBack){ window.__gsBack=1; const ob=window.gvcBack; window.gvcBack=()=>{ if(window.gvcScanClose&&!document.getElementById("gFlat")){ window.gvcScanClose(); return true; } return ob?ob():false; }; }
+  if(!window.__gsBack){ window.__gsBack=1; GVC.on("back",()=>{ if(window.gvcScanClose&&!document.getElementById("gFlat")){ window.gvcScanClose(); return true; } return false; },{order:10}); }
   ov.querySelector("#gsX").onclick=close;
   window.gvcScanClose=close;
   try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false}); }

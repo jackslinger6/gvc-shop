@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What Android's widget picker shows (Android 12+): the medium widget with made-up example text, so it looks
+     like the real thing without showing anyone's real work. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="@drawable/w2_bg_dark">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="4dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GVC Vault" android:textSize="15sp" android:fontFamily="sans-serif-medium" android:textColor="#ECEBE8"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Updated 7:42 am" android:textSize="12sp" android:textColor="#A9AFB7"/>
+        </LinearLayout>
+        <FrameLayout android:layout_width="48dp" android:layout_height="48dp" android:background="@drawable/w2_btn2_dark">
+            <ImageView android:layout_width="22dp" android:layout_height="22dp" android:layout_gravity="center" android:src="@drawable/ic_w2_mic" android:tint="#FF6B5E" android:contentDescription="@null"/>
+        </FrameLayout>
+        <FrameLayout android:layout_width="48dp" android:layout_height="48dp" android:layout_marginStart="6dp" android:background="@drawable/w2_btn2_dark">
+            <ImageView android:layout_width="22dp" android:layout_height="22dp" android:layout_gravity="center" android:src="@drawable/ic_w2_refresh" android:tint="#A9AFB7" android:contentDescription="@null"/>
+        </FrameLayout>
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="horizontal" android:background="@drawable/w2_card_dark">
+        <ImageView android:layout_width="5dp" android:layout_height="match_parent" android:background="#22C3E6" android:contentDescription="@null"/>
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pick up" android:textSize="12sp" android:fontFamily="sans-serif-medium" android:textColor="#22C3E6" android:paddingStart="8dp" android:paddingEnd="8dp" android:background="@drawable/w2_tag_dark"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Pick up the steel order" android:textSize="17sp" android:fontFamily="sans-serif-medium" android:textColor="#ECEBE8"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Job 1234 · Truck deck" android:textSize="13sp" android:textColor="#A9AFB7"/>
+            <TextView android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="10dp" android:gravity="center" android:text="Picked up – count it" android:textSize="15sp" android:fontFamily="sans-serif-medium" android:textColor="#1B0F05" android:background="@drawable/w2_btn1_dark"/>
+        </LinearLayout>
+    </LinearLayout>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:layout_marginBottom="4dp" android:paddingStart="4dp" android:text="Then · 2 more" android:textSize="13sp" android:fontFamily="sans-serif-medium" android:textColor="#A9AFB7"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="52dp" android:orientation="horizontal" android:background="@drawable/w2_card_dark">
+        <ImageView android:layout_width="4dp" android:layout_height="match_parent" android:background="#FF8A2A" android:contentDescription="@null"/>
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:padding="8dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Quote" android:textSize="12sp" android:fontFamily="sans-serif-medium" android:textColor="#FF8A2A"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Compare quotes for the light kit" android:textSize="14sp" android:fontFamily="sans-serif-medium" android:textColor="#ECEBE8"/>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

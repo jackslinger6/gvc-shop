@@ -7,6 +7,10 @@ const FIXES=["Rework","Scrap and remake","Use as is","Deciding"];
 const tag=n=>"NCR-"+String(n).padStart(3,"0");
 const css=document.createElement("style");
 css.textContent=`
+.ncrsec .ntrack{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.ncrsec .ntwf{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ncrsec .ntk{font-size:13px;line-height:1.45}.ncrsec .ntk.done{color:var(--muted)}
+.nwarn{color:#ff9b91;font-weight:600}
 .ncrsec .ncard{border:1px solid var(--line);border-left:4px solid var(--c,#e5483b);border-radius:8px;padding:8px 10px;margin-top:6px;background:rgba(0,0,0,.25)}
 .ncrsec .nh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .ncrsec .nm{font-size:12px;color:var(--muted);margin-top:3px}
@@ -43,13 +47,23 @@ css.textContent=`
 document.head.appendChild(css);
 
 const planHours=(jid,aid)=>{ const P=window.gvcPlan; if(!P||!P.loaded()) return null; const h=(P.get().hours||{})["j:"+jid+":"+aid]; return h==null?null:Number(h); };
+/* Follow-through (stage 7, Kyle Nov 14): an NCR is tracked by rework tasks (a.ncr = n), replacement orders (a supplier
+   line with s.ncr = n) and model revisions (revsFor). Tracked is not resolved: when everything tracking it is done
+   (tasks done, orders received, revisions checked) it goes to "To check", and only Accept & close closes it.
+   Statuses: Deciding · Not tracked (decided, nothing tracking it) · In progress · To check · Closed. Everything but Closed is open. */
 function stats(j,x){
   const ts=(j.assemblies||[]).filter(a=>a.ncr===x.n); let h=0,unk=0; ts.forEach(a=>{ const v=planHours(j.id,a.id); if(v==null) unk++; else h+=v; });
-  const done=ts.length&&ts.every(a=>a.status==="done");
-  const st=x.closed?"Closed":x.fix==="Deciding"?"Deciding":done?"Fixed":ts.length?"Rework to do":x.fix==="Use as is"?"Fixed":"Open";
-  return {ts,h,unk,st};
+  const os=(j.suppliers||[]).filter(s=>s.ncr===x.n&&s.status!=="declined");
+  const rv=window.revsFor?window.revsFor(j.id,x.n):[]; const rvOpen=rv.filter(r=>!["checked","dropped"].includes(r.status));
+  const tOpen=ts.filter(a=>a.status!=="done"), oOpen=os.filter(s=>s.status!=="received");
+  const tracked=ts.length+os.length+rv.length>0;
+  // stage 7 review: tracked isn't underway - only a started task (In progress / Inspection), an open order or a revision counts as In progress
+  const underway=tOpen.some(a=>["prog","qc"].includes(a.status))||oOpen.length||rvOpen.length;
+  const st=x.closed?"Closed":x.fix==="Deciding"?"Deciding":underway?"In progress":tOpen.length?(tOpen.some(a=>!String(a.who||"").trim())?"Tracked - unassigned":"Tracked - not started"):(tracked||x.fix==="Use as is")?"To check":"Not tracked";
+  return {ts,os,rv,rvOpen,tOpen,oOpen,h,unk,st};
 }
-const stColor={Closed:"#6c727a",Deciding:"#e5483b",Open:"#e5483b","Rework to do":"#ff8a2a",Fixed:"#3ad06b"};
+const stColor={Closed:"#6c727a",Deciding:"#e5483b","Not tracked":"#e5483b","Tracked - unassigned":"#e04fa0","Tracked - not started":"#2f8ff0","In progress":"#ff8a2a","To check":"#f5b041"};
+const isOpenSt=st=>st!=="Closed";
 const nextN=()=>jobs.reduce((m,j)=>Math.max(m,...(j.ncrs||[]).map(x=>x.n||0)),0)+1;
 const money=n=>"$"+(Number(n)||0).toLocaleString("en-CA",{maximumFractionDigits:0});
 function parseSteps(txt){ return String(txt||"").split(/\n/).map(s=>s.replace(/^[-*•\d.)\s]+/,"").trim()).filter(Boolean).map(s=>{ const m=s.match(/^(.*?)[\s,:-]+(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?)?$/i); return m&&m[1]?{name:m[1].trim(),h:+m[2]}:{name:s,h:null}; }); }
@@ -60,11 +74,13 @@ async function saveSteps(j,n,steps){
   return added.length;
 }
 let form=null; // {jid, what,part,details,type,fix,steps,mat}
+let tw=null;   // "jobid:n" - the NCR whose + Rework task form is open
+const trk=new Set();   // NCR cards with the "Track corrective action" choices open
 const openCards=new Set();
 function section(j){
   const list=(j.ncrs||[]).slice().sort((a,b)=>a.n-b.n);
   const untagged=(j.assemblies||[]).filter(a=>!a.ncr);
-  let h=`<div class="sec"><span>NCRs${list.length?` · ${list.filter(x=>stats(j,x).st!=="Closed"&&stats(j,x).st!=="Fixed").length} open`:""}</span><button class="btn sm" type="button" id="ncrAdd">⚠ Add NCR</button></div><div class="ncrsec">`;
+  let h=`<div class="sec"><span>NCRs${list.length?` · ${list.filter(x=>isOpenSt(stats(j,x).st)).length} open`:""}</span><button class="btn sm" type="button" id="ncrAdd">⚠ Add NCR</button></div><div class="ncrsec">`;
   if(form&&form.jid===j.id) h+=`<div class="nform">
     <label>What went wrong<input id="nfWhat" value="${esc(form.what)}" placeholder="e.g. Door flange hits the Rat Pack" style="width:100%"></label>
     <label>Part number(s) (optional)<input id="nfPart" value="${esc(form.part||"")}" placeholder="e.g. HEADACHE.5" style="width:100%"></label>
@@ -73,35 +89,62 @@ function section(j){
     <label>Fix</label><div class="nrow">${FIXES.map(t=>`<button type="button" class="chip ${form.fix===t?"on":""}" data-nfx="${t}">${t}</button>`).join("")}</div>
     <label>Rework steps - one per line, hours at the end (optional)<textarea id="nfSteps" rows="3" style="width:100%" placeholder="Cut bottom flange off doors 2h&#10;Grind and touch up paint 1h">${esc(form.steps)}</textarea></label>
     <div class="nrow"><span class="lbl" style="font-size:12px;color:var(--muted)">Extra material $</span><input id="nfMat" type="number" min="0" step="1" value="${esc(form.mat)}" style="width:90px"><span style="flex:1"></span><button class="btn sm" type="button" id="nfCancel">Cancel</button><button class="btn sm primary" type="button" id="nfSave">Save NCR</button></div></div>`;
-  h+=list.map(x=>{ const s=stats(j,x);
-    return `<div class="ncard" style="--c:${stColor[s.st]}"><div class="nh"><b>${tag(x.n)}</b><span style="flex:1">${esc(x.what)}${x.part?`<span class="nm" style="display:block;margin:0">${esc(x.part)}</span>`:""}</span><span class="nst" style="color:${stColor[s.st]};border-color:${stColor[s.st]}">${s.st}</span></div>
-      ${x.decision?`<div class="nm" style="color:var(--text)">Decided: ${esc(x.decision)}</div>`:""}
-      <div class="nm">${esc(x.type)} · ${esc(x.fix)} · ${s.h?s.h+"h":"0h"} rework${s.unk?` (+${s.unk} task${s.unk>1?"s":""} with no estimate)`:""}${x.mat?` · ${money(x.mat)} material`:""} · logged ${fmt(x.at)}</div>
-      ${(window.revsFor?window.revsFor(j.id,x.n):[]).map(r=>`<div class="nm">Model revision ${window.revTag(r.n)}: ${esc(r.what)} · <b>${window.revStatus(r.status)}</b></div>`).join("")}
-      <details ${openCards.has(j.id+":"+x.n)?"open":""} data-ndetails="${x.n}"><summary>Details${x.details?"":" (none yet)"}</summary><div class="nedit">
-        <label>What happened, why, how it was found<textarea rows="4" data-ndet="${x.n}">${esc(x.details||"")}</textarea></label>
+  // each NCR: the issue, the decision, what's next and who's on it; editing / rework / cost / history fold away (stage 4)
+  const card=x=>{ const s=stats(j,x); const rv=s.rv;
+    const tk=j.id+":"+x.n, admin=isAdminRole();
+    const SUPT=o=>window.supT?window.supT(o):o.status;
+    // what's tracking this NCR, open items first (stage 7)
+    const items=[...s.ts.map(a=>({open:a.status!=="done",h:`Rework: ${esc(a.name)} · ${a.who?esc(a.who):"<span class='nwarn'>nobody assigned</span>"} · ${a.status==="done"?"done":esc((typeof AST!=="undefined"&&AST[a.status]||{}).t||a.status)}`})),
+      ...s.os.map(o=>({open:o.status!=="received",h:`Replacement: ${esc(o.name)}${o.po||o.rfq?" "+esc(o.po||o.rfq):""} · ${esc(SUPT(o))}`})),
+      ...rv.map(r=>({open:!["checked","dropped"].includes(r.status),h:`Model: ${window.revTag?window.revTag(r):"REV"} · ${window.revStatus?window.revStatus(r.status):r.status}`}))]
+      .sort((p,q)=>q.open-p.open);
+    const next=s.st==="Deciding"?"Decide the fix":s.st==="Not tracked"?"":s.st==="In progress"?"Finish the work tracked below":s.st==="Tracked - unassigned"?"Assign the rework to someone":s.st==="Tracked - not started"?"Rework is assigned - not started yet":s.st==="To check"?(items.length?"Check the rework / replacement, then accept and close":"Accept and close when you're happy with it"):"";
+    const tOpenNow=trk.has(tk)||tw===tk;
+    const trackRow=admin&&s.st!=="Closed"&&s.st!=="Deciding"?(!tOpenNow?`<div class="ntrack"><button class="btn sm${s.st==="Not tracked"?" primary":""}" type="button" data-ntrk="${x.n}">${items.length?"Track more corrective action":"Track corrective action"} ▾</button></div>`:`<div class="ntrack"><button class="btn sm ghost" type="button" data-ntrk="${x.n}" aria-label="Hide">▴</button>
+        <button class="btn sm" type="button" data-ntw="${x.n}">+ Rework task</button>
+        <button class="btn sm" type="button" data-nord="${x.n}|rfq">+ Replacement RFQ</button><button class="btn sm" type="button" data-nord="${x.n}|po">+ Replacement PO</button>
+        ${(j.suppliers||[]).some(o=>o.status!=="declined"&&o.ncr!==x.n)?`<select class="ntagsel" data-nlink="${x.n}" aria-label="Link an existing order"><option value="">Link an existing order…</option>${(j.suppliers||[]).filter(o=>o.status!=="declined"&&o.ncr!==x.n).map(o=>`<option value="${esc(o.id)}">${esc(o.name)}${o.po||o.rfq?" "+esc(o.po||o.rfq):""} · ${esc(SUPT(o))}${o.ncr?" (on "+tag(o.ncr)+")":""}</option>`).join("")}</select>`:""}
+        <button class="btn sm" type="button" data-nrev="${x.n}">Model change → Jessie</button></div>`)+`
+      ${tw===tk?`<div class="ntwf"><input data-ntwn="${x.n}" placeholder="What needs doing, e.g. Re-drill 6 holes 1.5h" style="flex:2;min-width:180px"><select data-ntwo="${x.n}" aria-label="Who"><option value="">Who - nobody yet</option>${CREW.map(c=>`<option>${c}</option>`).join("")}</select><button class="btn sm ghost" type="button" data-ntwx="${x.n}">Cancel</button><button class="btn sm primary" type="button" data-ntwgo="${x.n}">Add task</button></div>`:""}`:"";
+    return `<div class="ncard" style="--c:${stColor[s.st]}">
+      <div class="nh"><b>${tag(x.n)}</b><span class="ostat" style="--c:${stColor[s.st]}">${s.st}</span><span style="flex:1"></span><span class="nm" style="margin:0">${esc(x.type)}</span></div>
+      <div class="nwhat">${esc(x.what)}${x.part?(x.part.length>90?`<details class="nparts"><summary class="nm">${esc(x.part.slice(0,x.part.lastIndexOf(",",80)>20?x.part.lastIndexOf(",",80):80))}… <u>show all ${x.part.split(",").length} affected parts</u></summary><span class="nm">${esc(x.part)}</span></details>`:`<span class="nm"> · ${esc(x.part)}</span>`):""}</div>
+      <dl class="nkv"><dt>Decision</dt><dd>${x.decision?esc(x.decision):`<span style="color:var(--muted)">${x.fix==="Deciding"?"Not decided yet":esc(x.fix)}</span>`}</dd>
+        ${next?`<dt>Next</dt><dd><b>${esc(next)}</b> <span class="nm" style="display:inline">· ${s.st==="In progress"||s.st==="Tracked - not started"?"see below":"Kyle"}</span></dd>`:""}
+        ${s.st==="Not tracked"?`<dt>Next</dt><dd><span class="nwarn">Nothing tracks this yet.</span> <span class="nm" style="display:inline">A written decision isn't the fix - add the rework task, replacement order or model change that does it.</span></dd>`:""}
+        ${items.length?`<dt>Tracking</dt><dd>${items.map(i=>`<div class="ntk${i.open?"":" done"}">${i.open?"○":"✓"} ${i.h}</div>`).join("")}</dd>`:""}
+        ${x.closed&&x.acceptedBy?`<dt>Accepted</dt><dd>${esc(x.acceptedBy)} · ${fmt(x.acceptedAt)}</dd>`:""}</dl>
+      ${trackRow}
+      ${admin&&s.st==="To check"?`<div class="nrow"><button class="btn sm primary" type="button" data-naccept="${x.n}">✓ Checked - accept &amp; close</button></div>`:""}
+      <details ${openCards.has(j.id+":"+x.n)?"open":""} data-ndetails="${x.n}"><summary>Edit, rework &amp; details</summary><div class="nedit">
+        <div class="nm">${esc(x.type)} · ${esc(x.fix)} · ${s.h?s.h+"h":"0h"} rework${s.unk?` (+${s.unk} task${s.unk>1?"s":""} with no estimate)`:""}${x.mat?` · ${money(x.mat)} material`:""} · logged ${fmt(x.at)}</div>
+        ${rv.map(r=>`<div class="nm">Model revision ${window.revTag(r)}: ${esc(r.what)} · <b>${window.revStatus(r.status)}</b></div>`).join("")}
+        ${s.ts.length?`<div class="nrw"><span class="nm" style="margin:0">Rework tasks</span>${s.ts.map(a=>`<span class="nrt">${a.status==="done"?"✓ ":""}${esc(a.name)}${planHours(j.id,a.id)!=null?" "+planHours(j.id,a.id)+"h":""}${a.who?` · ${esc(a.who)}`:""}<button type="button" class="rmb" data-nuntag="${esc(a.id)}" aria-label="Not rework for ${tag(x.n)}: ${esc(a.name)}" title="Not rework for this NCR">×</button></span>`).join("")}</div>`:""}
+        <div class="nrow"><label class="nlab">Fix<select data-nfix="${x.n}">${FIXES.map(f=>`<option ${x.fix===f?"selected":""}>${f}</option>`).join("")}</select></label>
+          <label class="nlab" style="flex:2;min-width:200px">Add a rework step<span style="display:flex;gap:6px"><input data-nstep="${x.n}" placeholder="e.g. Re-drill holes 1.5h" style="flex:1"><button class="btn sm" type="button" data-nstepgo="${x.n}">Add</button></span></label></div>
+        <div class="nrow">${untagged.length?`<label class="nlab" style="flex:2;min-width:200px">Or tag an existing task<select data-ntag="${x.n}"><option value="">Pick a task…</option>${untagged.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")}</select></label>`:""}
+          <label class="nlab" style="max-width:140px">Extra material $<input data-nmat="${x.n}" type="number" min="0" value="${x.mat||""}" placeholder="0"></label></div>
+        <label>What happened, why, how it was found<textarea rows="3" data-ndet="${x.n}">${esc(x.details||"")}</textarea></label>
         <label>Part number(s)<input data-npart="${x.n}" value="${esc(x.part||"")}"></label>
-        <label>What stops it happening again<textarea rows="2" data-nprev="${x.n}">${esc(x.prevent||"")}</textarea></label></div></details>
-      ${s.ts.length?`<div class="nm">Rework: ${s.ts.map(a=>`${a.status==="done"?"✓ ":""}${esc(a.name)}${planHours(j.id,a.id)!=null?" "+planHours(j.id,a.id)+"h":""}`).join(" · ")}</div>`:""}
-      <div class="nrow"><select data-nfix="${x.n}" aria-label="Fix">${FIXES.map(f=>`<option ${x.fix===f?"selected":""}>${f}</option>`).join("")}</select>
-        <input data-nstep="${x.n}" placeholder="Add rework step, e.g. Re-drill holes 1.5h" style="flex:1;min-width:180px"><button class="btn sm" type="button" data-nstepgo="${x.n}">Add</button>
-        ${untagged.length?`<select data-ntag="${x.n}" aria-label="Tag an existing task"><option value="">Tag an existing task…</option>${untagged.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")}</select>`:""}
-        <span class="lbl" style="font-size:12px;color:var(--muted)">$</span><input data-nmat="${x.n}" type="number" min="0" value="${x.mat||""}" placeholder="material" style="width:84px">
-        <button class="btn sm" type="button" data-nrev="${x.n}">Model change → Jessie</button><button class="btn sm" type="button" data-nclose="${x.n}">${x.closed?"Reopen":"Close"}</button><button class="btn sm danger" type="button" data-ndel="${x.n}" aria-label="Delete ${tag(x.n)}">Delete</button></div></div>`; }).join("");
+        <label>What stops it happening again<textarea rows="2" data-nprev="${x.n}">${esc(x.prevent||"")}</textarea></label>
+        <div class="nrow nacts"><button class="btn sm" type="button" data-nrev="${x.n}">Model change → Jessie</button><button class="btn sm" type="button" data-nclose="${x.n}">${x.closed?"Reopen":"Close"}</button><span style="flex:1"></span><button class="btn sm danger" type="button" data-ndel="${x.n}" aria-label="Delete ${tag(x.n)}">Delete NCR</button></div>
+      </div></details></div>`; };
+  const live=list.filter(x=>stats(j,x).st!=="Closed"), shut=list.filter(x=>stats(j,x).st==="Closed");
+  h+=live.map(card).join("");
+  if(shut.length) h+=`<details class="nclosed"><summary>Closed · ${shut.length}</summary>${shut.map(card).join("")}</details>`;
   if(!list.length&&!form) h+=`<div class="empty" style="text-align:left">No NCRs. If something was designed, ordered or built wrong, log it here so the rework and cost get tracked.</div>`;
   return h+`</div>`;
 }
 const mut=async(label,fn)=>{ const j=structuredClone(job()); j.ncrs=j.ncrs||[]; if(fn(j)===false) return; j.log=[...(j.log||[]),{at:new Date().toISOString(),text:label}]; await put(j,label); const P=window.gvcPlan; if(P&&P.loaded()) await P.save(); };
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw(); const j=job(); if(!j) return; const D=$("#dlg");
-  const supSec=[...D.querySelectorAll(".sec")].find(s=>/Suppliers/.test(s.textContent));
+GVC.on("drawDlg:after",()=>{
+  const j=job(); if(!j) return; const D=$("#dlg");
   const wrap=document.createElement("div"); wrap.innerHTML=section(j);
-  if(supSec) supSec.before(...wrap.childNodes); else D.querySelector(".foot").before(...wrap.childNodes);
+  const home=D.querySelector("#secNcr");   // the job card's NCRs section (stage 4)
+  if(home) home.append(...wrap.childNodes); else { const supSec=[...D.querySelectorAll(".sec")].find(s=>/Suppliers/.test(s.textContent)); if(supSec) supSec.before(...wrap.childNodes); else D.querySelector(".foot").before(...wrap.childNodes); }
   // tag rework tasks in the task table, and let any task be tagged
-  const rows=D.querySelectorAll(".at tbody tr"); (j.assemblies||[]).forEach((a,k)=>{ const nm=rows[k]&&rows[k].querySelector(".an2"); if(!nm) return;
+  (j.assemblies||[]).forEach((a,k)=>{ const row=D.querySelector(`[data-task-i="${k}"]`); const nm=row&&row.querySelector(".an2"); if(!nm) return;
     if(a.ncr) nm.insertAdjacentHTML("beforeend",`<span class="ntag">${tag(a.ncr)}</span>`);
-    else if((j.ncrs||[]).length) nm.insertAdjacentHTML("afterend",`<select class="ntagsel" data-ntask="${esc(a.id)}" aria-label="Rework for an NCR"><option value="">Not rework</option>${j.ncrs.map(x=>`<option value="${x.n}">Rework for ${tag(x.n)}</option>`).join("")}</select>`); });
+  });
   $("#ncrAdd").onclick=()=>{ form={jid:j.id,what:"",type:TYPES[0],fix:"Rework",steps:"",mat:""}; drawDlg(); setTimeout(()=>{ const w=$("#nfWhat"); if(w) w.focus(); },30); };
   if(form&&form.jid===j.id){
     $("#nfWhat").oninput=e=>form.what=e.target.value; $("#nfPart").oninput=e=>form.part=e.target.value; $("#nfDet").oninput=e=>form.details=e.target.value; $("#nfSteps").oninput=e=>form.steps=e.target.value; $("#nfMat").oninput=e=>form.mat=e.target.value;
@@ -121,11 +164,28 @@ drawDlg=function(){
   D.querySelectorAll("[data-nstepgo]").forEach(b=>b.onclick=()=>addStep(+b.dataset.nstepgo));
   D.querySelectorAll("[data-nstep]").forEach(el=>el.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); addStep(+el.dataset.nstep); } });
   D.querySelectorAll("[data-ntag]").forEach(el=>el.onchange=()=>{ if(!el.value) return; mut(`Tagged task as rework for ${tag(+el.dataset.ntag)}`,jj=>{ const a=jj.assemblies.find(x=>x.id===el.value); if(a) a.ncr=+el.dataset.ntag; }); });
+  D.querySelectorAll("[data-nuntag]").forEach(b=>b.onclick=()=>mut("Untagged rework task",jj=>{ const t=jj.assemblies.find(x=>x.id===b.dataset.nuntag); if(!t) return false; delete t.ncr; }));
   D.querySelectorAll("[data-ntask]").forEach(el=>el.onchange=()=>mut(el.value?`Tagged task as rework for ${tag(+el.value)}`:"Untagged rework task",jj=>{ const a=jj.assemblies.find(x=>x.id===el.dataset.ntask); if(!a) return false; if(el.value) a.ncr=+el.value; else delete a.ncr; }));
   D.querySelectorAll("[data-nrev]").forEach(b=>b.onclick=()=>{ const x=j.ncrs.find(y=>y.n===+b.dataset.nrev); if(window.newRevision) window.newRevision({job:j.id,ncr:x.n,kind:"fix",part:x.what,what:x.decision||""}); });
-  D.querySelectorAll("[data-nclose]").forEach(b=>b.onclick=()=>mut(`${tag(+b.dataset.nclose)} ${b.textContent==="Close"?"closed":"reopened"}`,jj=>{ const x=jj.ncrs.find(y=>y.n===+b.dataset.nclose); x.closed=!x.closed; }));
+  D.querySelectorAll("[data-nclose]").forEach(b=>b.onclick=()=>{ const n=+b.dataset.nclose, x0=j.ncrs.find(y=>y.n===n), s0=stats(j,x0), closing=!x0.closed;
+    if(closing&&s0.st!=="To check"&&!confirm(`${tag(n)} isn't checked yet (${s0.st}).${s0.tOpen.length+s0.oOpen.length+s0.rvOpen.length?` ${s0.tOpen.length+s0.oOpen.length+s0.rvOpen.length} tracked item(s) still open.`:""}\n\nClose it anyway?`)) return;
+    mut(`${tag(n)} ${closing?"closed":"reopened"}`,jj=>{ const x=jj.ncrs.find(y=>y.n===n); x.closed=closing; if(closing){ x.acceptedBy=(window.ME&&ME.name)||""; x.acceptedAt=new Date().toISOString(); } else { delete x.acceptedBy; delete x.acceptedAt; } }); });
+  // stage 7: accept & close (only offered at "To check"), rework task with an owner, replacement orders, link an order
+  D.querySelectorAll("[data-naccept]").forEach(b=>b.onclick=()=>{ if(b.disabled) return; b.disabled=true; const n=+b.dataset.naccept;
+    mut(`${tag(n)} checked and accepted - closed`,jj=>{ const x=jj.ncrs.find(y=>y.n===n); if(!x||x.closed) return false; x.closed=true; x.acceptedBy=(window.ME&&ME.name)||""; x.acceptedAt=new Date().toISOString(); }); });
+  D.querySelectorAll("[data-ntrk]").forEach(b=>b.onclick=()=>{ const k=j.id+":"+b.dataset.ntrk; if(trk.has(k)||tw===k){ trk.delete(k); if(tw===k) tw=null; } else trk.add(k); drawDlg(); });
+  D.querySelectorAll("[data-ntw]").forEach(b=>b.onclick=()=>{ tw=j.id+":"+b.dataset.ntw; drawDlg(); setTimeout(()=>{ const i=$(`[data-ntwn="${b.dataset.ntw}"]`); if(i) i.focus(); },30); });
+  D.querySelectorAll("[data-ntwx]").forEach(b=>b.onclick=()=>{ tw=null; drawDlg(); });
+  const addTw=n=>{ const el=D.querySelector(`[data-ntwn="${n}"]`), who=(D.querySelector(`[data-ntwo="${n}"]`)||{}).value||""; const go=D.querySelector(`[data-ntwgo="${n}"]`);
+    const st=parseSteps(el.value).slice(0,1); if(!st.length){ el.focus(); return; } if(go.disabled) return; go.disabled=true; tw=null;
+    mut(`${tag(n)}: rework task "${st[0].name}"${who?" for "+who:""}`,jj=>{ const before=(jj.assemblies||[]).length; saveSteps(jj,n,st); const t=jj.assemblies[before]; if(t&&who) t.who=who; const x=jj.ncrs.find(y=>y.n===n); if(x&&x.fix==="Deciding") x.fix="Rework"; }); };
+  D.querySelectorAll("[data-ntwgo]").forEach(b=>b.onclick=()=>addTw(+b.dataset.ntwgo));
+  D.querySelectorAll("[data-ntwn]").forEach(el=>el.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); addTw(+el.dataset.ntwn); } });
+  D.querySelectorAll("[data-nord]").forEach(b=>b.onclick=()=>{ const [n,k]=b.dataset.nord.split("|"); const x=j.ncrs.find(y=>y.n===+n); if(window.newOrderForNcr) window.newOrderForNcr(j.id,+n,k,`${tag(+n)} replacement - ${x?x.what:""}`.slice(0,120)); });
+  D.querySelectorAll("[data-nlink]").forEach(el=>el.onchange=()=>{ if(!el.value) return; const n=+el.dataset.nlink, sid=el.value;
+    mut(`${tag(n)}: tracking order ${((j.suppliers||[]).find(o=>o.id===sid)||{}).name||""}`,jj=>{ const o=(jj.suppliers||[]).find(y=>y.id===sid); if(!o) return false; o.ncr=n; }); });
   D.querySelectorAll("[data-ndel]").forEach(b=>b.onclick=()=>mut(`${tag(+b.dataset.ndel)} deleted`,jj=>{ const n=+b.dataset.ndel; jj.ncrs=jj.ncrs.filter(x=>x.n!==n); (jj.assemblies||[]).forEach(a=>{ if(a.ncr===n) delete a.ncr; }); }));
-};
+});
 
 /* used by the To do "what was decided?" box: set the fix, keep the decision, add rework steps */
 window.ncrDecide=async(jid,n,{fix,note,steps})=>{
@@ -135,6 +195,12 @@ window.ncrDecide=async(jid,n,{fix,note,steps})=>{
   const {id,...data}=j; await saveJob(id,data); const P=window.gvcPlan; if(P&&P.loaded()) await P.save();
 };
 window.ncrFixes=FIXES;
+/* "Report a problem" from a task (stage 7): the job's NCRs section with a new NCR started, the task named in the details */
+window.ncrNewFor=(jid,pre={})=>{ form={jid,what:"",type:TYPES[2],fix:"Deciding",steps:"",mat:"",details:pre.details||""};
+  if(typeof setJobTab==="function"&&typeof openId!=="undefined"&&openId===jid){ setJobTab("ncr"); drawDlg(); } else openJob(jid,"ncr");
+  setTimeout(()=>{ const w=$("#nfWhat"); if(w) w.focus(); },60); };
+window.ncrOpenN=j=>(j.ncrs||[]).filter(x=>isOpenSt(stats(j,x).st)).length;
+window.ncrDecidingN=j=>(j.ncrs||[]).filter(x=>stats(j,x).st==="Deciding").length;   // job overview: decisions waiting
 /* ---------- NCR log (all jobs) - filter by job, tap a row to open/close its details ---------- */
 let showClosed=false;
 const LS=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } }, LSset=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
@@ -148,7 +214,7 @@ function detailHtml(r){
     +blk("What happened",esc(x.details||""))+(x.details?"":`<div class="lbl" style="margin-top:6px">No details written yet - open the job to add them.</div>`)
     +blk("Decided",esc(x.decision||""))
     +blk("Rework",s.ts.map(a=>`${a.status==="done"?"✓ ":"• "}${esc(a.name)}${planHours(j.id,a.id)!=null?" - "+planHours(j.id,a.id)+"h":""}`).join("\n"))
-    +blk("Model revisions",revs.map(v=>`${window.revTag(v.n)} ${esc(v.what)} - ${window.revStatus(v.status)}`).join("\n"))
+    +blk("Model revisions",revs.map(v=>`${window.revTag(v)} ${esc(v.what)} - ${window.revStatus(v.status)}`).join("\n"))
     +blk("What stops it happening again",esc(x.prevent||""))
     +`<div style="margin-top:10px"><button class="btn sm" type="button" data-nj="${esc(j.id)}">Open job</button></div>`;
 }
@@ -156,16 +222,16 @@ window.renderNcr=function(){
   const B=$("#board"); B.className="ncrv"; B.style.gridTemplateColumns="";
   const P=window.gvcPlan; const rate=P&&P.loaded()?Number(P.get().ncrRate)||0:0;
   const ALL=all();
-  const jobList=[]; ALL.forEach(r=>{ let e=jobList.find(t=>t.j.id===r.j.id); if(!e) jobList.push(e={j:r.j,n:0,open:0}); e.n++; if(!["Closed","Fixed"].includes(r.s.st)) e.open++; });
+  const jobList=[]; ALL.forEach(r=>{ let e=jobList.find(t=>t.j.id===r.j.id); if(!e) jobList.push(e={j:r.j,n:0,open:0}); e.n++; if(isOpenSt(r.s.st)) e.open++; });
   jobList.sort((a,b)=>String(a.j.name).localeCompare(String(b.j.name)));
   if(jobF&&!jobList.some(t=>t.j.id===jobF)) jobF="";
   const A=jobF?ALL.filter(r=>r.j.id===jobF):ALL;
   const live=A.filter(r=>showClosed||r.s.st!=="Closed");
-  const H=A.reduce((a,r)=>a+r.s.h,0), M=A.reduce((a,r)=>a+(Number(r.x.mat)||0),0), open=A.filter(r=>!["Closed","Fixed"].includes(r.s.st)).length;
+  const H=A.reduce((a,r)=>a+r.s.h,0), M=A.reduce((a,r)=>a+(Number(r.x.mat)||0),0), open=A.filter(r=>isOpenSt(r.s.st)).length;
   const byType={}; A.forEach(r=>{ const t=byType[r.x.type]=byType[r.x.type]||{n:0,h:0,m:0}; t.n++; t.h+=r.s.h; t.m+=Number(r.x.mat)||0; });
   const allOpen=live.length&&live.every(r=>openRows.has(r.j.id+":"+r.x.n));
   const cols=rate?8:7;
-  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">NCR log</h2><span style="flex:1"></span>
+  B.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">NCR log</h2><span style="flex:1"></span>
      <span class="lbl">Shop rate for cost</span><input id="nRate" type="number" min="0" value="${rate||""}" placeholder="$/h" style="width:80px;font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 7px">
      <button class="btn sm ${showClosed?"primary":""}" id="nClosed">Show closed</button></div>
    <div class="fbar"><span class="lbl">Job</span><select id="nJob"><option value="">All jobs (${ALL.length})</option>${jobList.map(t=>`<option value="${esc(t.j.id)}" ${t.j.id===jobF?"selected":""}>${esc(t.j.name)} (${t.n}${t.open?`, ${t.open} open`:""})</option>`).join("")}</select>
@@ -180,7 +246,7 @@ window.renderNcr=function(){
    :`<div class="empty" style="text-align:left">${ALL.length?"No open NCRs for this job. Tap Show closed to see closed ones.":`No NCRs yet. Open a job and tap "Add NCR".`}</div>`}
    <div class="lbl" style="margin-top:8px">Tap an NCR to open or close its details. Hours come from the hour estimates on each NCR's rework tasks (set them in the week planner or when adding steps).</div>`;
   B.querySelectorAll("[data-nrow]").forEach(tr=>tr.onclick=()=>{ const k=tr.dataset.nrow; if(openRows.has(k)) openRows.delete(k); else openRows.add(k); render(); });
-  B.querySelectorAll("[data-nj]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); openJob(b.dataset.nj); });
+  B.querySelectorAll("[data-nj]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); openJob(b.dataset.nj,"ncr"); });
   $("#nJob").onchange=e=>{ jobF=e.target.value; LSset("gvcNcrJob",jobF); render(); };
   const na=$("#nAll"); if(na) na.onclick=()=>{ live.forEach(r=>{ const k=r.j.id+":"+r.x.n; if(allOpen) openRows.delete(k); else openRows.add(k); }); render(); };
   $("#nClosed").onclick=()=>{ showClosed=!showClosed; render(); };
@@ -189,10 +255,8 @@ window.renderNcr=function(){
 const nb=document.createElement("button"); nb.className="btn"; nb.type="button"; nb.id="ncrBtn"; nb.textContent="NCRs";
 const addJ=document.getElementById("addJob"); addJ.parentNode.insertBefore(nb,addJ);
 nb.onclick=()=>{ cur="ncr"; try{history.replaceState(null,"","#ncr")}catch(e){} render(); };
-const _render=render;
-render=function(){ _render(); const n=all().filter(r=>!["Closed","Fixed"].includes(r.s.st)).length; nb.textContent=n?`NCRs (${n} open)`:"NCRs"; nb.classList.toggle("primary",cur==="ncr"); };
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
-  all().filter(r=>r.s.st==="Deciding").forEach(r=>{ const text=`Decide the fix for ${tag(r.x.n)} (${r.j.name}): ${r.x.what}`; if(!hidden.has(text)) out.push({text,c:"#e5483b",job:r.j.id,ncr:r.x.n}); }); }catch(e){} return out; };
+GVC.on("render:after",()=>{ const n=all().filter(r=>isOpenSt(r.s.st)).length; nb.textContent=n?`NCRs (${n} open)`:"NCRs"; nb.classList.toggle("primary",cur==="ncr"); },{core:true});
+GVC.on("autoTodos",out=>{ try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
+  all().filter(r=>r.s.st==="Deciding").forEach(r=>{ const text=`Decide the fix for ${tag(r.x.n)} (${r.j.name}): ${r.x.what}`; if(!hidden.has(text)) out.push({text,c:"#e5483b",job:r.j.id,ncr:r.x.n}); }); }catch(e){} return out; });
 window.ncrLines=()=>{ try{ return all().filter(r=>r.s.st!=="Closed").map(r=>`[NCR] ${tag(r.x.n)} ${r.j.name}: ${r.x.what}${r.x.part?" ["+r.x.part+"]":""} (${r.x.type}, fix: ${r.x.fix}, ${r.s.st}, ${+r.s.h.toFixed(1)}h rework${r.x.mat?", $"+r.x.mat+" material":""})`); }catch(e){ return []; } };
 })();

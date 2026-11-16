@@ -50,8 +50,11 @@ dependencies {
     implementation project(':capacitor-android')
     implementation 'com.google.mlkit:text-recognition:16.0.1'   // on-device text reading for the part scanner (scan.js)
     testImplementation "junit:junit:$junitVersion"
+    testImplementation "org.json:json:20231013"    // real org.json for the widget model unit tests (Android's is a stub off-device)
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    androidTestImplementation "androidx.test:runner:1.7.0"     // widget render / tap tests (WidgetRenderTest)
+    androidTestImplementation platform("org.jetbrains.kotlin:kotlin-bom:1.8.22")   // test APK only: lines up old kotlin-stdlib-jdk7/8 pulled in by test libs
     implementation project(':capacitor-cordova-android-plugins')
 }
 

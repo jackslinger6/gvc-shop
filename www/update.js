@@ -21,6 +21,14 @@ if(typeof Native==="undefined"||!Native){
   document.addEventListener("visibilitychange",()=>{ if(!document.hidden) check(); });
   return;
 }
+/* The Preview app (redesign branch, separate app id) never updates itself from the regular releases -
+   a new preview build is installed from the "preview" release link instead. */
+if(window.GVC_PREVIEW){
+  const foot=document.createElement("div"); foot.style.cssText="text-align:center;font-size:12px;color:var(--dim);margin:-24px 0 30px";
+  foot.textContent="Preview build "+window.GVC_PREVIEW+" - get the newest from github.com/jackslinger6/gvc-shop/releases/tag/preview";
+  const so=document.getElementById("signOut"); if(so&&so.parentNode) so.parentNode.after(foot);
+  return;
+}
 const REL="https://api.github.com/repos/jackslinger6/gvc-shop/releases/latest";
 let latest=null, mine=null, busy=false;
 const btn=document.createElement("button"); btn.className="btn"; btn.type="button"; btn.id="updBtn"; btn.style.display="none";

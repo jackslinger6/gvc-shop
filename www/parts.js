@@ -25,7 +25,7 @@ window.isLtd=()=>role()==="crew"||role()==="parts";
 const css=document.createElement("style");
 css.textContent=`
 .rqv{max-width:900px;margin-top:6px}
-.rqv h2{font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0}
+.rqv h2{font-family:var(--font-display);letter-spacing:.05em;margin:0}
 .rqv .lbl{font-size:12.5px;color:var(--muted)}
 .rqv .tabs2{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
 .rqc{border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin:8px 0;background:rgba(0,0,0,.28)}
@@ -43,12 +43,12 @@ css.textContent=`
 .hwr{display:grid;grid-template-columns:1fr auto;gap:4px 10px;border:1px solid var(--line);border-left:4px solid var(--c,#4a4f56);border-radius:10px;padding:8px 10px;margin:5px 0;background:rgba(0,0,0,.25);cursor:pointer}
 .hwr.low{--c:#e5483b}.hwr.out{opacity:.6}
 .hwr .d{font-size:14px;font-weight:600;min-width:0}.hwr .s{font-size:12px;color:var(--muted);grid-column:1/-1}
-.hwr .q{text-align:right;font:600 17px Oswald,sans-serif;white-space:nowrap}.hwr .q small{display:block;font:500 11px Inter,sans-serif;color:var(--muted)}
+.hwr .q{text-align:right;font:600 17px var(--font-display);white-space:nowrap}.hwr .q small{display:block;font:500 11px Inter,sans-serif;color:var(--muted)}
 .hwr .tg{font-size:10.5px;letter-spacing:.06em;border-radius:6px;padding:1px 6px;margin-left:6px;background:rgba(229,72,59,.18);color:#ff9b91;border:1px solid rgba(229,72,59,.5);vertical-align:2px}
 .pcard{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:#1d2025;border:1px solid var(--line);border-left:4px solid var(--c);border-radius:14px;padding:12px 14px;color:inherit;cursor:pointer;margin-bottom:8px;font:inherit}
-.pcard b{display:block;font:600 22px Oswald,sans-serif}.pcard span{display:block;font-size:12px;letter-spacing:.06em;color:var(--muted)}.pcard div{flex:1}
+.pcard b{display:block;font:600 22px var(--font-display)}.pcard span{display:block;font-size:12px;letter-spacing:.06em;color:var(--muted)}.pcard div{flex:1}
 .pnums{display:flex;gap:8px;margin-bottom:8px}.pnums button{flex:1;background:#1d2025;border:1px solid var(--line);border-top:3px solid var(--c);border-radius:12px;padding:10px 6px;color:inherit;cursor:pointer;font:inherit;text-align:center}
-.pnums b{display:block;font:600 26px Oswald,sans-serif}.pnums span{font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.pnums b{display:block;font:600 26px var(--font-display)}.pnums span{font-size:11px;letter-spacing:.08em;color:var(--muted)}
 .soon{border:1px dashed #3a3e45;border-radius:14px;padding:12px 14px;margin-bottom:8px;color:var(--muted)}
 .soon b{display:block;color:#cfd3d8;font-size:14.5px}.soon i{font-style:normal;font-size:10.5px;letter-spacing:.1em;border:1px solid #4a4f56;border-radius:6px;padding:1px 6px;margin-left:6px;color:#9aa1aa}
 .stg{max-width:760px;margin-top:10px}
@@ -206,7 +206,7 @@ window.needSupplies=async function(){
     <label>Note (optional)<input id="nsNote" placeholder="e.g. last spool on the Miller"></label>
     <div class="tnote" id="nsMsg" style="margin:8px 0"></div>
     <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" type="button" id="nsX">Cancel</button><button class="btn primary" type="button" id="nsGo" style="min-height:44px">Send to Kyle</button></div>
-    ${L.length?`<div class="pkh" style="font:600 11.5px Oswald,sans-serif;letter-spacing:.16em;color:#ffb36b;margin:16px 2px 4px">MY REQUESTS</div>${L.map(r=>{ const s=ST[r.status]||ST.approved; return `<div class="rqc" style="--c:${s[1]};padding:8px 10px;margin:6px 0"><div class="t"><b style="font-size:14px">${E(line(r))}</b><span class="pill">${s[0]}</span></div><div class="m">${ago(r.created_at)}${r.vendor?" · from "+E(r.vendor):""}${r.eta?" · ETA "+E(r.eta):""}${r.status==="rejected"&&r.reason?" · "+E(r.reason):""}</div></div>`; }).join("")}`:""}`,(el,close)=>{
+    ${L.length?`<div class="pkh" style="font:600 11.5px var(--font-display);letter-spacing:.16em;color:#ffb36b;margin:16px 2px 4px">MY REQUESTS</div>${L.map(r=>{ const s=ST[r.status]||ST.approved; return `<div class="rqc" style="--c:${s[1]};padding:8px 10px;margin:6px 0"><div class="t"><b style="font-size:14px">${E(line(r))}</b><span class="pill">${s[0]}</span></div><div class="m">${ago(r.created_at)}${r.vendor?" · from "+E(r.vendor):""}${r.eta?" · ETA "+E(r.eta):""}${r.status==="rejected"&&r.reason?" · "+E(r.reason):""}</div></div>`; }).join("")}`:""}`,(el,close)=>{
     let pick=null;
     el.querySelector("#nsX").onclick=close;
     el.querySelectorAll("[data-ns]").forEach(b=>b.onclick=()=>{ pick=cons.find(c=>c.id===b.dataset.ns); el.querySelector("#nsWhat").value=pick.name; el.querySelectorAll("[data-ns]").forEach(x=>x.classList.toggle("on",x===b)); });
@@ -225,11 +225,10 @@ window.needSupplies=async function(){
 };
 
 /* Kyle's To do: requests waiting for him */
-const _auto=autoTodos;
-autoTodos=function(){ const out=_auto(); try{ if(isAdmin()){ const w=by("review"); if(w.length){
+GVC.on("autoTodos",out=>{ try{ if(isAdmin()){ const w=by("review"); if(w.length){
   const hidden=new Set((typeof todos!=="undefined"?todos:[]).filter(t=>t.source==="auto").map(t=>t.text));
   const text=`Approve ${w.length} supply request${w.length>1?"s":""} (${[...new Set(w.map(r=>r.who))].join(", ")}): ${w.slice(0,3).map(r=>r.what).join(", ")}${w.length>3?"…":""}`;
-  if(!hidden.has(text)) out.unshift({text,c:"#9b7bff",view:"requests"}); } } }catch(e){} return out; };
+  if(!hidden.has(text)) out.unshift({text,c:"#9b7bff",view:"requests"}); } } }catch(e){} return out; });
 
 /* ================= hardware inventory (Inventory -> Hardware) ================= */
 let HW=[], hwLoaded=false, hwQ="", hwKind="", hwVendor="", hwLow=false, hwMax=150, hwMeta=null;
@@ -295,7 +294,7 @@ function hwSheet(h){
 /* ================= staging placeholder ================= */
 function renderStaging(){
   const B=$("#board"); B.className="stg"; B.style.gridTemplateColumns="";
-  B.innerHTML=`<h2 style="font-family:Oswald,sans-serif;letter-spacing:.05em;margin:0">Staging kits <span style="font-size:12px;letter-spacing:.1em;border:1px solid #4a4f56;border-radius:6px;padding:2px 8px;color:#9aa1aa;vertical-align:4px">COMING LATER</span></h2>
+  B.innerHTML=`<h2 style="font-family:var(--font-display);letter-spacing:.05em;margin:0">Staging kits <span style="font-size:12px;letter-spacing:.1em;border:1px solid #4a4f56;border-radius:6px;padding:2px 8px;color:#9aa1aa;vertical-align:4px">COMING LATER</span></h2>
     <div class="box" style="margin-top:12px">
       <b>What this will be</b>
       <div class="tnote" style="margin-top:4px">When a job's task is coming up on the week plan, its kit of parts shows up here a couple of days ahead - the brackets, hinges, bolts, lights and mud flaps that assembly needs.</div>
@@ -343,6 +342,5 @@ window.partsHome=B=>{
 
 /* ================= views ================= */
 window.extraViews=Object.assign(window.extraViews||{},{requests:renderRequests,staging:renderStaging});
-const _render=render;
-render=function(){ _render(); const L=document.querySelector("section.list"); if(L&&["requests","staging"].includes(cur)) L.style.display="none"; };
+GVC.on("render:after",()=>{ const L=document.querySelector("section.list"); if(L&&["requests","staging"].includes(cur)) L.style.display="none"; });
 })();

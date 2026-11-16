@@ -19,26 +19,26 @@ window.paidMs=(a,b)=>{ a=+new Date(a); b=b==null?Date.now():+new Date(b); if(!(b
 const st=document.createElement("style");
 st.textContent=`
 .pclk{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;margin:0 auto 10px;max-width:1500px;padding:8px 12px;border-radius:12px;
-  background:linear-gradient(90deg,rgba(58,208,107,.22),rgba(58,208,107,.06));border:1px solid rgba(58,208,107,.55);box-shadow:0 0 18px rgba(58,208,107,.18)}
+  background:linear-gradient(90deg,rgba(58,208,107,.22),rgba(58,208,107,.06));border:1px solid rgba(58,208,107,.55)}
 .pclk[hidden]{display:none}
-.pclk .dot{width:10px;height:10px;border-radius:50%;background:#3ad06b;box-shadow:0 0 10px #3ad06b;animation:pdot 1.4s ease-in-out infinite;flex:none}
+.pclk .dot{width:10px;height:10px;border-radius:50%;background:#3ad06b;box-shadow:none;animation:pdot 1.4s ease-in-out infinite;flex:none}
 @keyframes pdot{50%{opacity:.35}}
 .pclk .t{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pclk .t b{font-weight:600}.pclk .t small{color:var(--muted);margin-left:6px}
-.pclk .clk{font:600 18px Oswald,sans-serif;letter-spacing:.06em;color:#7ff0a8;font-variant-numeric:tabular-nums}
-.pclk button{border:none;border-radius:10px;background:#e5483b;color:#fff;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:8px 12px;cursor:pointer}
+.pclk .clk{font:600 18px var(--font-display);letter-spacing:.06em;color:#7ff0a8;font-variant-numeric:tabular-nums}
+.pclk button{border:none;border-radius:10px;background:#e5483b;color:#fff;font:600 13px var(--font-display);letter-spacing:.08em;padding:8px 12px;cursor:pointer}
 .mday{grid-column:1/-1}
 .mday .row2{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid #2a2e34;border-left:4px solid var(--c);border-radius:12px;margin-bottom:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 12%,#17191d),#15171a 60%)}
 .mday .row2.on{border-color:#3ad06b;box-shadow:0 0 0 1px #3ad06b inset}
 .mday .row2.dn{opacity:.5}
-.mday .tm{font:600 12px Oswald,sans-serif;letter-spacing:.06em;color:var(--muted);min-width:54px}
+.mday .tm{font:600 12px var(--font-display);letter-spacing:.06em;color:var(--muted);min-width:54px}
 .mday .nm{min-width:0}.mday .nm b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mday .nm small{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mday .bt{display:flex;gap:6px}
-.mday .bt button{border:none;border-radius:10px;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:0 12px;height:40px;cursor:pointer}
+.mday .bt button{border:none;border-radius:10px;font:600 13px var(--font-display);letter-spacing:.08em;padding:0 12px;height:40px;cursor:pointer}
 .mday .pin{background:linear-gradient(180deg,#5be38a,#2fae5b);color:#0b1a10}.mday .pout{background:#e5483b;color:#fff}.mday .pdn{background:rgba(255,255,255,.07);color:#e9e6e1;border:1px solid #33373e!important}
 @media (max-width:600px){ .mday .row2{grid-template-columns:1fr auto;row-gap:2px} .mday .tm{grid-column:1/-1;min-width:0} .mday .nm b{white-space:normal} .mday .bt button{height:44px} }
 .mday .none{color:var(--dim);font-size:13px;margin:0 2px 4px}
 .mday .jrow .nm b{display:flex;align-items:center;gap:8px;font-size:16px}
-.mday .jb{font:600 12.5px Oswald,sans-serif;letter-spacing:.06em;color:#111;border-radius:5px;padding:1px 7px;flex:none}
+.mday .jb{font:600 12.5px var(--font-display);letter-spacing:.06em;color:#111;border-radius:5px;padding:1px 7px;flex:none}
 .mday .tchips{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
 .mday .tchip{font:500 12.5px Inter,sans-serif;color:var(--text);background:color-mix(in srgb,var(--c) 14%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);border-radius:99px;padding:4px 10px;cursor:pointer}
 .mday .tchip.dn{opacity:.5;text-decoration:line-through;cursor:default}.mday .tchip.live{box-shadow:0 0 0 2px #3ad06b}
@@ -46,17 +46,17 @@ st.textContent=`
 .splt{display:grid;gap:6px}.spr{display:grid;grid-template-columns:minmax(0,1fr) 84px auto;gap:10px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--c);border-radius:10px;padding:8px 10px}
 .spr.dn{opacity:.6}.spr .sn b{display:block;font-size:14px}.spr .sn small{display:block;font-size:11.5px;color:var(--muted)}
 .spr select{font-size:16px;min-height:42px;margin:0}.spr .sfin{display:flex;gap:6px;align-items:center;margin:0;font-size:13px;white-space:nowrap}.spr .sfin input{width:20px;height:20px;margin:0}
-.pkh{font:600 11.5px Oswald,sans-serif;letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
+.pkh{font:600 11.5px var(--font-display);letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
 .pkt{display:block;width:100%;text-align:left;border:1px solid #2a2e34;border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin-bottom:6px;cursor:pointer;
   background:linear-gradient(90deg,color-mix(in srgb,var(--c) 12%,#17191d),#15171a 60%);color:var(--text);font:inherit}
 .pkt b{display:block;font-size:14.5px;font-weight:600}.pkt small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .pkt.on{border-color:#3ad06b;box-shadow:0 0 0 1px #3ad06b inset}.pkt:active{transform:scale(.99)}
 .mday .pdn{font-size:12px!important;padding:0 10px!important}
-.mday .dh{font:600 11.5px Oswald,sans-serif;letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
+.mday .dh{font:600 11.5px var(--font-display);letter-spacing:.16em;color:#ffb36b;margin:12px 2px 6px}
 .mday .add{width:100%;border:1px dashed #3a3e45;background:none;color:#cfd3d8;border-radius:12px;padding:10px;font:500 14px Inter,sans-serif;cursor:pointer;margin-top:4px}
 .jtime table{width:100%;border-collapse:collapse;font-size:13.5px}.jtime td,.jtime th{padding:6px 8px;border-bottom:1px solid #22252a;text-align:left}
-.jtime th{font:600 11px Oswald,sans-serif;letter-spacing:.12em;color:var(--muted)}.jtime .over{color:#ff9b91}.jtime .under{color:#3ad06b}
-.pnb{border:none;border-radius:8px;background:rgba(58,208,107,.16);color:#7ff0a8;font:600 11.5px Oswald,sans-serif;letter-spacing:.08em;padding:4px 8px;margin-top:5px;cursor:pointer}
+.jtime th{font:600 11px var(--font-display);letter-spacing:.12em;color:var(--muted)}.jtime .over{color:#ff9b91}.jtime .under{color:#3ad06b}
+.pnb{border:none;border-radius:8px;background:rgba(58,208,107,.16);color:#7ff0a8;font:600 11.5px var(--font-display);letter-spacing:.08em;padding:4px 8px;margin-top:5px;cursor:pointer}
 .pnb.on{background:#e5483b;color:#fff}
 /* crew mode: hide the office side */
 body.crew #shBell,body.crew #undoBtn,body.crew #ideasBtn,body.crew #addJob,body.crew #msBtn,
@@ -88,11 +88,12 @@ function paint(){
   clearInterval(tick);
   if(!open||$("#app").hidden){ bar.hidden=true; return; }
   bar.hidden=false;
-  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||open.job_name||"On the clock")}</b><small>${open.task_name?esc(open.job_name||""):"whole job - split it over the tasks when you punch out"}</small></div><span class="clk" id="pClk" title="Fix the start time" style="cursor:pointer">${hm(paidMs(open.start_at))}</span><button type="button" id="pFix" title="Forgot to punch in on time? Fix the start" style="background:rgba(255,255,255,.1);color:#e9e6e1;padding:8px 9px">✎</button><button type="button" id="pOut">PUNCH OUT</button>`;
+  bar.innerHTML=`<i class="dot"></i><div class="t"><b>${esc(open.task_name||open.job_name||"On the clock")}</b><small>${open.task_name?esc(open.job_name||""):"whole job - split it over the tasks when you punch out"}</small></div><span class="clk" id="pClk" title="Fix the start time" style="cursor:pointer">${hm(paidMs(open.start_at))}</span><button type="button" id="pFix" title="Forgot to punch in on time? Fix the start" aria-label="Fix the start time" style="background:rgba(255,255,255,.1);color:#e9e6e1;padding:8px 9px">✎</button><button type="button" id="pOut" title="Stops the clock. The task stays open.">Stop timer</button>`;
   bar.querySelector("#pFix").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pClk").onclick=e=>{ e.stopPropagation(); fixStartSheet(); };
   bar.querySelector("#pOut").onclick=()=>punchOut();
-  bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)) openJob(open.job_id); };
+  bar.querySelector(".t").setAttribute("role","button"); bar.querySelector(".t").tabIndex=0; bar.querySelector(".t").title="Open the task";
+  bar.querySelector(".t").onclick=()=>{ if(open.job_id&&jobs.some(j=>j.id===open.job_id)){ if(open.task_id&&window.openJobTask) window.openJobTask(open.job_id,open.task_id); else openJob(open.job_id,"tasks"); } };
   tick=setInterval(()=>{ const c=$("#pClk"); if(c&&open) c.textContent=hm(paidMs(open.start_at)); },1000);
 }
 async function load(){
@@ -156,7 +157,7 @@ function fixStartSheet(){
   if(preview()){ toast(PV); return; }
   if(!open) return;
   const st0=new Date(open.start_at); const opts=startOpts().filter(t=>new Date(t)<new Date());
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>WHEN DID YOU START?</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>When did you start?</h3>
     <div class="tnote" style="margin:-4px 0 10px">${esc(open.task_name||"")} · punched in at ${clk12(st0)}. Forgot to punch in on time? Pick when you really started.</div>
     <label>Started at<select id="fsT" style="font-size:16px;min-height:48px">${opts.map(t=>`<option value="${t}">${clk12(t)}</option>`).join("")}</select></label>
     <div class="tnote" id="fsMsg" style="margin:8px 0"></div>
@@ -184,7 +185,7 @@ function splitSheet(was,j){
   const end=new Date(), tot=paidMs(was.start_at,end), totH=Math.round(tot/36e5*4)/4;
   const T=(j.assemblies||[]).slice().sort((a,b)=>(a.status==="done")-(b.status==="done")||(whoList(b).includes(me()))-(whoList(a).includes(me())));
   const opts=h=>{ let o=""; for(let x=0;x<=Math.max(totH,0.25)+1e-9;x+=0.25) o+=`<option value="${x}" ${Math.abs(x-h)<1e-9?"selected":""}>${x?(x+"h").replace(/^0\./,"."):"-"}</option>`; return o; };
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>WHAT DID YOU DO?</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>What did you do?</h3>
     <div class="tnote" style="margin:-4px 0 10px"><b style="color:var(--text)">${esc(j.name)}</b> · on the clock ${totH}h (${clk12(was.start_at)}–${clk12(end)}). Put the hours on the tasks you worked on. Tick the ones you finished.</div>
     <div class="splt">${T.map(a=>`<div class="spr ${a.status==="done"?"dn":""}" style="--c:${window.jobColor?window.jobColor(j.id):"#8e96a3"}"><div class="sn"><b>${esc(a.name)}</b><small>${a.status==="done"?"done":esc(whoList(a).join(", ")||"nobody on it")}</small></div>
       <select data-sh="${esc(a.id)}">${opts(T.length===1?totH:0)}</select>
@@ -231,6 +232,9 @@ async function doneTask(jid,aid){
   toast(`Done: ${a?a.name:""}`);
 }
 window.punchIn=punchIn; window.punchOut=punchOut;
+// for the Today screen (today.js)
+window.gvcPunch={open:()=>open, doneTask:(j,a)=>doneTask(j,a), punchIn:(j,a)=>punchIn(j,a), punchOut:()=>punchOut(), punchJob:(j)=>punchJob(j),
+  pickTask:()=>pickTask(), addMyWork:()=>addMyWork(), fixStart:()=>fixStartSheet(), myTasks:()=>myTasks(), hm, paidMs:(a,b)=>paidMs(a,b), me, isCrew:()=>isCrew()};
 
 /* ---- MY DAY: my tasks from the week plan (today, + next 2 work days for crew), plus tasks I'm on that aren't scheduled ---- */
 function myTasks(){
@@ -255,8 +259,8 @@ function rowHtml(x){
   const on=open&&open.job_id===x.jid&&open.task_id===x.aid; const dn=x.t.done;
   const j=jobs.find(y=>y.id===x.jid); const a=j&&(j.assemblies||[]).find(y=>y.id===x.aid);
   return `<div class="row2 ${on?"on":""} ${dn?"dn":""}" style="--c:${x.color}"><span class="tm">${esc(x.time||"")}</span>
-    <div class="nm" data-oj="${esc(x.jid)}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${a&&a.status==="prog"?" · in progress":""}</small></div>
-    <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ PUNCH IN</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ DONE</button>`}</div></div>`;
+    <div class="nm" data-oj="${esc(x.jid)}" data-oa="${esc(a?a.id:"")}"><b>${dn?"✓ ":""}${x.t.cont?"↳ ":""}${esc(x.t.name)}</b><small>${esc(x.t.job||"")}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${a&&a.status==="prog"?" · in progress":""}</small></div>
+    <div class="bt">${dn||!a?"":on?`<button class="pout" type="button" data-pout="1">Stop timer</button>`:`<button class="pin" type="button" data-pin="${esc(x.jid)}|${esc(x.aid)}">▶ Punch in</button>`}${dn||!a?"":`<button class="pdn" type="button" data-pdn="${esc(x.jid)}|${esc(x.aid)}" title="Finished - mark this task done">✓ Done</button>`}</div></div>`;
 }
 /* one row per JOB in its own colour (same as the week plan / All jobs), its tasks as chips under it (Kyle, Nov 8) */
 function jobRows(rows){
@@ -273,7 +277,7 @@ function jobRowHtml(g){
   const allDn=g.rows.length&&g.rows.every(x=>{ const a=(j.assemblies||[]).find(y=>y.id===x.aid); return x.t.done||(a&&a.status==="done"); });
   return `<div class="row2 jrow ${on?"on":""} ${allDn&&!on?"dn":""}" style="--c:${c}"><span class="tm">${esc(g.time||"")}</span>
     <div class="nm" data-oj="${esc(j.id)}"><b>${num?`<span class="jb" style="background:${c}">${esc(num)}</span>`:""}${esc(nm)}</b>${on?`<small style="color:#7ff0a8">On the clock${open.task_name?" · "+esc(open.task_name):""}</small>`:""}</div>
-    <div class="bt">${on?`<button class="pout" type="button" data-pout="1">PUNCH OUT</button>`:allDn?`<span class="lbl" style="color:#7ff0a8;font-weight:700">✓ ALL DONE</span>`:`<button class="pin" type="button" data-pjob="${esc(j.id)}">▶ PUNCH IN</button>`}</div>
+    <div class="bt">${on?`<button class="pout" type="button" data-pout="1">Stop timer</button>`:allDn?`<span class="lbl" style="color:#7ff0a8;font-weight:700">✓ All done</span>`:`<button class="pin" type="button" data-pjob="${esc(j.id)}">▶ Punch in</button>`}</div>
     <div class="tchips">${chips}</div></div>`;
 }
 window.myDayHtml=()=>{
@@ -288,7 +292,7 @@ window.myDayWire=root=>{
   root.querySelectorAll("[data-pout]").forEach(b=>b.onclick=()=>punchOut());
   root.querySelectorAll("[data-pjob]").forEach(b=>b.onclick=()=>punchJob(b.dataset.pjob));
   root.querySelectorAll("[data-pdn]").forEach(b=>b.onclick=()=>{ const [j,a]=b.dataset.pdn.split("|"); doneTask(j,a); });
-  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>{ if(b.dataset.oj) openJob(b.dataset.oj); });
+  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>{ if(!b.dataset.oj) return; if(b.dataset.oa&&window.openJobTask) window.openJobTask(b.dataset.oj,b.dataset.oa); else openJob(b.dataset.oj); });
   root.querySelectorAll("[data-addw]").forEach(b=>b.onclick=()=>addMyWork());
   root.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>pickTask());
   root.querySelectorAll("[data-crewv]").forEach(b=>b.onclick=()=>window.crewPreview(true));
@@ -301,7 +305,7 @@ window.myTodoHtml=()=>{
     const dn=x.t.done||(a&&a.status==="done"); if(!dn) open++;
     const num=j&&window.jobNum?window.jobNum(j.name):""; const c=x.color||"#8e96a3";
     return `<div class="ti ctd ${dn?"dn":""}" style="--c:${c}"><button class="ck" type="button" ${a&&!dn?`data-pdn="${esc(x.jid)}|${esc(x.aid)}"`:"disabled"} title="${dn?"Done":"Mark done"}">${dn?"✓":""}</button><span class="bar"></span>
-      <div class="body" ${j?`data-oj="${esc(j.id)}"`:""}><div class="tt">${esc(x.t.name)}</div><div class="meta">${num?`<span class="jb" style="background:${c}">${esc(num)}</span> `:""}${esc(j?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,""):(x.t.job||""))}${x.time?" · "+esc(x.time):""}${a&&a.status==="prog"?" · in progress":""}</div></div></div>`; };
+      <div class="body" ${j?`data-oj="${esc(j.id)}" data-oa="${esc(a?a.id:"")}"`:""}><div class="tt">${esc(x.t.name)}</div><div class="meta">${num?`<span class="jb" style="background:${c}">${esc(num)}</span> `:""}${esc(j?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,""):(x.t.job||""))}${j&&a&&window.taskGroupName&&window.taskGroupName(j,a)?" · "+esc(window.taskGroupName(j,a)):""}${x.time?" · "+esc(x.time):""}${a&&a.status==="prog"?" · in progress":""}</div></div></div>`; };
   const days=T.days.map(d=>{ const r=d.rows.map(row).join(""); return `<div class="dh">${d.label}</div>${r||`<div class="none">Nothing planned${d.label==="TODAY"?" for you today":""}.</div>`}`; }).join("");
   const other=T.other.map(row).join("");
   return `<section class="tbox mday ctodo" aria-label="To do"><h3>To do <span class="n">${open}</span></h3>${days}${other?`<div class="dh">ALSO ON YOU</div>${other}`:""}
@@ -309,7 +313,7 @@ window.myTodoHtml=()=>{
 };
 window.myTodoWire=root=>{
   root.querySelectorAll("[data-pdn]").forEach(b=>b.onclick=()=>{ const [j,a]=b.dataset.pdn.split("|"); doneTask(j,a); });
-  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>openJob(b.dataset.oj));
+  root.querySelectorAll("[data-oj]").forEach(b=>b.onclick=()=>{ if(b.dataset.oa&&window.openJobTask) window.openJobTask(b.dataset.oj,b.dataset.oa); else openJob(b.dataset.oj); });
   root.querySelectorAll("[data-addw]").forEach(b=>b.onclick=()=>addMyWork());
 };
 window.crewHome=B=>{
@@ -323,19 +327,18 @@ async function punchesFor(jid){
   const r=await sb.from("gvc_punches").select("who,task_id,task_name,start_at,end_at").eq("job_id",jid).order("start_at");
   return (jobPunches[jid]=r.data||[]);
 }
-const _draw=drawDlg;
-drawDlg=function(){
-  _draw();
+GVC.on("drawDlg:after",()=>{
   const D=$("#dlg"); const j=typeof job==="function"?job():null; if(!j||!D) return;
   // supplier block marked so crew mode can hide it (prices)
   D.querySelectorAll(".sec").forEach(s=>{ if(/^Suppliers/.test((s.textContent||"").trim())){ s.classList.add("supsec"); let n=s.nextElementSibling; while(n&&!n.classList.contains("sec")&&n.tagName!=="DETAILS"){ n.classList.add("supsec"); n=n.nextElementSibling; } } });
-  const rows=[...D.querySelectorAll("table.at tbody tr")];
-  rows.forEach((tr,k)=>{ const a=(j.assemblies||[])[k]; if(!a||a.status==="done") return; const td=tr.querySelector("td"); if(!td) return;
+  // task rows carry their index in j.assemblies (they're shown in groups, so screen order isn't array order - stage 5)
+  const rows=[...D.querySelectorAll("[data-task-i]")];
+  rows.forEach(tr=>{ const k=+tr.dataset.taskI; const a=(j.assemblies||[])[k]; if(!a||a.status==="done") return; const td=tr.querySelector(".tpunch")||tr.querySelector("td"); if(!td) return;
     const on=open&&open.job_id===j.id&&open.task_id===a.id;
-    const b=document.createElement("button"); b.type="button"; b.className="pnb"+(on?" on":""); b.textContent=on?"■ PUNCH OUT":"▶ PUNCH IN";
+    const b=document.createElement("button"); b.type="button"; b.className="pnb"+(on?" on":""); b.textContent=on?"■ Stop timer":"▶ Start work";
     b.onclick=e=>{ e.stopPropagation(); on?punchOut():punchIn(j.id,a.id); }; td.appendChild(b); });
   const tasks=D.querySelector("table.at")||D.querySelector("#newAsm");
-  const box=document.createElement("div"); box.className="jtime"; box.innerHTML=`<div class="sec"><span>Time on this job</span></div><div class="tnote">Loading…</div>`;
+  const box=document.createElement("div"); box.className="jtime"; box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><div class="tnote">Loading…</div>`;
   const anchor=D.querySelector("#newAsm")||(tasks&&tasks.closest(".atw")); if(anchor) anchor.after(box); else return;
   punchesFor(j.id).then(P=>{
     if(!D.contains(box)) return;
@@ -343,20 +346,20 @@ drawDlg=function(){
     P.forEach(p=>{ const k=p.task_id||"-"; const o=by[k]=by[k]||{name:p.task_name,ms:0,who:{}}; const ms=paidMs(p.start_at,p.end_at||now); o.ms+=ms; o.who[p.who]=(o.who[p.who]||0)+ms; });
     const plan=(window.gvcPlan&&gvcPlan.get&&gvcPlan.get())||{}; const H=plan.hours||{};
     const ks=Object.keys(by);
-    if(!ks.length){ box.innerHTML=`<div class="sec"><span>Time on this job</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ PUNCH IN on a task to start the clock.</div>`; return; }
+    if(!ks.length){ box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><div class="tnote">Nobody has punched in on this job yet. Tap ▶ Start work on a task to start the timer.</div>`; return; }
     let tot=0;
-    box.innerHTML=`<div class="sec"><span>Time on this job</span></div><table><thead><tr><th>Task</th><th>Who</th><th>Actual</th><th>Planned</th></tr></thead><tbody>${ks.map(k=>{ const o=by[k]; tot+=o.ms;
+    box.innerHTML=`<div class="sec"><span>All time on this job</span><span class="tnote" style="margin:0;font-weight:400;letter-spacing:0;text-transform:none">everyone, all tasks</span></div><table><thead><tr><th>Task</th><th>Who</th><th>Actual</th><th>Planned</th></tr></thead><tbody>${ks.map(k=>{ const o=by[k]; tot+=o.ms;
       const a=(j.assemblies||[]).find(x=>x.id===k); const est=H[`j:${j.id}:${k}`]; const act=o.ms/36e5;
-      return `<tr><td>${esc(a?a.name:o.name||"")}</td><td>${Object.entries(o.who).map(([w,ms])=>`${esc(w)} ${hrs(ms)}`).join(", ")}</td><td>${hrs(o.ms)}</td><td class="${est?act>est*1.15?"over":act<est*0.85&&a&&a.status==="done"?"under":"":""}">${est?est+"h":"-"}</td></tr>`; }).join("")}
+      return `<tr><td>${a?esc(a.name):o.name?esc(o.name)+' <span class="tnote" style="margin:0">(task removed)</span>':'<i style="color:var(--muted)">Time not linked to a task</i>'}</td><td>${Object.entries(o.who).map(([w,ms])=>`${esc(w)} ${hrs(ms)}`).join(", ")}</td><td>${hrs(o.ms)}</td><td class="${est?act>est*1.15?"over":act<est*0.85&&a&&a.status==="done"?"under":"":""}">${est?est+"h":"-"}</td></tr>`; }).join("")}
       <tr><td><b>Total</b></td><td></td><td><b>${hrs(tot)}</b></td><td></td></tr></tbody></table>`;
   });
-};
+});
 
 /* ---- crew: add my own work ---- */
 function addMyWork(){
   if(preview()){ toast(PV); return; }
   const act=jobs.filter(j=>j.stage!=="done"&&!j.archived).sort((a,b)=>String(a.name).localeCompare(String(b.name),undefined,{numeric:true}));
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>I'M DOING SOMETHING ELSE</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true"><h3>I'm doing something else</h3>
     <label>What are you doing<input id="mwWhat" placeholder="e.g. Grinding welds on the headache rack"></label>
     <label>Which job<select id="mwJob"><option value="">A new job (no job number yet)</option>${act.map(j=>`<option value="${esc(j.id)}">${esc(j.name)}</option>`).join("")}</select></label>
     <label>Who asked for it (optional)<input id="mwFrom" placeholder="e.g. Randy"></label>
@@ -389,8 +392,8 @@ window.addMyWork=addMyWork;
 /* crew: "we need more wire" - goes on Kyle's To do (and marks the consumable as out/low if it's on the list) */
 async function needSupplies(){
   let cons=[]; try{ const r=await sb.from("gvc_consumables").select("id,name,category,unit,qty,min_qty").order("category").order("name"); cons=r.data||[]; }catch(e){}
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>NEED SUPPLIES</h3>
-    <button class="btn primary" type="button" id="nsTalk" style="width:100%;min-height:52px;font:600 15px Oswald,sans-serif;letter-spacing:.1em;margin-bottom:10px">🎤 SAY IT TO CLAUDE</button>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><h3>Need supplies</h3>
+    <button class="btn primary" type="button" id="nsTalk" style="width:100%;min-height:52px;font:600 15px var(--font-display);letter-spacing:.1em;margin-bottom:10px">🎤 Say it to Claude</button>
     <div class="tnote" style="margin:-4px 0 10px">e.g. ".035 wire is running low, last spool on the Miller"</div>
     <label>or type it - what do we need<input id="nsWhat" placeholder="e.g. 0.035 wire, 4.5&quot; flap discs, argon"></label>
     ${cons.length?`<div class="tnote" style="margin:4px 0 6px">or tap one</div><div class="chips" id="nsChips" style="margin-bottom:10px">${cons.map(c=>`<button type="button" data-ns="${esc(c.id)}">${esc(c.name)}</button>`).join("")}</div>`:""}
@@ -450,7 +453,7 @@ function pickTask(){
   const minej=act.filter(j=>(j.assemblies||[]).some(a=>a.status!=="done"&&whoList(a).includes(me()))), other=act.filter(j=>!minej.includes(j));
   const item=j=>{ const on=open&&open.job_id===j.id; const c=window.jobColor?window.jobColor(j.id):"#8e96a3"; const t=(j.assemblies||[]).filter(a=>a.status!=="done");
     return `<button class="pkt ${on?"on":""}" type="button" data-pj="${esc(j.id)}" style="--c:${c}"><b>${esc(j.name)}</b><small>${t.length?esc(t.slice(0,4).map(a=>a.name).join(" · "))+(t.length>4?` +${t.length-4} more`:""):"no open tasks"}${on?" · ON THE CLOCK":""}</small></button>`; };
-  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>PUNCH IN ON…</h3>
+  const ov=document.createElement("div"); ov.className="shov"; ov.innerHTML=`<div class="shsheet" role="dialog" aria-modal="true" style="max-height:80vh;overflow:auto"><h3>Punch in on…</h3>
     <div class="tnote" style="margin:-4px 0 10px">Pick the job. When you punch out you say how long you spent on each task.</div>
     <label style="display:flex;gap:10px;align-items:center;margin:0 0 10px">Started<select id="ptStart" style="flex:1;font-size:16px;min-height:44px"><option value="">Now</option>${startOpts().filter(t=>new Date(t)<Date.now()-5*60e3).map(t=>`<option value="${t}">${clk12(t)} - forgot to punch in</option>`).join("")}</select></label>
     ${minej.length?`<div class="pkh">YOUR JOBS</div>${minej.map(item).join("")}`:""}
@@ -465,8 +468,8 @@ function pickTask(){
 }
 window.pickTask=pickTask;
 /* Kyle can look at the app the way Colton sees it (nothing saved while previewing) */
-const pvBar=document.createElement("div"); pvBar.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1200;background:#9085e9;color:#0b0b14;font:600 13px Oswald,sans-serif;letter-spacing:.08em;padding:6px 8px 6px 14px;border-radius:0 0 12px 12px;display:none;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.5)";
-pvBar.innerHTML=`👁 CREW PREVIEW · WHAT COLTON SEES <button type="button" style="border:none;border-radius:8px;background:#0b0b14;color:#fff;font:600 12px Oswald,sans-serif;letter-spacing:.08em;padding:5px 10px;cursor:pointer">EXIT</button>`;
+const pvBar=document.createElement("div"); pvBar.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1200;background:#9085e9;color:#0b0b14;font:600 13px var(--font-display);letter-spacing:.08em;padding:6px 8px 6px 14px;border-radius:0 0 12px 12px;display:none;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.5)";
+pvBar.innerHTML=`👁 CREW PREVIEW · WHAT COLTON SEES <button type="button" style="border:none;border-radius:8px;background:#0b0b14;color:#fff;font:600 12px var(--font-display);letter-spacing:.08em;padding:5px 10px;cursor:pointer">Exit</button>`;
 document.body.appendChild(pvBar);
 let realMe=null, realOpen=null;
 window.crewPreview=(on,who)=>{
@@ -495,14 +498,12 @@ window.crewAct=k=>{
 };
 
 /* ---- crew mode guard: only the views a crew member uses ---- */
-const CREW_VIEWS=["home","drawings","mytodo","punch","crewjobs","archive","crew","ncr","revs","inv","requests","staging","porders"];
-const _render=render;
-render=function(){
-  if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home";
-  _render();
+const CREW_VIEWS=["home","today","purchasing","drawings","mytodo","punch","crewjobs","archive","crew","ncr","revs","inv","requests","staging","porders"];
+GVC.on("render:before",()=>{ if(isCrew()&&!CREW_VIEWS.includes(cur)) cur="home"; });
+GVC.on("render:after",()=>{
   { const cb=document.getElementById("crewBar"); if(cb) cb.style.display=cur==="crew"?"":"none"; }
   if(!bar.hidden&&open){ const c=$("#pClk"); if(c) c.textContent=hm(paidMs(open.start_at)); }
-};
+});
 // pick up the clock once signed in, and when another device punches
 let started=false;
 setInterval(()=>{ if(!started&&typeof db!=="undefined"&&db){ started=true; load();

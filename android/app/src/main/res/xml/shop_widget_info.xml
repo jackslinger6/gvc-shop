@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Widget sizes (redesign Nov 15): it can shrink to about 2 x 2 cells (180 x 120 dp) and still show one useful
+     card with a full-size button; it starts at a medium size. The layout follows the real size (compact / medium /
+     large), see WidgetModel.bucket. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="180dp"
+    android:minHeight="230dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="5"
+    android:targetCellHeight="3"
     android:minResizeWidth="180dp"
-    android:minResizeHeight="110dp"
+    android:minResizeHeight="120dp"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/widget_shop"
-    android:previewLayout="@layout/widget_shop"
+    android:initialLayout="@layout/w2_main"
+    android:previewLayout="@layout/w2_preview"
+    android:previewImage="@mipmap/ic_launcher"
     android:description="@string/widget_description"/>

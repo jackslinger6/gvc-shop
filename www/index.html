@@ -26,26 +26,33 @@ window.addEventListener("unhandledrejection",function(e){ var r=e.reason; __show
 <script src="vendor/supabase.js" onerror="__showErr('Could not load vendor/supabase.js')"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0d0e10; --panel:#1a1c20; --panel2:#22252a;
-  --line:#3a3e45; --text:#e9e6e1; --muted:#9aa0a8; --dim:#6c727a;
+  /* ---- GVC Vault design tokens (redesign stage 1, Nov 14 2026) - every screen builds on these ---- */
+  /* surfaces: solid charcoal, each step a little lighter */
+  --bg:#111315; --panel:#181a1e; --panel2:#1f2227; --panel3:#272a30; --inset:#0e0f11;
+  --line:#2c3036; --line2:#3b4048; --text:#ecebe8; --muted:#a9afb7; --dim:#878e97;
+  /* accent + status (always paired with a text label) */
+  --accent:#ff8a2a; --accent-hi:#ff9d4a; --on-accent:#1b0f05; --accent-soft:rgba(255,138,42,.14); --accent-line:rgba(255,138,42,.5);
   --orange:#ff8a2a; --amber:#f5b041; --red:#e5483b; --blue:#2f8ff0; --purple:#9b4dff; --cyan:#22c3e6; --green:#3ad06b; --pink:#e04fa0;
   --pipe:#a374ff; --order:#ff8a2a; --build:#3ad06b;
-  --radius:8px;
+  /* type */
+  --font-ui:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --font-display:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --font-brand:"Russo One",var(--font-ui);
+  --fs-xs:11.5px; --fs-sm:12.5px; --fs:14px; --fs-md:15px; --fs-lg:17px; --fs-xl:20px; --fs-2xl:26px;
+  /* spacing, radii, shadows, sizes */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+  --radius:8px; --r-sm:6px; --r-md:10px; --r-lg:12px; --r-xl:16px; --r-pill:999px;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35); --shadow-2:0 10px 30px rgba(0,0,0,.45); --shadow-3:0 20px 60px rgba(0,0,0,.6);
+  --focus:0 0 0 2px var(--bg),0 0 0 4px var(--accent-hi);
+  --hit:44px; --ctl:36px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
-  background-color:var(--bg);
-  background-image:
-    radial-gradient(1200px 500px at 15% -10%, rgba(255,120,40,.10), transparent 60%),
-    radial-gradient(900px 500px at 90% 0%, rgba(255,90,30,.07), transparent 60%),
-    repeating-linear-gradient(115deg, rgba(255,255,255,.012) 0 2px, transparent 2px 7px),
-    linear-gradient(180deg,#121316,#0b0c0e);
-  background-attachment:fixed;
-  color:var(--text); font-family:Inter,system-ui,sans-serif; font-size:14px; min-height:100vh;
+  background:var(--bg);
+  color:var(--text); font-family:var(--font-ui); font-size:var(--fs); line-height:1.4; min-height:100vh;
+  -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%; text-size-adjust:100%;
 }
 header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .title{
@@ -54,19 +61,19 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
   -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 2px 0 rgba(0,0,0,.8)) drop-shadow(0 0 14px rgba(255,120,40,.35));
 }
-.sub{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:8px;font-family:Oswald,sans-serif;letter-spacing:.35em;color:#cfc9c0;font-size:clamp(11px,1.6vw,15px)}
+.sub{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:8px;font-family:var(--font-display);letter-spacing:.35em;color:#cfc9c0;font-size:clamp(11px,1.6vw,15px)}
 .sub:before,.sub:after{content:"";height:2px;width:min(18vw,160px);background:linear-gradient(90deg,transparent,var(--orange),transparent)}
 .wrap{max-width:1500px;margin:0 auto;padding:0 16px}
 .bar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap}
 .tabs{display:flex;gap:8px;flex-wrap:wrap}
-.tab{font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:16px;color:#cfc9c0;background:rgba(0,0,0,.35);border:1px solid var(--line);border-bottom:3px solid var(--line);border-radius:8px 8px 4px 4px;padding:8px 16px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.tab{font-family:var(--font-display);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:16px;color:#cfc9c0;background:rgba(0,0,0,.35);border:1px solid var(--line);border-bottom:3px solid var(--line);border-radius:8px 8px 4px 4px;padding:8px 16px;cursor:pointer;display:flex;align-items:center;gap:8px}
 .tab .ct{font-family:Inter,sans-serif;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0}
 .tab .at{font-family:Inter,sans-serif;font-size:11px;font-weight:600;letter-spacing:0;background:rgba(229,72,59,.18);color:#ff9b91;border:1px solid rgba(229,72,59,.5);border-radius:999px;padding:0 7px}
 .tab.on{color:#fff;border-bottom-color:var(--c);background:rgba(255,255,255,.04)}
 .status{color:var(--muted);font-size:12px}
 .btn{font:inherit;font-weight:600;font-size:13px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:8px 12px;cursor:pointer}
 .btn:hover{border-color:#5a5f68}
-.btn.primary{background:linear-gradient(180deg,#ff9a40,#e8711a);border-color:#ff9a40;color:#1b0f05}
+.btn.primary{background:var(--accent);border-color:#ff9a40;color:#1b0f05}
 .btn.ghost{background:transparent}
 .btn.danger{color:#ffb3ab;border-color:#5c2a26}
 .btn.sm{padding:4px 9px;font-size:12px}
@@ -74,15 +81,15 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .col{border-left:1px solid rgba(255,255,255,.08);min-height:340px;display:flex;flex-direction:column;min-width:0}
 .col:last-child{border-right:1px solid rgba(255,255,255,.08)}
 .colhead{position:relative;padding:14px 8px 10px;text-align:center;background:rgba(0,0,0,.35);border-bottom:1px solid rgba(255,255,255,.06)}
-.colhead:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--c);box-shadow:0 0 12px var(--c)}
-.colhead h2{margin:0;font-family:Oswald,sans-serif;font-weight:600;font-size:17px;letter-spacing:.04em;text-transform:uppercase;line-height:1.05;color:#ece8e2;min-height:36px;display:flex;align-items:center;justify-content:center}
+.colhead:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--c);box-shadow:none}
+.colhead h2{margin:0;font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:.04em;text-transform:uppercase;line-height:1.05;color:#ece8e2;min-height:36px;display:flex;align-items:center;justify-content:center}
 .colhead .none{display:none;font-size:12px;color:var(--dim)}
 .colhead .n{font-size:11px;color:var(--dim);margin-top:3px;min-height:13px}
 .cards{padding:10px 8px;display:flex;flex-direction:column;gap:10px;flex:1}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:10px;padding:10px 10px 8px;cursor:pointer;text-align:left;color:inherit;font:inherit;width:100%}
 .card:hover{border-color:var(--c)}
 .card .nm{font-weight:600;font-size:14px;line-height:1.25;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.card .jnum{font-family:Oswald,sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.06em;color:#ffd0a8;background:rgba(255,138,42,.14);border:1px solid rgba(255,138,42,.4);border-radius:5px;padding:1px 6px;flex:0 0 auto}
+.card .jnum{font-family:var(--font-display);font-weight:600;font-size:12.5px;letter-spacing:.06em;color:#ffd0a8;background:rgba(255,138,42,.14);border:1px solid rgba(255,138,42,.4);border-radius:5px;padding:1px 6px;flex:0 0 auto}
 .card .jname{min-width:0}
 .card.offo{border-style:dashed}
 .card .cntb{display:block;margin-top:8px;text-align:center;font-weight:600;font-size:13px;color:#1b1b1b;background:#f5b041;border-radius:7px;padding:7px 10px;cursor:pointer}
@@ -104,13 +111,13 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
 .list{margin:26px 0 40px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(0,0,0,.3);padding:14px 14px 10px}
 .listhead{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.listhead h3{margin:0;font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:16px;color:#e4dfd8}
+.listhead h3{margin:0;font-family:var(--font-display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:16px;color:#e4dfd8}
 .listhead{cursor:pointer;user-select:none;-webkit-user-select:none}
 .listhead .caret{display:inline-block;color:var(--muted);transition:transform .15s;margin-right:2px}
 .listhead .n{font-family:Inter,sans-serif;font-size:12px;color:var(--muted);letter-spacing:0;text-transform:none}
 .list.closed{padding-bottom:14px}
 .list.closed .caret{transform:rotate(-90deg)}
-.list.closed .legend,.list.closed .trk{display:none}
+.list.closed .legend,.list.closed .trk,.list.closed .jlf,.list.closed .jll{display:none}
 .list.closed .listhead{margin-bottom:0}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
 .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
@@ -120,8 +127,8 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .cells.lbl div{font-size:10px;color:var(--dim);text-align:center;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cell{height:16px;border-radius:3px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
 .cell.past{opacity:.38;border-color:transparent}
-.cell.now{border-color:#fff;box-shadow:0 0 8px var(--cc)}
-.cells .obar{grid-column:1/-1;height:16px;border-radius:3px;background:color-mix(in srgb,var(--oc) 55%,transparent);border:1px solid var(--oc);font:600 10px Oswald,sans-serif;letter-spacing:.14em;color:#fff;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden}
+.cell.now{border-color:#fff;box-shadow:none}
+.cells .obar{grid-column:1/-1;height:16px;border-radius:3px;background:color-mix(in srgb,var(--oc) 55%,transparent);border:1px solid var(--oc);font:600 10px var(--font-display);letter-spacing:.14em;color:#fff;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden}
 .jn .jc{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:8px;vertical-align:-1px;background:transparent;border:1px solid #33373e}.jn .jc[style]{border:none}
 .jn{background:none;border:0;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jn:hover{color:#ffb070}
@@ -129,13 +136,13 @@ header{text-align:center;padding:calc(18px + env(safe-area-inset-top)) 16px 6px}
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;padding:28px 12px;overflow:auto;z-index:10}
 .scrim.on{display:flex}
 .dlg{background:#17191c;border:1px solid var(--line);border-radius:14px;width:min(1040px,100%);padding:18px 18px 16px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-.dlg h3{margin:0;font-family:Oswald,sans-serif;font-weight:600;font-size:20px;letter-spacing:.02em}
+.dlg h3{margin:0;font-family:var(--font-display);font-weight:600;font-size:20px;letter-spacing:.02em}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--muted);flex:1;min-width:140px}
 input,select,textarea{font:inherit;font-size:13.5px;color:var(--text);background:#0f1012;border:1px solid var(--line);border-radius:var(--radius);padding:7px 9px;width:100%}
 textarea{min-height:56px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
-.sec{margin-top:16px;font-family:Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase;font-size:13px;color:#d7d1c8;display:flex;justify-content:space-between;align-items:center}
+.sec{margin-top:16px;font-family:var(--font-display);letter-spacing:.08em;text-transform:uppercase;font-size:13px;color:#d7d1c8;display:flex;justify-content:space-between;align-items:center}
 .supbox{border:1px solid var(--line);border-left:4px solid var(--c,#555);border-radius:10px;padding:10px;margin-top:8px;background:#141518}
 .supbox .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .supbox .meta{font-size:12px;color:var(--muted);margin-top:2px}
@@ -156,13 +163,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
   table.at td:last-child{position:absolute;top:6px;right:4px}
 }
 .jfold{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.22);padding:0 12px}
-.jfold>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:10px;padding:12px 0;font:600 14px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#cfc9c0}
+.jfold>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:10px;padding:12px 0;font:600 14px var(--font-display);letter-spacing:.1em;text-transform:uppercase;color:#cfc9c0}
 .jfold>summary::-webkit-details-marker{display:none}
 .jfold>summary::before{content:"▸";color:#ff9a40;transition:transform .15s}.jfold[open]>summary::before{transform:rotate(90deg)}
 .jfold>summary em{font:400 12.5px Inter,sans-serif;letter-spacing:0;text-transform:none;color:var(--muted);font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
 .jfold[open]{padding-bottom:12px}
-#dlg #jpBtn,#dlg #jfBtn{flex:1;min-height:58px;border-radius:14px;font:600 17px Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase;border:none;color:#111;box-shadow:0 6px 18px rgba(0,0,0,.35)}
-#dlg #jpBtn{background:linear-gradient(180deg,#ff9a40,#e8711a)}
+#dlg #jpBtn,#dlg #jfBtn{flex:1;min-height:58px;border-radius:14px;font:600 17px var(--font-display);letter-spacing:.08em;text-transform:uppercase;border:none;color:#111;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+#dlg #jpBtn{background:var(--accent)}
 #dlg #jfBtn{background:linear-gradient(180deg,#5fd8f0,#22a9c9)}
 #dlg #jpBtn:active,#dlg #jfBtn:active{transform:scale(.98)}
 .log{margin-top:6px;display:flex;flex-direction:column;gap:5px}
@@ -193,7 +200,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 .toast button{background:none;border:0;color:#ffb070;font:inherit;font-weight:600;cursor:pointer;padding:0}
 .atw{overflow-x:auto;margin-top:8px;border:1px solid var(--line);border-radius:10px}
 table.at{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
-table.at th{font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:12px;color:#d7d1c8;padding:10px 6px 8px;background:#121315;border-bottom:1px solid var(--line);text-align:center;position:relative}
+table.at th{font-family:var(--font-display);font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:12px;color:#d7d1c8;padding:10px 6px 8px;background:#121315;border-bottom:1px solid var(--line);text-align:center;position:relative}
 table.at th.sc:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--c)}
 table.at th:first-child,table.at td:first-child{text-align:left;padding-left:12px}
 table.at td{border-bottom:1px solid #26292e;padding:6px;text-align:center;vertical-align:middle}
@@ -203,7 +210,7 @@ table.at tr:hover td{background:rgba(255,255,255,.02)}
 .sb{width:100%;min-width:74px;height:30px;border-radius:7px;border:1px dashed #33373d;background:transparent;color:var(--dim);cursor:pointer;font:inherit;font-size:12px}
 .sb:hover{border-color:var(--c);color:var(--text)}
 .sb.past{border-style:solid;border-color:transparent;background:var(--c);opacity:.22}
-.sb.now{border:1px solid var(--c);background:var(--c);color:#111;font-weight:700;box-shadow:0 0 10px var(--c)}
+.sb.now{border:1px solid var(--c);background:var(--c);color:#111;font-weight:700;box-shadow:none}
 .waits{font-size:12px;color:var(--muted);border:1px dashed #3a3e45;border-radius:7px;padding:6px}
 td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .wchips{display:flex;gap:4px;flex-wrap:wrap}
@@ -220,7 +227,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .rmb{background:none;border:0;color:var(--dim);cursor:pointer;font-size:16px;padding:2px 6px}
 .rmb:hover{color:#ff9b91}
 .login{max-width:380px;margin:30px auto;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
-.login h2{font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:18px;margin:0 0 12px}
+.login h2{font-family:var(--font-display);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:18px;margin:0 0 12px}
 .login label{margin-top:10px}
 .login .msg{font-size:13px;color:var(--muted);min-height:18px;margin-top:10px}
 .login .msg.bad{color:#ff9b91}
@@ -240,8 +247,8 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .asmc .subs span{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin:2px 3px 0 0;cursor:pointer}
 .asmc .subs span:hover,.asmc:hover{border-color:#9fb3c8}
 .crumb{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:10px 0 2px;font-size:13px}.crumb button{font:inherit;background:none;border:0;color:#8fc2ff;cursor:pointer;padding:2px}
-.nno{font-family:Oswald,sans-serif;letter-spacing:.03em;color:#7be29b;font-size:13px;margin-right:6px}
-.ig h3{font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:15px;margin:16px 0 6px}
+.nno{font-family:var(--font-display);letter-spacing:.03em;color:#7be29b;font-size:13px;margin-right:6px}
+.ig h3{font-family:var(--font-display);letter-spacing:.06em;text-transform:uppercase;font-size:15px;margin:16px 0 6px}
 .ig h3 .n{color:var(--dim);font-family:Inter,sans-serif;font-size:12px}
 .pr{border:1px solid var(--line);border-radius:10px;background:linear-gradient(180deg,var(--panel2),var(--panel));margin-bottom:6px;overflow:hidden}
 .prh{display:flex;gap:10px;align-items:center;padding:7px 9px;cursor:pointer}
@@ -264,7 +271,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .chatfab.tuck{transform:translateX(calc(100% - 14px));border-radius:12px 0 0 12px;padding:12px 10px 12px 14px;right:0}
 .chatp{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:min(420px,calc(100vw - 24px));height:min(620px,calc(100vh - 60px));z-index:11;display:none;flex-direction:column;background:#141619;border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.7);overflow:hidden}
 .chatp.on{display:flex}
-.chatp .ch{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-family:Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:15px}
+.chatp .ch{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-family:var(--font-display);letter-spacing:.06em;text-transform:uppercase;font-size:15px}
 .chatp .ch .sp{flex:1}
 .chatp .ch button{background:none;border:0;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-transform:none;letter-spacing:0;font-family:Inter,sans-serif}
 .chatp .cm{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
@@ -280,7 +287,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 /* ---- To do ---- */
 .todo{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;margin-top:12px}
 .tbox{border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);padding:12px 12px 8px}
-.tbox h3{font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.tbox h3{font-family:var(--font-display);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
 .tbox h3 .n{font-size:12px;color:var(--muted);font-family:Inter,sans-serif;letter-spacing:0}
 .ti{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-top:1px solid rgba(255,255,255,.06)}
 .ti:first-of-type{border-top:0}
@@ -306,13 +313,13 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .sg .tags{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
 .sg .sgjob{--c:#ff8a2a;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);background:color-mix(in srgb,var(--c) 14%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);border-left:4px solid var(--c);border-radius:7px;padding:3px 8px 3px 5px;cursor:pointer;max-width:100%}
 .sg .sgjob.new{cursor:default;border-style:dashed}
-.sg .sgjob .jnum{font-family:Oswald,sans-serif;font-weight:600;font-size:12px;letter-spacing:.06em;color:#fff;background:var(--c);border-radius:5px;padding:0 6px}
+.sg .sgjob .jnum{font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.06em;color:#fff;background:var(--c);border-radius:5px;padding:0 6px}
 .sg .sgsup{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:7px;padding:3px 9px}
-.sg .sgsup i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c)}
+.sg .sgsup i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:none}
 .sg .sgsup span{color:var(--muted);font-size:11.5px}
 .sg .acts{display:flex;flex-direction:column;gap:5px;margin:0 0 9px}
 .sg .act{display:grid;grid-template-columns:58px 1fr;gap:8px;align-items:start;font-size:13px;color:var(--muted);line-height:1.35}
-.sg .act .k{font-family:Oswald,sans-serif;font-size:11px;letter-spacing:.08em;text-transform:uppercase;text-align:center;border-radius:5px;padding:2px 4px;margin-top:1px;color:var(--dim);border:1px solid var(--line);background:rgba(255,255,255,.03)}
+.sg .act .k{font-family:var(--font-display);font-size:11px;letter-spacing:.08em;text-transform:uppercase;text-align:center;border-radius:5px;padding:2px 4px;margin-top:1px;color:var(--dim);border:1px solid var(--line);background:rgba(255,255,255,.03)}
 .sg .act.move .k{color:#9fd1ff;border-color:rgba(47,143,240,.45);background:rgba(47,143,240,.12)}
 .sg .act.sup .k{color:#ffc39a;border-color:rgba(255,138,42,.45);background:rgba(255,138,42,.1)}
 .sg .act.tasks .k,.sg .act.card .k{color:#c9b3ff;border-color:rgba(155,77,255,.45);background:rgba(155,77,255,.12)}
@@ -373,7 +380,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .sgrp>summary{list-style:none;display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;padding:10px 12px;cursor:pointer}
 .sgrp>summary::-webkit-details-marker{display:none}
 .sgrp>summary::after{content:"▸";grid-column:3;grid-row:1;justify-self:end;color:var(--muted);display:none}
-.sgno{font:600 16px Oswald,sans-serif;letter-spacing:.03em;white-space:nowrap}
+.sgno{font:600 16px var(--font-display);letter-spacing:.03em;white-space:nowrap}
 .sgt{min-width:0;display:flex;flex-direction:column}.sgt b{font-size:14.5px}.sgt>span{font-size:12.5px;color:var(--muted);line-height:1.35}
 .sgt .sgm{color:var(--text);opacity:.8}
 .sgp{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--c);color:#fff;white-space:nowrap}
@@ -386,6 +393,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
 .sgedit{margin-top:8px}
 @media (max-width:600px){ .sgrp>summary{grid-template-columns:1fr auto} .sgno{grid-column:1/-1} }
 </style>
+<link rel="stylesheet" href="ui.css" id="gvcUi">
 </head>
 <body>
 <header>
@@ -408,6 +416,7 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <span class="status" id="status">Loading…</span>
       <button class="btn undo" id="undoBtn" type="button" title="Undo (Ctrl+Z)">↶ Undo</button>
+      <!-- "All jobs ↓" jump button removed (Kyle, Nov 15): it only scrolled to the All jobs table, which is already on screen on desktop; the Overview tab is that list -->
       <button class="btn primary" id="addJob" type="button">+ New job</button>
     </div>
   </div>
@@ -415,21 +424,38 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
   <section class="list" id="allJobs">
     <div class="listhead" id="allJobsHead" role="button" tabindex="0" aria-expanded="true" title="Show / hide">
       <h3><span class="caret">▾</span> All jobs <span class="n" id="allJobsN"></span></h3>
-      <div class="legend"><span><span class="sw" style="background:var(--pipe)"></span>Pipeline</span><span><span class="sw" style="background:var(--order)"></span>Orders</span><span><span class="sw" style="background:var(--build)"></span>Shop floor</span></div>
     </div>
-    <div class="trk" id="track"></div>
+    <div class="jlf" id="ajFilt" role="group" aria-label="Which jobs"></div>
+    <div class="jll" id="track"></div>
   </section>
   <div style="text-align:center;margin:-20px 0 30px"><button class="signout" type="button" id="signOut">Sign out</button></div>
   </div>
 </div>
 <button class="btn primary chatfab" type="button" id="chatFab" hidden>💬 Ask Claude</button>
-<section class="chatp" id="chatP" aria-label="Ask Claude"><div class="ch">Ask Claude<span class="sp"></span><button type="button" id="msBtn" title="Connect kyle.gvc Outlook so Claude can read email and write drafts">✉ Outlook</button><button type="button" id="chatClear">Clear</button><button type="button" id="chatX" style="font-size:18px">✕</button></div>
+<section class="chatp" id="chatP" aria-label="Ask Claude"><div class="ch">Ask Claude<span class="sp"></span><button type="button" id="msBtn" title="Connect kyle.gvc Outlook so Claude can read email and write drafts">✉ Outlook</button><button type="button" id="chatClear">Clear</button><button type="button" id="chatX" style="font-size:18px" aria-label="Close Ask Claude">✕</button></div>
 <div class="cm" id="chatM"></div>
 <div class="ci"><textarea id="chatIn" placeholder="Ask about jobs, plan the day, add a to-do…" aria-label="Message"></textarea><button class="btn" type="button" id="chatMic" title="Talk" aria-label="Talk to Claude">🎤</button><button class="btn primary" type="button" id="chatGo">Send</button></div></section>
 <div class="toast" id="toast" role="status"><span id="toastTx"></span><button type="button" id="toastUndo">Undo</button></div>
 <div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"><div class="dlg" id="dlg"></div></div>
 
 <script>
+/* ---------- Hooks (redesign stage 3, Nov 14) ----------
+   The screens add to the core here instead of overwriting core functions with wrappers (the old
+   "const _render=render; render=function(){...}" chain). The lists run in the order the scripts load - the same order
+   the wrappers used to run - so nothing behaves differently:
+     render:before   newest script first (the outside of the old chain): screen redirects, cache resets
+     render:view     a screen that draws the whole page itself (Robin's Home); returning true skips the normal render
+     render:after    oldest script first. {core:true} = only after the normal render, not after a render:view screen
+     autoTodos       fn(list) -> list, oldest first; worked out once per render
+     drawDlg:after   oldest first, after the job card is drawn
+     renderInv / renderCrew   fn(...) -> true when the screen drew it instead
+     renderInv:after          after the normal inventory screen
+     back            phone Back / Esc chain, lowest {order} first; fn() -> true when it handled it (see back.js)
+   GVC.debug() lists what's registered. */
+const GVC=window.GVC={H:{},
+  on(name,fn,opt={}){ const L=this.H[name]=this.H[name]||[]; L.push({fn,core:false,order:50,...opt,src:(document.currentScript&&document.currentScript.src||"index.html").split("/").pop()}); return fn; },
+  list(name){ return this.H[name]||[]; },
+  debug(){ return Object.fromEntries(Object.entries(this.H).map(([k,L])=>[k,L.map(h=>h.src+(h.core?" (core)":"")+(k==="back"?" @"+h.order:""))])); }};
 const BOARDS=[
  {k:"pipeline",t:"Pipeline",c:"var(--pipe)",stages:[
    {k:"released",t:"Released to Me",c:"var(--pipe)"},
@@ -463,6 +489,22 @@ const ST={
  approved:{t:"Approved / PO",c:"#9b4dff"}, production:{t:"In production",c:"#9b4dff"}, ready:{t:"Ready for pickup",c:"#22c3e6"},
  arrived:{t:"Arrived - not counted",c:"#f5b041"}, received:{t:"Received - counted",c:"#3ad06b"}, hold:{t:"On hold",c:"#6c727a"}, declined:{t:"Declined",c:"#4a4f56"}
 };
+/* Revised quotes (stage 7, Kyle Nov 14): a line that already has a quote (quote # / total) but is back to waiting
+   (sent / replied) is waiting on a REVISED quote - the old quote is kept and shown as "awaiting revision".
+   The reply clock runs from the latest request (x.reqAt, set by "Ask for a revised quote"; older lines fall back to
+   their last update), not from the first send. */
+const quoteRev=x=>!!x&&["sent","replied"].includes(x.status)&&!!(x.quoteNo||x.total||x.prevQuote)&&!x.po;
+const askedAt=x=>x.reqAt||(quoteRev(x)?(x.updated||x.sent):x.sent);
+/* received without a checklist (stage 7): received, but nothing was counted against a list */
+const recvNoList=x=>!!x&&x.status==="received"&&!!x.recvNoList;
+const supT=x=>recvNoList(x)?"Received - not counted":quoteRev(x)?"Revised quote requested":(ST[x.status]||ST.sent).t;
+window.quoteRev=quoteRev; window.askedAt=askedAt; window.supT=supT; window.recvNoList=recvNoList;
+/* the kept quote on a line waiting for a revision, and how a no-checklist delivery was received (stage 7) */
+const supExtraHTML=x=>{ const out=[]; const d=t=>t?new Date(t).toLocaleDateString("en-CA",{month:"short",day:"numeric"}):"";
+  if(quoteRev(x)){ const q=x.prevQuote||{no:x.quoteNo,total:x.total}; out.push(`<div class="sxq">Previous quote${q.no?" #"+esc(q.no):""}${q.total?" · "+esc(q.total):""} - <b>awaiting revision</b>${askedAt(x)?" (asked "+d(askedAt(x))+")":""}</div>`); }
+  if(recvNoList(x)){ const r=x.recvNoList; out.push(`<div class="sxq warn">Received without a checklist${r.by?" by "+esc(r.by):""}${r.at?" "+d(r.at):""} - quantities not verified.${r.what?" Arrived: "+esc(r.what):""}</div>`); }
+  return out.join(""); };
+window.supExtraHTML=supExtraHTML;
 const CREW=["Kyle","Colton","Aaron","Cooper"];
 const AST={bend:{t:"Waiting on bending",c:"#e04fa0"},ready:{t:"Ready to start",c:"#2f8ff0"},prog:{t:"In progress",c:"#ff8a2a"},qc:{t:"Inspection",c:"#9b4dff"},done:{t:"Done",c:"#3ad06b"}};
 const FAB_STAGES=["bending","fab","paint","assembly"];
@@ -515,11 +557,11 @@ function flags(j){
   if(j.sample) out.push(`<span class="flag sample">Sample</span>`);
   if(s==="quote"){
     a.filter(x=>x.status==="quote").forEach(x=>out.push(`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`));
-    a.filter(x=>x.status==="sent"&&days(x.sent)>=2).forEach(x=>out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`));
+    a.filter(x=>x.status==="sent"&&days(askedAt(x))>=2).forEach(x=>out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(askedAt(x))}d</span>`));
   }
   if(s==="pickup") out.push(`<span class="flag go">Pick up${a[0]?" at "+esc(first(a[0].name)):""}</span>`);
   offOrders(j).forEach(x=>{ if(x.status==="quote") out.push(`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`);
-    else if(x.status==="sent"&&days(x.sent)>=2) out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`);
+    else if(x.status==="sent"&&days(askedAt(x))>=2) out.push(`<span class="flag late">${esc(first(x.name))}: no reply ${days(askedAt(x))}d</span>`);
     else if(x.status==="ready") out.push(`<span class="flag go">Pick up at ${esc(first(x.name))}</span>`);
     else if(x.status==="arrived") out.push(`<span class="flag count">Count &amp; check ${esc(first(x.name))}</span>`); });
   if(s==="arrived") out.push(`<span class="flag count">Count &amp; check</span>`);
@@ -545,8 +587,8 @@ function supGroupsHTML(j,stOpts,editBox){
     const main=isPo?(L.find(o=>o.x.po===key)||L[0]):(L.find(o=>!done(o.x))||L[0]);
     return {key,L,isPo,isRfq,main,closed:L.every(o=>done(o.x))}; })
     .sort((a,b)=>(a.closed-b.closed)||String(b.main.x.updated||b.main.x.sent||"").localeCompare(String(a.main.x.updated||a.main.x.sent||"")));
-  const pill=x=>{ const st=ST[x.status]||ST.sent; return `<span class="sgp" style="--c:${st.c}">${esc(x.status==="declined"&&x.rfq?"Quoted - not chosen":st.t)}</span>`; };
-  return groups.map(g=>{ const r=(g.isPo||g.isRfq)&&rec(g.key); const x=g.main.x;
+  const pill=x=>{ const st=ST[x.status]||ST.sent; return `<span class="sgp" style="--c:${st.c}">${esc(x.status==="declined"&&x.rfq?"Quoted - not chosen":supT(x))}</span>`; };
+  const one=g=>{ const r=(g.isPo||g.isRfq)&&rec(g.key); const x=g.main.x;
     const rfqNo=g.isPo?((r&&r.rfq_no)||(g.L.find(o=>o.x.rfq)||{x:{}}).x.rfq):null;
     const desc=(r&&r.title)||x.scope||"";
     const D=(r&&r.deliveries)||[]; const dl=D.length?` · ${D.filter(d=>d.status==="received").length} of ${D.length} deliveries in`:"";
@@ -561,18 +603,24 @@ function supGroupsHTML(j,stOpts,editBox){
         ${g.L.map(({x,k})=>`<div class="sgl"><div class="sgh"><b>${esc(x.name)}</b>${x.contact?` <span class="sgd">· ${esc(x.contact)}</span>`:""} ${pill(x)}
             <span style="flex:1"></span>${window.openCount&&!["sent","replied","quote","declined"].includes(x.status)?`<button class="btn sm${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">Count</button>`:""}<button class="btn sm" type="button" data-sged="${k}">✎ Edit</button></div>
           <div class="sgf">${[x.quoteNo?`<div><span>${x.po?"Their #":"Quote #"}</span>${esc(x.quoteNo)}</div>`:"",x.total?`<div><span>Total</span>${esc(x.total)}</div>`:"",x.lead?`<div><span>Lead time</span>${esc(x.lead)}</div>`:"",x.sent?`<div><span>Sent</span>${fmt(x.sent)}</div>`:"",x.scope&&x.scope!==desc?`<div><span>What</span>${esc(x.scope)}</div>`:""].join("")}</div>
+          ${supExtraHTML(x)}${x.ncr?`<div class="sxq">Replacement for NCR-${String(x.ncr).padStart(3,"0")}</div>`:""}
           ${x.note?`<div class="sgn">${esc(x.note)}</div>`:""}
           <div class="sgedit" data-sge="${k}" hidden>${editBox(x,k)}</div></div>`).join("")}
         ${D.length?`<div class="sgdl"><b>Deliveries</b>${D.map(d=>`<div><span class="sgp" style="--c:${d.status==="received"?"#3ad06b":d.status==="arrived"?"#f5b041":d.status==="ready"?"#22c3e6":"#9b4dff"}">${esc(({production:"In production",ready:"Ready",arrived:"Arrived",received:"Received"})[d.status]||d.status)}</span> ${esc(d.ref||"?")}${d.what?` · ${esc(d.what)}`:""}</div>`).join("")}</div>`:""}
         ${g.isPo||g.isRfq?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button class="btn sm" type="button" data-opo="${esc(g.key)}">Open ${esc(g.key)} ›</button>${rfqNo?`<button class="btn sm" type="button" data-opo="${esc(rfqNo)}">Open ${esc(rfqNo)} ›</button>`:""}</div>`:""}
-      </div></details>`; }).join("");
+      </div></details>`; };
+  // open orders first; received / declined ones fold away as history (Kyle's review, Nov 14)
+  const live=groups.filter(g=>!g.closed), old=groups.filter(g=>g.closed);
+  return (live.length?live.map(one).join(""):`<div class="empty" style="text-align:left">No open orders on this job.</div>`)
+    +(old.length?`<details class="sgold" ${supOldOpen?"open":""}><summary>Received &amp; declined · ${old.length}</summary>${old.map(one).join("")}</details>`:"");
 }
+let supOldOpen=false;
 function supLine(x,stage){
   const st=ST[x.status]||ST.sent; let extra="";
-  if(x.status==="sent"&&x.sent){const d=days(x.sent);extra=d<1?" · today":" · "+d+"d";}
+  if(x.status==="sent"&&askedAt(x)){const d=days(askedAt(x));extra=d<1?" · today":" · "+d+"d";}
   if(x.status==="quote"&&x.quoteNo) extra=" · #"+esc(x.quoteNo);
   if(x.lead&&["approved","production"].includes(x.status)) extra+=" · "+esc(x.lead);
-  const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:st.t;
+  const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:supT(x);
   if(x.po||x.rfq) extra+=" · "+esc(x.po||x.rfq);
   return `<div class="sup"><span class="dot" style="background:${st.c}"></span><span class="who">${esc(x.name)}</span><span class="st">${t}${extra}</span></div>`;
 }
@@ -589,45 +637,194 @@ function cardTitle(j){
   const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
   return `<div class="nm">${num?`<span class="jnum">${esc(num)}</span>`:""}<span class="jname">${esc(rest)}</span></div>`;
 }
-/* All jobs table (also drawn on Home) */
+/* All jobs (redesign stage 6, Kyle Nov 14): active jobs by default, Needs attention / Completed filters.
+   Computer: one compact row per job (job #, project, stage, tasks done, what needs attention). Phone: a card per job.
+   The stage-by-stage grid opens per job with "Stages". Real counts only. (Also drawn on Home.) */
+let ajF="active"; const ajOpen=new Set();
+const finAt=j=>j.doneAt||j.archivedAt||([...(j.log||[])].reverse().find(l=>/\bDone\b|Archived/.test(l.text||""))||{}).at||null;
+const STG_SHORT=t=>t.replace(" - To Count","").replace("Ready to Pick Up","Pick up").replace("Preparing Order","Preparing").replace("Quote Requested","Quote").replace("In Production","In prod.").replace("Released to Me","Released").replace("Check Drawings","Drawings").replace("Assembly / Install","Assembly");
+function ajGrid(j){
+  const i=SIDX[j.stage]??0, also=alsoIn(j).map(k=>SIDX[k]);
+  return `<div class="trk jlgrid"><div class="cells lbl" style="--n:${STAGES.length}">${STAGES.map(s=>`<div title="${s.bt}: ${s.t}">${STG_SHORT(s.t)}</div>`).join("")}</div>
+    <div class="cells" style="--n:${STAGES.length}">${STAGES.map((x,xi)=>`<div class="cell ${xi<i&&!also.includes(xi)?"past":xi===i||also.includes(xi)?"now":""}" title="${x.bt}: ${x.t}" style="${xi<=i||also.includes(xi)?`background:${x.bc};--cc:${x.bc}`:""}"></div>`).join("")}</div>
+    <div class="legend">${BOARDS.map(b=>`<span><span class="sw" style="background:${b.c}"></span>${b.t}</span>`).join("")}</div></div>`;
+}
+function ajNeeds(j){
+  const out=[];
+  if(!isCrewish()&&!j.archived&&j.stage!=="done"&&needsAttention(j)) out.push(...flags(j).filter(f=>!/flag sample/.test(f)));
+  const n=j.archived?0:window.ncrOpenN?window.ncrOpenN(j):(j.ncrs||[]).filter(x=>!x.closed).length;
+  if(n) out.push(`<span class="flag late">${n} open NCR${n===1?"":"s"}</span>`);
+  return out;
+}
+function ajRow(j){
+  const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
+  const A=j.assemblies||[], dn=A.filter(a=>a.status==="done").length;
+  const worked=!j.archived&&j.stage!=="done"&&(ONGOING(j)||stOf(j).board==="build"||A.some(a=>a.status!=="done"&&String(a.who||"").trim()));
+  const jc=worked&&window.jobColor?window.jobColor(j.id):"";
+  let stg;
+  if(ONGOING(j)) stg=`<span class="jlst ong">Shop</span><span class="jlsb">ongoing · punch in any time</span>`;
+  else if(!j.archived&&j.stage!=="done"&&lifeOf(j)==="planned") stg=`<span class="jlst" style="--c:#8e96a3">Planned</span><span class="jlsb">${esc(planStatus(j))}</span>`;
+  else if(j.stage==="done"||j.archived){ const f=finAt(j); stg=`<span class="jlst" style="--c:var(--green)">Done${f?" "+new Date(f).toLocaleDateString("en-CA",{month:"short",day:"numeric"}):""}</span>${j.archived?`<span class="jlsb">archived</span>`:""}`; }
+  else { const s=stOf(j); stg=`<span class="jlst" style="--c:${s.bc}">${esc([s,...alsoIn(j).map(k=>STAGES[SIDX[k]])].map(x=>x.t).join(" + "))}</span><span class="jlsb">${esc(s.bt)}</span>`; }
+  const nd=ajNeeds(j); const open=ajOpen.has(j.id);
+  return `<div class="jlrow${nd.length?" att":""}${ONGOING(j)?" ongo":""}" data-aj="${esc(j.id)}">
+    <button type="button" class="jlo" data-id="${esc(j.id)}" title="Open ${esc(j.name)}">
+      <span class="jln">${num?`<span class="jnum">${esc(num)}</span>`:`<span class="jnum none">no #</span>`}</span>
+      <span class="jlp">${jc?`<i class="jc" style="background:${jc}"></i>`:""}${esc(rest)}${j.sample?' <span class="jlsb">(sample)</span>':""}</span>
+      <span class="jls">${stg}</span>
+      <span class="jlt">${A.length?`<b>${dn} of ${A.length}</b> tasks done`:`<span class="jlsb">No tasks</span>`}</span>
+      <span class="jlnd">${nd.join("")}</span>
+    </button>
+    ${ONGOING(j)?`<span class="jlx0"></span>`:`<button type="button" class="jlx" data-ajx="${esc(j.id)}" aria-expanded="${open}" title="Show the stages">Stages <span aria-hidden="true">▾</span></button>`}
+    ${open&&!ONGOING(j)?ajGrid(j):""}
+  </div>`;
+}
+/* Job lifecycle (stage 8, Kyle Nov 14) - separate from a job's stages, tasks and orders:
+   Active = being built / worked on · Planned = upcoming (can be quoted / ordered for without being active) ·
+   Shop = ongoing shop jobs (Inventory, Shop cleanup - a purpose, not "unbillable") · Completed = done / archived.
+   `j.life` ("planned" / "active") is set by Kyle and always wins; without it: on the Shop floor = Active, else Planned. */
+const PLAN_ST=["Upcoming","Waiting on release","Released to me","Getting quotes","Ready to start"];
+const lifeOf=j=>j.archived||j.stage==="done"?"done":ONGOING(j)?"shop":j.life==="active"||j.life==="planned"?j.life
+  :stOf(j).board==="build"?"active":"planned";   // stage 8 review: started tasks (drawings, quoting, early purchasing) don't make a job Active - only the Shop floor or Kyle's choice
+const planStatus=j=>j.planStatus||(j.stage==="released"?"Upcoming":j.stage==="drawings"?"Checking drawings":j.stage==="dxfs"?"Making DXFs":stOf(j).board==="ordering"?"Getting quotes / ordering":"Upcoming");
+window.lifeOf=lifeOf; window.planStatus=planStatus;
+/* the job card says whether a job is Planned or Active; Kyle switches it (stage 8) */
+function lifeRow(j){
+  const L=lifeOf(j), admin=isAdminRole(); if(L!=="planned"&&L!=="active") return "";
+  if(L==="planned") return `<div class="jlife"><span class="ostat" style="--c:#8e96a3">Planned</span>${admin?`<label class="jlifel">Planning status<select id="jPlanSt">${[...new Set([planStatus(j),...PLAN_ST])].map(t=>`<option ${t===planStatus(j)?"selected":""}>${esc(t)}</option>`).join("")}</select></label><button class="btn sm primary" type="button" id="jStart">Start job - make it active</button>`:`<span class="jlsb">${esc(planStatus(j))}</span>`}</div>`;
+  return `<div class="jlife"><span class="ostat" style="--c:var(--green)">Active</span><span class="jlsb">being built</span>${admin?`<span style="flex:1"></span><button class="btn sm ghost" type="button" id="jToPlan">Move back to Planned</button>`:""}</div>`;
+}
+GVC.on("drawDlg:after",()=>{ const j=job(); if(!j) return; const D=$("#dlg");
+  const save=async(label,fn)=>{ const jj=structuredClone(job()); fn(jj); jj.log=[...(jj.log||[]),{at:new Date().toISOString(),text:label}]; await put(jj,label); };
+  const ps=D.querySelector("#jPlanSt"); if(ps) ps.onchange=()=>save(`Planning status: ${ps.value}`,jj=>{ jj.life="planned"; jj.planStatus=ps.value; });
+  const st=D.querySelector("#jStart"); if(st) st.onclick=()=>{ if(st.disabled) return; st.disabled=true; save("Job started - now Active",jj=>{ jj.life="active"; }); };
+  const tp=D.querySelector("#jToPlan"); if(tp) tp.onclick=()=>{ if(tp.disabled) return; tp.disabled=true; save("Moved back to Planned",jj=>{ jj.life="planned"; }); };
+});
 function drawTrack(){
-  // finished jobs stay on the All jobs table for 2 weeks after they're done, archived or not (Kyle, 2026-11-04)
-  const finAt=j=>j.doneAt||j.archivedAt||([...(j.log||[])].reverse().find(l=>/\bDone\b|Archived/.test(l.text||""))||{}).at||null;
-  const recentFin=archivedJobs.filter(j=>!jobs.some(x=>x.id===j.id)&&finAt(j)&&Date.now()-new Date(finAt(j)).getTime()<14*864e5);
-  const sorted=[...jobs,...recentFin].sort((a,b)=>(ONGOING(a)-ONGOING(b))||(SIDX[a.stage]??0)-(SIDX[b.stage]??0)||(a.stage==="done"&&b.stage==="done"?String(finAt(b)||"").localeCompare(String(finAt(a)||"")):(a.order||0)-(b.order||0)));
-  $("#track").style.setProperty("--n",STAGES.length);
-  $("#track").innerHTML=`<div class="hdr"></div><div class="cells lbl" style="--n:${STAGES.length}">${STAGES.map(s=>`<div title="${s.bt}: ${s.t}">${s.t.replace(" - To Count","").replace("Ready to Pick Up","Pick up").replace("Preparing Order","Preparing").replace("Quote Requested","Quote").replace("In Production","In prod.").replace("Released to Me","Released").replace("Check Drawings","Drawings").replace("Assembly / Install","Assembly")}</div>`).join("")}</div><div class="hdr"></div>`+
-   sorted.map(j=>{const i=SIDX[j.stage]??0;const s=STAGES[i];
-    if(ONGOING(j)){ const oc=window.jobColor?window.jobColor(j.id):"#2fb5a8";
-      return `<button class="jn" type="button" data-id="${esc(j.id)}" title="${esc(j.name)}"><i class="jc" style="background:${oc};box-shadow:0 0 8px ${oc}"></i>${esc(j.name)}</button>
-       <div class="cells"><div class="obar" style="--oc:${oc}">ONGOING · PUNCH IN ANY TIME</div></div><div class="where">Ongoing</div>`; }
-    const also=alsoIn(j).map(k=>SIDX[k]);
-    // same colour as the job's blocks on the week plan, for jobs people are working on (shop floor, or someone on a task) (Kyle, Nov 4)
-    const worked=j.stage!=="done"&&!j.archived&&(stOf(j).board==="build"||(j.assemblies||[]).some(a=>a.status!=="done"&&String(a.who||"").trim()));
-    const jc=worked&&window.jobColor?window.jobColor(j.id):"";
-    return `<button class="jn" type="button" data-id="${esc(j.id)}" title="${esc(j.name)}">${jc?`<i class="jc" style="background:${jc};box-shadow:0 0 8px ${jc}"></i>`:`<i class="jc"></i>`}${esc(j.name)}${j.sample?' <span style="color:var(--dim)">(sample)</span>':""}</button>
-     <div class="cells" style="--n:${STAGES.length}">${STAGES.map((x,xi)=>`<div class="cell ${xi<i&&!also.includes(xi)?"past":xi===i||also.includes(xi)?"now":""}" title="${x.bt}: ${x.t}" style="${xi<=i||also.includes(xi)?`background:${x.bc};--cc:${x.bc}`:""}"></div>`).join("")}</div>
-     <div class="where">${j.stage==="done"&&finAt(j)?`Done ${new Date(finAt(j)).toLocaleDateString("en-CA",{month:"short",day:"numeric"})}${j.archived?" · archived":""}`:`${s.bt} · ${[s,...also.map(k=>STAGES[k])].map(x=>x.t).join(" + ")}`}</div>`;}).join("");
-  $("#track").querySelectorAll(".jn").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
+  const T=$("#track"), F=$("#ajFilt"); if(!T) return;
+  const notDone=jobs.filter(j=>j.stage!=="done"&&!j.archived);
+  const act=notDone.filter(j=>lifeOf(j)==="active"), plan=notDone.filter(j=>lifeOf(j)==="planned"), shop=notDone.filter(j=>lifeOf(j)==="shop");
+  const doneAll=[...jobs.filter(j=>j.stage==="done"&&!j.archived),...archivedJobs.filter(j=>!jobs.some(x=>x.id===j.id))]
+    .sort((a,b)=>String(finAt(b)||"").localeCompare(String(finAt(a)||"")));
+  const att=notDone.filter(j=>ajNeeds(j).length);
+  if(ajF==="att"&&!att.length) ajF="active";
+  const BR={build:0,ordering:1,pipeline:2};
+  const sortLive=L=>[...L].sort((a,b)=>((BR[stOf(a).board]??3)-(BR[stOf(b).board]??3))||((SIDX[b.stage]??0)-(SIDX[a.stage]??0))||((a.order||0)-(b.order||0)));
+  const CAP=20;
+  const chips=[["active","Active",act.length],["planned","Planned",plan.length],["shop","Shop",shop.length],...(att.length?[["att","Needs attention",att.length]]:[]),["done","Completed",doneAll.length]];
+  F.innerHTML=chips.map(([k,t,n])=>`<button type="button" class="jlc${k==="att"?" warn":""}" data-ajf="${k}" aria-pressed="${ajF===k}">${t} <span>${n}</span></button>`).join("");
+  let L, foot="";
+  if(ajF==="done"){ L=doneAll.slice(0,CAP); if(doneAll.length>CAP) foot=`<button type="button" class="btn sm ghost jlall" id="ajAll">See all ${doneAll.length} in Finished jobs</button>`; }
+  else L=sortLive(ajF==="att"?att:ajF==="planned"?plan:ajF==="shop"?shop:act);
+  const head=`<div class="jlhd" aria-hidden="true"><span>Job #</span><span>Project</span><span>${ajF==="planned"?"Planning status":"Stage"}</span><span>Tasks</span><span>Needs attention</span><span></span></div>`;
+  const EMPTY={done:"No finished jobs yet.",planned:"Nothing planned. New jobs from Randy land here until they start.",shop:"No shop jobs.",active:"Nothing active right now - start a planned job when it's released.",att:"Nothing needs attention."};
+  T.innerHTML=L.length?head+L.map(ajRow).join("")+foot:`<div class="empty">${EMPTY[ajF]||""}</div>`;
+  T.querySelectorAll(".jlo").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
+  T.querySelectorAll("[data-ajx]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const id=el.dataset.ajx; ajOpen.has(id)?ajOpen.delete(id):ajOpen.add(id); drawTrack(); });
+  F.querySelectorAll("[data-ajf]").forEach(el=>el.onclick=()=>{ ajF=el.dataset.ajf; drawTrack(); });
+  const all=$("#ajAll"); if(all) all.onclick=()=>{ cur="archive"; try{history.replaceState(null,"","#archive")}catch(e){} render(); window.scrollTo({top:0}); };
+  const n=$("#allJobsN"); if(n) n.textContent=ajF==="done"?`${doneAll.length} completed${doneAll.length>CAP?` · newest ${CAP} shown`:""}`
+    :ajF==="att"?`${att.length} need attention`
+    :`${act.length} active · ${plan.length} planned · ${shop.length} shop`;
 }
 window.drawTrack=drawTrack;
+
+/* ---------- Orders board (redesign stage 2, Kyle Nov 14) ----------
+   Every column shows its name and count (0 too) and, separately, how many need you. Each order on a card is its own
+   row: tap it to open THAT order (its PO / RFQ, or the supplier line) - tap the job name for the whole job card.
+   On a phone or narrow screen a stage picker shows one column at a time instead of squeezing six side by side. */
+// the stage you picked stays picked while the app is open; otherwise it opens on the first stage that needs you
+let ordSel=null, ordPicked=false;
+function ordSelPick(COLS){
+  if(ordPicked&&COLS.some(c=>c.s.k===ordSel)) return;
+  const c=COLS.find(c=>c.att)||COLS.find(c=>c.n)||COLS[0]; ordSel=c.s.k;
+}
+const jobsN=n=>`${n} job${n===1?"":"s"}`;
+function ordNeeds(cards){
+  const k={late:0,quote:0,pick:0,count:0};
+  cards.forEach(({j,rows,s})=>{ const act=rows.filter(ACTIVE);
+    act.forEach(x=>{ if(x.status==="sent"&&days(askedAt(x))>=2) k.late++; else if(x.status==="quote") k.quote++; else if(x.status==="ready") k.pick++; else if(x.status==="arrived") k.count++; });
+    if(j.stage===s.k&&s.k==="pickup"&&!act.some(x=>x.status==="ready")) k.pick++;
+    if(j.stage===s.k&&s.k==="arrived"&&!act.some(x=>x.status==="arrived")) k.count++; });
+  return [k.late?`<span class="npill late">${k.late} overdue</span>`:"",k.quote?`<span class="npill quote">${k.quote} quote${k.quote>1?"s":""} to review</span>`:"",
+    k.pick?`<span class="npill pick">${k.pick} to pick up</span>`:"",k.count?`<span class="npill cnt">${k.count} to count</span>`:""].join("");
+}
+function ordRow(j,x,stage){
+  const st=ST[x.status]||ST.sent; const t=stage==="paint"&&PAINT_T[x.status]?PAINT_T[x.status]:supT(x);
+  const bits=[]; let late=false; if(x.status==="sent"&&askedAt(x)){ const d=days(askedAt(x)); late=d>=2; const rv=quoteRev(x); bits.push(d<1?(rv?"revised quote asked today":"sent today"):late?`no reply ${d}d`:rv?`revised quote asked ${d}d ago`:`sent ${d}d ago`); }
+  if(x.lead&&["approved","production"].includes(x.status)) bits.push(esc(x.lead));
+  const ref=x.po||x.rfq||(x.quoteNo&&x.status==="quote"?"#"+x.quoteNo:"");
+  return `<button type="button" class="orow ${x.status==="declined"?"dim":""}" data-ol="${esc(j.id)}|${esc(x.id||"")}" aria-label="Open order: ${esc(x.name)}${ref?" "+esc(ref):""} - ${esc(t)}">
+    <span class="ow"><b>${esc(x.name)}</b>${ref?`<span class="oref">${esc(ref)}</span>`:""}</span>
+    <span class="ost"><span class="ostat" style="--c:${st.c}">${esc(t)}</span>${bits.length?`<span class="oage${late?" late":""}">${bits.join(" · ")}</span>`:""}</span><span class="ochev" aria-hidden="true">›</span></button>`;
+}
+function ordCard(j,s,rows,sub,flagsHtml,countHtml){
+  const one=rows.length===1?`${esc(j.id)}|${esc(rows[0].id||"")}`:"";
+  return `<article class="card ocard" style="--c:${s.c}" data-id="${esc(j.id)}" ${one?`data-one="${one}"`:""}>
+    <button type="button" class="ojob" data-oj="${esc(j.id)}" title="Open the whole job">${cardTitle(j)}</button>
+    ${sub?`<div class="offtag">${sub}</div>`:""}
+    ${rows.length?`<div class="orows">${rows.map(x=>ordRow(j,x,j.stage)).join("")}</div>`:`<div class="offtag">No suppliers on this job yet</div>`}
+    ${flagsHtml?`<div class="oflags">${flagsHtml}</div>`:""}${countHtml}</article>`;
+}
+const cntBtn=(j,x,label)=>`<button type="button" class="cntb" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ ${label}</button>`;
+function ordCol(s,list,extra,n,att){
+  const cards=list.map(j=>{
+    const act=(j.suppliers||[]).filter(ACTIVE);
+    const cnt=s.k==="arrived"||s.k==="pickup"?(act.filter(x=>x.status==="arrived"||x.status==="ready").map(x=>cntBtn(j,x,"Count "+esc(first(x.name)))).join("")||(act[0]?cntBtn(j,act[0],"Count it"):"")):"";
+    return ordCard(j,s,j.suppliers||[],j.summary?`<span class="osum">${esc(j.summary)}</span>`:"",flags(j).filter(f=>!/class="flag (go|late|count)"/.test(f)).join(""),cnt);
+  }).concat(extra.map(j=>{ const os=offOrders(j).filter(x=>SUP_COL[x.status]===s.k);
+    const fl=os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:"").join("");
+    const cnt=os.filter(x=>x.status==="ready"||x.status==="arrived").map(x=>cntBtn(j,x,"Count "+esc(first(x.name)))).join("");
+    return ordCard(j,s,os,ONGOING(j)?"Ongoing job · order":`${esc(stOf(j).bt)} · ${esc(stOf(j).t)} - extra order`,fl,cnt); }));
+  const needs=ordNeeds(list.map(j=>({j,rows:j.suppliers||[],s})).concat(extra.map(j=>({j,rows:offOrders(j).filter(x=>SUP_COL[x.status]===s.k),s:{k:"_"}}))));
+  return `<section class="col ocol ${n?"":"emptycol"} ${s.k===ordSel?"sel":""}" style="--c:${s.c}" aria-label="${esc(s.t)}: ${jobsN(n)}">
+    <div class="colhead"><div class="chrow"><h2>${esc(s.t)}</h2><span class="ccount">${jobsN(n)}</span></div>${needs?`<div class="cpills">${needs}</div>`:""}</div>
+    <div class="cards">${cards.join("")||`<div class="oempty">No orders</div>`}</div></section>`;
+}
+function wireOrdBoard(){
+  const B=$("#board");
+  B.querySelectorAll("[data-osel]").forEach(b=>b.onclick=()=>{ ordSel=b.dataset.osel; ordPicked=true;
+    B.querySelectorAll(".ostg").forEach(x=>{ const on=x.dataset.osel===ordSel; x.classList.toggle("on",on); x.setAttribute("aria-selected",on); });
+    B.querySelectorAll(".ocol").forEach((c,i)=>c.classList.toggle("sel",BOARDS[1].stages[i].k===ordSel)); });
+  { const st=B.querySelector(".ostages"), on=st&&st.querySelector(".ostg.on"); if(on&&st.scrollWidth>st.clientWidth){ const l=on.offsetLeft-st.offsetLeft-8; if(l<st.scrollLeft||l+on.offsetWidth>st.scrollLeft+st.clientWidth) st.scrollLeft=l; } }
+  const openRow=v=>{ const [jid,sid]=v.split("|"); if(window.openOrderLine) window.openOrderLine(jid,sid); else openJob(jid); };
+  B.querySelectorAll("[data-ol]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); openRow(b.dataset.ol); });
+  B.querySelectorAll(".ojob").forEach(b=>b.onclick=e=>{ e.stopPropagation(); openJob(b.dataset.oj); });
+  // tapping the card itself: its one order, or the job when it has several
+  B.querySelectorAll(".ocard").forEach(c=>c.onclick=e=>{ if(e.target.closest("button,a,input,select")) return; if(c.dataset.one) openRow(c.dataset.one); else openJob(c.dataset.id); });
+}
+/* render = hooks around the core render (see GVC above) */
 function render(){
+  const BF=GVC.list("render:before"); for(let i=BF.length-1;i>=0;i--) BF[i].fn();
+  autoTodos.reset();                       // to-dos are worked out once per render
+  let custom=false; for(const h of GVC.list("render:view")) if(h.fn()){ custom=true; break; }
+  if(!custom) renderCore();
+  for(const h of GVC.list("render:after")) if(!(custom&&h.core)) h.fn();
+}
+function renderCore(){
   publishTodo();
   const crewAsm=crewItems();
   const tdCount=liveAuto().length+liveMine().length, sgNew=suggs.filter(x=>x.status==="new").length;
   $("#tabs").innerHTML=`<button class="tab ${cur==="todo"?"on":""}" style="--c:#ffd28a" role="tab" aria-selected="${cur==="todo"}" data-b="todo">To do<span class="ct">${tdCount}</span>${sgNew?`<span class="at">${sgNew} to review</span>`:""}</button>`+BOARDS.map(b=>{
     const js=b.k==="ordering"?jobs.filter(onOrdersBoard):jobs.filter(j=>!ONGOING(j)&&stOf(j).board===b.k); const at=js.filter(needsAttention).length;
-    return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct">${js.length}</span>${at?`<span class="at">${at}</span>`:""}</button>`;
+    return `<button class="tab ${cur===b.k?"on":""}" style="--c:${b.c}" role="tab" aria-selected="${cur===b.k}" data-b="${b.k}">${b.t}<span class="ct" title="${js.length} job${js.length===1?"":"s"}">${js.length}</span>${at?`<span class="at soft" title="${at} need you">${at} need you</span>`:""}</button>`;
   }).join("")+`<button class="tab ${cur==="crew"?"on":""}" style="--c:#e9e6e1" role="tab" aria-selected="${cur==="crew"}" data-b="crew">Crew<span class="ct">${crewAsm.filter(x=>x.a.status!=="done").length}</span>${liveAuto().some(t=>/^Assign \d+ assembl/.test(t.text))&&crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length?`<span class="at">${crewAsm.filter(x=>!whoList(x.a).length&&x.a.status!=="done"&&!finalLocked(x.j,x.a)).length} unassigned</span>`:""}</button>`+(window.timeTab?window.timeTab():"")+`<button class="tab ${cur==="inv"?"on":""}" style="--c:#9fb3c8" role="tab" aria-selected="${cur==="inv"}" data-b="inv">Inventory<span class="ct">${parts.length||""}</span>${parts.some(p=>p.stock_flat>0)&&liveAuto().some(t=>/sitting flat/.test(t.text))?`<span class="at" style="background:#e04fa0">${parts.reduce((a,p)=>a+(p.stock_flat||0),0)} flat</span>`:""}</button>`;
   $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{cur=t.dataset.b;try{history.replaceState(null,"","#"+cur)}catch(e){}render();});
   { const L=document.querySelector("section.list"); if(L) L.style.display=cur==="inv"?"none":""; }
   if(cur==="todo"){ renderTodo(); } else if(cur==="time"){ if(window.renderTime) window.renderTime(); } else if(cur==="ncr"){ if(window.renderNcr) window.renderNcr(); } else if(cur==="ideas"){ if(window.renderIdeas) window.renderIdeas(); } else if(cur==="archive"){ if(window.renderArchive) window.renderArchive(); } else if(cur==="revs"){ if(window.renderRevs) window.renderRevs(); } else if(cur==="inv"){ renderInv(); } else if(window.extraViews&&window.extraViews[cur]){ window.extraViews[cur](); } else if(cur==="crew"){ renderCrew(crewAsm); } else {
   const B=BOARDS.find(b=>b.k===cur); if(!B) return;   // e.g. "home" before the shell has loaded
-  $("#board").className="board";
+  const ORD=B.k==="ordering";
+  // what's in each column (same rules as before) - worked out first so the stage picker can show the counts
+  const COLS=B.stages.map(s=>{ const list=jobs.filter(j=>inCol(j,s.k)&&!(s.k==="recv"&&recvStale(j))).sort((x,y)=>(x.order||0)-(y.order||0));
+    const extra=ORD?jobs.filter(j=>offOrders(j).some(x=>SUP_COL[x.status]===s.k)).sort((x,y)=>(x.order||0)-(y.order||0)):[];
+    const att=[...list,...extra].filter(needsAttention).length;
+    const needs=ORD?ordNeeds(list.map(j=>({j,rows:j.suppliers||[],s})).concat(extra.map(j=>({j,rows:offOrders(j).filter(x=>SUP_COL[x.status]===s.k),s:{k:"_"}})))):"";
+    return {s,list,extra,n:list.length+extra.length,att,needs}; });
+  if(ORD) ordSelPick(COLS);
+  $("#board").className="board"+(ORD?" ordb":"");
   $("#board").style.gridTemplateColumns=`repeat(${B.stages.length},minmax(150px,1fr))`;
-  $("#board").innerHTML=B.stages.map(s=>{
-    const list=jobs.filter(j=>inCol(j,s.k)&&!(s.k==="recv"&&recvStale(j))).sort((x,y)=>(x.order||0)-(y.order||0));
-    const extra=B.k==="ordering"?jobs.filter(j=>offOrders(j).some(x=>SUP_COL[x.status]===s.k)).sort((x,y)=>(x.order||0)-(y.order||0)):[];
+  $("#board").innerHTML=(ORD?`<div class="ostages" role="tablist" aria-label="Order stages">${COLS.map(c=>`<button type="button" role="tab" class="ostg ${c.s.k===ordSel?"on":""}" style="--c:${c.s.c}" aria-selected="${c.s.k===ordSel}" data-osel="${c.s.k}"><span class="sw"></span>${esc(c.s.t)}<span class="ccount">${jobsN(c.n)}</span>${/npill late/.test(c.needs)?`<span class="npill late">overdue</span>`:""}</button>`).join("")}</div>`:"")+COLS.map(({s,list,extra,n,att})=>{
+    if(ORD) return ordCol(s,list,extra,n,att);
     return `<section class="col ${list.length+extra.length?"":"emptycol"}" style="--c:${s.c}"><div class="colhead"><h2>${s.t}</h2><span class="none">none</span><div class="n">${(list.length+extra.length)||""}</div></div>
       <div class="cards">${list.map(j=>`<button class="card" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
         ${cardTitle(j)}
@@ -640,16 +837,16 @@ function render(){
         ${flags(j).join("")}${s.k==="arrived"||s.k==="pickup"?(j.suppliers||[]).filter(x=>ACTIVE(x)&&(x.status==="arrived"||x.status==="ready")).map(x=>`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`).join("")||((j.suppliers||[]).filter(ACTIVE)[0]?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc((j.suppliers||[]).filter(ACTIVE)[0].id)}">☑ Count it</span>`:""):""}</button>`).join("")}${extra.map(j=>{const os=offOrders(j).filter(x=>SUP_COL[x.status]===s.k);return `<button class="card offo" type="button" style="--c:${s.c}" data-id="${esc(j.id)}">
         ${cardTitle(j)}<div class="offtag">${ONGOING(j)?"Ongoing job · order":`${esc(stOf(j).bt)} · ${esc(stOf(j).t)} - extra order`}</div>
         <div class="sups">${os.map(x=>supLine(x,"quote")).join("")}</div>
-        ${os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(x.sent)>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(x.sent)}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span><span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:x.status==="arrived"?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:"").join("")}</button>`;}).join("")}</div></section>`;
+        ${os.map(x=>x.status==="quote"?`<span class="flag you">${esc(first(x.name))} quote waiting on you</span>`:x.status==="sent"&&days(askedAt(x))>=2?`<span class="flag late">${esc(first(x.name))}: no reply ${days(askedAt(x))}d</span>`:x.status==="ready"?`<span class="flag go">Pick up at ${esc(first(x.name))}</span><span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:x.status==="arrived"?`<span class="cntb" role="button" tabindex="0" data-cntc="${esc(j.id)}|${esc(x.id)}">☑ Count ${esc(first(x.name))}</span>`:"").join("")}</button>`;}).join("")}</div></section>`;
   }).join("");
-  $("#board").querySelectorAll(".card").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
+  $("#board").querySelectorAll(".card:not(.ocard)").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
+  if(ORD) wireOrdBoard();
   $("#board").querySelectorAll("[data-cntc]").forEach(el=>{ const go=e=>{ e.stopPropagation(); e.preventDefault(); const [jid,sid]=el.dataset.cntc.split("|"); if(window.openCount) window.openCount(jid,sid); };
     el.onclick=go; el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" ") go(e); }; });
   }
   drawTrack();
-  const at=jobs.filter(needsAttention).length;
-  $("#status").textContent=jobs.length?`${jobs.length} jobs · ${at} need attention`:"No jobs yet. Add one with + New job.";
-  { const n=$("#allJobsN"); if(n) n.textContent=jobs.length?`${jobs.length}${at?` · ${at} need attention`:""}`:""; }
+  // the counts are already on the board tabs and All jobs - the line only speaks up when there are no jobs (stage 6)
+  $("#status").textContent=jobs.length?"":"No jobs yet. Add one with + New job.";
   if(openId){ if(dlgDirty()) dlgStale(); else drawDlg(); }
 }
 /* The open job card is rebuilt from the data on every refresh (other device, realtime, coming back to the app).
@@ -670,7 +867,7 @@ function dlgStale(){
   const D=$("#dlg"); if(!D||D.querySelector("#dlgStale")) return;
   const n=document.createElement("div"); n.id="dlgStale"; n.className="tnote"; n.style.cssText="color:#ffd28a;margin:8px 0 0";
   n.textContent="This job changed somewhere else while you were editing. Save puts your edits on top of that change; Close throws them away.";
-  const sb=D.querySelector(".stagebar"); if(sb) sb.after(n); else D.prepend(n);
+  const sb=D.querySelector(".jtop")||D.querySelector(".stagebar"); if(sb) sb.after(n); else D.prepend(n);
 }
 
 function crewItems(){
@@ -698,7 +895,8 @@ async function setAsm(jid,i,k,v){
   j.log=[...(j.log||[]),{at:new Date().toISOString(),text:label}];
   await put(j,label);
 }
-function renderCrew(items){
+function renderCrew(items){ for(const h of GVC.list("renderCrew")) if(h.fn(items)) return; renderCrewCore(items); }
+function renderCrewCore(items){
   $("#board").className="lanes"; $("#board").style.gridTemplateColumns="";
   const live=items.filter(x=>x.a.status!=="done");
   $("#board").innerHTML=[...CREW,""].map(c=>{
@@ -706,7 +904,7 @@ function renderCrew(items){
     return `<section class="col lane" style="--c:${c?"var(--orange)":"#6c727a"}"><div class="colhead"><h2>${c||"Unassigned"}</h2><div class="n">${mine.length||""}</div></div>
      <div class="cards">${mine.map(x=>{const st=AST[x.a.status]||AST.ready;return `<div class="card" style="--c:${st.c}">
        <div class="nm"><span class="dot" style="background:${st.c};margin-top:5px"></span><span>${esc(x.a.name)}</span></div>
-       <button class="jl" type="button" data-open="${esc(x.j.id)}">${esc(x.j.name)}</button>
+       <button class="jl" type="button" data-open="${esc(x.j.id)}">${esc(x.j.name)}${taskGroupName(x.j,x.a)?" · "+esc(taskGroupName(x.j,x.a)):""}</button>
        ${asmSel(x.j,x.i,x.a,"status")}${asmSel(x.j,x.i,x.a,"who")}</div>`;}).join("")||`<div class="empty">${c?"Nothing assigned":"All assigned"}</div>`}</div></section>`;
   }).join("");
   $("#board").querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>openJob(el.dataset.open));
@@ -736,10 +934,225 @@ $("#undoBtn").onclick=undo; $("#toastUndo").onclick=()=>{ if(todoUndoFn){ const 
 document.addEventListener("keydown",e=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); undo(); }});
 const raw=id=>{const j=jobs.find(x=>x.id===id); if(!j) return null; const {id:_,...d}=j; return d;};
 function job(){return jobs.find(j=>j.id===openId)||archivedJobs.find(j=>j.id===openId);}
-function openJob(id){openId=id;drawDlg();$("#scrim").classList.add("on");}
+/* Job card sections (redesign stage 4): Overview · Tasks · Orders · NCRs · Notes & details. A job opens on Overview,
+   or on the section you came for (openJob(id,"orders") from an order, "ncr" from the NCR log, "tasks" from the week plan).
+   Coming back to the same job from Parts & drawings / Files / a count keeps the section you were on. */
+let dlgTab="overview", dlgTabJob=null;
+const JOB_TABS=["overview","tasks","orders","ncr","notes"];
+function openJob(id,sec){ if(JOB_TABS.includes(sec)) dlgTab=sec; else if(id!==dlgTabJob) dlgTab="overview"; dlgTabJob=id; openId=id; drawDlg(); $("#scrim").classList.add("on"); }
+const isCrewish=()=>!!(window.ME&&ME.role==="crew");   // the shop crew (Colton, Aaron) - not Robin (parts), who needs the orders
+function setJobTab(k){
+  if(!JOB_TABS.includes(k)) return; if(k==="orders"&&isCrewish()) k="overview";
+  dlgTab=k; const D=$("#dlg"); if(!D) return; D.dataset.tab=k;
+  D.querySelectorAll("[data-jtab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.jtab===k));
+  const sc=$("#scrim"); if(sc) sc.scrollTop=0;
+}
+window.setJobTab=setJobTab;
+function jobTabs(j){
+  const A=j.assemblies||[], done=A.filter(a=>a.status==="done").length;
+  const ord=(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status!=="received").length;
+  const ncr=window.ncrOpenN?window.ncrOpenN(j):(j.ncrs||[]).filter(x=>!x.closed).length;
+  return [{k:"overview",t:"Overview"},{k:"tasks",t:"Tasks",n:A.length?`${done}/${A.length}`:""},{k:"orders",t:"Orders",n:ord||""},{k:"ncr",t:"NCRs",n:ncr||""},{k:"notes",t:"Notes & details",n:""}];
+}
+function jobTitleHTML(j){
+  const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
+  return `${num?`<span class="jnum">${esc(num)}</span>`:""}<span>${esc(rest)}</span>`;
+}
+const stagePills=j=>{ const s=stOf(j); return `<span class="jbt">${esc(s.bt)}</span>`+[s,...alsoIn(j).map(k=>STAGES[SIDX[k]])].map(x=>`<span class="ostat" style="--c:${x.c}">${esc(x.t)}</span>`).join(""); };
+/* the Overview: where the job is, what's done, what's next - details live in the other sections */
+/* Job overview by role (usability pass, Nov 15) - same job, different emphasis:
+   crew    : your tasks (instructions, Start / timer running), what's in the way, drawings, progress
+   Robin   : materials - orders by what they need next (quote, order, pick up, count), drawings, progress
+   Kyle    : progress, decisions waiting, blockers, who's on what, next actions, counts
+   Everything else stays in the tabs (Tasks / Orders / NCRs / Notes); the card note and latest log entry sit at the bottom. */
+function taskBlockers(j,a){ const out=[]; const G=window.gvcPlan;
+  try{ if(G&&G.loaded&&G.loaded()){ const {M}=G.mc(); const t=M.T[`j:${j.id}:${a.id}`];
+    if(t){ if(t.why) out.push(t.why); (t.needs||[]).forEach(k=>{ const n=M.T[k]; if(n&&!n.done) out.push(`After: ${n.name}`); }); } } }catch(e){}
+  if(a.status==="bend"&&!out.length) out.push("Waiting on bending");
+  if(a.ncr) out.push(`NCR-${String(a.ncr).padStart(3,"0")}`);
+  return [...new Set(out)]; }
+window.taskBlockers=taskBlockers;
+const DWI=`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>`;
+const SUPNEXT={sent:"Waiting for the quote",replied:"Quote question to answer",quote:"Quote in - pick or order",approved:"Ordered",production:"Being made",ready:"Ready to pick up",arrived:"Arrived - count it"};
+function jobOverviewHTML(j){
+  const A=j.assemblies||[], done=A.filter(a=>a.status==="done").length, pct=A.length?Math.round(done/A.length*100):0;
+  const act=(j.suppliers||[]).filter(x=>ACTIVE(x)&&x.status!=="received");
+  const ncrN=window.ncrOpenN?window.ncrOpenN(j):(j.ncrs||[]).filter(x=>!x.closed).length;
+  const role=window.ME&&ME.role==="crew"?"crew":window.ME&&ME.role==="parts"?"parts":"admin";
+  const me=window.ME&&ME.name;
+  const num=window.jobNum?window.jobNum(j.name):"";
+  const dw=num&&window.openJobParts?`<button class="btn jdw" type="button" data-jdw="1">${DWI}<span>Drawings &amp; parts</span></button>`:"";
+  const prog=`<button type="button" class="jtile" data-jgo="tasks"><b>${A.length?`${done} of ${A.length}`:"No tasks"}</b><span>${A.length?"tasks done":"yet - add some in Tasks"}</span>${A.length?`<div class="prog"><div style="width:${pct}%"></div></div>`:""}</button>`;
+  const tOrd=`<button type="button" class="jtile jsupsec" data-jgo="orders"><b>${act.length}</b><span>open order${act.length===1?"":"s"}</span></button>`;
+  const tNcr=`<button type="button" class="jtile" data-jgo="ncr"><b>${ncrN}</b><span>open NCR${ncrN===1?"":"s"}</span></button>`;
+  const cnt=window.openCount?act.filter(x=>x.status==="arrived"||x.status==="ready").map(x=>`<button class="btn${x.status==="arrived"?" primary":""}" type="button" data-scnt="${esc(x.id||"")}">☑ Count ${esc(first(x.name))}${x.po||x.rfq?" · "+esc(x.po||x.rfq):""}</button>`).join(""):"";
+  const last=(j.log||[]).length?j.log[j.log.length-1]:null;
+  const foot=`${last?`<button type="button" class="jlast" data-jgo="notes"><span class="lbl">Latest · ${fmt(last.at)}</span><span>${esc(last.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:""}
+    ${j.summary?`<div class="jsum"><span class="lbl">Card note</span> ${esc(j.summary)}</div>`:""}`;
+  const sec=t=>`<div class="sec"><span>${t}</span></div>`;
+  const P=window.gvcPunch, o=P&&P.open&&P.open();
+  if(role==="crew"){
+    const mine=A.filter(a=>a.status!=="done"&&whoList(a).includes(me));
+    const rows=mine.map(a=>{ const bl=taskBlockers(j,a), on=o&&o.job_id===j.id&&o.task_id===a.id, st=AST[a.status]||AST.ready;
+      return `<div class="jow"><div class="jowt"><button type="button" class="jowx" data-jtask="${esc(a.id)}"><b>${esc(a.name)}</b><span class="ostat" style="--c:${st.c}">${esc(st.t)}</span></button>
+        ${a.meta?`<div class="jowi">${esc(a.meta)}</div>`:""}${bl.length?`<div class="jowb">Blocked: ${esc(bl.join(" · "))}</div>`:""}</div>
+        <div class="jowa">${num?`<button type="button" class="btn" data-jdw="1" aria-label="Drawings for ${esc(a.name)}" title="Drawings">${DWI}</button>`:""}${on?`<span class="jowon">Timer running</span>`:bl.length?"":`<button type="button" class="btn primary" data-jst="${esc(a.id)}" aria-label="Start work on ${esc(a.name)}">▶ Start</button>`}</div></div>`; }).join("");
+    return `${sec("Your work on this job")}<div class="jows">${rows||`<div class="jnext jnone">Nothing on you for this job.</div>`}</div>
+      <div class="jquick" id="jQuick"></div>
+      <div class="jtiles">${prog}${tNcr}</div><!--stage-->${foot}`;
+  }
+  if(role==="parts"){
+    const order=["arrived","ready","quote","replied","sent","approved","production"];
+    const L=act.slice().sort((a,b)=>order.indexOf(a.status)-order.indexOf(b.status));
+    const rows=L.map(x=>`<button type="button" class="jnext jpo" data-jgo="orders"><span class="ostat" style="--c:${(ST[x.status]||ST.sent).c||"#8e96a3"}">${esc(quoteRev(x)?"Waiting on a revised quote":SUPNEXT[x.status]||(ST[x.status]||{}).t||x.status)}</span><span><b>${esc(x.name)}</b>${x.po||x.rfq?" · "+esc(x.po||x.rfq):""}${x.quoteNo?`<br><span class="lbl">Supplier ref ${esc(x.quoteNo)}</span>`:""}${x.scope?`<br><span class="lbl">${esc(x.scope)}</span>`:""}</span><span class="ochev" aria-hidden="true">›</span></button>`).join("");
+    const pick=L.filter(x=>x.status==="ready").length, cntN=L.filter(x=>x.status==="arrived").length, wait=L.filter(x=>["sent","replied","quote"].includes(x.status)).length;
+    return `${sec("Materials & orders")}<div class="jsumline">${[wait?`${wait} waiting on a quote or order`:"",pick?`${pick} to pick up`:"",cntN?`${cntN} to count`:""].filter(Boolean).join(" · ")||"Nothing waiting on purchasing for this job."}</div>
+      <div class="jnexts">${rows||`<div class="jnext jnone">No open orders on this job.</div>`}</div>
+      ${cnt?`<div class="jcnt">${cnt}</div>`:""}
+      <div class="jquick" id="jQuick"></div>
+      <div class="jtiles">${prog}${tOrd}${tNcr}</div><!--stage-->${foot}`;
+  }
+  // Kyle
+  const blocked=A.filter(a=>a.status!=="done").map(a=>({a,bl:taskBlockers(j,a)})).filter(x=>x.bl.length);
+  const dec=window.ncrDecidingN?window.ncrDecidingN(j):0;
+  const people={}; A.filter(a=>a.status!=="done").forEach(a=>{ const w=whoList(a); if(!w.length) (people["Not assigned"]=people["Not assigned"]||[]).push(a); w.forEach(p=>(people[p]=people[p]||[]).push(a)); });
+  const crewLine=Object.entries(people).map(([p,l])=>`<span class="jpp${p==="Not assigned"?" na":""}"><b>${esc(p)}</b> ${l.length} task${l.length>1?"s":""}${p!=="Not assigned"&&l.some(a=>a.status==="prog")?" · on it":""}</span>`).join("");
+  const nm=String(j.name||""), short=t=>String(t).split(nm).join("").replace(/\s*\(\s*\)/g,"").replace(/\s*[-–:·]\s*(?=\(|$)/g," ").replace(/:\s*$/,"").replace(/\s{2,}/g," ").trim()||t;
+  const items=[...liveAuto().filter(t=>t.job===j.id).map(t=>({text:short(t.text),go:t.ncr?"ncr":/quote|order|pick up|count|reply|supplier|russel|grandview|PO-|RFQ-/i.test(t.text)?"orders":/assign|task|bend|weld|build/i.test(t.text)?"tasks":""})),
+               ...liveMine().filter(t=>t.job_id===j.id).map(t=>({text:short(t.text),go:""}))];
+  const next=items.slice(0,4).map(t=>({...t,text:tdShort(t.text,[j])})).map(t=>t.go?`<button type="button" class="jnext" data-jgo="${t.go}"><span>${esc(t.text)}</span><span class="ochev" aria-hidden="true">›</span></button>`:`<div class="jnext"><span>${esc(t.text)}</span></div>`);
+  if(items.length>4) next.push(`<div class="jnext jmore">+ ${items.length-4} more on your To do list</div>`);
+  const attn=[dec?`<button type="button" class="jnext" data-jgo="ncr"><span class="ostat" style="--c:#ff6b5a">Decide</span><span>${dec} NCR${dec>1?"s":""} waiting for a decision</span><span class="ochev" aria-hidden="true">›</span></button>`:"",
+    blocked.length?`<button type="button" class="jnext" data-jgo="tasks"><span class="ostat" style="--c:#f5b041">Blocked</span><span>${blocked.length} task${blocked.length>1?"s":""} waiting: ${esc([...new Set(blocked.flatMap(x=>x.bl))].slice(0,3).join(" · "))}</span><span class="ochev" aria-hidden="true">›</span></button>`:""].join("");
+  // Needs your attention first; progress next; stage changes are deliberate, so they sit lower and aren't the loudest button
+  return `${attn?`${sec("Needs your attention")}<div class="jnexts jattn">${attn}</div>`:""}
+    ${sec("Next up")}<div class="jnexts">${next.join("")||`<div class="jnext jnone">Nothing waiting on you for this job.</div>`}</div>
+    ${cnt?`<div class="jcnt">${cnt}</div>`:""}
+    <div class="jtiles">${prog}${tOrd}${tNcr}</div>
+    <div class="jquick" id="jQuick"></div>
+    ${crewLine?`${sec("Crew on this job")}<div class="jppl">${crewLine}</div>`:""}
+    ${sec("Stage")}<!--stage-->${foot}`;
+}
+// overview buttons: drawings, start work on a task, open a task
+GVC.on("drawDlg:after",()=>{ const j=job(); if(!j) return; const D=$("#dlg");
+  D.querySelectorAll("[data-jdw]").forEach(b=>b.onclick=()=>{ if(window.jpFresh) window.jpFresh(); openJobParts(window.jobNum(j.name),j.name); });
+  D.querySelectorAll("[data-jtask]").forEach(b=>b.onclick=()=>{ if(window.openTaskDetail) openTaskDetail(j.id,b.dataset.jtask); else window.openJobTask(j.id,b.dataset.jtask); });
+  D.querySelectorAll("[data-jst]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; b.disabled=true; if(window.gvcPunch) await gvcPunch.punchIn(j.id,b.dataset.jst); if(openId===j.id) drawDlg(); });
+});
+/* ---------- Tasks with optional assembly groups (redesign stage 5, Kyle Nov 14) ----------
+   A job can group its tasks under assemblies (Headache rack, Belly boxes, Rear apron...). Groups are a list on the job
+   (j.groups = [{id, name, asm?}] - asm = an inventory assembly number, optional), in display order; a task's j.assemblies[k].group
+   is a group id or nothing. A job with no groups shows a plain list; with groups, tasks without one show under "General".
+   Moving a task only changes its .group - the task keeps its id, people, status, NCR link, and the week plan's estimate,
+   links and placement (keyed by task id). Removing a group puts its tasks back in General. Only Kyle edits groups. */
+let taskF={mine:false,done:false}, grpAdd=false, grpEdit=null, taskHi=null;
+const grpShut=new Set(), taskMore=new Set(), whoOpen=new Set();
+const isAdminRole=()=>!(window.ME&&(ME.role==="crew"||ME.role==="parts"));
+const taskGroupName=(j,a)=>{ const g=a&&a.group&&(j.groups||[]).find(x=>x.id===a.group); return g?g.name:""; };
+window.taskGroupName=taskGroupName;
+function taskRow(j,a,k){
+  const me=window.ME&&ME.name, admin=isAdminRole(), mine=whoList(a).includes(me), st=AST[a.status]||AST.ready;
+  const canStatus=admin||mine, more=taskMore.has(a.id), who=whoList(a);
+  const G=j.groups||[];
+  return `<div class="trow ${a.status==="done"?"tdone":""} ${taskHi===a.id?"thi":""}" data-task-i="${k}" data-task-id="${esc(a.id)}">
+    <div class="tmain"><div class="an2" data-ren="${k}" ${admin?`title="Tap to rename"`:""}>${esc(a.name)}</div>${a.meta?(a.meta.length>90?`<details class="tnotes"><summary class="am2">${esc(a.meta.slice(0,80).replace(/\s+\S*$/,""))}… <u>Details</u></summary><div class="am2">${esc(a.meta)}</div></details>`:`<div class="am2">${esc(a.meta)}</div>`):""}${a.final?`<div class="am2">Last task - waits for the rest</div>`:""}</div>
+    ${window.jobNum&&window.jobNum(j.name)&&a.status!=="done"?`<button type="button" class="tdwl" data-tdraw="1" aria-label="Drawings for ${esc(a.name)}">${DWI}<span>Drawings</span></button>`:""}
+    <div class="twho">${admin?`<button type="button" class="twb ${who.length?"":"none"}" data-whot="${esc(a.id)}" aria-expanded="${whoOpen.has(a.id)}" aria-label="Who's on ${esc(a.name)}: ${who.length?esc(who.join(", ")):"nobody"} - change">${who.length?esc(who.join(", ")):"Assign"}</button>`
+      :`<span class="twn ${who.length?"":"none"}">${who.length?esc(who.join(", ")):"Unassigned"}</span>`}</div>
+    <div class="tst" style="--c:${st.c}">${canStatus?asmSel(j,k,a,"status"):`<span class="ostat" style="--c:${st.c}">${esc(st.t)}</span>`}</div>
+    <div class="tpunch"></div>
+    <button type="button" class="tmore" data-tmore="${esc(a.id)}" aria-expanded="${more}" aria-label="More for ${esc(a.name)}">⋯</button>
+    ${admin&&whoOpen.has(a.id)?`<div class="tsub">${whoChips(j,k,a)}</div>`:""}
+    ${more?`<div class="tsub tmorep">
+      <button type="button" class="btn sm" data-tdraw="1">Parts &amp; drawings</button><button type="button" class="btn sm" data-tncr="${esc(a.id)}">⚠ Report a problem</button>
+      ${a.ncr?`<button type="button" class="btn sm" data-jgo="ncr">Rework for NCR-${String(a.ncr).padStart(3,"0")} ›</button>`:""}
+      ${admin&&G.length?`<label class="tml">Group<select data-tmove="${k}" aria-label="Group for ${esc(a.name)}"><option value="">General</option>${G.map(g=>`<option value="${esc(g.id)}" ${a.group===g.id?"selected":""}>${esc(g.name)}</option>`).join("")}</select></label>`:""}
+      ${admin?`<span class="tnote" style="margin:0">Tap the task name to rename it.</span><span style="flex:1"></span><button type="button" class="btn sm danger" data-rmasm="${k}" aria-label="Remove task ${esc(a.name)}">Remove task</button>`:`<span class="tnote" style="margin:0">${mine?"You can change the status of your own tasks.":"Ask Kyle to change who's on this task."}</span>`}
+    </div>`:""}
+  </div>`;
+}
+function tasksHTML(j){
+  const A=j.assemblies||[], G=j.groups||[], admin=isAdminRole(), me=window.ME&&ME.name;
+  const done=A.filter(a=>a.status==="done").length;
+  const show=a=>(taskF.done||a.status!=="done")&&(!taskF.mine||whoList(a).includes(me));
+  const all=A.map((a,k)=>({a,k}));
+  const shown=all.filter(o=>show(o.a)).length;
+  const known=new Set(G.map(g=>g.id));
+  const head=`<div class="sec"><span>Tasks${A.length?` · ${done} of ${A.length} done`:""}</span><span>${admin?`<button class="btn sm adminonly" type="button" id="addGrp">+ Group</button>`:""}<button class="btn sm" type="button" id="addAsm">+ Add tasks</button></span></div>
+    ${A.length?`<div class="prog"><div style="width:${Math.round(done/A.length*100)}%"></div></div>`:""}
+    ${admin&&grpAdd?`<div class="tgadd"><label>New group (assembly)<input id="ngName" placeholder="e.g. Headache rack" autocomplete="off"></label>
+      ${(typeof asms!=="undefined"&&asms.length)?`<label>Inventory assembly (optional)<select id="ngAsm"><option value="">None</option>${asms.map(x=>`<option value="${esc(x.asm_no)}">${esc(x.asm_no)} · ${esc(x.name)}${x.product?" ("+esc(x.product)+")":""}</option>`).join("")}</select></label>`:""}
+      <div class="row" style="gap:8px"><button class="btn sm" type="button" id="ngX">Cancel</button><button class="btn sm primary" type="button" id="ngGo">Add group</button></div></div>`:""}
+    ${A.length?`<div class="tfilt" role="group" aria-label="Filter tasks">
+      <button type="button" class="tf ${taskF.mine?"on":""}" data-tf="mine" aria-pressed="${taskF.mine}">${taskF.mine?"✓ ":""}My tasks</button>
+      <button type="button" class="tf ${taskF.done?"on":""}" data-tf="done" aria-pressed="${taskF.done}">${taskF.done?"✓ ":""}Show completed${done?` (${done})`:""}</button>
+      <span class="tfsum">${shown===A.length?`All ${A.length} tasks`:`Showing ${shown} of ${A.length}`}${!taskF.done&&done?` · ${done} done hidden`:""}</span></div>`:""}`;
+  const empty=(L)=>{ const n=L.length; if(!n) return `<div class="tempty">No tasks here yet.</div>`;
+    if(taskF.mine&&!L.some(o=>whoList(o.a).includes(me))) return `<div class="tempty">None of these are yours.</div>`;
+    return `<div class="tempty">All ${n} done${!taskF.done?` - <button type="button" class="linkb" data-tf="done">show completed</button>`:""}.</div>`; };
+  const list=L=>{ const V=L.filter(o=>show(o.a)); return V.length?V.map(o=>taskRow(j,o.a,o.k)).join(""):empty(L); };
+  if(!A.length&&!G.length) return head+`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.${admin?" Group them by assembly with + Group if it helps.":""}</div><div id="newAsm"></div>`;
+  let body;
+  if(!G.length) body=`<div class="tlist">${list(all)}</div>`;
+  else {
+    const secs=G.map((g,gi)=>({g,gi,L:all.filter(o=>o.a.group===g.id)}));
+    const gen=all.filter(o=>!o.a.group||!known.has(o.a.group));
+    const sec=(id,name,L,g,gi)=>{ const d=L.filter(o=>o.a.status==="done").length; const key=j.id+":"+id; const ed=g&&grpEdit===g.id;
+      const asm=g&&g.asm?(typeof asms!=="undefined"?asms.find(x=>x.asm_no===g.asm):null):null;
+      return `<details class="tgrp" data-grp="${esc(id)}" ${grpShut.has(key)?"":"open"}>
+        <summary><span class="tgn">${esc(name)}</span>${g&&g.asm?`<span class="tga" title="Inventory assembly">${esc(g.asm)}${asm?" · "+esc(asm.name):""}</span>`:""}<span class="tgc">${d}/${L.length} done</span>
+          ${admin&&g?`<button type="button" class="tgm adminonly" data-gedit="${esc(g.id)}" aria-label="Edit group ${esc(name)}" aria-expanded="${ed}">Edit</button>`:""}</summary>
+        ${ed?`<div class="tgedit"><label>Group name<input id="geName" value="${esc(g.name)}"></label>
+          ${(typeof asms!=="undefined"&&asms.length)?`<label>Inventory assembly (optional)<select id="geAsm"><option value="">None</option>${asms.map(x=>`<option value="${esc(x.asm_no)}" ${g.asm===x.asm_no?"selected":""}>${esc(x.asm_no)} · ${esc(x.name)}</option>`).join("")}</select></label>`:""}
+          <div class="row" style="gap:6px;align-items:center"><button class="btn sm" type="button" data-gup="${gi}" ${gi===0?"disabled":""} aria-label="Move group up">↑ Up</button><button class="btn sm" type="button" data-gdn="${gi}" ${gi===G.length-1?"disabled":""} aria-label="Move group down">↓ Down</button>
+            <span style="flex:1"></span><button class="btn sm danger" type="button" data-grm="${esc(g.id)}">Remove group</button><button class="btn sm" type="button" id="geX">Cancel</button><button class="btn sm primary" type="button" id="geGo">Save</button></div>
+          <div class="tnote" style="margin:4px 0 0">Removing a group keeps its tasks - they move to General.</div></div>`:""}
+        <div class="tlist">${list(L)}</div></details>`; };
+    body=secs.map(x=>sec(x.g.id,x.g.name,x.L,x.g,x.gi)).join("")+(gen.length?sec("_general","General",gen,null,-1):"");
+  }
+  return head+body+`<div id="newAsm"></div>`;
+}
+/* jump to one task (week plan, punch clock): Tasks section, its group open, filters that would hide it turned off */
+window.openJobTask=(jid,aid)=>{
+  const j=jobs.find(x=>x.id===jid)||archivedJobs.find(x=>x.id===jid); const a=j&&(j.assemblies||[]).find(x=>x.id===aid);
+  if(a){ if(a.status==="done") taskF.done=true; if(taskF.mine&&!whoList(a).includes(window.ME&&ME.name)) taskF.mine=false; grpShut.delete(jid+":"+(a.group&&(j.groups||[]).some(g=>g.id===a.group)?a.group:"_general")); taskHi=aid; taskMore.add(aid); }   // stage 7: the task's actions (drawings, report a problem) open with it
+  openJob(jid,"tasks");
+  if(a) setTimeout(()=>{ const r=document.querySelector(`#dlg [data-task-id="${CSS.escape(aid)}"]`); if(r) try{ r.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} setTimeout(()=>{ if(taskHi===aid){ taskHi=null; const x=document.querySelector(`#dlg .thi`); if(x) x.classList.remove("thi"); } },2500); },80);
+};
+function wireTasks(D){
+  const j=job(); if(!j) return; const admin=isAdminRole();
+  const save=async(label,fn)=>{ const jj=structuredClone(job()); if(fn(jj)===false) return; jj.log=[...(jj.log||[]),{at:new Date().toISOString(),text:label}]; await put(jj,label); };
+  D.querySelectorAll("[data-tf]").forEach(b=>b.onclick=e=>{ e.preventDefault(); const k=b.dataset.tf; taskF[k]=!taskF[k]; drawDlg(); });
+  D.querySelectorAll("details.tgrp").forEach(d=>d.addEventListener("toggle",()=>{ const key=j.id+":"+d.dataset.grp; d.open?grpShut.delete(key):grpShut.add(key); }));
+  D.querySelectorAll("[data-tdraw]").forEach(b=>b.onclick=()=>{ const p=D.querySelector("#jpBtn"); if(p) p.click(); });
+  D.querySelectorAll("[data-tncr]").forEach(b=>b.onclick=()=>{ const a=(j.assemblies||[]).find(x=>x.id===b.dataset.tncr); if(window.ncrNewFor) window.ncrNewFor(j.id,{details:a?`Found on task: ${a.name}`:""}); });
+  D.querySelectorAll("[data-tmore]").forEach(b=>b.onclick=()=>{ const id=b.dataset.tmore; taskMore.has(id)?taskMore.delete(id):taskMore.add(id); drawDlg(); });
+  D.querySelectorAll("[data-whot]").forEach(b=>b.onclick=()=>{ const id=b.dataset.whot; whoOpen.has(id)?whoOpen.delete(id):whoOpen.add(id); drawDlg(); });
+  if(!admin) return;
+  const ag=D.querySelector("#addGrp"); if(ag) ag.onclick=()=>{ grpAdd=!grpAdd; drawDlg(); setTimeout(()=>{ const n=document.getElementById("ngName"); if(n) n.focus(); },30); };
+  const nx=D.querySelector("#ngX"); if(nx) nx.onclick=()=>{ grpAdd=false; drawDlg(); };
+  const ng=D.querySelector("#ngGo"); if(ng){ const go=()=>{ const name=D.querySelector("#ngName").value.trim(); if(!name){ D.querySelector("#ngName").focus(); return; }
+      const asm=(D.querySelector("#ngAsm")||{}).value||""; grpAdd=false;
+      save(`Added task group "${name}"`,jj=>{ jj.groups=[...(jj.groups||[]),{id:uid(),name,...(asm?{asm}:{})}]; }); };
+    ng.onclick=go; D.querySelector("#ngName").onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); go(); } }; }
+  D.querySelectorAll("[data-gedit]").forEach(b=>b.onclick=e=>{ e.preventDefault(); e.stopPropagation(); grpEdit=grpEdit===b.dataset.gedit?null:b.dataset.gedit; grpShut.delete(j.id+":"+b.dataset.gedit); drawDlg(); });
+  const gx=D.querySelector("#geX"); if(gx) gx.onclick=()=>{ grpEdit=null; drawDlg(); };
+  const gg=D.querySelector("#geGo"); if(gg) gg.onclick=()=>{ const id=grpEdit, name=D.querySelector("#geName").value.trim(); if(!name) return; const asm=(D.querySelector("#geAsm")||{}).value; grpEdit=null;
+    save(`Task group "${name}" updated`,jj=>{ const g=(jj.groups||[]).find(x=>x.id===id); if(!g) return false; g.name=name; if(asm!==undefined){ if(asm) g.asm=asm; else delete g.asm; } }); };
+  const mv=(gi,d)=>save("Reordered task groups",jj=>{ const G=jj.groups||[]; const t=gi+d; if(t<0||t>=G.length) return false; [G[gi],G[t]]=[G[t],G[gi]]; });
+  D.querySelectorAll("[data-gup]").forEach(b=>b.onclick=()=>mv(+b.dataset.gup,-1));
+  D.querySelectorAll("[data-gdn]").forEach(b=>b.onclick=()=>mv(+b.dataset.gdn,1));
+  D.querySelectorAll("[data-grm]").forEach(b=>b.onclick=()=>{ const id=b.dataset.grm; const g=(j.groups||[]).find(x=>x.id===id); if(!g) return;
+    const n=(j.assemblies||[]).filter(a=>a.group===id).length;
+    if(!confirm(`Remove the group "${g.name}"?${n?`\n\nIts ${n} task${n>1?"s":""} move to General - nothing about them changes.`:""}`)) return; grpEdit=null;
+    save(`Removed task group "${g.name}"${n?` (${n} task${n>1?"s":""} back to General)`:""}`,jj=>{ jj.groups=(jj.groups||[]).filter(x=>x.id!==id); (jj.assemblies||[]).forEach(a=>{ if(a.group===id) delete a.group; }); }); });
+  D.querySelectorAll("[data-tmove]").forEach(sel=>sel.onchange=()=>{ const k=+sel.dataset.tmove; const a=(j.assemblies||[])[k]; if(!a) return; const to=sel.value;
+    const gname=to?((j.groups||[]).find(g=>g.id===to)||{}).name:"General";
+    save(`Moved "${a.name}" to ${gname}`,jj=>{ const t=jj.assemblies[k]; if(!t||t.id!==a.id) return false; if(to) t.group=to; else delete t.group; }); });
+}
 function closeDlg(){
   const j=openId&&jobs.find(x=>x.id===openId);
-  openId=null;$("#scrim").classList.remove("on");
+  openId=null; dlgTabJob=null; $("#scrim").classList.remove("on");
   // "+ New job" saves a placeholder right away; if it was never filled in, don't leave it on the board
   if(j&&j.name==="New job"&&!j.summary&&!j.folder&&!(j.suppliers||[]).length&&!(j.assemblies||[]).length&&!(j.log||[]).length&&db){
     deleteJob(j.id).then(()=>{ const i=undoStack.findIndex(u=>u.id===j.id&&!u.prev); if(i>=0) undoStack.splice(i,1); if(!undoStack.length){ $("#undoBtn").classList.remove("on"); $("#toast").classList.remove("on"); } }).catch(()=>{});
@@ -755,30 +1168,31 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeJob();});
 /* Job card layout (Kyle, Nov 4): title + stage with Back/Next, big Parts & drawings / Files buttons, tasks, NCRs,
    suppliers; notes and the edit fields fold away (Claude can change those when asked). Fold state survives redraws. */
 const dlgFold={notes:false,edit:false};
-function drawDlg(){
+function drawDlg(){ drawDlgCore(); for(const h of GVC.list("drawDlg:after")) h.fn(); }
+function drawDlgCore(){
   const j=job(); if(!j){closeDlg();return;}
   const i=SIDX[j.stage]??0, s=STAGES[i];
   const stOpts=x=>Object.entries(ST).map(([k,v])=>`<option value="${k}" ${x.status===k?"selected":""}>${v.t}</option>`).join("");
   const stageOpts=BOARDS.map(b=>`<optgroup label="${b.t}">${b.stages.map(x=>`<option value="${x.k}" ${j.stage===x.k?"selected":""}>${x.t}</option>`).join("")}</optgroup>`).join("");
+  const jt=jobTabs(j);
   $("#dlg").innerHTML=`
-   <div class="row" style="justify-content:space-between;align-items:center"><h3 id="dlgTitle">${esc(j.name)}</h3><button class="btn ghost" type="button" id="xBtn">Close</button></div>
-   ${ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><span style="flex:1"></span>
-     <button class="btn sm" type="button" id="ongo">Make it a normal job</button><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span style="color:var(--muted)">Stage:</span><span class="now">${s.bt} · ${[s.t,...alsoIn(j).map(k=>STAGES[SIDX[k]].t)].join(" + ")}</span><span style="flex:1"></span>
-     <button class="btn sm" type="button" id="back" ${i===0?"disabled":""}>← Back</button>
-     <button class="btn sm primary" type="button" id="next" ${i===STAGES.length-1?"disabled":""}>Next: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button>
-     ${FAB_STAGES.includes(j.stage)?`<div style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);font-size:13px">Also in:</span>${FAB_STAGES.filter(k=>k!==j.stage).map(k=>`<button class="btn sm ${alsoIn(j).includes(k)?"primary":""}" type="button" data-also="${k}">${STAGES[SIDX[k]].t}</button>`).join("")}</div>`:""}
-     <div style="flex-basis:100%;text-align:right"><button class="btn sm ghost" type="button" id="ongo" title="For standing jobs like Inventory or shop cleanup">Make it ongoing (no stages)</button></div></div>`}
-   ${true?`<div class="sec"><span>Tasks${(j.assemblies||[]).length?` · ${asmDone(j)} of ${j.assemblies.length} done (${Math.round(asmDone(j)/j.assemblies.length*100)}%)`:""}</span><button class="btn sm" type="button" id="addAsm">+ Add tasks</button></div>
-   ${(j.assemblies||[]).length?`<div class="prog"><div style="width:${Math.round(asmDone(j)/j.assemblies.length*100)}%"></div></div>`:""}
-   ${(j.assemblies||[]).length?`<div class="atw"><table class="at"><thead><tr><th>Task</th><th>Who</th>${Object.entries(AST).map(([k,v])=>`<th class="sc" style="--c:${v.c}">${v.t}</th>`).join("")}<th></th></tr></thead><tbody>
-   ${j.assemblies.map((a,k)=>{const keys=Object.keys(AST);const si=keys.indexOf(a.status);const locked=finalLocked(j,a);
-     return `<tr><td><div class="an2" data-ren="${k}" title="Tap to rename">${esc(a.name)}</div>${(a.meta||a.final)?`<div class="am2">${esc(a.meta||"")}${a.final?(a.meta?" · ":"")+"Final assembly":""}</div>`:""}</td>
-     <td>${asmSel(j,k,a,"who")}</td>
-     ${locked?`<td colspan="${keys.length}"><div class="waits">Waits until every other task is done</div></td>`:keys.map((key,ki)=>`<td><button type="button" class="sb ${ki<si?"past":ki===si?"now":""}" style="--c:${AST[key].c}" data-sj="${esc(j.id)}" data-si="${k}" data-ss="${key}" data-lab="${({bend:"Bend",ready:"Ready",prog:"Doing",qc:"Check",done:"Done"})[key]}" aria-label="${esc(a.name)}: ${AST[key].t}" aria-pressed="${ki===si}">${ki===si?"●":""}</button></td>`).join("")}
-     <td><button type="button" class="rmb" data-rmasm="${k}" aria-label="Remove ${esc(a.name)}">×</button></td></tr>`;}).join("")}
-   </tbody></table></div>`:`<div class="empty" style="text-align:left">Break this job into tasks so you can hand them out and track progress.</div>`}
-   <div id="newAsm"></div>`:""}
-   <div class="sec"><span>Suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm" type="button" onclick="window.newRfqFor&&window.newRfqFor(openId)" title="Send out for quotes - gets an RFQ number">+ RFQ</button><button class="btn sm" type="button" onclick="window.newPoFor&&window.newPoFor(openId)" title="Order straight - gets a PO number">+ PO</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
+   <div class="jtop">
+    <div class="jhd"><h3 id="dlgTitle">${jobTitleHTML(j)}</h3><button class="btn ghost" type="button" id="xBtn">Close</button></div>
+    <nav class="jtabs" role="tablist" aria-label="Job sections">${jt.map(t=>`<button type="button" role="tab" class="jtab ${t.k==="orders"?"jsupsec":""}" data-jtab="${t.k}" aria-selected="${dlgTab===t.k}">${t.t}${t.n!==""&&t.n!=null?`<span class="jtn">${t.n}</span>`:""}</button>`).join("")}</nav>
+   </div>
+   <div class="err" id="err"></div>
+   <section class="jsec" data-jsec="overview">
+   ${lifeRow(j)}
+   ${(()=>{ const stg=ONGOING(j)?`<div class="stagebar"><span class="now">Ongoing job</span><span style="color:var(--muted)">no stages - anyone can punch in any time</span><button id="back" hidden></button><button id="next" hidden></button></div>`:`<div class="stagebar"><span class="jstg">${stagePills(j)}</span><span style="flex:1"></span>
+     <button class="btn sm ghost" type="button" id="back" aria-expanded="false" aria-controls="stgPanel" title="Pick any stage - you see the change before it's saved">Change stage</button>
+     <button class="btn sm" type="button" id="next" ${i===STAGES.length-1?"disabled":""} title="Review moving the job to the next stage">Next stage: ${i<STAGES.length-1?STAGES[i+1].t:"-"} →</button></div><div id="stgPanel" hidden></div>`; return jobOverviewHTML(j).replace("<!--stage-->",()=>stg); })()}
+
+   </section>
+   <section class="jsec" data-jsec="tasks">
+   ${tasksHTML(j)}
+   </section>
+   <section class="jsec jsupsec" data-jsec="orders">
+   <div class="sec"><span>Orders & suppliers</span><span style="display:flex;gap:6px"><button class="btn sm" type="button" id="cmpQ" onclick="window.compareQuotes&&window.compareQuotes(openId)">⚖ Compare quotes</button><button class="btn sm adminonly" type="button" onclick="window.newRfqFor&&window.newRfqFor(openId)" title="Send out for quotes - gets an RFQ number">+ RFQ</button><button class="btn sm adminonly" type="button" onclick="window.newPoFor&&window.newPoFor(openId)" title="Order straight - gets a PO number">+ PO</button><button class="btn sm" type="button" id="addSup">+ Add supplier</button></span></div>
    ${supGroupsHTML(j,stOpts,(x,k)=>{const st=ST[x.status]||ST.sent;return `<div class="supbox" style="--c:${st.c}">
      <div class="top"><div><b>${esc(x.name)}</b>${x.contact?` <span style="color:var(--muted)">· ${esc(x.contact)}</span>`:""}
        <div class="meta">${x.scope?esc(x.scope)+" · ":""}${x.sent?"Sent "+fmt(x.sent):"Not sent yet"}${x.updated?" · last update "+fmt(x.updated):""}</div>
@@ -791,9 +1205,18 @@ function drawDlg(){
        <label>Lead time<input data-f="lead" data-i="${k}" value="${esc(x.lead||"")}"></label></div>
      <label style="margin-top:8px">Latest<textarea data-f="note" data-i="${k}">${esc(x.note||"")}</textarea></label></div>`;})}
    <div id="newSup"></div>
-   <details class="jfold" data-fold="notes" ${dlgFold.notes?"open":""}><summary><span>Notes · ${(j.log||[]).length}</span>${(j.log||[]).length?`<em>${esc(String((j.log||[])[(j.log||[]).length-1].text).slice(0,70))}</em>`:""}</summary>
+   </section>
+   <section class="jsec" data-jsec="ncr" id="secNcr"></section>
+   <section class="jsec" data-jsec="notes">
+   <div class="sec"><span>Notes</span></div>
    <div class="row" style="margin-top:8px"><label style="flex:4">Add a note<input id="fNote" placeholder="Cooper picked it up"></label><button class="btn" type="button" id="addNote">Add</button></div>
-   <div class="log" style="margin-top:8px">${(j.log||[]).slice().reverse().map(l=>`<div><small>${fmt(l.at)}</small>${esc(l.text)}</div>`).join("")||`<div style="color:var(--dim)">No notes yet.</div>`}</div></details>
+   ${(()=>{ const L=(j.log||[]).slice().reverse(), row=l=>`<div><small>${fmt(l.at)}</small>${esc(l.text)}</div>`;   // newest 5, the rest folded (Kyle's review, Nov 14)
+     return `<div class="log" style="margin-top:8px">${L.slice(0,5).map(row).join("")||`<div style="color:var(--dim)">No notes yet.</div>`}</div>`
+       +(L.length>5?`<details class="sgold jold"><summary>Older history · ${L.length-5}</summary><div class="log">${L.slice(5).map(row).join("")}</div></details>`:""); })()}
+   <div class="sec"><span>Stage settings</span></div>
+   <div class="jset">${ONGOING(j)?`<button class="btn sm" type="button" id="ongo">Make it a normal job (with stages)</button>`:`
+     ${FAB_STAGES.includes(j.stage)?`<div style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);font-size:13px">Also in:</span>${FAB_STAGES.filter(k=>k!==j.stage).map(k=>`<button class="btn sm ${alsoIn(j).includes(k)?"primary":""}" type="button" data-also="${k}">${STAGES[SIDX[k]].t}</button>`).join("")}</div>`:""}
+     <div><button class="btn sm ghost" type="button" id="ongo" title="For standing jobs like Inventory or shop cleanup">Make it ongoing (no stages)</button></div>`}</div>
    <details class="jfold" data-fold="edit" ${dlgFold.edit?"open":""}><summary><span>Edit job details</span><em>number, name, stage, folder, card note</em></summary>
    <div class="row" style="margin-top:10px">
      <label>Job name<input id="fName" value="${esc(j.name)}"></label>
@@ -802,15 +1225,19 @@ function drawDlg(){
    </div>
    <label style="margin-top:8px">Card note<input id="fSum" value="${esc(j.summary||"")}" placeholder="One line shown on the card"></label>
    </details>
-   <div class="err" id="err"></div>
-   <div class="foot"><button class="btn danger" type="button" id="delJob">Delete job</button><button class="btn primary" type="button" id="save">Save</button></div>`;
+   <div class="foot"><button class="btn danger" type="button" id="delJob">Delete job</button><button class="btn primary" type="button" id="save">Save</button></div>
+   </section>`;
   $("#dlg").querySelectorAll("details.jfold").forEach(d=>d.ontoggle=()=>{ dlgFold[d.dataset.fold]=d.open; });
   $("#xBtn").onclick=closeJob; $("#save").onclick=save;
+  if(dlgTab==="orders"&&isCrewish()) dlgTab="overview";
+  $("#dlg").dataset.tab=dlgTab;
+  $("#dlg").querySelectorAll("[data-jtab]").forEach(b=>b.onclick=()=>setJobTab(b.dataset.jtab));
+  $("#dlg").querySelectorAll("[data-jgo]").forEach(b=>b.onclick=()=>setJobTab(b.dataset.jgo));
   // supplier lines save as soon as a field changes (status, quote #, total, lead, latest) - no Save tap needed
   $("#dlg").querySelectorAll("[data-f]").forEach(el=>el.addEventListener("change",()=>{ const j=job(); const x=j&&(j.suppliers||[])[+el.dataset.i]; if(!x||(x[el.dataset.f]||"")===el.value) return;
     put(collect(),`${x.name}: ${el.dataset.f==="quoteNo"?"quote #":el.dataset.f} on ${j.name}`); })); $("#addNote").onclick=addNote; $("#addSup").onclick=supForm; $("#delJob").onclick=delJob;
   $("#fNote").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addNote();}});
-  $("#back").onclick=()=>move(-1); $("#next").onclick=()=>move(1);
+  $("#back").onclick=()=>stagePanel(null); $("#next").onclick=()=>stagePanel((SIDX[raw(openId).stage]??0)+1);
   $("#dlg").querySelectorAll("[data-also]").forEach(b=>b.onclick=async()=>{ const j=collect(); const k=b.dataset.also; const l=(j.alsoStages||[]).filter(x=>x!==j.stage);
     const on=l.includes(k); j.alsoStages=on?l.filter(x=>x!==k):[...l,k];
     j.log=[...(j.log||[]),{at:new Date().toISOString(),text:`${on?"No longer":"Also"} in ${STAGES[SIDX[k]].t}`}];
@@ -819,7 +1246,7 @@ function drawDlg(){
     if(was) delete j.ongoing; else j.ongoing=true;   // its "Also in" columns are kept (just ignored while ongoing) so turning it back restores them
     j.log=[...(j.log||[]),{at:new Date().toISOString(),text:was?"Back to a normal job with stages":"Made an ongoing job (no stages)"}];
     await put(j,was?`${j.name} is a normal job again`:`${j.name} is now ongoing`); }; }
-  wireAsm($("#dlg"));
+  wireAsm($("#dlg")); wireTasks($("#dlg"));
   $("#dlg").querySelectorAll("[data-ss]").forEach(b=>b.onclick=()=>{ if(b.classList.contains('now')) return; setAsm(b.dataset.sj,+b.dataset.si,'status',b.dataset.ss); });
   // tap a task's name to rename it (Nov 10 check: tasks couldn't be renamed anywhere)
   if(!(window.ME&&ME.role!=="admin")) $("#dlg").querySelectorAll("[data-ren]").forEach(el=>el.onclick=()=>{ if(el.querySelector("input")) return;
@@ -835,15 +1262,17 @@ function drawDlg(){
     const pick=new Set();
     $("#newAsm").innerHTML=`<label style="margin-top:8px">Tasks - one per line<textarea id="naList" rows="5" placeholder="Strip the walls off&#10;Cut the existing frame out&#10;Rebuild the frame structure"></textarea></label>
       <div class="row" style="margin-top:6px;align-items:center;gap:8px"><span class="tnote" style="margin:0">Who:</span><div class="wchips" id="naWho">${CREW.map(c=>`<button type="button" class="wc" data-pc="${c}">${c}</button>`).join("")}</div>
-      <label style="flex:0 0 auto;min-width:0;flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="naFinal" style="width:auto">Last one waits for the rest</label><span style="flex:1"></span><button class="btn primary" type="button" id="naAdd">Add tasks</button></div>`;
+      <label style="flex:0 0 auto;min-width:0;flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="naFinal" style="width:auto">Last one waits for the rest</label>
+      ${(job().groups||[]).length?`<label style="flex:0 1 220px;min-width:160px">Group<select id="naGrp"><option value="">General</option>${job().groups.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join("")}</select></label>`:""}<span style="flex:1"></span><button class="btn primary" type="button" id="naAdd">Add tasks</button></div>`;
     $("#naWho").querySelectorAll("[data-pc]").forEach(b=>b.onclick=()=>{ const c=b.dataset.pc; pick.has(c)?pick.delete(c):pick.add(c); b.classList.toggle("on",pick.has(c)); });
     $("#naList").focus();
     $("#naAdd").onclick=async()=>{const lines=$("#naList").value.split(/\n/).map(x=>x.replace(/^[-*•\d.)\s]+/,"").trim()).filter(Boolean); if(!lines.length){$("#err").textContent="Type at least one task.";return;}
-      const fin=$("#naFinal").checked; const who=[...pick].join(", ");
-      const jj=collect(); jj.assemblies=[...(jj.assemblies||[]),...lines.map((n,ix)=>({id:uid(),name:n,meta:"",status:"ready",who,final:fin&&ix===lines.length-1}))]; await put(jj,`Added ${lines.length} task${lines.length>1?"s":""} to ${jj.name}`);};
+      const fin=$("#naFinal").checked; const who=[...pick].join(", "); const grp=($("#naGrp")||{}).value||"";
+      const jj=collect(); jj.assemblies=[...(jj.assemblies||[]),...lines.map((n,ix)=>({id:uid(),name:n,meta:"",status:"ready",who,final:fin&&ix===lines.length-1,...(grp?{group:grp}:{})}))]; await put(jj,`Added ${lines.length} task${lines.length>1?"s":""} to ${jj.name}`);};
   };
   $("#dlg").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeSup(+b.dataset.del));
   $("#dlg").querySelectorAll("details[data-sgk]").forEach(d=>d.addEventListener("toggle",()=>{ d.open?supOpen.add(d.dataset.sgk):supOpen.delete(d.dataset.sgk); }));
+  { const so=$("#dlg").querySelector("details.sgold"); if(so) so.addEventListener("toggle",()=>{ supOldOpen=so.open; }); }
   $("#dlg").querySelectorAll("[data-sged]").forEach(b=>b.onclick=()=>{ const e=$("#dlg").querySelector(`[data-sge="${b.dataset.sged}"]`); e.hidden=!e.hidden; b.textContent=e.hidden?"✎ Edit":"Done editing"; });
   $("#dlg").querySelectorAll("[data-scnt]").forEach(b=>b.onclick=async()=>{ const jid=openId; const j=collect(); if(JSON.stringify(j)!==JSON.stringify(job())) await put(j); window.openCount(jid,b.dataset.scnt); });
 }
@@ -860,6 +1289,52 @@ async function put(j,label){
   if(!db){ jobs=jobs.map(x=>x.id===id?j:x); render(); pushUndo(id,prev,label||("Edited "+j.name)); return true; }
   try{ await saveJob(id,data); pushUndo(id,prev,label||("Edited "+j.name)); return true; }
   catch(e){ const m="Couldn't save: "+(e&&e.message||e); const el=$("#err"); if(el) el.textContent=m; $("#toastUndo").style.display="none"; $("#toastTx").textContent=m; $("#toast").classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>$("#toast").classList.remove("on"),9000); return false; }
+}
+/* Change stage (UX audit 05, Kyle Nov 15): nothing moves until the current and new stage are shown side by side with
+   what else changes (board, stages running alongside), then "Move to X". "Change stage" picks any stage;
+   "Next stage: X →" opens the same review with the next stage filled in. */
+function stageName(s){ return `${s.bt} · ${s.t}`; }
+function stagePanel(to){
+  const P=$("#stgPanel"), B=$("#back"); if(!P) return;
+  const j=raw(openId); const was=SIDX[j.stage]??0, W=STAGES[was];
+  const N=$("#next");
+  if(to===false){ P.hidden=true; P.innerHTML=""; if(B){ B.hidden=false; B.setAttribute("aria-expanded","false"); B.focus(); } if(N) N.hidden=false; return; }
+  // the review replaces the stage buttons while it's open (review Nov 15) - one set of controls at a time
+  P.hidden=false; if(B){ B.setAttribute("aria-expanded","true"); B.hidden=true; } if(N) N.hidden=true;
+  if(to==null||to===was){
+    P.innerHTML=`<div class="stgp" role="group" aria-label="Change stage"><div class="stgnow">Now: <b>${esc(stageName(W))}</b></div>
+      <div class="lbl" style="margin:6px 0 4px">Move to…</div>
+      ${BOARDS.map(b=>`<div class="stgb"><span class="stgbt">${esc(b.t)}</span>${b.stages.map(s=>{ const k=SIDX[s.k];
+        return `<button type="button" class="chip ${k===was?"on":""}" data-stg="${k}" ${k===was?'disabled aria-current="step"':""}>${esc(s.t)}${k===was?" (now)":""}</button>`; }).join("")}</div>`).join("")}
+      <div class="row" style="margin-top:8px"><button class="btn sm ghost" type="button" data-stgx>Cancel</button></div></div>`;
+  } else {
+    const T=STAGES[to]; const also=alsoIn(j).map(k=>STAGES[SIDX[k]]).filter(Boolean);
+    const keep=FAB_STAGES.includes(T.k)?also.filter(s=>s.k!==T.k):[];
+    const notes=[];
+    if(T.board!==W.board) notes.push(`The job moves from the ${esc(W.bt)} board to the ${esc(T.bt)} board.`);
+    if(to<was) notes.push("This moves the job back to an earlier stage.");
+    const drop=also.filter(s=>!keep.includes(s)); if(drop.length) notes.push(`${drop.map(s=>esc(s.t)).join(", ")} ${drop.length>1?"stop":"stops"} running alongside.`);
+    if(keep.length) notes.push(`${keep.map(s=>esc(s.t)).join(", ")} keep${keep.length>1?"":"s"} running alongside.`);
+    if(T.k==="done") notes.push(`Marks the job finished: it leaves the crew's task lists and the planner, and moves to Finished jobs on its own in ${typeof AUTO_ARCH_DAYS!=="undefined"?AUTO_ARCH_DAYS:3} days.`);
+    if(W.k==="done") notes.push("Takes the job out of Done, so it won't be archived automatically.");
+    notes.push("Logged on the job. Tasks, orders and NCRs aren't changed.");
+    P.innerHTML=`<div class="stgp" role="group" aria-label="Review stage change"><div class="stgcmp">
+        <div><span class="lbl">Now</span><b>${esc(stageName(W))}</b></div><span class="stgarr" aria-hidden="true">→</span><div><span class="lbl">New</span><b>${esc(stageName(T))}</b></div></div>
+      <ul class="stgn">${notes.map(n=>`<li>${n}</li>`).join("")}</ul>
+      <div class="row" style="gap:6px;margin-top:8px"><button class="btn sm primary" type="button" data-stggo="${to}">Move to ${esc(T.t)}</button><button class="btn sm" type="button" data-stgpick>Pick a different stage</button><button class="btn sm ghost" type="button" data-stgx>Cancel</button></div></div>`;
+  }
+  P.querySelectorAll("[data-stg]").forEach(b=>b.onclick=()=>stagePanel(+b.dataset.stg));
+  P.querySelectorAll("[data-stgpick]").forEach(b=>b.onclick=()=>stagePanel(null));
+  P.querySelectorAll("[data-stgx]").forEach(b=>b.onclick=()=>stagePanel(false));
+  P.querySelectorAll("[data-stggo]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; b.disabled=true; b.textContent="Moving…"; await moveTo(+b.dataset.stggo); });
+  const f=P.querySelector("[data-stggo],[data-stg]:not([disabled])"); if(f) f.focus();
+}
+async function moveTo(to){
+  const j=collect(); const was=SIDX[j.stage]??0; to=Math.max(0,Math.min(STAGES.length-1,to)); if(to===was) return;
+  j.stage=STAGES[to].k; j.log=[...(j.log||[]),{at:new Date().toISOString(),text:`Moved to ${STAGES[to].bt}: ${STAGES[to].t} (from ${STAGES[was].t})`}];
+  if(FAB_STAGES.includes(j.stage)) j.alsoStages=(j.alsoStages||[]).filter(k=>k!==j.stage); else delete j.alsoStages;
+  if(STAGES[to].board!==STAGES[was].board) cur=STAGES[to].board;
+  await put(j,`Moved ${j.name} to ${STAGES[to].t}`);
 }
 async function move(d){
   const j=collect(); const was=SIDX[j.stage]??0; const to=Math.max(0,Math.min(STAGES.length-1,was+d));
@@ -894,19 +1369,49 @@ function supForm(){
     await put(j,`Added ${name} to ${j.name}`);
   };
 }
-$("#addJob").onclick=async()=>{
-  const first=(BOARDS.find(b=>b.k===cur)||BOARDS[0]).stages[0].k;
-  const id=uid(); const data={name:"New job",folder:"",summary:"",stage:first,suppliers:[],log:[],order:Date.now()};
-  if(!db){ jobs.push({id,...data}); render(); openJob(id); pushUndo(id,null,"Added a new job"); return; }
-  try{ await saveJob(id,data); jobs.push({id,...data}); openJob(id); pushUndo(id,null,"Added a new job"); }catch(e){ $("#status").textContent="Couldn't add job: "+(e.message||e); }
+/* New job (stage 7, Kyle Nov 14): a draft form first - nothing is saved until Create job. Cancel / Back / tapping outside
+   leaves no record behind. Warns if the job number is already used. */
+$("#addJob").onclick=()=>{
+  const board=BOARDS.find(b=>b.k===cur)||BOARDS[0];
+  openId=null; const D=$("#dlg");
+  D.innerHTML=`<div class="njf"><div class="jhd"><h3 id="dlgTitle">New job</h3><button class="btn ghost" type="button" id="njX">Cancel</button></div>
+    <div class="tnote" style="margin:2px 0 10px">Nothing is saved until you tap Create job.</div>
+    <label>Job number and name<input id="njName" placeholder="e.g. 1090WT - Mark's Hauling" autocomplete="off"></label>
+    <label>Starts at<select id="njStage">${BOARDS.map(b=>`<optgroup label="${b.t}">${b.stages.filter(x=>x.k!=="done").map(x=>`<option value="${x.k}" ${x.k===board.stages[0].k?"selected":""}>${x.t}</option>`).join("")}</optgroup>`).join("")}</select></label>
+    <label>Folder (optional)<input id="njFolder" placeholder="Where the files are"></label>
+    <label>Card note (optional)<input id="njNote" placeholder="One line about the job"></label>
+    <div class="err" id="njErr"></div>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn" type="button" id="njX2">Cancel</button><button class="btn primary" type="button" id="njGo" style="min-height:44px">Create job</button></div></div>`;
+  $("#scrim").classList.add("on"); setTimeout(()=>{ const n=$("#njName"); if(n) n.focus(); },40);
+  const cancel=()=>{ if(typeof closeDlg==="function") closeDlg(); else $("#scrim").classList.remove("on"); };
+  $("#njX").onclick=cancel; $("#njX2").onclick=cancel;
+  $("#njName").onkeydown=e=>{ if(e.key==="Enter") $("#njGo").click(); };
+  $("#njGo").onclick=async()=>{
+    const go=$("#njGo"); if(go.disabled) return;
+    const name=$("#njName").value.trim(); if(!name){ $("#njErr").textContent="Give the job a name (job number first if it has one)."; $("#njName").focus(); return; }
+    const num=window.jobNum?window.jobNum(name):""; const dup=num&&[...jobs,...archivedJobs].find(j=>window.jobNum&&window.jobNum(j.name)===num);
+    if(dup&&!confirm(`${num} is already used by "${dup.name}"${dup.archived?" (finished)":""}.\n\nCreate another job with the same number anyway?`)) return;
+    go.disabled=true; go.textContent="Creating…";
+    const id=uid(); const data={name,folder:$("#njFolder").value.trim(),summary:$("#njNote").value.trim(),stage:$("#njStage").value||board.stages[0].k,suppliers:[],log:[{at:new Date().toISOString(),text:`Job created by ${(window.ME&&ME.name)||"?"}`}],order:Date.now()};
+    if(!db){ jobs.push({id,...data}); render(); openJob(id); pushUndo(id,null,"Added a new job"); return; }
+    try{ await saveJob(id,data); jobs.push({id,...data}); render(); openJob(id); pushUndo(id,null,"Added a new job"); }
+    catch(e){ go.disabled=false; go.textContent="Create job"; $("#njErr").textContent="Couldn't create it: "+(e.message||e); }
+  };
 };
 
+/* Jobs → Overview (review, Nov 15): the All jobs list on its own (Active / Planned / Shop / Completed), no board above it */
+window.extraViews=Object.assign(window.extraViews||{},{overview:()=>{ const B=$("#board"); B.className="ovw"; B.style.gridTemplateColumns=""; B.innerHTML="";
+  const L=$("#allJobs"); if(L&&L.classList.contains("closed")) $("#allJobsHead").click(); drawTrack(); }});
+GVC.on("render:after",()=>{ const t=$("#toList"); if(t) t.style.display=cur==="overview"?"none":""; document.body.classList.toggle("ovwv",cur==="overview"); });
+/* jump from the top of a board straight to the All jobs list (opens it if folded) - stage 6 review */
+{ const b=$("#toList"); if(b) b.onclick=()=>{ const L=$("#allJobs"); if(!L) return; if(L.classList.contains("closed")) $("#allJobsHead").click();
+    L.scrollIntoView({behavior:"smooth",block:"start"}); }; }
 /* "All jobs" is on every board; let it fold away and remember that */
 { const L=$("#allJobs"), H=$("#allJobsHead"); const set=open=>{ L.classList.toggle("closed",!open); H.setAttribute("aria-expanded",open); try{localStorage.setItem("gvc_alljobs",open?"1":"0")}catch(e){} };
   let open=true; try{ open=localStorage.getItem("gvc_alljobs")!=="0"; }catch(e){} set(open);
   H.onclick=()=>set(L.classList.contains("closed")); H.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); H.click(); } }; }
 const START_HASH=location.hash||"";
-const VIEWS=["todo",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas","archive","revs"];
+const VIEWS=["todo","overview",...BOARDS.map(b=>b.k),"crew","time","inv","ncr","ideas","archive","revs","today","purchasing","punch","mytodo","drawings","pos","porders","requests","crewjobs"];   // deep links (role guards in tabs.js / punch.js send each role to what it may see)
 const h=(location.hash||"").slice(1); if(VIEWS.includes(h)) cur=h;
 window.addEventListener("hashchange",()=>{const k=location.hash.slice(1);if(VIEWS.includes(k)){cur=k;render();}});
 /* ---------- data: Supabase ---------- */
@@ -914,6 +1419,7 @@ const SB_URL="https://bfbhosvkzdxjcmvofotk.supabase.co", SB_KEY="sb_publishable_
 const Widget = (window.capacitorExports && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.capacitorExports.registerPlugin("WidgetBridge") : null;
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: !Widget, storage: window.localStorage, lock: async (name, timeout, fn) => await fn() } });
 let channel=null;
+window.gvcWidgetBridge=Widget;   // widget.js hands the home-screen widget this person's own list (kept on the phone)
 function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 /* The home-screen widget shows the app's own To do list (it used to work it out separately and drifted).
    Every device with the app open publishes what its To do tab shows to gvc_widget_state 'todo' when it changes;
@@ -921,7 +1427,7 @@ function widgetRefresh(){ try{ Widget && Widget.refresh(); }catch(e){} }
 let wsLast="", wsT=null, wsAt=0;
 function cssCol(c){ const m=String(c||"").match(/var\((--[a-z0-9-]+)\)/i); const v=m?getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim():String(c||""); return /^#[0-9a-f]{3,8}$/i.test(v)?v:"#ffd28a"; }
 function publishTodo(){
-  if(window.ME&&ME.role!=='admin') return;   // the widget shows Kyle's list - a crew/parts phone must not overwrite it
+  if(!window.ME||ME.role!=='admin') return;   // the widget shows Kyle's list - a crew/parts phone must not overwrite it (also before the role is known - preview fix Nov 15)
   clearTimeout(wsT); wsT=setTimeout(async()=>{
     if(!db||!jobs.length) return;
     let items=[];
@@ -1099,7 +1605,8 @@ function partThumb(p,big){
   if(u) return `<img class="pth${big?" big":""}" src="${u}" alt="${esc(p.name)}" loading="lazy" data-zoom="${esc(p.part_no)}">`;
   return `<div class="pth ph${big?" big":""}" style="--m:${MATC[p.material]||"#555"}"><span>${esc((p.description||p.material||"").replace(/"/g,"″"))}</span></div>`;
 }
-function renderInv(){
+function renderInv(){ for(const h of GVC.list("renderInv")) if(h.fn()) return; renderInvCore(); for(const h of GVC.list("renderInv:after")) h.fn(); }
+function renderInvCore(){
   const B=$("#board"); B.className="inv"; B.style.gridTemplateColumns="";
   const q=invQ.toLowerCase();
   /* assemblies (Kyle, Nov 11): truck inventory -> tap an assembly (Rear apron, Big cabinet -> 48" drawer...) -> the parts it needs */
@@ -1249,7 +1756,11 @@ function showBendList(){
 /* ---------- To do + AI inbox ---------- */
 const Native = (window.capacitorExports && Widget) ? window.capacitorExports.registerPlugin("ShopNative") : null;
 const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
-function autoTodos(){
+/* the To do suggestions: the core list, then each screen's additions (hooks), worked out once per render */
+let autoCache=null;
+function autoTodos(){ if(!autoCache){ let out=autoTodosCore(); for(const h of GVC.list("autoTodos")) out=h.fn(out)||out; autoCache=out; } return autoCache; }
+autoTodos.reset=()=>{ autoCache=null; };
+function autoTodosCore(){
   const out=[]; const add=(text,c,o={})=>out.push({text,c,...o});
   const live=jobs.filter(j=>!j.sample);
   live.forEach(j=>{
@@ -1260,17 +1771,17 @@ function autoTodos(){
     if(j.stage==="dxfs") add(`Make DXFs: ${j.name}`,"var(--cyan)",{job:j.id});
     if(j.stage==="prep") add(`Send the order: ${j.name}`,"var(--red)",{job:j.id});
     if(j.stage==="quote"){
-      a.filter(x=>x.status==="quote").forEach(x=>add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id}));
-      a.filter(x=>x.status==="sent"&&days(x.sent)>=2).forEach(x=>add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id}));
+      a.filter(x=>x.status==="quote").forEach(x=>add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id,sup:x.id}));
+      a.filter(x=>x.status==="sent"&&days(askedAt(x))>=2).forEach(x=>add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(askedAt(x))}d)`,"var(--red)",{job:j.id,sup:x.id}));
     }
-    if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id});
+    if(j.stage==="pickup") add(`Pick up ${j.name}${a[0]?" at "+first(a[0].name):""}`,"var(--cyan)",{job:j.id,sup:a[0]?a[0].id:null});
     if(j.stage==="arrived"){ const cs=a.find(x=>x.status==="arrived")||a.find(x=>x.status!=="received")||a[0]; add(`Count & check: ${j.name}`,"var(--amber)",{job:j.id,count:cs?cs.id:null}); }
     if(j.stage==="bending"||alsoIn(j).includes("bending")) add(`Bend parts: ${j.name}`,"var(--pink)",{job:j.id});
     }
     offOrders(j).forEach(x=>{
-      if(x.status==="quote") add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id});
-      else if(x.status==="sent"&&days(x.sent)>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(x.sent)}d)`,"var(--red)",{job:j.id});
-      else if(x.status==="ready") add(`Pick up at ${first(x.name)} - ${j.name}`,"var(--cyan)",{job:j.id});
+      if(x.status==="quote") add(`Review ${first(x.name)}'s quote${x.quoteNo?" #"+x.quoteNo:""} - ${j.name}`,"var(--orange)",{job:j.id,sup:x.id});
+      else if(x.status==="sent"&&days(askedAt(x))>=2) add(`Follow up with ${first(x.name)} - ${j.name} (no reply ${days(askedAt(x))}d)`,"var(--red)",{job:j.id,sup:x.id});
+      else if(x.status==="ready") add(`Pick up at ${first(x.name)} - ${j.name}`,"var(--cyan)",{job:j.id,sup:x.id});
       else if(x.status==="arrived") add(`Count & check ${first(x.name)} order - ${j.name}`,"var(--amber)",{job:j.id,count:x.id});
     });
   });
@@ -1354,6 +1865,92 @@ function laterMenu(btn,o){
   m.querySelectorAll("button").forEach(b=>b.onclick=e=>{e.stopPropagation(); m.remove(); snoozeItem(o,b.dataset.k);});
   setTimeout(()=>document.addEventListener("click",function off(ev){ if(!m.contains(ev.target)){ m.remove(); document.removeEventListener("click",off);} }),0);
 }
+/* ---- To do rows (stage 8, Kyle Nov 14): job badge · action badge · short title; tap to expand the original
+   description, source, dates and the right Open button. The checkbox stays visible; Later lives in the expanded part.
+   The short title is display-only - the stored text is never changed. ---- */
+const todoOpen=new Set();
+const tdJobs=(text,jid)=>{ const out=[]; const add=j=>{ if(j&&!out.includes(j)) out.push(j); };
+  if(jid) add(jobs.find(x=>x.id===jid)||archivedJobs.find(x=>x.id===jid));
+  const T=String(text||"");
+  jobs.forEach(j=>{ const n=window.jobNum?window.jobNum(j.name):""; if(n&&n.length>=3&&new RegExp("(^|[^A-Za-z0-9])"+n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"($|[^A-Za-z0-9])").test(T)) add(j); });
+  return out; };
+const tdAction=(t)=>{ const x=String(t.text||"");
+  if(t.ncr||/\bNCRs?\b/i.test(x)) return /decid|what was decided/i.test(x)?"NCR decision":"NCR review";
+  if(t.count||/^count|count (&|and) check|count received/i.test(x)) return "Count";
+  if(/pick ?up|collect/i.test(x)) return "Pickup";
+  if(/follow up|no reply/i.test(x)) return "Follow up";
+  if(/^answer|^reply|^text |^email|^call /i.test(x)) return "Reply";
+  if(/quote/i.test(x)) return "Review quote";
+  if(/^send the order|^order\b|\border (the|more)\b/i.test(x)) return "Order";
+  if(/log your time|\bhours\b|\btime\b|timesheet/i.test(x)) return "Time";
+  if(/^assign|give work/i.test(x)) return "Assign";
+  if(/^bend/i.test(x)) return "Bend";
+  if(/look over new job/i.test(x)) return "New job";
+  if(/drawing|dxf|revision|model/i.test(x)) return "Drawings";
+  if(/^answer|^reply|^text |^email|^call /i.test(x)) return "Reply";
+  if(/talk to|bring up|discuss|ask |meet|with randy|with robin/i.test(x)) return "Discuss";
+  return "To do"; };
+const tdShort=(text,js)=>{ let s=String(text||"");
+  js.forEach(j=>{ const nm=String(j.name||""); if(!nm) return; s=s.split(nm).join(""); const rest=nm.replace(/^\s*\S+\s*[-–:]?\s*/,""); });
+  s=s.replace(/\(\s*\)/g,"").replace(/\s*[-–:·]\s*$/,"").replace(/^\s*[-–:]\s*/,"").replace(/\s{2,}/g," ").trim();
+  // first clause: up to a colon / dash / bracket, if that still says something
+  const cut=s.search(/\s[-–]\s|:\s|\s\(/); if(cut>=14) s=s.slice(0,cut);
+  s=s.replace(/[\s,;:.-]+$/,"");
+  if(s.length>76){ s=s.slice(0,74); s=s.slice(0,Math.max(40,s.lastIndexOf(" ")))+"…"; }
+  return s||String(text||""); };
+/* To do grouped (stage 10, Kyle Nov 15): Job → action type → short task → expand. Active jobs first, then planned,
+   Inventory, Shop, General. A to-do about several jobs shows once under a shared heading ("1083G + 1084G · Tote Truck"). */
+const todoOpenG=new Set();   // job sections start folded (Kyle, Nov 15) - tap a heading to open it; remembered while the app is open
+const TD_HEAD={"Review quote":"Quotes","Follow up":"Follow up","Reply":"Replies","Discuss":"Discuss","Order":"Ordering","Pickup":"Pickup","Count":"Receiving",
+  "NCR decision":"NCRs","NCR review":"NCRs","Bend":"Production","Drawings":"Drawings & revisions","Assign":"Planning","New job":"Planning","Time":"Time","To do":"Other"};
+const TD_ORDER=["Quotes","Follow up","Replies","Discuss","Ordering","Pickup","Receiving","NCRs","Production","Drawings & revisions","Planning","Time","Other"];
+function todoGroupsHTML(items){
+  const G={};
+  items.forEach(o=>{ const js=tdJobs(o.text,o.job), act=tdAction(o);
+    const nums=js.map(j=>window.jobNum?window.jobNum(j.name):j.name).filter(Boolean);
+    let key, title, rank;
+    if(!js.length){ key=act==="Time"?"_time":"_gen"; title=act==="Time"?"Shop · time":"General"; rank=act==="Time"?4:5; }
+    else if(js.length===1){ const j=js[0], L=window.lifeOf?lifeOf(j):"active", n=nums[0];
+      key=j.id; title=`${n?n+" · ":""}${String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"")||j.name}`;
+      rank=n==="INV"?2:L==="active"?0:L==="planned"?1:L==="shop"?3:L==="done"?6:1; }
+    else { const names=js.map(j=>String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").split(/\s+/));
+      let common=[]; for(let k=1;k<=names[0].length;k++){ const tail=names[0].slice(-k).join(" "); if(names.every(w=>w.slice(-k).join(" ")===tail)) common=names[0].slice(-k); }
+      key="multi:"+nums.slice().sort().join("+"); title=nums.slice().sort().join(" + ")+(common.length?" · "+common.join(" "):"");
+      rank=Math.min(...js.map(j=>{ const L=window.lifeOf?lifeOf(j):"active"; return L==="active"?0:L==="planned"?1:3; })); }
+    const g=G[key]=G[key]||{key,title,rank,jc:js[0]&&window.jobColor?jobColor(js[0].id):"#6c727a",rows:[],late:0};
+    const late=o.c==="var(--red)"||/no reply \d+d|overdue/i.test(o.text);
+    if(late) g.late++;
+    g.rows.push({...o,grouped:true,late,head:TD_HEAD[act]||"Other"}); });
+  return Object.values(G).sort((a,b)=>a.rank-b.rank||b.late-a.late||a.title.localeCompare(b.title,undefined,{numeric:true})).map(g=>{
+    const shut=!todoOpenG.has(g.key), heads=TD_ORDER.filter(h=>g.rows.some(r=>r.head===h));
+    return `<div class="tgj${shut?" shut":""}" style="--jc:${g.jc}"><button type="button" class="tgjh" data-tgj="${esc(g.key)}" aria-expanded="${!shut}">
+        <span class="tgjt">${esc(g.title)}</span><span class="tgjn">${g.rows.length} to-do${g.rows.length===1?"":"s"}${g.late?` · <b>${g.late} overdue</b>`:""}</span><span class="tch" aria-hidden="true">${shut?"▸":"▾"}</span></button>
+      ${shut?(()=>{ const top=g.rows.slice().sort((a,b)=>b.late-a.late||TD_ORDER.indexOf(a.head)-TD_ORDER.indexOf(b.head))[0];
+          return `<div class="tgnext"><span class="tgnl">Next</span></div>${todoRow(top)}${g.rows.length>1?`<button type="button" class="tgmore" data-tgj="${esc(g.key)}">${g.rows.length-1} more ▸</button>`:""}`; })()
+        :heads.map(h=>`<div class="tgah">${esc(h)}</div>${g.rows.filter(r=>r.head===h).sort((a,b)=>b.late-a.late).map(todoRow).join("")}`).join("")}</div>`; }).join("");
+}
+function todoRow(o){
+  const js=tdJobs(o.text,o.job), act=tdAction(o), open=todoOpen.has(o.key);
+  const nums=js.map(j=>window.jobNum?window.jobNum(j.name):"").filter(Boolean);
+  const jb=nums.length?nums.join(" · "):(act==="Time"?"Shop":"General");
+  const j0=js[0]; const jcol=j0&&window.jobColor?window.jobColor(j0.id):"#6c727a";
+  const btns=[];
+  if(o.count&&window.openCount) btns.push(`<button class="btn sm primary" type="button" data-cnt="${esc(o.job)}|${esc(o.count)}">Count it</button>`);
+  if(o.sup&&o.job&&window.openOrderLine) btns.push(`<button class="btn sm" type="button" data-tdo="${esc(o.job)}|${esc(o.sup)}">Open order</button>`);
+  if(o.ncr&&o.job) btns.push(`<button class="btn sm" type="button" data-tdn="${esc(o.job)}">Open NCR</button>`);
+  else if(act.startsWith("NCR")&&j0) btns.push(`<button class="btn sm" type="button" data-tdn="${esc(j0.id)}">Open NCRs</button>`);
+  if(act==="Bend"&&o.job) btns.push(`<button class="btn sm" type="button" data-tdt="${esc(o.job)}">Open tasks</button>`);
+  if(o.view) btns.push(`<button class="btn sm" type="button" data-view="${esc(o.view)}">Open ${esc(o.view)}</button>`);
+  js.forEach(j=>btns.push(`<button class="btn sm ghost" type="button" data-job="${esc(j.id)}">Open ${esc(window.jobNum&&window.jobNum(j.name)||j.name)}</button>`));
+  return `<div class="ti tx${open?" open":""}" style="--c:${o.c}"><button class="ck" type="button" ${o.done} title="${o.auto?"Done / hide":"Mark done"}" aria-label="Done: ${esc(o.text)}">✓</button><span class="bar"></span>
+    <div class="body"><button type="button" class="txh" data-tdk="${esc(o.key)}" aria-expanded="${open}">
+      ${o.grouped?"":`<span class="txb"><span class="tjb" style="--jc:${jcol}">${esc(jb)}</span><span class="tact">${esc(act)}</span></span>`}${o.late?`<span class="tlate">Overdue</span>`:""}
+      <span class="tt">${esc(tdShort(o.text,js))}</span><span class="tch" aria-hidden="true">${open?"▴":"▾"}</span></button>
+      ${open?`<div class="txd"><div class="txf">${esc(o.text)}</div>
+        <div class="meta">${[esc(o.src||""),o.at?"added "+fmt(o.at):""].filter(Boolean).join(" · ")}</div>
+        <div class="txa">${btns.join("")}<span style="flex:1"></span><button class="btn sm ghost later" type="button" ${o.later} title="Not now - move to Later">Later</button></div></div>`:""}
+    </div></div>`;
+}
 function renderTodo(){
   const B=$("#board"); B.className="todo"; B.style.gridTemplateColumns="";
   const auto=liveAuto(), mine=liveMine().sort((a,b)=>a.created_at<b.created_at?-1:1);
@@ -1364,13 +1961,13 @@ function renderTodo(){
   const jn=id=>{const j=jobs.find(x=>x.id===id);return j?j.name:"";};
   B.innerHTML=`<section class="tbox"><h3>To do <span class="n">${auto.length+mine.length}</span></h3>
     <div class="addtodo"><input id="tdNew" placeholder="Add a to-do…" aria-label="New to-do"><button class="btn" type="button" id="tdAdd">Add</button></div>
-    ${mine.map(t=>`<div class="ti" style="--c:#ffd28a"><button class="ck" type="button" data-done="${t.id}" title="Mark done">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">${[t.from_name?esc(t.from_name):"",t.job_id&&jn(t.job_id)?`<button class="go" type="button" data-job="${esc(t.job_id)}">${esc(jn(t.job_id))}</button>`:"",fmt(t.created_at)].filter(Boolean).join(" · ")}</div></div><div class="lw"><button class="later" type="button" data-snz="${t.id}" title="Not now - move to Later">Later</button></div></div>`).join("")}
-    ${auto.map((t,i)=>`<div class="ti" style="--c:${t.c}"><button class="ck" type="button" data-auto="${i}" title="Done / hide">✓</button><span class="bar"></span><div class="body"><div class="tt">${esc(t.text)}</div><div class="meta">From the board · <button class="go" type="button" ${t.job?`data-job="${esc(t.job)}">Open job`:`data-view="${t.view}">Open ${t.view}`}</button></div>${t.count&&window.openCount?`<button class="btn sm primary" type="button" style="margin-top:6px" data-cnt="${esc(t.job)}|${esc(t.count)}">Count it</button>`:""}</div><div class="lw"><button class="later" type="button" data-snza="${i}" title="Not now - move to Later">Later</button></div></div>`).join("")}
+    ${todoGroupsHTML([...mine.map(t=>({key:"m:"+t.id,text:t.text,job:t.job_id,c:"#ffd28a",src:t.from_name||"You",at:t.created_at,done:`data-done="${t.id}"`,later:`data-snz="${t.id}"`})),
+      ...auto.map((t,i)=>({key:"a:"+t.text,text:t.text,job:t.job,sup:t.sup,count:t.count,ncr:t.ncr,view:t.view,c:t.c,src:"From the board",auto:true,done:`data-auto="${i}"`,later:`data-snza="${i}"`}))])}
     ${!auto.length&&!mine.length?`<div class="tnote">Nothing to do. Nice.</div>`:""}
     ${later.length?`<details class="laterbox" style="margin-top:10px"><summary class="tnote" style="cursor:pointer">Later (${later.length})</summary>${later.map(t=>`<div class="ti"><span class="bar" style="--c:#6c727a"></span><div class="body"><div class="tt" style="color:var(--muted)">${esc(t.text)}</div><div class="meta">Back ${esc(snoozeLabel(t.until))}${t.auto?" · from the board":""}</div></div><div class="lw"><button class="later" type="button" data-unsnz="${esc(t.id)}">Bring back</button></div></div>`).join("")}</details>`:""}
     ${doneRecent.length?`<details style="margin-top:8px"><summary class="tnote" style="cursor:pointer">Recently done (${doneRecent.length})</summary>${doneRecent.map(t=>`<div class="ti"><button class="ck" type="button" data-undone="${t.id}" title="Not done" style="color:var(--green);border-color:var(--green)">✓</button><div class="body"><div class="tt" style="color:var(--dim);text-decoration:line-through">${esc(t.text)}</div>${t.outcome?`<div class="meta" style="color:var(--text)">Decided: ${esc(t.outcome)}</div>`:""}</div></div>`).join("")}</details>`:""}
   </section>
-  <section class="tbox"><h3>From texts &amp; recordings <span class="n">${review.length?review.length+" to review":""}</span></h3>
+  <section class="tbox${!review.length&&!aiMsg?" intake":""}"><h3>From texts &amp; recordings <span class="n">${review.length?review.length+" to review":"nothing to review"}</span></h3>
     <div class="tools">
       ${Native?`<button class="btn rec ${recState.on?"on":""}" type="button" id="recBtn">${recState.on?"■ Stop recording "+recClock():"● Record"}</button>
       <button class="btn" type="button" id="smsNow">Check texts</button><button class="btn ghost" type="button" id="smsPick">Text contacts (${LS.get("gvc_sms_contacts",[]).length})</button>`:""}
@@ -1403,6 +2000,11 @@ function renderTodo(){
   B.querySelectorAll("[data-cnt]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const [jid,sid]=el.dataset.cnt.split("|"); window.openCount(jid,sid); });
   B.querySelectorAll("[data-unsnz]").forEach(el=>el.onclick=()=>unsnooze({id:el.dataset.unsnz}));
   B.querySelectorAll("[data-job]").forEach(el=>el.onclick=()=>openJob(el.dataset.job));
+  B.querySelectorAll("[data-tgj]").forEach(el=>el.onclick=()=>{ const k=el.dataset.tgj; todoOpenG.has(k)?todoOpenG.delete(k):todoOpenG.add(k); renderTodo(); });
+  B.querySelectorAll("[data-tdk]").forEach(el=>el.onclick=()=>{ const k=el.dataset.tdk; todoOpen.has(k)?todoOpen.delete(k):todoOpen.add(k); renderTodo(); });
+  B.querySelectorAll("[data-tdo]").forEach(el=>el.onclick=()=>{ const [j,sid]=el.dataset.tdo.split("|"); window.openOrderLine(j,sid); });
+  B.querySelectorAll("[data-tdn]").forEach(el=>el.onclick=()=>openJob(el.dataset.tdn,"ncr"));
+  B.querySelectorAll("[data-tdt]").forEach(el=>el.onclick=()=>openJob(el.dataset.tdt,"tasks"));
   B.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>{cur=el.dataset.view;render();});
   B.querySelectorAll("[data-acc]").forEach(el=>el.onclick=()=>acceptSugg(el.dataset.acc));
   B.querySelectorAll("[data-dis]").forEach(el=>el.onclick=()=>setSugg(el.dataset.dis,"dismissed"));
@@ -1687,7 +2289,8 @@ async function widgetRec(){
   if(typeof cur!=="undefined"){ cur="todo"; render(); }
   toggleRec();
 }
-if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.act==="rec"&&Native){ widgetRec(); return; } if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
+if(Widget){ Widget.addListener("launch", d=>{ if(d&&d.act==="rec"&&Native){ widgetRec(); return; }
+  if(d&&d.link&&window.gvcWidgetLink){ try{ const l=JSON.parse(d.link); if(l&&l.rec&&Native){ widgetRec(); return; } if(window.gvcWidgetLink(l)) return; }catch(e){} } if(d&&d.tab&&VIEWS.includes(d.tab)){ cur=d.tab; render(); } if(d&&d.job){ setTimeout(()=>{ if(jobs.some(x=>x.id===d.job)) openJob(d.job); },400); } }); }
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden && db){ loadJobs(); loadSide(); checkTexts(false); } });
 render();
 (async()=>{
@@ -1708,6 +2311,7 @@ render();
 <script src="jobs-extra.js"></script>
 <script src="jobparts.js"></script>
 <script src="viewer3d.js"></script>
+<script src="asm3d.js"></script>
 <script src="jobfiles.js"></script>
 <script src="revisions.js"></script>
 <script src="consumables.js"></script>
@@ -1720,6 +2324,7 @@ render();
 <script src="recaps.js"></script>
 <script src="quotes.js"></script>
 <script src="punch.js"></script>
+<script src="today.js"></script>
 <script src="prices.js"></script>
 <script src="team.js"></script>
 <script src="hw-icons.js"></script>
@@ -1729,6 +2334,11 @@ render();
 <script src="pos.js"></script>
 <script src="theme.js"></script>
 <script src="tabs.js"></script>
+<script src="purchasing.js"></script>
 <script src="back.js"></script>
+<script src="widget.js"></script>
+<script src="a11y.js"></script>
+<script>/* shared look goes last so it wins ties with the screens' own styles (redesign stage 1) */
+try{ document.head.appendChild(document.getElementById("gvcUi")); }catch(e){}</script>
 </body>
 </html>
