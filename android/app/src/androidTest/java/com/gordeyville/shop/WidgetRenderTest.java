@@ -159,7 +159,11 @@ public class WidgetRenderTest {
         final Activity act = window();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             s.host = new FrameLayout(c);
-            s.root = rv.apply(c, s.host);
+            // the launcher gets the views through a Parcel - do the same round trip
+            android.os.Parcel pa = android.os.Parcel.obtain();
+            rv.writeToParcel(pa, 0); pa.setDataPosition(0);
+            RemoteViews got = RemoteViews.CREATOR.createFromParcel(pa); pa.recycle();
+            s.root = got.apply(c, s.host);
             s.host.addView(s.root, new FrameLayout.LayoutParams(wpx, hpx));
             if (act != null) act.addContentView(s.host, new ViewGroup.LayoutParams(wpx, hpx));
         });
