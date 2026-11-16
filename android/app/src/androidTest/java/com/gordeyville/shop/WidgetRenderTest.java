@@ -353,7 +353,11 @@ public class WidgetRenderTest {
                 finishAll();
                 if (target[0] != null) {
                     synchronized (seen) { seen.clear(); }
-                    InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> target[0].performClick());
+                    InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                        // a finger on a list row reaches the list's item click (that's where the row's fill-in link is read)
+                        if (target[0].getParent() instanceof ListView) { ListView lv = (ListView) target[0].getParent(); int pos = lv.getPositionForView(target[0]);
+                            lv.performItemClick(target[0], pos, lv.getItemIdAtPosition(pos)); }
+                        else target[0].performClick(); });
                     long until = System.currentTimeMillis() + 15000;
                     Intent in = null;
                     while (System.currentTimeMillis() < until) { synchronized (seen) { if (!seen.isEmpty()) { in = seen.get(0); break; } } Thread.sleep(200); }
