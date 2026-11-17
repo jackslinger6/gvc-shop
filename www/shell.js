@@ -179,6 +179,7 @@ const ic={
   jobs:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',
   crew:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
   more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  draw:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
   chat:'<path d="M21 12a8 8 0 0 1-11.6 7.2L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
   rec:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
@@ -458,7 +459,7 @@ function sheet(html,onReady){
 function moreMenu(){
   const n=id=>{ const el=document.getElementById(id); const m=el&&el.textContent.match(/\((\d+)/); return m?+m[1]:0; };
   let timeN=0; try{ const tmp=document.createElement("div"); tmp.innerHTML=window.timeTab?window.timeTab():""; timeN=parseInt((tmp.querySelector(".at")||{}).textContent)||0; }catch(e){}
-  const items=[["today","Today & timer","clock"],["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["count","Count an order","count"],["talks","Talks","rec"],["prices","Prices","count"],["requests","Supply requests","box",(window.reqCount?window.reqCount():0)],["pos","RFQs & POs","list",(window.posOpen?window.posOpen():0)],["porders",window.ME&&ME.role==="parts"?"My orders":"Robin's orders","box",(window.pordersOpen?window.pordersOpen():0)],["staging","Staging kits","box"],["crewview","Colton's view","crew"],["partsview","Robin's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
+  const items=[["today","Today & timer","clock"],["todo","To do","list"],["msgs","Messages","chat",(window.msgUnread?window.msgUnread():0)],["time","My time","clock",timeN],["mytime","My time","clock"],["inv","Inventory","box"],["drawings","Drawings","draw"],["ncr","NCRs","warn",n("ncrBtn")],["revs","Revisions","rev",n("revBtn")],["supplies","Need supplies","box"],["count","Count an order","count"],["talks","Talks","rec"],["prices","Prices","count"],["requests","Supply requests","box",(window.reqCount?window.reqCount():0)],["pos","RFQs & POs","list",(window.posOpen?window.posOpen():0)],["porders",window.ME&&ME.role==="parts"?"My orders":"Robin's orders","box",(window.pordersOpen?window.pordersOpen():0)],["staging","Staging kits","box"],["crewview","Colton's view","crew"],["partsview","Robin's view","crew"],["archive","Finished jobs","trophy",(typeof archivedJobs!=="undefined"?archivedJobs.length:0),true],
     ["theme","Appearance","heart"],["soon","Coming later","bulb"],["newjob","New job","newj"],["ideas","App ideas","bulb"],["undo","Undo","undo"],["signout","Sign out","out"]];
   const CREWOK=["msgs","mytime","supplies","requests","count","inv","ncr","revs","archive","signout"];
   const PARTSOK=["porders","msgs","inv","staging","archive","theme","soon","signout"];   // Robin: no time clock, My time, Count or requests (Kyle, Nov 6)
@@ -466,11 +467,11 @@ function moreMenu(){
   const items2=role==="crew"?items.filter(x=>CREWOK.includes(x[0])):role==="parts"?PARTSOK.map(k=>items.find(x=>x[0]===k)).filter(Boolean):items.filter(x=>!["mytime","staging","soon"].includes(x[0]));
   /* grouped (redesign stage 6, Kyle Nov 14): everyday work first, then purchasing, then tools & settings.
      The "see the app as" previews and Girly mode sit at the bottom instead of the top. Same items and same roles as before. */
-  const GRP={today:"day",todo:"day",msgs:"day",time:"day",mytime:"day",count:"day",supplies:"day",newjob:"day",talks:"day",ncr:"jobs",revs:"jobs",inv:"jobs",archive:"jobs",
+  const GRP={drawings:"jobs",today:"day",todo:"day",msgs:"day",time:"day",mytime:"day",count:"day",supplies:"day",newjob:"day",talks:"day",ncr:"jobs",revs:"jobs",inv:"jobs",archive:"jobs",
     pos:"buy",porders:"buy",requests:"buy",prices:"buy",staging:"buy",
     ideas:"set",undo:"set",theme:"set",signout:"set"};
   if(role==="parts"){ GRP.porders="day"; GRP.staging="day"; GRP.inv="day"; GRP.archive="day"; }
-  const ORD=["today","todo","msgs","time","mytime","count","supplies","newjob","ncr","revs","inv","staging","talks","archive","pos","porders","requests","prices","ideas","undo","theme","soon","signout"];
+  const ORD=["today","todo","msgs","time","mytime","count","supplies","newjob","drawings","ncr","revs","inv","staging","talks","archive","pos","porders","requests","prices","ideas","undo","theme","soon","signout"];
   const PVK=["crewview","partsview"], pvItems=items2.filter(x=>PVK.includes(x[0]));
   const rest=items2.filter(x=>!PVK.includes(x[0])).sort((a,b)=>{ const ix=k=>role==="parts"&&k==="porders"?-1:ORD.indexOf(k); return ix(a[0])-ix(b[0]); });
   const GT={day:role==="parts"?"Your work":"Your day",jobs:"Jobs & records",buy:"Purchasing",set:"Tools & settings"};
