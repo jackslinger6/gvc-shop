@@ -266,6 +266,14 @@ window.shellTalkHere=talkHere;
 @media (min-width:900px){ .shtop .ib.shplus{display:none} }
 .shtop .ib.tk{width:auto;padding:0 12px 0 10px;gap:6px;color:var(--accent-hi);font:600 13px var(--font-ui)}
 @media (max-width:359px){ .shtop .ib.tk span{display:none} .shtop .ib.tk{width:44px;padding:0} .shtop #shBell{display:none} .shtop .nm{font-size:18px} }
+/* top bar never wider than the phone (Kyle's screenshot Nov 17: on a 360px phone the 4 buttons pushed the page 22px
+   sideways, so the whole Home slid left). The name/date side gives way; Talk goes icon-only on phones. */
+.shtop>div:first-child{min-width:0;overflow:hidden}
+.shtop>div:first-child .nm,.shtop>div:first-child .dt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shtop>div:last-child{flex:none}
+@media (max-width:430px){ .shtop .ib.tk span{display:none} .shtop .ib.tk{width:var(--hit,44px);padding:0} }
+@media (max-width:374px){ .shtop{padding-left:12px;padding-right:12px} .shtop>div:last-child{gap:6px!important} .shtop .nm{font-size:18px} }
+html,body{overflow-x:clip}
 .dmic{display:inline-flex;align-items:center;gap:6px}
 .dmic svg{color:var(--accent-hi)}
 @media (max-width:520px){ .dmic span{display:none} }
