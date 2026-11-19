@@ -236,7 +236,8 @@ const ICON={
   half:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" stroke-dasharray="3 3"/><path d="M12 9a3 3 0 0 0 0 6z" fill="currentColor"/>',
   tree:'<path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M10 5v14"/>', view:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
   ruler:'<path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>', fit:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', x:'<path d="M6 6l12 12M18 6L6 18"/>',
-  chev:'<path d="M9 6l6 6-6 6"/>', search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>' };
+  chev:'<path d="M9 6l6 6-6 6"/>', undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', redo:'<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  tapoff:'<path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.3-1"/>', search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>' };
 const svg=(k,s=20)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 const E=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -323,6 +324,15 @@ css.textContent=`
   #v3d.a3v .a3seg button{min-height:44px}
 }
 @media (max-width:760px){ #v3d.a3v .a3t{flex-basis:100%;order:-1} }
+#v3d.a3v .a3piv{position:absolute;z-index:4;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#3ddc84;border:2px solid #fff;box-shadow:0 0 0 1px #000;pointer-events:none;display:none}
+#v3d.a3v .a3fb{position:absolute;left:8px;right:8px;bottom:8px;z-index:4;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;pointer-events:none}
+#v3d.a3v .a3fb .a3b{pointer-events:auto;min-height:44px;padding:0 11px;background:rgba(20,24,29,.9);box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#v3d.a3v .a3fb .a3b.on{background:var(--a3acc);border-color:var(--a3acc);color:#111}
+#v3d.a3v .a3fb .a3b[hidden]{display:none}
+#v3d.a3v .a3fb .gap{flex:1}
+#v3d.a3v .a3toast{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:4;max-width:calc(100% - 16px);background:rgba(17,17,17,.92);border:1px solid var(--a3line);border-radius:10px;padding:7px 12px;font:600 13px var(--font-ui,Inter,sans-serif);color:var(--a3text);pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .15s}
+#v3d.a3v .a3toast.on{opacity:1}
+#v3d.a3v .a3hidebar{border:1px solid var(--a3acc);background:rgba(255,138,42,.1);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:8px}
 `;
 document.head.appendChild(css);
 
@@ -413,12 +423,23 @@ window.openAsm3D=async function(url,title,opts){
      at the start of each spin, and turning about a point that isn't mid-screen needs no camera re-aim, so a new centre
      never makes the view jump. "Orbit around selection" (View menu, off by default) uses the selection instead. */
   let selCentre=null, visCentre=null;   // set by setSel / applyVis
-  const pivotFn=()=>{ if(PREF.selOrbit&&selCentre&&mode!=="measure") return selCentre; return visCentre; };   // null (nothing showing) -> controls keep their own target
+  /* Nov 19 (Kyle, after a few days on the phone): the box-centre pivot was unintuitive - zoomed in on one corner, it
+     swung around the middle of the whole truck. Now it spins around WHATEVER IS IN THE MIDDLE OF THE SCREEN: the spot on
+     the model under the centre of the view. Nothing there (looking past an edge, into a gap) -> the point on the centre
+     line of the view at the depth of the visible parts' centre, so it still turns about the middle of the screen. */
+  const centrePivot=()=>{ const r=renderer.domElement.getBoundingClientRect(); const h=hit(r.left+r.width/2,r.top+r.height/2); if(h) return h.point.clone();
+    if(!visCentre) return null; ndc.set(0,0); ray.setFromCamera(ndc,cam); const o=ray.ray.origin, d=ray.ray.direction;
+    return o.clone().addScaledVector(d,Math.max(cam.near*4,visCentre.clone().sub(o).dot(d))); };
+  const pivotFn=()=>{ if(PREF.selOrbit&&selCentre&&mode!=="measure") return selCentre; return centrePivot(); };   // null (nothing showing) -> controls keep their own target
   const ctl=window.GVC3DControls?window.GVC3DControls(THREE,cam,renderer.domElement,UP.clone(),(x,y)=>{ const h=hit(x,y); return h?h.point.clone():null; },
     {tapPx:8, viewportRot:true, sens:()=>PREF.speed, upright:()=>PREF.upright, pivot:()=>pivotFn(), inertia:()=>mode!=="measure"}):null;
   let need=true; const draw=()=>{ need=true; }; if(ctl) ctl.addEventListener("change",draw);
   const labels=[];   // HTML labels pinned to 3D points
-  const loop=()=>{ if(disposed) return; ctl&&ctl.update(); if(need){ need=false; renderer.render(scene,cam); labels.forEach(l=>{ const p=l.p.clone().project(cam); const r=cv.getBoundingClientRect(); l.el.style.left=((p.x+1)/2*r.width)+"px"; l.el.style.top=((1-p.y)/2*r.height)+"px"; l.el.style.display=p.z>1?"none":""; }); } raf=requestAnimationFrame(loop); };
+  const pivDot=document.createElement("div"); pivDot.className="a3piv"; pivDot.setAttribute("aria-hidden","true"); cv.appendChild(pivDot); let pivOn=false;
+  const showPiv=()=>{ const P=ctl&&ctl.rotating&&ctl.rotating()&&ctl.pivotPoint&&ctl.pivotPoint();   // green dot on the spin centre while spinning (like Fusion)
+    if(!P){ if(pivOn){ pivDot.style.display="none"; pivOn=false; } return; }
+    const p=P.clone().project(cam); pivDot.style.left=((p.x+1)/2*cv.clientWidth)+"px"; pivDot.style.top=((1-p.y)/2*cv.clientHeight)+"px"; if(!pivOn){ pivDot.style.display="block"; pivOn=true; } };
+  const loop=()=>{ if(disposed) return; ctl&&ctl.update(); showPiv(); if(need){ need=false; renderer.render(scene,cam); labels.forEach(l=>{ const p=l.p.clone().project(cam); const r=cv.getBoundingClientRect(); l.el.style.left=((p.x+1)/2*r.width)+"px"; l.el.style.top=((1-p.y)/2*r.height)+"px"; l.el.style.display=p.z>1?"none":""; }); } raf=requestAnimationFrame(loop); };
   onResize=()=>{ const w=cv.clientWidth, h=cv.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); draw(); };
   window.addEventListener("resize",onResize);
 
@@ -461,7 +482,27 @@ window.openAsm3D=async function(url,title,opts){
 
   /* ---- visibility ---- */
   function updCentre(){ const v=visibleMeshes(); visCentre=v.length?boxOf(v).getCenter(new THREE.Vector3()):null; }
-  function applyVis(){ meshes.forEach((m,i)=>{ m.visible=VIS.leafVisible(i); }); rebuildEdges(); updCentre(); if(sel&&!T.nodes.get(sel).meshes.some(i=>meshes[i].visible)){ setSel(null); } draw(); renderPanel(); renderFoot(); }
+  function applyVis(){ meshes.forEach((m,i)=>{ m.visible=VIS.leafVisible(i); }); rebuildEdges(); updCentre(); if(sel&&!T.nodes.get(sel).meshes.some(i=>meshes[i].visible)){ setSel(null); } draw(); renderPanel(); renderFoot(); updBar(); }
+  /* ---- undo / redo (Kyle, Nov 19: "when you hide something you should be able to go back") ----
+     Every hide / show / show only / show all goes through visDo, which saves what was showing first. Steps that also
+     moved the camera (Show only, Exit isolation, Show all from an empty screen) save the camera too, so Undo puts the
+     view back where it was. Up to 100 steps; a new change clears Redo. */
+  const hist=[], redoS=[];
+  const camSnap=()=>({p:cam.position.clone(),q:cam.quaternion.clone(),u:cam.up.clone(),t:ctl?ctl.target.clone():null});
+  const visSnap=()=>({hidden:new Set(VIS.hidden),iso:VIS.iso,saved:VIS.saved?new Set(VIS.saved):null,cam:camSnap()});
+  function visRestore(s,withCam){ VIS.hidden=new Set(s.hidden); VIS.iso=s.iso; VIS.saved=s.saved?new Set(s.saved):null;
+    if(withCam){ anim++; ctl&&ctl.stop&&ctl.stop(); cam.position.copy(s.cam.p); cam.quaternion.copy(s.cam.q); cam.up.copy(s.cam.u); if(ctl&&s.cam.t) ctl.target.copy(s.cam.t); cam.updateMatrixWorld(); }
+    applyVis(); }
+  const keyOf=()=>[...VIS.hidden].sort().join("|")+"§"+(VIS.iso||"");
+  function visDo(what,fn,fit){ const before=visSnap(), k0=keyOf(); fn(); if(keyOf()===k0){ applyVis(); return; }   // nothing changed: no undo step
+    hist.push({s:before,fit:!!fit,what}); if(hist.length>100) hist.shift(); redoS.length=0;
+    applyVis(); if(fit) fitVisible(); toast(what); }
+  function undo(){ const h=hist.pop(); if(!h) return; redoS.push({s:visSnap(),fit:h.fit,what:h.what}); visRestore(h.s,h.fit); toast("Undone: "+h.what); }
+  function redo(){ const h=redoS.pop(); if(!h) return; hist.push({s:visSnap(),fit:h.fit,what:h.what}); visRestore(h.s,h.fit); toast("Redone: "+h.what); }
+  const nm=id=>T.nodes.get(id).name;
+  let toastEl=null, toastT=0;
+  function toast(t){ if(!toastEl){ toastEl=document.createElement("div"); toastEl.className="a3toast"; toastEl.setAttribute("role","status"); cv.appendChild(toastEl); }
+    toastEl.textContent=t; toastEl.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>toastEl&&toastEl.classList.remove("on"),2200); }
   /* ---- selection ---- */
   const selOutline=new THREE.Group(); scene.add(selOutline);
   function paint(){ const ids=new Set(sel?T.nodes.get(sel).meshes:[]);
@@ -469,7 +510,7 @@ window.openAsm3D=async function(url,title,opts){
     while(selOutline.children.length){ const c=selOutline.children.pop(); c.geometry.dispose(); }
     if(ids.size&&ids.size<=400){ const om=new THREE.LineBasicMaterial({color:0xffe066,depthTest:false,transparent:true,opacity:0.95}); ids.forEach(i=>{ const l=new THREE.LineSegments(new THREE.EdgesGeometry(meshes[i].geometry,25),om); l.matrixAutoUpdate=false; l.matrix.copy(meshes[i].matrixWorld); l.renderOrder=8; selOutline.add(l); }); }
     draw(); }
-  function setSel(id,from){ sel=id; selCentre=id?boxOf(T.nodes.get(id).meshes.map(i=>meshes[i])).getCenter(new THREE.Vector3()):null; paint(); renderFoot(); if(from!=="tree") renderPanel(true); }
+  function setSel(id,from){ sel=id; selCentre=id?boxOf(T.nodes.get(id).meshes.map(i=>meshes[i])).getCenter(new THREE.Vector3()):null; paint(); renderFoot(); updBar(); if(from!=="tree") renderPanel(true); }
   const leafFor=mi=>T.leafOf[mi];
   // the real Fusion assembly above a row (skips the app's Hardware / Truck & tools groups)
   const realParent=id=>{ let n=T.nodes.get(id); if(n.kind==="body") n=T.nodes.get(n.parent); return n.fparent||null; };
@@ -532,12 +573,12 @@ window.openAsm3D=async function(url,title,opts){
     panel.querySelectorAll(".a3row").forEach(r=>{ const id=r.dataset.id;
       const ex=r.querySelector("[data-ex]"); if(ex) ex.onclick=()=>{ openRows.has(id)?openRows.delete(id):openRows.add(id); renderPanel(); };
       r.querySelector("[data-pick]").onclick=()=>{ setSel(sel===id?null:id,"tree"); renderPanel(); };
-      r.querySelector("[data-eye]").onclick=()=>{ VIS.toggle(id); applyVis(); const b=panel.querySelector(`.a3row[data-id="${CSS.escape(id)}"] [data-eye]`); if(b) b.focus(); }; });
-    panel.querySelectorAll("[data-un]").forEach(b=>b.onclick=()=>{ VIS.show(b.dataset.un); applyVis(); });
-    panel.querySelector('[data-pa="all"]').onclick=()=>{ VIS.showAll(); applyVis(); };
-    const po=panel.querySelector('[data-pa="only"]'); po.onclick=()=>{ if(!sel) return; VIS.isolate(sel); applyVis(); fitVisible(); };
+      r.querySelector("[data-eye]").onclick=()=>{ const was=VIS.state(id)==="visible"; visDo((was?"Hid ":"Showed ")+nm(id),()=>VIS.toggle(id)); const b=panel.querySelector(`.a3row[data-id="${CSS.escape(id)}"] [data-eye]`); if(b) b.focus(); }; });
+    panel.querySelectorAll("[data-un]").forEach(b=>b.onclick=()=>visDo("Showed "+nm(b.dataset.un),()=>VIS.show(b.dataset.un)));
+    panel.querySelector('[data-pa="all"]').onclick=()=>visDo("Showed all",()=>VIS.showAll());
+    const po=panel.querySelector('[data-pa="only"]'); po.onclick=()=>{ if(!sel) return; const id=sel; visDo("Showing only "+nm(id),()=>VIS.isolate(id),true); };
     panel.querySelector('[data-pa="zoom"]').onclick=()=>zoomSel();
-    const pe=panel.querySelector('[data-pa="exit"]'); if(pe) pe.onclick=()=>{ VIS.exitIso(); applyVis(); fitVisible(); };
+    const pe=panel.querySelector('[data-pa="exit"]'); if(pe) pe.onclick=()=>visDo("Back to all parts",()=>VIS.exitIso(),true);
     if(scrollToSel&&sel){ const r=panel.querySelector(`.a3row[data-id="${CSS.escape(sel)}"]`); if(r) r.scrollIntoView({block:"nearest"}); }
   }
   function revealInTree(id){ ancestors(T,id).forEach(a=>openRows.add(a)); }
@@ -546,11 +587,18 @@ window.openAsm3D=async function(url,title,opts){
   /* ---- footer: selection card or measure panel ---- */
   function renderFoot(){
     if(mode==="measure") return renderMeasure();
+    if(mode==="hide"){ const hn=VIS.hiddenLeaves();
+      foot.innerHTML=`<div class="a3hidebar"><div class="a3name" style="font-size:15px">Tap to hide: every ${selMode==="asm"?"assembly":"part"} you tap disappears.</div>
+        <div class="a3line"><span class="a3lab" id="a3hml">Tap hides a</span><div class="a3seg" role="group" aria-labelledby="a3hml"><button type="button" data-sm="part" aria-pressed="${selMode==="part"}">Part</button><button type="button" data-sm="asm" aria-pressed="${selMode==="asm"}">Assembly</button></div></div>
+        <div class="a3note">Undo (bottom left) brings back the last one, one step at a time. ${hn?hn+" part"+(hn===1?"":"s")+" hidden so far.":""}</div>
+        <div class="a3acts"><button class="a3b pri" type="button" data-hx="done">Done hiding</button></div></div>`;
+      foot.querySelectorAll("[data-sm]").forEach(b=>b.onclick=()=>{ selMode=b.dataset.sm; renderFoot(); });
+      foot.querySelector('[data-hx="done"]').onclick=()=>setMode("select"); return; }
     const segSel=`<div class="a3line"><span class="a3lab" id="a3sml">Tap selects a</span><div class="a3seg" role="group" aria-labelledby="a3sml"><button type="button" data-sm="part" aria-pressed="${selMode==="part"}">Part</button><button type="button" data-sm="asm" aria-pressed="${selMode==="asm"}">Assembly</button></div></div>`;
     if(!sel){ const hn=VIS.hiddenLeaves();
-      foot.innerHTML=`${segSel}<div class="a3note">Tap the model to select. One finger spins, two fingers zoom and move (mouse: drag to spin, right-drag to move, wheel to zoom).${hn?` ${hn} part${hn===1?" is":"s are"} hidden - Assemblies shows them.`:""}</div><div class="a3note">Model reference - the drawings and parts list are the boss.</div>`;
+      foot.innerHTML=`${segSel}<div class="a3note">Tap the model to select. One finger spins around whatever is in the middle of the screen (green dot), two fingers zoom and move (mouse: drag to spin, right-drag to move, wheel to zoom).${hn?` ${hn} part${hn===1?" is":"s are"} hidden - Assemblies shows them.`:""}</div><div class="a3note">Model reference - the drawings and parts list are the boss.</div>`;
       if(!visibleMeshes().length){ foot.innerHTML=`<div class="a3warn">Nothing is showing - every part is hidden.</div><div class="a3acts"><button class="a3b pri" type="button" data-fa="showall">Show all</button></div>`;
-        foot.querySelector('[data-fa="showall"]').onclick=()=>{ VIS.showAll(); applyVis(); fitVisible(); }; } }
+        foot.querySelector('[data-fa="showall"]').onclick=()=>visDo("Showed all",()=>VIS.showAll(),true); } }
     else { const n=T.nodes.get(sel), cr=ancestors(T,sel), mi=n.meshes[0], u=mi!=null?meshes[mi].userData:{};
       const isAsm=n.kind==="asm"||n.kind==="group"||(n.kind==="part"&&n.kids.length), pns=n.meshes.length===1?(u.pn||[]):[];
       const asmId=n.kind==="group"?null:realParent(sel);
@@ -573,10 +621,10 @@ window.openAsm3D=async function(url,title,opts){
     foot.querySelectorAll("[data-sm]").forEach(b=>b.onclick=()=>{ selMode=b.dataset.sm; if(sel){ const n=T.nodes.get(sel); if(selMode==="asm"&&n.kind!=="asm"&&n.kind!=="group") setSel(parentAsm(sel)); } renderFoot(); });
     foot.querySelectorAll("[data-lvl]").forEach(b=>b.onclick=()=>{ revealInTree(b.dataset.lvl); setSel(b.dataset.lvl); });
     const fa=k=>foot.querySelector(`[data-fa="${k}"]`);
-    if(fa("hide")) fa("hide").onclick=()=>{ VIS.hide(sel); applyVis(); };
-    if(fa("hideasm")) fa("hideasm").onclick=()=>{ const a=realParent(sel); if(a){ VIS.hide(a); applyVis(); } };
-    if(fa("only")) fa("only").onclick=()=>{ VIS.isolate(sel); applyVis(); fitVisible(); };
-    if(fa("onlyasm")) fa("onlyasm").onclick=()=>{ const a=realParent(sel); if(a){ VIS.isolate(a); applyVis(); fitVisible(); } };
+    if(fa("hide")) fa("hide").onclick=()=>{ const id=sel; visDo("Hid "+nm(id),()=>VIS.hide(id)); };
+    if(fa("hideasm")) fa("hideasm").onclick=()=>{ const a=realParent(sel); if(a) visDo("Hid "+nm(a),()=>VIS.hide(a)); };
+    if(fa("only")) fa("only").onclick=()=>{ const id=sel; visDo("Showing only "+nm(id),()=>VIS.isolate(id),true); };
+    if(fa("onlyasm")) fa("onlyasm").onclick=()=>{ const a=realParent(sel); if(a) visDo("Showing only "+nm(a),()=>VIS.isolate(a),true); };
     if(fa("zoom")) fa("zoom").onclick=zoomSel;
     foot.querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>showDrawing(b.dataset.dr));
     foot.querySelectorAll("[data-p3]").forEach(b=>b.onclick=()=>opts.onPart(b.dataset.p3));
@@ -612,11 +660,15 @@ window.openAsm3D=async function(url,title,opts){
       if(k==="a"){ mA=null; mPick="A"; } else if(k==="b"){ mB=null; mPick="B"; } else if(k==="new"||k==="clear"){ mA=mB=pA=pB=null; mPick="A"; }
       if(k==="done"){ setMode("select"); return; } drawMeasure(); renderMeasure(); });
   }
-  function setMode(m){ mode=m; $("#a3meas").setAttribute("aria-pressed",m==="measure"); if(m==="measure"){ mType="face"; mA=mB=pA=pB=null; mPick="A"; if(sel) setSel(null); } else clearMG(); drawMeasure(); renderFoot(); }
+  function setMode(m){ mode=m; $("#a3meas").setAttribute("aria-pressed",m==="measure");
+    mA=mB=pA=pB=null; mPick="A"; if(m==="measure") mType="face";   // picks never carry over into another mode
+    if(m!=="select"&&sel) setSel(null);
+    clearMG(); drawMeasure(); renderFoot(); updBar(); }
 
   /* ---- taps ---- */
   function tap(x,y){ ctl&&ctl.stop();
     const h=hit(x,y);
+    if(mode==="hide"){ if(!h) return; const leaf=leafFor(h.object.userData._i); const id=selMode==="asm"?parentAsm(leaf):leaf; visDo("Hid "+nm(id),()=>VIS.hide(id)); return; }
     if(mode==="select"){ if(!h){ setSel(null); return; } const leaf=leafFor(h.object.userData._i); const id=selMode==="asm"?parentAsm(leaf):leaf; revealInTree(id); setSel(id); return; }
     if(!h) return;
     if(mType==="face"){ const m=h.object, g=worldGeo(m), F=flatFace(g.pos,g.idx,topoOf(m),h.faceIndex); const pk={m,F,pt:[h.point.x,h.point.y,h.point.z]};
@@ -633,6 +685,31 @@ window.openAsm3D=async function(url,title,opts){
   el.addEventListener("pointermove",e=>{ if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>(ctl?ctl.TAP_PX:8)) moved=true; /* same distance the controls wait before spinning */ });
   el.addEventListener("pointerup",e=>{ fingers=Math.max(0,fingers-1); if(!down||moved||e.timeStamp-down.t>600){ if(fingers===0) down=null; return; } const x=down.x,y=down.y; down=null; tap(x,y); });
   el.addEventListener("pointercancel",()=>{ fingers=0; down=null; });
+
+  /* ---- floating bar on the model (Nov 19): Undo / Redo always in reach, Tap to hide, Hide the selection, Show all ----
+     Hiding used to need: select, scroll the card, Hide - and getting a part back meant digging in Assemblies. */
+  const fb=document.createElement("div"); fb.className="a3fb";
+  fb.innerHTML=`<button class="a3b" type="button" data-fb="undo" aria-label="Undo" title="Undo the last hide / show (Ctrl+Z)">${svg("undo")}<span class="lbl">Undo</span></button>
+    <button class="a3b" type="button" data-fb="redo" aria-label="Redo" title="Redo (Ctrl+Y)">${svg("redo")}</button>
+    <button class="a3b" type="button" data-fb="tap" aria-pressed="false" aria-label="Tap to hide" title="Tap to hide - each part you tap disappears">${svg("tapoff")}<span class="lbl">Tap to hide</span></button>
+    <button class="a3b" type="button" data-fb="hide" aria-label="Hide selected" hidden>${svg("off")}<span class="lbl">Hide</span></button>
+    <span class="gap"></span>
+    <button class="a3b" type="button" data-fb="all" aria-label="Show all" hidden>${svg("eye")}<span class="lbl" data-fbn></span></button>`;
+  cv.appendChild(fb);
+  const fbB=k=>fb.querySelector(`[data-fb="${k}"]`);
+  function updBar(){ if(!fb) return; const hn=VIS.hiddenLeaves();
+    fbB("undo").disabled=!hist.length; fbB("redo").disabled=!redoS.length; fbB("redo").hidden=!redoS.length;
+    const t=fbB("tap"); t.classList.toggle("on",mode==="hide"); t.setAttribute("aria-pressed",mode==="hide"); t.hidden=mode==="measure";
+    fbB("hide").hidden=!(sel&&mode==="select");
+    const a=fbB("all"); a.hidden=!hn; a.querySelector("[data-fbn]").textContent=VIS.iso?"Show all again":`Show all (${hn} hidden)`;
+    if(hist.length){ fbB("undo").title="Undo: "+hist[hist.length-1].what; } }
+  fbB("undo").onclick=undo; fbB("redo").onclick=redo;
+  fbB("tap").onclick=()=>setMode(mode==="hide"?"select":"hide");
+  fbB("hide").onclick=()=>{ if(!sel) return; const id=sel; visDo("Hid "+nm(id),()=>VIS.hide(id)); };
+  fbB("all").onclick=()=>visDo("Showed all",()=>VIS.showAll(),true);
+  const onKey=e=>{ if(disposed){ document.removeEventListener("keydown",onKey); return; } if(!(e.ctrlKey||e.metaKey)||/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return; const k=e.key.toLowerCase();
+    if(k==="z"&&!e.shiftKey){ e.preventDefault(); undo(); } else if(k==="y"||(k==="z"&&e.shiftKey)){ e.preventDefault(); redo(); } };
+  document.addEventListener("keydown",onKey);   // on the document: focus often sits on the page after a button hides itself
 
   /* ---- toolbar ---- */
   const bAsm=$("#a3asm"), bView=$("#a3view"), bMeas=$("#a3meas"), bFit=$("#a3fit");
@@ -660,7 +737,7 @@ window.openAsm3D=async function(url,title,opts){
   bMeas.onclick=()=>setMode(mode==="measure"?"select":"measure");
   bFit.onclick=fitVisible;
   /* Escape / Android Back: close the innermost thing first (menu, drawing, measure, panel), then the viewer */
-  const innerBack=()=>{ if(closeMenu()) return true; const d=cv.querySelector(".a3draw"); if(d){ d.remove(); return true; } if(mode==="measure"){ setMode("select"); return true; }
+  const innerBack=()=>{ if(closeMenu()) return true; const d=cv.querySelector(".a3draw"); if(d){ d.remove(); return true; } if(mode==="measure"||mode==="hide"){ setMode("select"); return true; }
     if(!panel.hidden&&(window.innerWidth<=760||(window.matchMedia&&matchMedia("(pointer:coarse)").matches))){ bAsm.click(); return true; } return false; };   // phones: Back shuts the panel first
   window.__v3dBack=innerBack;
 

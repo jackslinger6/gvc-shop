@@ -308,6 +308,8 @@ function makeControls(THREE,cam,el,worldUp,pick,opts){
     const now=performance.now(), dt=Math.min(50,now-spin.t); spin.t=now; const k=Math.exp(-dt/80);   // 80 ms time constant: a short, restrained coast
     spin.vx*=k; spin.vy*=k; if(Math.hypot(spin.vx,spin.vy)<0.03){ spin=null; return; } rotate(spin.vx*dt,spin.vy*dt); };
   C.stop=()=>{ spin=null; gp=null; };
+  C.rotating=()=>mode==="rot"||!!spin;   // a one-finger spin or its coast is running
+  C.pivotPoint=()=>gp;                     // the centre of that spin (null = the controls' target)
   C.isGesture=()=>ptrs.size>1;
   C.spinning=()=>!!spin;
   return C;
@@ -406,7 +408,10 @@ window.open3D=async function(url,title,opts){
   const hl=new THREE.Group(); scene.add(hl);
 
   cam.up.set(0,0,1);   // Z-up like Fusion, set before the controls are made
-  const ctl=makeControls(THREE,cam,renderer.domElement,new THREE.Vector3(0,0,1),(x,y)=>{ const h=hit(x,y); return h?h.point.clone():null; });
+  /* Kyle, Nov 19: spin around whatever is in the middle of the screen (the spot on the part there), not the part's centre.
+     Nothing in the middle -> the part's centre as before. */
+  const ctl=makeControls(THREE,cam,renderer.domElement,new THREE.Vector3(0,0,1),(x,y)=>{ const h=hit(x,y); return h?h.point.clone():null; },
+    {pivot:()=>{ const r=renderer.domElement.getBoundingClientRect(); const h=hit(r.left+r.width/2,r.top+r.height/2); return h?h.point.clone():null; }});
   let need=true; const draw=()=>{ need=true; };
   ctl.addEventListener("change",draw);
   const fit=()=>{ cam.position.copy(ctr).add(new THREE.Vector3(1,0.8,1.2).normalize().multiplyScalar(size*1.25)); cam.near=size/500; cam.far=size*50; cam.updateProjectionMatrix(); cam.up.set(0,0,1); ctl.stop(); ctl.target.copy(ctr); cam.lookAt(ctr); cam.updateMatrixWorld(); draw(); };
