@@ -7,7 +7,9 @@
 //  - If changes.files.parts is true (an order Kyle sent): every DXF named like
 //      "<part> ________ <material> - QTY n.dxf"  /  "<part> - <material> - QTY n.dxf"  /  "<material> <part> (QTY n).dxf"
 //    becomes a row in gvc_job_parts (the job's parts list = the count list when the order arrives).
-//    Existing rows keep their name, assembly, bend drawing and PDF; the DXF, qty and material follow what was sent.
+//    Existing rows keep their name, assembly, bend drawing and PDF. A part already on the list from ANOTHER email keeps
+//    its qty / material / DXF too (re-orders are not production quantities) - the newer DXF goes into its notes. TEST coupons
+//    never go on the list. Re-importing the same email refreshes only that email's own parts (Nov 19).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { unzipSync } from "npm:fflate@0.8.2";
 
@@ -57,6 +59,10 @@ function parseName(file: string, folder: string): { part: string; mat: string; q
   if (m && /^(?:\d+\s*GA|\d*\.\d+"?|\d+\/\d+"?)\s+\S/i.test(m[4].trim())) return { part: m[2].trim(), mat: m[4].trim(), qty: +m[3] };
   m = n.match(/^(.*?)\s+-\s+(.*?)\s+-\s+QTY\s*(\d+)/i);
   if (m) return { part: m[1].trim(), mat: m[2].trim(), qty: +m[3] };
+  // "<part> - QTY n <material>" with no job in front (Jessie, Nov 16: "CHAINHANGER.R.1 - QTY 2 0.375 MS",
+  // "PUCKBOARDFENDER.2 -QTY 2 0.25 MS") - only when what follows the qty reads as a thickness + material
+  m = n.match(/^(.*?)\s*-\s*QTY\s*(\d+)\s+(.+)$/i);
+  if (m && m[1].trim() && /^(?:\d+\s*GA|\d*\.\d+"?|\d+\/\d+"?)\s+\S/i.test(m[3].trim())) return { part: m[1].trim(), mat: m[3].trim(), qty: +m[2] };
   m = n.match(/^(.*?)\s*\(\s*QTY\s*(\d+)\s*\)/i);
   if (m) { const rest = m[1].trim(); const mm = rest.match(MATRX);
     return mm ? { part: mm[2].trim(), mat: mm[1].trim(), qty: +m[2] } : { part: rest, mat: folder, qty: +m[2] }; }
@@ -177,19 +183,40 @@ async function run(db: any, opt: { sid?: string; message_id?: string; job_id?: s
   let nParts = 0, partsNote = "";
   if (wantParts && job && !num) partsNote = " (job has no number yet - give it one and use Get files again to fill the count list)";
   if (wantParts && job && num && dxfs.length) {
-    const { data: have } = await db.from("gvc_job_parts").select("part_no,thumb_path,name").eq("job_no", jobNo);
+    /* Nov 19 (Kyle): an order email often re-orders parts already on the job's list (NCR remakes, extras, the Nov 16
+       "Additional DXFs" for quote 60542478). Its quantity is what was re-ordered, NOT the truck's production quantity.
+       - part not on the list yet            -> added
+       - part on the list from THIS email    -> refreshed from its own DXF (re-import: size, picture, material, qty)
+       - part on the list from another email -> left as it is (qty, material, drawing, DXF); the newer DXF is written into
+                                                 its notes once, flagged when the material/thickness differs
+       - TEST coupons ("TEST.11GA" ...)      -> never on the parts list (they stay in the email's files) */
+    const { data: have } = await db.from("gvc_job_parts").select("part_no,thumb_path,name,dxf_path,source,notes,material,thickness").eq("job_no", jobNo);
     const old = new Map((have || []).map((r: any) => [r.part_no, r]));
-    const rows: any[] = [];
+    const rows: any[] = []; const noted: string[] = []; const tests: string[] = []; let added = 0, refreshed = 0;
+    const src = `Order email ${when.slice(0, 10)}: ${msg.subject || ""}`.slice(0, 200);
     for (const d of dxfs) {
       const p = parseName(d.name, d.folder); if (!p || !p.part) continue;
+      if (/^TEST(?:[.\s_-]|$)/i.test(p.part)) { tests.push(p.part); continue; }
+      const prevRow: any = old.get(p.part);
+      if (prevRow && !(String(prevRow.dxf_path || "").startsWith(folder + "/") || prevRow.source === src)) {
+        const t = thkOf(p.mat || ""), diff = t != null && prevRow.thickness != null && Math.abs(t - Number(prevRow.thickness)) > 0.01;   // 11 GA (0.1196) = 1/8" plate
+        const line = `${when.slice(0, 10)} order email also has ${p.part}: QTY ${p.qty}, ${p.mat || "?"} (file "${d.name}")${diff ? ` - thickness differs from this row (${prevRow.thickness}") - check whether it replaces this part's drawing` : ""}. Production qty not changed.`;
+        if (!String(prevRow.notes || "").includes(`(file "${d.name}")`)) {
+          const notes = (prevRow.notes ? prevRow.notes + "\n" : "") + line;
+          const { error } = await db.from("gvc_job_parts").update({ notes, updated_at: new Date().toISOString() }).eq("job_no", jobNo).eq("part_no", p.part);
+          if (error) throw new Error("parts note: " + error.message);
+          prevRow.notes = notes;
+        }
+        noted.push(p.part); continue;
+      }
       const sh = dxfShape(new TextDecoder().decode(d.bytes));
-      const prev: any = old.get(p.part);
+      const prev: any = prevRow; if (prev) refreshed++; else added++;
       let thumb = prev?.thumb_path || null;
       if (!thumb && sh) { thumb = `jobs/${clean(jobNo)}/thumb/${clean(p.part)}.svg`;
         await db.storage.from("gvc-parts").upload(thumb, new TextEncoder().encode(sh.svg), { upsert: true, contentType: "image/svg+xml" }); }
       const row: any = { job_no: jobNo, part_no: p.part, material: p.mat || null, thickness: thkOf(p.mat || ""), qty: p.qty, dxf_path: d.path,
         flat_w: sh ? Math.max(sh.w, sh.h) : null, flat_h: sh ? Math.min(sh.w, sh.h) : null, thumb_path: thumb,
-        source: `Order email ${when.slice(0, 10)}: ${msg.subject || ""}`.slice(0, 200), updated_at: new Date().toISOString() };
+        source: src, updated_at: new Date().toISOString() };
       if (!prev) row.name = p.part;
       rows.push(row);
     }
@@ -201,6 +228,7 @@ async function run(db: any, opt: { sid?: string; message_id?: string; job_id?: s
       if (error) throw new Error("parts: " + error.message);
     }
     nParts = up.length;
+    partsNote = ` (${added} added, ${refreshed} refreshed${noted.length ? `, ${noted.length} already on the list from another order - kept, noted` : ""}${tests.length ? `, ${tests.length} test coupon${tests.length > 1 ? "s" : ""} left out` : ""})`;
   }
 
   const note = `${files.length} file${files.length === 1 ? "" : "s"} saved` + (nParts ? `, ${nParts} parts in the count list` : "") + partsNote;
