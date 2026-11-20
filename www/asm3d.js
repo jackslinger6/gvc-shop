@@ -324,6 +324,7 @@ css.textContent=`
   #v3d.a3v .a3seg button{min-height:44px}
 }
 @media (max-width:760px){ #v3d.a3v .a3t{flex-basis:100%;order:-1} }
+#v3d.a3v .a3ctr{position:absolute;z-index:4;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.55);pointer-events:none;display:none}
 #v3d.a3v .a3piv{position:absolute;z-index:4;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#3ddc84;border:2px solid #fff;box-shadow:0 0 0 1px #000;pointer-events:none;display:none}
 #v3d.a3v .a3fb{position:absolute;left:8px;right:8px;bottom:8px;z-index:4;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;pointer-events:none}
 #v3d.a3v .a3fb .a3b{pointer-events:auto;min-height:44px;padding:0 11px;background:rgba(20,24,29,.9);box-shadow:0 2px 10px rgba(0,0,0,.35)}
@@ -430,13 +431,23 @@ window.openAsm3D=async function(url,title,opts){
   const centrePivot=()=>{ const r=renderer.domElement.getBoundingClientRect(); const h=hit(r.left+r.width/2,r.top+r.height/2); if(h) return h.point.clone();
     if(!visCentre) return null; ndc.set(0,0); ray.setFromCamera(ndc,cam); const o=ray.ray.origin, d=ray.ray.direction;
     return o.clone().addScaledVector(d,Math.max(cam.near*4,visCentre.clone().sub(o).dot(d))); };
-  const pivotFn=()=>{ if(PREF.selOrbit&&selCentre&&mode!=="measure") return selCentre; return centrePivot(); };   // null (nothing showing) -> controls keep their own target
+  const pivotFn=()=>{ if(PREF.selOrbit&&selCentre&&mode!=="measure") return selCentre; return centrePivot(); };
+  function pivotAround(){ return PREF.selOrbit&&selCentre&&mode!=="measure"?selCentre:null; }   // what the white dot marks (null = middle of the screen)   // null (nothing showing) -> controls keep their own target
   const ctl=window.GVC3DControls?window.GVC3DControls(THREE,cam,renderer.domElement,UP.clone(),(x,y)=>{ const h=hit(x,y); return h?h.point.clone():null; },
     {tapPx:8, viewportRot:true, sens:()=>PREF.speed, upright:()=>PREF.upright, pivot:()=>pivotFn(), inertia:()=>mode!=="measure"}):null;
   let need=true; const draw=()=>{ need=true; }; if(ctl) ctl.addEventListener("change",draw);
   const labels=[];   // HTML labels pinned to 3D points
   const pivDot=document.createElement("div"); pivDot.className="a3piv"; pivDot.setAttribute("aria-hidden","true"); cv.appendChild(pivDot); let pivOn=false;
+  /* Kyle, Nov 19: a tiny white dot always shows what the model will spin around - the middle of the screen, or the
+     selected part's centre when the spin follows the selection. While spinning it becomes the green dot. */
+  const ctrDot=document.createElement("div"); ctrDot.className="a3ctr"; ctrDot.setAttribute("aria-hidden","true"); cv.appendChild(ctrDot); let ctrKey="";
+  const spinAt=()=>{ try{ if(typeof pivotAround==="function") return pivotAround(); }catch(e){} return null; };   // a point to project, or null = middle of the screen
+  const showCtr=hide=>{ let x=cv.clientWidth/2, y=cv.clientHeight/2, on=!hide;
+    if(on){ const P=spinAt(); if(P){ const p=P.clone().project(cam); if(p.z>1||Math.abs(p.x)>1||Math.abs(p.y)>1) on=false; else { x=(p.x+1)/2*cv.clientWidth; y=(1-p.y)/2*cv.clientHeight; } } }
+    const k=on?Math.round(x)+","+Math.round(y):"off"; if(k===ctrKey) return; ctrKey=k;
+    ctrDot.style.display=on?"block":"none"; if(on){ ctrDot.style.left=x+"px"; ctrDot.style.top=y+"px"; } };
   const showPiv=()=>{ const P=ctl&&ctl.rotating&&ctl.rotating()&&ctl.pivotPoint&&ctl.pivotPoint();   // green dot on the spin centre while spinning (like Fusion)
+    showCtr(!!P);
     if(!P){ if(pivOn){ pivDot.style.display="none"; pivOn=false; } return; }
     const p=P.clone().project(cam); pivDot.style.left=((p.x+1)/2*cv.clientWidth)+"px"; pivDot.style.top=((1-p.y)/2*cv.clientHeight)+"px"; if(!pivOn){ pivDot.style.display="block"; pivOn=true; } };
   const loop=()=>{ if(disposed) return; ctl&&ctl.update(); showPiv(); if(need){ need=false; renderer.render(scene,cam); labels.forEach(l=>{ const p=l.p.clone().project(cam); const r=cv.getBoundingClientRect(); l.el.style.left=((p.x+1)/2*r.width)+"px"; l.el.style.top=((1-p.y)/2*r.height)+"px"; l.el.style.display=p.z>1?"none":""; }); } raf=requestAnimationFrame(loop); };

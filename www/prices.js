@@ -34,11 +34,24 @@ const money=n=>n==null?"-":"$"+Number(n).toLocaleString("en-CA",{minimumFraction
 const vcol=v=>{ const i=vendors.indexOf(v); return i>=0&&i<PAL.length?PAL[i]:"#8e96a3"; };
 const vshort=v=>String(v||"").replace(/\b(metals?|fabrication|inc\.?|ltd\.?|corp\.?|industries)\b/gi,"").trim()||v;
 async function load(){ const r=await sb.from("gvc_prices").select("*").order("doc_date",{ascending:true}).limit(5000); rows=r.data||[]; vendors=[...new Set(rows.map(x=>x.vendor))].sort(); loaded=true; }
-const keyOf=r=>(r.size||r.part_no||r.item||"").toUpperCase().replace(/\s+/g," ").trim();
-const price=r=>r.per_ft!=null?r.per_ft:r.unit_price!=null?r.unit_price:(r.line_total&&r.qty?r.line_total/r.qty:null);
-const unitLab=g=>g.some(r=>r.per_ft!=null)?"$/ft":"$/"+((g.find(r=>r.unit)||{}).unit||"ea");
+/* Like-for-like (Kyle's review, Nov 19): a card only holds lines that are the SAME thing.
+   - Laser / cut parts: our part number (or the line's own name) + thickness - never thickness alone ("PL 1/4" held
+     every 1/4" part, so "lowest" compared a $2 tab with a $300 panel).
+   - Stock (tube, angle, flat bar...): size written one way ("2-1/2" = "2 1/2") + grade.
+   - A price is per foot (long stock) or per piece. Lump sums ("lot", or a total with no quantity) aren't unit prices:
+     listed, never charted or called lowest. "Lowest" only between vendors' latest prices in the same unit for a similar
+     quantity (within 2x); otherwise the card says why they aren't compared. */
+const N=t=>String(t||"").toUpperCase().replace(/(\d)\s*-\s*(\d+\/\d+)/g,"$1 $2").replace(/\s+/g," ").trim();
+const isCut=r=>/laser|cut|part/i.test(r.kind||"")||(!r.kind&&!!r.part_no);
+const partId=r=>N(r.part_no||String(r.item||"").split(/\s+-\s+/)[0]);
+const keyOf=r=>isCut(r)?"P|"+partId(r)+"|"+N(r.size):"S|"+N(r.size||r.item)+"|"+N(r.material);
+const lump=r=>/^lot$/i.test(r.unit||"")||(r.unit_price==null&&!r.qty);
+const price=r=>lump(r)?null:r.per_ft!=null?+r.per_ft:r.unit_price!=null?+r.unit_price:(r.line_total&&r.qty?r.line_total/r.qty:null);
+const unitOf=r=>r.per_ft!=null?"ft":String(r.unit||"ea").toLowerCase();
+const unitLab=g=>{ const u={}; g.forEach(r=>{ if(price(r)!=null) u[unitOf(r)]=(u[unitOf(r)]||0)+1; }); const top=Object.entries(u).sort((a,b)=>b[1]-a[1])[0]; return "$/"+(top?top[0]:"ea"); };
 function chart(g,lab){
-  const pts=g.filter(r=>price(r)!=null&&r.doc_date).map(r=>({d:new Date(r.doc_date+"T12:00:00").getTime(),p:price(r),v:r.vendor,r}));
+  const U=lab.slice(2);
+  const pts=g.filter(r=>price(r)!=null&&r.doc_date&&unitOf(r)===U).map(r=>({d:new Date(r.doc_date+"T12:00:00").getTime(),p:price(r),v:r.vendor,r}));
   if(pts.length<2) return "";
   const W=innerWidth<600?360:640,H=innerWidth<600?190:200,L=56,Rr=innerWidth<600?64:96,T=12,B=26;
   const d0=Math.min(...pts.map(p=>p.d)), d1=Math.max(...pts.map(p=>p.d))||d0+1, p1=Math.max(...pts.map(p=>p.p))*1.1;
@@ -62,12 +75,21 @@ function groups(){
 function grpHtml(g){
   const lab=unitLab(g); const head=g[0];
   const latest={}; g.forEach(r=>{ if(price(r)!=null) latest[r.vendor]=r; });
-  const lv=Object.values(latest); const best=lv.length>1?Math.min(...lv.map(price)):null;
-  return `<div class="grp"><div class="gh"><b>${esc(head.size||head.part_no||head.item)}</b><small>${esc([head.kind,head.material].filter(Boolean).join(" · "))} · ${g.length} price${g.length>1?"s":""} · ${lab}</small></div>
-    <div class="lat">${lv.map(r=>`<div class="lv ${best!=null&&price(r)===best?"best":""}"><div class="k"><i style="background:${vcol(r.vendor)}"></i>${esc(vshort(r.vendor))}${best!=null&&price(r)===best?" · lowest":""}</div><div class="v">${money(price(r))}</div><small>latest ${esc(r.doc_date||"")}${r.length_ft?` · ${r.length_ft}' length`:""}</small></div>`).join("")}</div>
+  const lv=Object.values(latest), U=lab.slice(2);
+  let best=null, why="";
+  if(lv.length>1){ const units=new Set(lv.map(unitOf)), qs=lv.map(r=>+r.qty||1);
+    if(units.size>1) why="Not compared: priced in different units ("+[...units].join(" vs ")+").";
+    else if(!lv.every(r=>unitOf(r)==="ft")&&Math.max(...qs)>2*Math.min(...qs)) why="Not compared: different quantities ("+qs.join(" vs ")+") - price per piece changes with quantity.";
+    else best=Math.min(...lv.map(price)); }
+  const lumps=g.filter(lump).length;
+  const title=isCut(head)?(head.part_no||String(head.item||"").split(/\s+-\s+/)[0]):(head.size||head.item);
+  const sub=isCut(head)?[head.size,head.material].filter(Boolean).join(" · "):[head.kind,head.material].filter(Boolean).join(" · ");
+  return `<div class="grp"><div class="gh"><b>${esc(title)}</b><small>${esc(sub)} · ${g.length} price${g.length>1?"s":""} · ${lab}</small></div>
+    ${why?`<div class="tnote">${esc(why)}</div>`:""}${lumps?`<div class="tnote">${lumps} lump-sum line${lumps>1?"s":""} (whole order / "lot") - listed below, not charted or compared.</div>`:""}
+    <div class="lat">${lv.map(r=>`<div class="lv ${best!=null&&price(r)===best?"best":""}"><div class="k"><i style="background:${vcol(r.vendor)}"></i>${esc(vshort(r.vendor))}${best!=null&&price(r)===best?" · lowest":""}</div><div class="v">${money(price(r))}<span style="font-size:12px;color:var(--muted)"> /${esc(unitOf(r))}</span></div><small>latest ${esc(r.doc_date||"")} · qty ${esc(r.qty??"?")}${r.length_ft?` · ${r.length_ft}' length`:""}</small></div>`).join("")}</div>
     ${chart(g,lab)}
     <details><summary>All ${g.length} lines</summary><table><thead><tr><th>Date</th><th>Vendor</th><th>Doc</th><th>Item</th><th class="n">Qty</th><th class="n">Price</th><th class="n">${lab}</th></tr></thead><tbody>
-      ${g.slice().reverse().map(r=>`<tr><td>${esc(r.doc_date||"")}</td><td>${esc(vshort(r.vendor))}</td><td>${esc(r.doc_type||"")} ${esc(r.doc_no||"")}</td><td>${esc(r.item)}${r.length_ft?` (${r.length_ft}')`:""}</td><td class="n">${r.qty??""}</td><td class="n">${money(r.line_total)}</td><td class="n">${money(price(r))}</td></tr>`).join("")}</tbody></table></details></div>`;
+      ${g.slice().reverse().map(r=>`<tr><td>${esc(r.doc_date||"")}</td><td>${esc(vshort(r.vendor))}</td><td>${esc(r.doc_type||"")} ${esc(r.doc_no||"")}</td><td>${esc(r.item)}${r.length_ft?` (${r.length_ft}')`:""}</td><td class="n">${r.qty??""}</td><td class="n">${money(r.line_total)}</td><td class="n">${price(r)==null?"lump sum":money(price(r))+(unitOf(r)!==U?" /"+esc(unitOf(r)):"")}</td></tr>`).join("")}</tbody></table></details></div>`;
 }
 const KINDS=[["","All"],["tube","Tube"],["angle","Angle"],["channel","Channel"],["flat bar","Flat bar"],["plate","Plate"],["sheet","Sheet"],["round","Round"],["pipe","Pipe"],["beam","Beam"],["laser part","Laser parts"]];
 function draw(){

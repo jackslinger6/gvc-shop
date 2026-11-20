@@ -51,13 +51,16 @@ css.textContent=`
 .wkv table.pg td{vertical-align:top;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:4px;height:86px}
 .wkv table.pg td.off{background:repeating-linear-gradient(45deg,rgba(0,0,0,.25) 0 6px,rgba(255,255,255,.04) 6px 12px)}
 .wkv table.pg td.hot,.wkv .ppool.hot{outline:2px dashed var(--orange)}
-.wkv .ld{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);margin-bottom:3px}
+.wkv .ld{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:3px}
 .wkv .ld.over{color:#ff9b91}
-.wkv .pest{display:inline-block;font-size:10.5px;font-weight:600;color:#f5b041;border:1px dashed rgba(245,176,65,.6);border-radius:5px;padding:0 4px;margin-left:4px;line-height:1.5;vertical-align:1px}
+.wkv .pest{display:inline-block;font-size:11.5px;font-weight:600;color:#f5b041;border:1px dashed rgba(245,176,65,.6);border-radius:5px;padding:0 4px;margin-left:4px;line-height:1.5;vertical-align:1px}
 .wkv .ld button{background:none;border:0;color:var(--dim);cursor:pointer;font-size:11px;padding:0 2px}
 .wkv .ld button:hover{color:var(--text)}
-.wkv .pblk{background:rgba(255,255,255,.06);border-radius:5px;padding:3px 6px;margin-bottom:3px;line-height:1.25;overflow:hidden;font-size:11.5px;cursor:grab;touch-action:none;background:color-mix(in srgb,var(--c) 18%,transparent);border-left:3px solid var(--c);color:var(--text)}
-.wkv .pblk small{display:block;color:var(--muted);font-size:10.5px}
+.wkv .pblk{background:rgba(255,255,255,.06);border-radius:5px;padding:3px 6px;margin-bottom:3px;line-height:1.25;overflow:hidden;font-size:12.5px;cursor:grab;touch-action:none;background:color-mix(in srgb,var(--c) 18%,transparent);border-left:3px solid var(--c);color:var(--text)}
+.wkv .pblk small{display:block;color:var(--muted);font-size:12px;line-height:1.3}
+.wkv .pblk small.pleft{color:#ffd28a}
+.wkv .pnsh{margin:12px 0 6px}.wkv .pnsh b{font-size:14px}.wkv .pnsh .lbl{display:block;font-size:12.5px;line-height:1.4;margin-top:2px;max-width:760px}
+.wkv .pleftn{font-size:12px;color:#ffd28a;border:1px solid rgba(245,176,65,.5);border-radius:999px;padding:1px 8px;margin-left:6px}
 .wkv .pblk.sel{outline:1.5px solid #fff}
 .wkv .pblk.bad{box-shadow:inset 0 0 0 1.5px #e5483b}
 .wkv .pblk.done{opacity:.55;filter:grayscale(1);background:#3a3f47!important;color:#c9ced6;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.35)}
@@ -90,7 +93,7 @@ css.textContent=`
  .wkv table.pg td{padding:2px;height:70px}
  .wkv .pblk{font-size:10.5px;padding:2px 4px}
  .wkv .pblk small{font-size:9.5px}
- .wkv .ld{font-size:10px}
+ .wkv .ld{font-size:11.5px}
  .wkv .ppool .pblk{max-width:100%}
 }
 `;
@@ -184,6 +187,14 @@ function spill(M){
   return M;
 }
 const baseK=k=>String(k||"").split("#")[0];
+/* What counts as "scheduled" (Nov 19 review: "Everything is scheduled" while Lanes showed open tasks): only a task on
+   someone's day TODAY OR LATER. An open task left on a past day isn't scheduled any more - it comes back to Not scheduled
+   marked "left on <day>" so it can be put on a new day (dragging it moves it off the old one). */
+function schedState(M){ const today=iso(new Date()), now=new Set(), left={};
+  CREW.forEach(p=>{ for(const d in M.S[p]) M.S[p][d].forEach(k=>{ const b=baseK(k); if(d>=today) now.add(b); else if(!left[b]||d>left[b]) left[b]=d; }); });
+  const pool=Object.values(M.T).filter(t=>!t.done&&!t.cont&&!now.has(t.key)).map(t=>left[t.key]?Object.assign(t,{left:left[t.key]}):t);
+  const open=Object.values(M.T).filter(t=>!t.done&&!t.cont);
+  return {now,pool,open}; }
 function model(){
   const T={};
   // Finished jobs (Done, or archived) keep their tasks on the days they were scheduled, shown as done, so the
@@ -402,8 +413,7 @@ function renderWeek(){
   if(!planLoaded){ B.innerHTML=`<div class="lbl" style="padding:20px">Loading the plan…</div>`; return; }
   const {M,R}=MC(), C=conflicts(M,R), D=weekDays(), today=iso(new Date());
   lastM=M; const bad=new Set(C.map(c=>c.id));
-  const placed=new Set(); CREW.forEach(p=>{ for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(baseK(k))); });
-  const pool=Object.values(M.T).filter(t=>!t.done&&!t.cont&&!placed.has(t.key));
+  const SS=schedState(M), pool=SS.pool, leftN=pool.filter(t=>t.left).length;
   const groups={}; pool.forEach(t=>{ const g=groups[t.jid||("x:"+t.job)]=groups[t.jid||("x:"+t.job)]||{job:t.job,color:t.color,stageIdx:t.jid?t.stageIdx:-1,list:[]}; g.list.push(t); });
   const gl=Object.values(groups).sort((a,b)=>{ const ar=a.list.some(t=>!t.why), br=b.list.some(t=>!t.why); return (br-ar)||(b.stageIdx-a.stageIdx)||a.job.localeCompare(b.job); });
   gl.forEach(g=>g.list.sort((a,b)=>(!!a.why-!!b.why)));
@@ -422,8 +432,9 @@ function renderWeek(){
   h+=lastFix.map((f,i)=>{ const t=M.T[f.c.id],p=M.T[f.c.pid];
     return `<div class="palert">⚠ <b>${esc(t.name)}</b> (${t.who.join(", ")}, ${dlabel(Object.keys(M.S[t.who[0]]||{}).find(d=>M.S[t.who[0]][d].includes(t.key))||today)} ${clock(f.c.ds)}) needs <b>${esc(p.name)}</b> first, but ${f.c.pe==null?"that isn't scheduled yet.":`${p.who.join(" + ")} won't finish it until ${clock(f.c.pe)}.`}
       <div class="row">${f.opts.length?f.opts.map((o,j)=>`<button class="btn sm" data-fx="${i}:${j}">${esc(o.label)}</button>`).join(""):"<span>No quick fix - drag things around.</span>"}</div></div>`; }).join("");
-  h+=`<div class="lbl crewhide" style="margin:8px 0 4px">Not scheduled (${pool.length}). Drag onto someone's day; drag back here to unschedule.</div>
-   <div class="ppool crewhide">${pool.length?gl.map(g=>{ const st=g.stageIdx>=0?STAGES[g.stageIdx]:null; return `<div class="pgrp"><div class="pgh"><span class="dot" style="background:${g.color}"></span><b>${esc(g.job)}</b>${st?`<span class="lbl">${st.bt} · ${st.t}</span>`:""}<span class="lbl">${g.list.filter(t=>!t.why).length} ready${g.list.some(t=>t.why)?`, ${g.list.filter(t=>t.why).length} not ready`:""}</span></div><div class="pgl">${g.list.map(t=>blk(M,t)).join("")}</div></div>`; }).join(""):'<span class="lbl">Everything is scheduled.</span>'}</div>`;
+  h+=`<div class="pnsh crewhide"><b>Not scheduled (${pool.length})</b>${leftN?` <span class="pleftn">${leftN} left on a past day</span>`:""}
+     <div class="lbl">Open tasks (${SS.open.length}) on jobs that aren't finished, plus tasks added here, that aren't on anyone's day from today on. A task left on a past day without being ticked done comes back here. Drag onto someone's day; drag back here to unschedule.</div></div>
+   <div class="ppool crewhide">${pool.length?gl.map(g=>{ const st=g.stageIdx>=0?STAGES[g.stageIdx]:null; return `<div class="pgrp"><div class="pgh"><span class="dot" style="background:${g.color}"></span><b>${esc(g.job)}</b>${st?`<span class="lbl">${st.bt} · ${st.t}</span>`:""}<span class="lbl">${g.list.filter(t=>!t.why).length} ready${g.list.some(t=>t.why)?`, ${g.list.filter(t=>t.why).length} not ready`:""}</span></div><div class="pgl">${g.list.map(t=>{ const b=blk(M,t); return t.left?b.replace(/<\/div>$/,`<small class="pleft">Left on ${esc(dlabel(t.left))} - not ticked done</small></div>`):b; }).join("")}</div></div>`; }).join(""):`<span class="lbl">Every open task (${SS.open.length}) is on someone's day from today on.</span>`}</div>`;
   h+=`<div class="psplit"><div class="pwrap"><table class="pg"><thead><tr><th class="day"></th>${CREW.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>`;
   D.forEach(d=>{ h+=`<tr><th class="day ${d===today?"today":""}">${dlabel(d).replace(", ","<br>")}${d===today?"<br>today":""}</th>`+CREW.map(p=>{
     if(isOff(p,d)) return `<td class="off" data-p="${p}" data-d="${d}"><div class="ld"><span>Day off</span><button data-off="${p}|${d}" title="Working this day">undo</button></div></td>`;
@@ -534,8 +545,7 @@ window.planLines=function(){ if(!planLoaded) return [];
       const ids=M.S[p][d]||[]; if(!ids.length) return;
       out.push(`[crew schedule] ${dlabel(d)} · ${p}: `+ids.map(k=>{const r=R[p][k],t=M.T[k];return `${clock(r.s)}-${clock(r.e)} ${t.name} (${t.job}${t.who.length>1?", with "+t.who.filter(w=>w!==p).join("+"):""}${t.done?", done":""})`;}).join("; ")); }));
     conflicts(M,R).forEach(c=>out.push(`[crew schedule clash] ${M.T[c.id].name} needs ${M.T[c.pid].name} done first but it isn't`));
-    const placed=new Set(); CREW.forEach(p=>{for(const d in M.S[p]) M.S[p][d].forEach(k=>placed.add(baseK(k)));});
-    const un=Object.values(M.T).filter(t=>!t.done&&!t.cont&&!placed.has(t.key)); if(un.length) out.push(`[crew schedule] not scheduled yet: `+un.map(t=>`${t.name} (${t.job}, ${fh(H(t))})`).join("; "));
+    const un=schedState(M).pool; if(un.length) out.push(`[crew schedule] not scheduled yet: `+un.map(t=>`${t.name} (${t.job}, ${fh(H(t))})`).join("; "));
     return out; }catch(e){ return []; } };
 /* "Colton · done Mon end of day" for a job card: people on its open tasks and when the last scheduled one finishes. */
 window.jobEta=function(jid){
