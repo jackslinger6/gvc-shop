@@ -80,14 +80,14 @@ function build(){
     const js=(r.jobs||[]).map(jobOf).filter(Boolean);
     rows.push({kind:"job",kl:"Job order",no:r.no,title:r.title||"",vendor:r.vendor||(r.vendors||[]).join(", ")||(L[0]&&L[0].x.name)||"",
       jobs:js, refs:refs([r.vendor_ref,...L.map(({x})=>x.quoteNo)]), b:st[0], lab:needPo&&isAdmin()?"Needs a PO number":st[1], need:!!st[2]||(needPo&&isAdmin()),
-      open:()=>window.openOrder?openOrder(r.no):window.openPo&&openPo(r.no), lines:L.length});
+      open:()=>window.openOrder?openOrder(r.no):window.openPo&&openPo(r.no), lines:L.length, lineRefs:L.map(({j,x})=>[j.id,x.id]), lineSt:L.map(({x})=>x.status)});
   });
   // 2) job supplier lines with no RFQ/PO document
   jobsAll().filter(j=>!j.archived).forEach(j=>(j.suppliers||[]).forEach(x=>{
     if(!ACT(x)||used.has(j.id+"|"+x.id)) return; const no=x.po||x.rfq; if(no&&P.list.some(r=>r.no===no)) return;
     const st=LINE[x.status]||LINE.sent; if(st[0]==="done") return;
     rows.push({kind:"line",kl:"Job order line",no:no||"",title:x.scope||"",vendor:x.name||"",jobs:[j],refs:x.quoteNo?[x.quoteNo]:[],b:st[0],lab:st[1],need:!!st[2],
-      open:()=>window.openOrderLine?openOrderLine(j.id,x.id):openJob(j.id,"orders")});
+      open:()=>window.openOrderLine?openOrderLine(j.id,x.id):openJob(j.id,"orders"), lineRefs:[[j.id,x.id]], lineSt:[x.status]});
   }));
   // 3) Robin's stock orders (practice ones kept apart)
   const O=window.pordersAll?window.pordersAll():{list:[],isPractice:()=>false};
@@ -138,6 +138,8 @@ function render(){
   B.querySelectorAll("[data-pgo]").forEach(b=>b.onclick=()=>{ const g=b.dataset.pgo; if(g==="porders"&&window.pordersGo) pordersGo("active"); else shellGo(g); });
   const qi=B.querySelector("#purQ"); qi.oninput=()=>{ q=qi.value; const p=qi.selectionStart; render(); const n=$("#purQ"); n.focus(); n.setSelectionRange(p,p); };
 }
+/* the same rows Purchasing shows, for Robin's Today (Nov 19: Today said "nothing to pick up" while Purchasing had RFQ-1004 ready) */
+window.purchasingRows=()=>{ try{ return build().rows; }catch(e){ return []; } };
 window.purchasingCounts=()=>{ try{ const {rows}=build(); return {action:rows.filter(r=>r.need).length}; }catch(e){ return {action:0}; } };
 window.extraViews=Object.assign(window.extraViews||{},{purchasing:render});
 // nav badge: open items that need someone

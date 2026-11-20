@@ -518,6 +518,16 @@ function robinNext(){
     else if(o.status==="rfq"&&!Q.length&&dd(o.created_at)>=2) out.push({r:5,link:{po:o.id},tag:"NO REPLY",c:"#e5483b",text:`No quotes back: ${N.name}`,sub:`${N.big?N.big+" · ":""}asked ${(o.asked||[]).join(", ")||"vendors"} ${dd(o.created_at)} days ago`,act:{t:"OPEN",fn:open(o)}});
     else if(o.status==="shipped"&&o.eta&&/today/i.test(o.eta)) out.push({r:6,link:{po:o.id},tag:"COMING TODAY",c:"#f5b041",text:`${N.name} should show up today`,sub:nm,act:{t:"OPEN",fn:open(o)}});
   });
+  /* job orders (RFQ/PO documents and job supplier lines) waiting at the vendor or in the shop - the same rows and
+     wording as Purchasing, so Today and Purchasing can't disagree (Nov 19, RFQ-1004 was missing here) */
+  (window.purchasingRows?window.purchasingRows():[]).filter(r=>(r.kind==="job"||r.kind==="line")&&r.b==="recv").forEach(r=>{
+    const pick=(r.lineSt||[]).includes("ready")||/pick up/i.test(r.lab), one=(r.lineRefs||[]).length===1?r.lineRefs[0]:null;
+    const jn=(r.jobs||[]).map(j=>window.jobNum?jobNum(j.name):j.name).filter(Boolean).join(", ");
+    const sub=[r.no,jn,r.title].filter(Boolean).join(" · ");
+    const count=one&&window.openCount?{t:pick?"PICKED UP - COUNT IT":"COUNT IT IN",fn:()=>openCount(one[0],one[1])}:null;
+    out.push(pick?{r:1,link:one?{count:one}:{v:"purchasing"},tag:"PICK UP",c:"#3ad06b",text:`Pick up at ${r.vendor||"the vendor"}`,sub,act:count||{t:"OPEN",fn:r.open},act2:count?{t:"OPEN",fn:r.open}:null}
+      :{r:2,link:one?{count:one}:{v:"purchasing"},tag:"COUNT IT IN",c:"#2f8ff0",text:`Count in ${r.title||r.no||"the delivery"}`,sub:[r.no,jn,r.vendor].filter(Boolean).join(" · "),act:count||{t:"OPEN",fn:r.open},act2:count?{t:"OPEN",fn:r.open}:null});
+  });
   // supply requests Kyle approved - she orders them
   (window.reqList?window.reqList():[]).filter(r=>r.status==="approved").forEach(r=>out.push({r:4,link:{req:"approved"},tag:"TO ORDER",c:"#ff8a2a",text:`Order ${window.reqLine(r)}`,sub:[r.how==="out"?"OUT":"",r.who?r.who+" asked":"",r.note||""].filter(Boolean).join(" · ")||"On the order list",act:{t:"OPEN",fn:()=>window.reqGo("approved")}}));
   const hw=window.hwLowCount?window.hwLowCount():0, cl=window.invMode&&window.invMode.low?window.invMode.low():0;

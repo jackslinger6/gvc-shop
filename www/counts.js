@@ -50,12 +50,18 @@ css.textContent=`
 #gFlat .cfpa .go{background:#ff8a2a;border-color:#ff8a2a;color:#1b0f05}
 .cnt .opick{border-style:solid;border-color:var(--accent-line)}
 .cnt .pkh{font:600 11.5px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:12px 0 4px}
-.cnt .pkr{display:flex;gap:10px;align-items:center;padding:6px 2px;font-size:14px;cursor:pointer}
+.cnt .pkr,.cnt label.pkr{display:flex;flex-direction:row;gap:12px;align-items:flex-start;justify-content:flex-start;text-align:left;padding:8px 2px;margin:0;font-size:14px;line-height:1.4;cursor:pointer}
+.cnt .pkr>span{flex:1;min-width:0}
+.cnt .pkr input{margin:1px 0 0}
+.cnt .pkr .pkwt{display:block;margin-top:4px;padding:6px 9px;border:1px solid rgba(245,176,65,.5);background:rgba(245,176,65,.1);border-radius:8px;font-size:12.5px;color:#ffd28a;font-weight:500}
+.cnt .pkgh label,.cnt .pkgh label span{text-align:left}
 .cnt .pkr input,.cnt .pkgh input{width:20px;height:20px;flex:none}
 .cnt .pkr small{color:var(--muted)}
 .cnt .pkg{border-top:1px solid var(--line);padding:6px 0}
 .cnt .pkgh{display:flex;gap:8px;align-items:center;justify-content:space-between}
-.cnt .pkgh label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;min-width:0}
+.cnt .pkgh label{display:flex;flex-direction:row;gap:12px;align-items:flex-start;font-size:13px;cursor:pointer;min-width:0;flex:1;margin:0;padding:6px 0;line-height:1.4}
+.cnt .pkgh label input{margin:0}
+.cnt .pkgh .lnk{flex:none;min-height:36px}
 .cnt .pkgh label span{overflow:hidden;text-overflow:ellipsis}
 .cnt .pkw{margin:8px 0;padding:8px 10px;border:1px solid rgba(245,176,65,.5);background:rgba(245,176,65,.1);border-radius:8px;font-size:12.5px;color:#ffd28a}
 .cnt .pkq{width:100%;box-sizing:border-box;margin:2px 0 6px}
@@ -116,16 +122,34 @@ async function jobParts(j){
   const no=window.jobNum?window.jobNum(j.name):"";
   if(!no) return [];
   const r=await sb.from("gvc_job_parts").select("part_no,name,assembly,material,thickness,qty,thumb_path,source").eq("job_no",no).order("assembly").order("part_no");
-  return (r.data||[]).map(p=>({k:"j:"+p.part_no, part_no:p.part_no, name:p.name&&p.name!==p.part_no?p.name:(p.assembly||""), mat:window.jpMatText?window.jpMatText(p):[p.thickness?n3(p.thickness)+'"':"",p.material].filter(Boolean).join(" "), qty:p.qty||1, got:0, thumb:p.thumb_path||"", src:"job", source:p.source||"No source"}));
+  return (r.data||[]).map(p=>({k:"j:"+p.part_no, part_no:p.part_no, name:p.name&&p.name!==p.part_no?p.name:(p.assembly||""), mat:window.jpMatText?window.jpMatText(p):[p.thickness?n3(p.thickness)+'"':"",p.material].filter(Boolean).join(" "), qty:p.qty||1, got:0, thumb:p.thumb_path||"", src:"job", source:p.source||"No source", thick:p.thickness}));
 }
-function suggest(parts,sup,rec){
+/* Nov 19 review: RFQ-1004 ticked "1086WT" (a mis-read parts-list row whose part number is just the job number) and
+   suggested CENTERLOC.9 at 1" when the order says 1-1/2" plate. Now: the job's own number is never a part, and a
+   thickness the order states is compared with the parts list - a mismatch is flagged and NOT pre-ticked. */
+const IN=t=>{ t=String(t).trim(); let m;
+  if((m=t.match(/^(\d+)\s*[- ]\s*(\d+)\/(\d+)$/))) return +m[1]+m[2]/m[3];
+  if((m=t.match(/^(\d+)\/(\d+)$/))) return m[1]/m[2];
+  const v=parseFloat(t); return isFinite(v)?v:null; };
+const fmtIn=v=>{ if(v==null) return ""; const w=Math.floor(v+1e-9), f=Math.round((v-w)*16); return (w?w:"")+(f?(w?"-":"")+(f%8===0?f/8+"/2":f%4===0?f/4+"/4":f%2===0?f/2+"/8":f+"/16"):"")+'"'||v+'"'; };
+function statedThick(text){   // thicknesses the order states, ignoring "(was 1" ...)" history
+  const t=String(text||"").replace(/\(\s*(was|previously|old)[^)]*\)/gi," ").replace(/\b(was|previously)\s+[\d\/.\- ]+\s*(?:"|in\b|inch)/gi," ");
+  const out=[]; const re=/(?<![x×#\w.\/-])(\d+\s*-\s*\d+\/\d+|\d+\s+\d+\/\d+|\d+\/\d+|\d*\.\d+|\d+)\s*(?:"|''|inch(?:es)?\b)/gi;   // " or inch only ("x2 in 1-1/2"" is 1-1/2), never a quantity like x2 let m;
+  while((m=re.exec(t))){ const v=IN(m[1]); if(v&&v>0&&v<=4) out.push(v); }
+  return [...new Set(out.map(v=>+v.toFixed(4)))]; }
+function suggest(parts,sup,rec,jobNo){
   const text=[sup.scope,sup.note,rec&&rec.title].filter(Boolean).join(" \n ");
   if(!text) return {};
-  const out={};
+  const out={}, warn={}, said=statedThick(text), jn=String(jobNo||"").toUpperCase();
+  Object.defineProperty(out,"warn",{value:warn,enumerable:false});
   parts.forEach(p=>{ const pn=String(p.part_no||""); if(!pn) return;
+    if(jn&&pn.toUpperCase()===jn) return;   // the job number itself is never a part
     const cands=[pn,pn.replace(/^[^.]*_[^.]*\./,""),pn.split(".").slice(-2).join(".")].filter(x=>x&&x.length>=4&&/\D/.test(x));
     for(const c of new Set(cands)){ const re=new RegExp("(^|[^A-Za-z0-9_.])"+c.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![A-Za-z0-9_]|\\.\\d)(?:\\s*[x×]\\s*(\\d+))?","i"); const m=text.match(re);
-      if(m){ out[p.k]=m[2]?+m[2]:null; break; } } });
+      if(m){ out[p.k]=m[2]?+m[2]:null;
+        const th=parseFloat(p.thick); if(said.length&&isFinite(th)&&th>0&&!said.some(v=>Math.abs(v-th)<0.01))
+          warn[p.k]=`The order says ${said.map(fmtIn).join(" / ")} - the parts list has ${p.part_no} at ${fmtIn(th)}. Check the order before ticking it.`;
+        break; } } });
   return out;
 }
 
@@ -150,7 +174,7 @@ window.openCount=async function(jobId,supId){
     let its=S.row?S.row.items||[]:null;
     if(!its||!its.length){ its=[]; const jj=jobOf(S.jobId), ss=(jj.suppliers||[]).find(x=>x.id===S.supId)||{};
       const rec=window.posRec?window.posRec(ss.po||ss.rfq):null;
-      const parts=await jobParts(jj); if(parts.length){ const sg=suggest(parts,ss,rec); S.pick={parts,sug:sg,sel:new Set(Object.keys(sg)),q:"",open:new Set()}; } }
+      const parts=await jobParts(jj); if(parts.length){ const sg=suggest(parts,ss,rec,window.jobNum?jobNum(jj.name):""); const wn=sg.warn||{}; S.pick={parts,sug:sg,warn:wn,sel:new Set(Object.keys(sg).filter(k=>!wn[k])),q:"",open:new Set()}; } }
     its.forEach(i=>{ i.g=g; items.push(i); });
   }
   st={jobId, supId:sup.id, sets, items, q:"", f:"all", seeded, dirty:new Set(), timer:null, addQ:"", addG:0, flat:{},
@@ -359,7 +383,8 @@ function drawPick(){
 function pickHtml(){
   return st.sets.map((S,g)=>{ const P=S.pick; if(!P) return "";
     const has=k=>P.sel.has(k), q=P.q.toLowerCase();
-    const row=p=>`<label class="pkr"><input type="checkbox" data-pk="${g}|${esc(p.k)}" ${has(p.k)?"checked":""}><span><b>${esc(p.part_no)}</b> <small>${esc(p.mat||"")}${P.sug[p.k]!=null?` · ×${P.sug[p.k]} on the order`:` · job qty ${p.qty}`}</small></span></label>`;
+    const W=P.warn||{};
+    const row=p=>`<label class="pkr${W[p.k]?" pkwarn":""}"><input type="checkbox" data-pk="${g}|${esc(p.k)}" ${has(p.k)?"checked":""}><span><b>${esc(p.part_no)}</b> <small>${esc(p.mat||"")}${P.sug[p.k]!=null?` · ×${P.sug[p.k]} on the order`:` · job qty ${p.qty}`}</small>${W[p.k]?`<span class="pkwt">⚠ ${esc(W[p.k])}</span>`:""}</span></label>`;
     const sug=P.parts.filter(p=>p.k in P.sug);
     const by={}; P.parts.filter(p=>!q||[p.part_no,p.name,p.mat,p.source].join(" ").toLowerCase().includes(q)).forEach(p=>{ (by[p.source]=by[p.source]||[]).push(p); });
     const n=P.sel.size;
@@ -385,8 +410,12 @@ function wirePick(D){
   D.querySelectorAll("[data-pkall]").forEach(b=>{ if(b.hasAttribute("data-mixed")) b.indeterminate=true; b.onchange=()=>{ const [g,src]=b.dataset.pkall.split(/\|(.*)/s); const P=S(g); P.parts.filter(p=>p.source===src).forEach(p=>b.checked?P.sel.add(p.k):P.sel.delete(p.k)); draw(); }; });
   D.querySelectorAll("[data-pko]").forEach(b=>b.onclick=()=>{ const [g,src]=b.dataset.pko.split(/\|(.*)/s); const P=S(g); P.open.has(src)?P.open.delete(src):P.open.add(src); draw(); });
   D.querySelectorAll("[data-pkq]").forEach(i=>i.oninput=()=>{ const P=S(i.dataset.pkq); P.q=i.value; const pos=i.selectionStart; draw(); const n=D.querySelector(`[data-pkq="${i.dataset.pkq}"]`); if(n){ n.focus(); n.setSelectionRange(pos,pos); } });
-  D.querySelectorAll("[data-pkgo]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; b.disabled=true; const g=+b.dataset.pkgo, P=S(g);
-    P.parts.filter(p=>P.sel.has(p.k)).forEach(p=>{ const {source,...it}=p; st.items.push({...it,qty:P.sug[p.k]!=null?P.sug[p.k]:it.qty,got:0,g}); });
+  D.querySelectorAll("[data-pkgo]").forEach(b=>b.onclick=async()=>{ if(b.disabled) return; const g=+b.dataset.pkgo, P=S(g);
+    const bad=P.parts.filter(p=>P.sel.has(p.k)&&(P.warn||{})[p.k]);
+    if(bad.length&&!confirm(`${bad.map(p=>p.part_no).join(", ")}: ${(P.warn||{})[bad[0].k]}\n\nAdd ${bad.length>1?"them":"it"} to the checklist anyway?`)) return;
+    b.disabled=true;
+    P.parts.filter(p=>P.sel.has(p.k)).forEach(p=>{ const {source,thick,...it}=p; const w=(P.warn||{})[p.k]; if(w){ const m=w.match(/order says ([^-]+?) -/); if(m) it.mat=(it.mat?it.mat+" · ":"")+"order says "+m[1].trim(); }
+      st.items.push({...it,qty:P.sug[p.k]!=null?P.sug[p.k]:it.qty,got:0,g}); });
     st.sets[g].pick=null; changed(g); await loadFlat(st.items); await sign(st.items.filter(i=>!st.flat[i.part_no]).map(i=>i.thumb||i.img)); draw(); });
 }
 function addItem(base){
