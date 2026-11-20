@@ -13,6 +13,7 @@
 const $=s=>document.querySelector(s);
 const click=el=>{ if(el){ el.click(); return true; } return false; };
 const L=[
+  { k:"photo", el:()=>$(".gph-sheet"), open:e=>!!e, box:e=>e.querySelector(".in")||e, name:"Add photo", close:e=>click(e.querySelector("[data-g=x]")) },   // shared Take / Choose photo sheet (photos.js) - above everything
   { k:"scan",  el:()=>$("#gScan"), open:e=>!!e, box:e=>e, name:"Scan a part", close:()=>click($("#gsX")) },
   { k:"v3d",   el:()=>[...document.querySelectorAll("#v3d")].pop()||null, open:e=>!!e, box:e=>e, name:"3D model",
     close:e=>{ if(e.classList.contains("a3v")&&window.__v3dBack&&window.__v3dBack()) return; click(e.querySelector("#v3x")); } },   // assembly viewer: menu / drawing / measure / phone panel close first
