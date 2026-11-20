@@ -421,11 +421,11 @@ td select.who{padding:5px 7px;font-size:12.5px;min-width:110px}
     </div>
   </div>
   <div class="board" id="board"></div>
-  <section class="list" id="allJobs">
+  <section class="list gsection" id="allJobs">
     <div class="listhead" id="allJobsHead" role="button" tabindex="0" aria-expanded="true" title="Show / hide">
       <h3><span class="caret">▾</span> All jobs <span class="n" id="allJobsN"></span></h3>
     </div>
-    <div class="jlf" id="ajFilt" role="group" aria-label="Which jobs"></div>
+    <div class="jlf gfilters" id="ajFilt" role="group" aria-label="Which jobs"></div>
     <div class="jll" id="track"></div>
   </section>
   <div style="text-align:center;margin:-20px 0 30px"><button class="signout" type="button" id="signOut">Sign out</button></div>
@@ -656,6 +656,9 @@ function ajNeeds(j){
   if(n) out.push(`<span class="flag late">${n} open NCR${n===1?"":"s"}</span>`);
   return out;
 }
+/* Job card (hierarchy standard, Kyle Nov 19): the job is the strongest thing on the screen - its own card with
+   the job number + name as the heading, then stage and task progress, then a labelled "Needs attention" area.
+   The main area opens the job (hover / focus state + "Open job ›"); Stages stays a separate, secondary button. */
 function ajRow(j){
   const num=window.jobNum?window.jobNum(j.name):""; const rest=num?String(j.name).replace(/^\s*\S+\s*[-–:]?\s*/,"").trim()||j.name:j.name;
   const A=j.assemblies||[], dn=A.filter(a=>a.status==="done").length;
@@ -666,18 +669,18 @@ function ajRow(j){
   else if(!j.archived&&j.stage!=="done"&&lifeOf(j)==="planned") stg=`<span class="jlst" style="--c:#8e96a3">Planned</span><span class="jlsb">${esc(planStatus(j))}</span>`;
   else if(j.stage==="done"||j.archived){ const f=finAt(j); stg=`<span class="jlst" style="--c:var(--green)">Done${f?" "+new Date(f).toLocaleDateString("en-CA",{month:"short",day:"numeric"}):""}</span>${j.archived?`<span class="jlsb">archived</span>`:""}`; }
   else { const s=stOf(j); stg=`<span class="jlst" style="--c:${s.bc}">${esc([s,...alsoIn(j).map(k=>STAGES[SIDX[k]])].map(x=>x.t).join(" + "))}</span><span class="jlsb">${esc(s.bt)}</span>`; }
-  const nd=ajNeeds(j); const open=ajOpen.has(j.id);
-  return `<div class="jlrow${nd.length?" att":""}${ONGOING(j)?" ongo":""}" data-aj="${esc(j.id)}">
-    <button type="button" class="jlo" data-id="${esc(j.id)}" title="Open ${esc(j.name)}">
-      <span class="jln">${num?`<span class="jnum">${esc(num)}</span>`:`<span class="jnum none">no #</span>`}</span>
-      <span class="jlp">${jc?`<i class="jc" style="background:${jc}"></i>`:""}${esc(rest)}${j.sample?' <span class="jlsb">(sample)</span>':""}</span>
-      <span class="jls">${stg}</span>
-      <span class="jlt">${A.length?`<b>${dn} of ${A.length}</b> tasks done`:`<span class="jlsb">No tasks</span>`}</span>
-      <span class="jlnd">${nd.join("")}</span>
+  const pct=A.length?Math.round(dn/A.length*100):0;
+  const prog=A.length?`<span class="jcp"><span class="jcpt"><b>${dn} of ${A.length}</b> tasks complete</span><span class="jcpb" role="presentation"><i style="width:${pct}%"></i></span></span>`:`<span class="jcp"><span class="jcpt jlsb">No tasks yet</span></span>`;
+  const nd=ajNeeds(j); const open=ajOpen.has(j.id), stages=!ONGOING(j);
+  return `<article class="jcard${nd.length?" att":""}${ONGOING(j)?" ongo":""}" data-aj="${esc(j.id)}">
+    <button type="button" class="jcmain" data-id="${esc(j.id)}" aria-label="Open job ${esc(j.name)}">
+      <span class="jch">${jc?`<i class="jc" style="background:${jc}" aria-hidden="true"></i>`:""}<span class="jct">${num?`<span class="jcn">${esc(num)}</span><span class="jcsep" aria-hidden="true">·</span>`:""}<span class="jcname">${esc(rest)}</span>${j.sample?' <span class="jlsb">(sample)</span>':""}</span><span class="jcopen" aria-hidden="true">Open job <span>›</span></span></span>
+      <span class="jcmeta"><span class="jls">${stg}</span>${prog}</span>
+      ${nd.length?`<span class="jcatt"><span class="jcattl">Needs attention</span><span class="jlnd">${nd.join("")}</span></span>`:""}
     </button>
-    ${ONGOING(j)?`<span class="jlx0"></span>`:`<button type="button" class="jlx" data-ajx="${esc(j.id)}" aria-expanded="${open}" title="Show the stages">Stages <span aria-hidden="true">▾</span></button>`}
-    ${open&&!ONGOING(j)?ajGrid(j):""}
-  </div>`;
+    ${stages?`<div class="jcfoot"><button type="button" class="jlx" data-ajx="${esc(j.id)}" aria-expanded="${open}" aria-label="${open?"Hide":"Show"} the stages for ${esc(j.name)}">Stages <span aria-hidden="true">▾</span></button></div>`:""}
+    ${open&&stages?ajGrid(j):""}
+  </article>`;
 }
 /* Job lifecycle (stage 8, Kyle Nov 14) - separate from a job's stages, tasks and orders:
    Active = being built / worked on · Planned = upcoming (can be quoted / ordered for without being active) ·
@@ -712,14 +715,13 @@ function drawTrack(){
   const sortLive=L=>[...L].sort((a,b)=>((BR[stOf(a).board]??3)-(BR[stOf(b).board]??3))||((SIDX[b.stage]??0)-(SIDX[a.stage]??0))||((a.order||0)-(b.order||0)));
   const CAP=20;
   const chips=[["active","Active",act.length],["planned","Planned",plan.length],["shop","Shop",shop.length],...(att.length?[["att","Needs attention",att.length]]:[]),["done","Completed",doneAll.length]];
-  F.innerHTML=chips.map(([k,t,n])=>`<button type="button" class="jlc${k==="att"?" warn":""}" data-ajf="${k}" aria-pressed="${ajF===k}">${t} <span>${n}</span></button>`).join("");
+  F.innerHTML=chips.map(([k,t,n])=>`<button type="button" class="jlc gchip${k==="att"?" warn":""}" data-ajf="${k}" aria-pressed="${ajF===k}">${t} <span>${n}</span></button>`).join("");
   let L, foot="";
   if(ajF==="done"){ L=doneAll.slice(0,CAP); if(doneAll.length>CAP) foot=`<button type="button" class="btn sm ghost jlall" id="ajAll">See all ${doneAll.length} in Finished jobs</button>`; }
   else L=sortLive(ajF==="att"?att:ajF==="planned"?plan:ajF==="shop"?shop:act);
-  const head=`<div class="jlhd" aria-hidden="true"><span>Job #</span><span>Project</span><span>${ajF==="planned"?"Planning status":"Stage"}</span><span>Tasks</span><span>Needs attention</span><span></span></div>`;
   const EMPTY={done:"No finished jobs yet.",planned:"Nothing planned. New jobs from Randy land here until they start.",shop:"No shop jobs.",active:"Nothing active right now - start a planned job when it's released.",att:"Nothing needs attention."};
-  T.innerHTML=L.length?head+L.map(ajRow).join("")+foot:`<div class="empty">${EMPTY[ajF]||""}</div>`;
-  T.querySelectorAll(".jlo").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
+  T.innerHTML=L.length?L.map(ajRow).join("")+foot:`<div class="empty">${EMPTY[ajF]||""}</div>`;
+  T.querySelectorAll(".jcmain").forEach(el=>el.onclick=()=>openJob(el.dataset.id));
   T.querySelectorAll("[data-ajx]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); const id=el.dataset.ajx; ajOpen.has(id)?ajOpen.delete(id):ajOpen.add(id); drawTrack(); });
   F.querySelectorAll("[data-ajf]").forEach(el=>el.onclick=()=>{ ajF=el.dataset.ajf; drawTrack(); });
   const all=$("#ajAll"); if(all) all.onclick=()=>{ cur="archive"; try{history.replaceState(null,"","#archive")}catch(e){} render(); window.scrollTo({top:0}); };

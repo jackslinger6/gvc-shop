@@ -566,3 +566,85 @@ body.ovwv #allJobs{margin-top:8px}
 #board.todo>.tbox.intake details.autobox>summary.tnote{display:flex!important;margin:0}
 #board.todo>.tbox.intake>.paste{flex:1 1 100%}
 #board.todo>.tbox.intake .autobox .tnote{display:block}
+
+/* =====================================================================================================
+   HIERARCHY STANDARD (Kyle, Nov 19 2026) - one rule for every screen: it's always obvious what is
+   navigation, what is a filter, and what is the actual work.
+   1. Navigation is quiet: plain text tabs on a hairline, the current one marked by an underline - no boxes,
+      no orange fill. (.subnav = the ribbon under Jobs / Inventory)
+   2. Filters sit together above the results, outside any content card, as small neutral chips (.gfilters,
+      .gchip). Selected = solid neutral, never the accent colour.
+   3. Content leads: each distinct item (job, order, NCR...) is its own card (.gcard / .jcard): a slightly
+      lighter surface, a visible border, generous padding, the item's name as the strongest text on screen.
+      Dense lists use compact rows instead; drawings and 3D get open space.
+   4. One primary action per area (accent colour); everything else secondary (ghost / outline). Strong colour
+      is kept for meaningful actions and statuses.
+   5. Spacing: 24px (--s5) between the controls and the first result; 12px between cards.
+   Tokens only (--panel2, --line2, --s*, --fs-*), so dark / light / girly themes follow automatically.
+   ===================================================================================================== */
+/* 1. quiet navigation ribbon */
+.subnav{background:none!important;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;padding:0!important;gap:2px!important;margin-bottom:var(--s4)}
+.subnav .sn{min-height:42px;border-radius:0!important;border:0!important;border-bottom:2px solid transparent!important;background:none!important;padding:6px 12px!important;font-size:13.5px;font-weight:500;color:var(--muted)}
+.subnav .sn:hover{color:var(--text);background:none!important}
+.subnav .sn.on{background:none!important;color:var(--text);font-weight:600;border-bottom-color:var(--text)!important}
+.subnav .sn .ct{background:none!important;color:var(--dim);min-width:0;padding:0 0 0 2px;font-weight:500}
+.subnav .sn span.at{font-size:11px;padding:0 6px;margin-left:6px;background:none;border:1px solid color-mix(in srgb,var(--red) 55%,transparent);color:color-mix(in srgb,var(--red) 60%,var(--text))}
+.subnav .sep{width:1px;align-self:stretch;margin:10px 4px;background:var(--line)}
+@media (max-width:760px){
+  .subnav{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin-left:calc(-1 * var(--s3));margin-right:calc(-1 * var(--s3));padding:0 var(--s3)!important}
+  .subnav::-webkit-scrollbar{display:none}
+  .subnav .sn{flex:none;white-space:nowrap}
+  .subnav .grow{display:none}
+}
+/* 2. filters: above the results, outside the cards */
+.gfilters{display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center;margin:0 0 var(--s5)}
+.gchip,.jlc.gchip{min-height:34px;padding:0 12px;border-radius:var(--r-pill);border:1px solid var(--line);background:none;color:var(--muted);font:500 13px var(--font-ui);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.gchip span{font-weight:600;color:var(--dim);opacity:1}
+.gchip:hover{color:var(--text);border-color:var(--line2)}
+.gchip[aria-pressed="true"]{background:var(--panel3);border-color:var(--line2);color:var(--text);font-weight:600}
+.gchip[aria-pressed="true"] span{color:var(--muted)}
+.gchip.warn span{color:#ffb070}
+/* a list section is not a box: heading + filters + items on the page itself */
+.list.gsection{background:none!important;border:0!important;padding:0!important;box-shadow:none!important}
+.gsection>.listhead{padding:0 0 var(--s3)!important;border:0!important;background:none!important}
+.gsection>.listhead h3{font-size:var(--fs-lg)!important;font-weight:600}
+.gsection>.listhead .n{color:var(--muted);font-weight:400;margin-left:6px}
+/* 3. content cards */
+.gcard,.jcard{background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.jll{display:flex;flex-direction:column;gap:var(--s3)}
+.jcard{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;transition:border-color .15s,background .15s}
+.jcard:hover,.jcard:focus-within{border-color:color-mix(in srgb,var(--accent) 45%,var(--line2))}
+.jcard.att{border-left:3px solid color-mix(in srgb,var(--accent) 70%,var(--line2))}
+.jcmain{grid-column:1;display:flex;flex-direction:column;gap:var(--s3);text-align:left;background:none;border:0;color:var(--text);font:inherit;cursor:pointer;padding:var(--s4) var(--s5);border-radius:var(--r-lg);min-width:0}
+.jcmain:focus-visible{outline:none;box-shadow:var(--focus)}
+.jcmain:hover .jcopen{color:var(--text)}
+.jcmain:hover .jcopen span{transform:translateX(2px)}
+.jch{display:flex;align-items:center;gap:var(--s2);min-width:0}
+.jct{flex:1;min-width:0;font:700 var(--fs-xl)/1.25 var(--font-ui);letter-spacing:-.005em;color:var(--text)}
+.jcn{color:color-mix(in srgb,var(--accent) 80%,var(--text));letter-spacing:.01em}
+.jcsep{color:var(--dim);margin:0 .35em;font-weight:400}
+.jch .jc{width:10px;height:10px;border-radius:3px;flex:none}
+.jcopen{flex:none;font:500 13px var(--font-ui);color:var(--muted);white-space:nowrap}
+.jcopen span{display:inline-block;transition:transform .15s;font-size:16px;line-height:1}
+.jcmeta{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5);align-items:center}
+.jcmeta .jls{flex-direction:row;align-items:center;gap:var(--s2);flex-wrap:wrap}
+.jcp{display:inline-flex;align-items:center;gap:var(--s2)}
+.jcpt{font-size:13.5px;color:var(--muted)}
+.jcpt b{color:var(--text);font-weight:600}
+.jcpb{width:110px;height:6px;border-radius:var(--r-pill);background:var(--panel3);overflow:hidden;flex:none}
+.jcpb i{display:block;height:100%;background:var(--green);border-radius:inherit}
+.jcatt{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;padding-top:var(--s3);border-top:1px solid var(--line)}
+.jcattl{font-size:12px;font-weight:600;color:#ffb070}
+.jcatt .jlnd .flag{margin:0;font-size:12px}
+.jcfoot{grid-column:2;padding:0 var(--s4) var(--s4) 0}
+.jcard .jlx{position:static;width:auto;margin:0;min-height:34px;padding:0 12px;font-weight:500;background:none;border-color:var(--line)}
+.jcard .jlgrid{grid-column:1/-1;padding:0 var(--s5) var(--s4)}
+@media (max-width:760px){
+  .jcmain{padding:var(--s4)}
+  .jct{font-size:18px}
+  .jcopen{font-size:0}.jcopen span{font-size:22px}
+  .jcard{grid-template-columns:minmax(0,1fr)}
+  .jcfoot{grid-column:1;padding:0 var(--s4) var(--s4)}
+  .jcard .jlgrid{padding:0 var(--s4) var(--s4)}
+}
+body.light .jcard{box-shadow:0 1px 2px rgba(16,24,40,.06)}
