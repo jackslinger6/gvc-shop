@@ -260,6 +260,12 @@ css.textContent=`
 #v3d.a3v .a3tabs .col{width:44px;height:42px;background:none;border:0;color:var(--a3mut);cursor:pointer;display:flex;align-items:center;justify-content:center}
 #v3d.a3v .a3treebox{display:flex;flex-direction:column;min-height:0;flex:1}
 #v3d.a3v .a3treebox[hidden],#v3d.a3v .a3foot[hidden]{display:none}
+#v3d.a3v .a3panel.both #a3tabS{display:none}
+#v3d.a3v .a3panel.both #a3tabT{cursor:default;border-bottom-color:transparent}
+#v3d.a3v .a3panel.both .a3treebox{flex:1 1 auto;min-height:140px}
+#v3d.a3v .a3panel.both .a3foot{flex:0 1 auto;max-height:58%;border-top:1px solid var(--a3line);background:var(--a3panel)}
+#v3d.a3v .a3mix{font-size:12.5px;color:var(--a3mut);line-height:1.45}
+#v3d.a3v .a3mix b{color:var(--a3text);font-weight:600}
 #v3d.a3v .a3rs{position:absolute;top:0;right:-5px;width:10px;height:100%;cursor:col-resize;z-index:3;touch-action:none}
 #v3d.a3v .a3rs:hover,#v3d.a3v .a3rs.on{background:linear-gradient(90deg,transparent 4px,var(--a3acc) 4px,var(--a3acc) 6px,transparent 6px)}
 #v3d.a3v .a3panel[hidden]{display:none}
@@ -490,7 +496,7 @@ window.openAsm3D=async function(url,title,opts){
     if(!P){ if(pivOn){ pivDot.style.display="none"; pivOn=false; } return; }
     const p=P.clone().project(cam); pivDot.style.left=((p.x+1)/2*cv.clientWidth)+"px"; pivDot.style.top=((1-p.y)/2*cv.clientHeight)+"px"; if(!pivOn){ pivDot.style.display="block"; pivOn=true; } };
   const loop=()=>{ if(disposed) return; ctl&&ctl.update(); showPiv(); if(need){ typeof updCube==="function"&&updCube(); need=false; renderer.render(scene,cam); labels.forEach(l=>{ const p=l.p.clone().project(cam); const r=cv.getBoundingClientRect(); l.el.style.left=((p.x+1)/2*r.width)+"px"; l.el.style.top=((1-p.y)/2*r.height)+"px"; l.el.style.display=p.z>1?"none":""; }); } raf=requestAnimationFrame(loop); };
-  onResize=()=>{ if(!isPhone()&&panel.classList.contains("col")) panel.classList.remove("col"); const w=cv.clientWidth, h=cv.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); draw(); };
+  onResize=()=>{ if(!isPhone()&&panel.classList.contains("col")) panel.classList.remove("col"); try{ syncTabs(); }catch(e){} const w=cv.clientWidth, h=cv.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); draw(); };
   window.addEventListener("resize",onResize);
 
   /* ---- camera ---- */
@@ -607,7 +613,7 @@ window.openAsm3D=async function(url,title,opts){
       <button class="eye" type="button" data-eye="1" data-st="${st}" aria-label="${st==="visible"?"Hide":"Show"} ${E(n.name)} (${ST_LABEL[st]})" title="${ST_LABEL[st]} - tap to ${st==="visible"?"hide":"show"}">${svg(st==="visible"?"eye":st==="hidden"?"off":"half")}</button></div>`; }
   function treeHtml(ids,d){ return ids.map(id=>rowHtml(id,d)+(openRows.has(id)?treeHtml(T.nodes.get(id).kids,d+1):"")).join(""); }
   function renderPanel(scrollToSel){
-    if(panel.hidden||tab!=="tree") return;
+    if(panel.hidden||(isPhone()&&tab!=="tree")) return;
     const words=q.toLowerCase().split(/\s+/).filter(Boolean);
     let list;
     if(words.length){ const hits=[...T.nodes.values()].filter(n=>words.every(w=>(n.name+" "+n.raw).toLowerCase().includes(w))).slice(0,200);
@@ -652,11 +658,18 @@ window.openAsm3D=async function(url,title,opts){
     const isAsm=n.kind==="asm"||n.kind==="group"||(n.kind==="part"&&n.kids.length), pns=n.meshes.length===1?(u.pn||[]):[];
     const drw=pns.length&&opts.drawingFor?pns.filter(pn=>opts.drawingFor(pn,true)):[];
     const kind=n.kind==="group"?"Group (in the app only)":n.kind==="asm"?"Assembly":n.kind==="body"?"Part (body)":"Part";
+    /* why an assembly has far more model parts than drawings (Nov 19: headache rack 659 in the model vs 77 drawing parts):
+       every body in the model counts - bolts, nuts and washers, bought parts, tube and logos too - but only bodies matched
+       to a numbered laser part on the parts list have a drawing. */
+    let mix="";
+    if(isAsm&&n.meshes.length>1){ let num=0, hw=0, other=0; const pnSet=new Set();
+      n.meshes.forEach(i=>{ const u2=meshes[i].userData||{}; if((u2.pn||[]).length){ num++; u2.pn.forEach(x=>pnSet.add(x)); } else if(HW_RE.test(String(u2.comp||"").replace(/_/g," "))&&!OURS_RE.test(String(u2.comp||""))) hw++; else other++; });
+      mix=`<div class="a3mix"><b>${n.meshes.length}</b> bodies in the model: <b>${num}</b> matched to <b>${pnSet.size}</b> numbered part${pnSet.size===1?"":"s"} (the ones with drawings) · <b>${hw}</b> hardware · <b>${other}</b> other (bought parts, tube, logos, unmatched)</div>`; }
     // identity first (name, then the part number), then where it sits, then what you can do with it
     foot.innerHTML=`<div>
         <div class="a3name" id="a3selname" style="font-size:18px">${E(n.name)}</div>
         ${pns.length&&n.kind!=="body"?`<div class="a3pn">${E(pns.join(", "))}</div>`:""}
-        <div class="a3lab">${kind}${isAsm?` · ${n.meshes.length} parts`:""}${u.mat&&!isAsm?" · "+E(u.mat):""}</div>
+        <div class="a3lab">${kind}${u.mat&&!isAsm?" · "+E(u.mat):""}</div>${mix}
         ${cr.length?`<nav class="a3crumb" aria-label="Assembly levels" title="Tap a level to select that whole assembly">${cr.map((a,k)=>`${k?"<span aria-hidden=true>›</span>":""}<button type="button" data-lvl="${E(a)}">${E(T.nodes.get(a).name)}</button>`).join("")}</nav>`:""}</div>
       <div class="a3acts">
         <button class="a3b" type="button" data-fa="hide" title="Hide it (Undo brings it back)">${svg("off",18)}Hide</button>
@@ -738,10 +751,13 @@ window.openAsm3D=async function(url,title,opts){
   /* ---- panel: Assemblies / Selected tabs; desktop = left sidebar (collapsible, drag the edge to resize);
      phone portrait = bottom sheet that collapses to its tab bar so the model gets the screen ---- */
   const tabT=$("#a3tabT"), tabS=$("#a3tabS"), colB=$("#a3col");
+  /* Desktop (Nov 19 review: the Selected tab left most of the sidebar blank): tree and selection together - the tree
+     fills the column, the selected item sits under it. Tabs are for the phone sheet only. */
   function syncTabs(){ const second=mode==="measure"?"Measure":mode==="hide"?"Tap to hide":"Selected"; tabS.textContent=second;
     if(mode!=="select") tab="sel";
-    tabT.setAttribute("aria-selected",tab==="tree"); tabS.setAttribute("aria-selected",tab==="sel");
-    treeBox.hidden=tab!=="tree"; foot.hidden=tab!=="sel"; panel.classList.toggle("seltab",tab==="sel"); }
+    const both=!isPhone(); panel.classList.toggle("both",both);
+    tabT.setAttribute("aria-selected",both||tab==="tree"); tabS.setAttribute("aria-selected",!both&&tab==="sel");
+    treeBox.hidden=!both&&tab!=="tree"; foot.hidden=!both&&tab!=="sel"; panel.classList.toggle("seltab",!both&&tab==="sel"); }
   function setTab(t){ tab=t; syncTabs(); if(t==="tree") renderPanel(true); else renderFoot(); if(isPhone()) setCollapsed(false); }
   tabT.onclick=()=>setTab("tree"); tabS.onclick=()=>setTab("sel");
   const isCol=()=>panel.classList.contains("col");
