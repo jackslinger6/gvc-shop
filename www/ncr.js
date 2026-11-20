@@ -73,22 +73,46 @@ async function saveSteps(j,n,steps){
   if(P&&P.loaded()){ const hrs=P.get().hours=P.get().hours||{}; added.forEach(a=>{ if(a._h!=null) hrs["j:"+j.id+":"+a.id]=a._h; }); }
   return added.length;
 }
-let form=null; // {jid, what,part,details,type,fix,steps,mat}
+let form=null; // {jid, what,part,details,type,fix,steps,mat, photos:[{blob}|{path}], restored}
+/* Drafts (Nov 19): the open NCR form is kept on this phone (GVCDraft "ncr:<job id>") as you type and right before the
+   camera opens, so leaving the app, Android closing it, or a failed save never loses it. Cleared only after the NCR
+   is saved, or on Discard. */
+const DK=jid=>"ncr:"+jid;
+const D_=window.GVCDraft, PH=window.GVCPhotos;
+const draftOf=f=>({jid:f.jid,what:f.what||"",part:f.part||"",details:f.details||"",type:f.type,fix:f.fix,steps:f.steps||"",mat:f.mat||"",photos:(f.photos||[]).map(p=>p.path?{path:p.path,blob:p.blob}:{blob:p.blob})});
+const hasContent=f=>!!(f&&((f.what||"").trim()||(f.part||"").trim()||(f.details||"").trim()||(f.steps||"").trim()||(f.photos||[]).length));
+const saveDraft=D_?D_.saver(()=>DK(form?form.jid:""),()=>form&&hasContent(form)?draftOf(form):null,()=>document.getElementById("nfDraft")):()=>{};
+async function startForm(jid,pre){ const nb0=document.getElementById("ncrDraftNote"); if(nb0) nb0.remove(); let d=null; try{ d=D_&&await D_.load(DK(jid)); }catch(e){}
+  if(d){ form=Object.assign({jid,what:"",type:TYPES[0],fix:"Rework",steps:"",mat:"",photos:[]},d,{restored:d._at||Date.now()}); form.photos=(d.photos||[]).filter(p=>p.blob||p.path);
+    if(pre&&pre.details&&!(form.details||"").includes(pre.details)) form.details=(form.details?form.details+"\n":"")+pre.details; }
+  else form=Object.assign({jid,what:"",type:TYPES[0],fix:"Rework",steps:"",mat:"",photos:[]},pre||{});
+  return form; }
+/* photos already on saved NCRs: private bucket gvc-photos, shown with signed links (12 h) */
+const phUrls={}, phAsk=new Set();
+async function signPhotos(paths){ const need=paths.filter(p=>!phUrls[p]&&!phAsk.has(p)); if(!need.length||typeof sb==="undefined") return; need.forEach(p=>phAsk.add(p));
+  try{ const r=await sb.storage.from("gvc-photos").createSignedUrls(need,60*60*12); (r.data||[]).forEach(u=>{ if(u.signedUrl) phUrls[u.path]=u.signedUrl; }); }catch(e){}
+  // fill in just the waiting thumbnails - never redraw the screen (that would interrupt typing)
+  document.querySelectorAll("[data-nphp]").forEach(el=>{ const u=phUrls[el.dataset.nphp]; if(!u) return; const a=document.createElement("a"); a.className="t"; a.href=u; a.target="_blank"; a.rel="noopener"; a.innerHTML=`<img src="${esc(u)}" alt="${esc(el.getAttribute("aria-label")||"Photo")}">`; el.replaceWith(a); }); }
+async function uploadPh(jid,blob){ const p=`ncr/${jid}/${Date.now()}-${Math.random().toString(36).slice(2,6)}.jpg`;
+  const {error}=await sb.storage.from("gvc-photos").upload(p,blob,{contentType:"image/jpeg"}); if(error) throw error; return p; }
 let tw=null;   // "jobid:n" - the NCR whose + Rework task form is open
 const trk=new Set();   // NCR cards with the "Track corrective action" choices open
 const openCards=new Set();
 function section(j){
   const list=(j.ncrs||[]).slice().sort((a,b)=>a.n-b.n);
   const untagged=(j.assemblies||[]).filter(a=>!a.ncr);
-  let h=`<div class="sec"><span>NCRs${list.length?` · ${list.filter(x=>isOpenSt(stats(j,x).st)).length} open`:""}</span><button class="btn sm" type="button" id="ncrAdd">⚠ Add NCR</button></div><div class="ncrsec">`;
+  let h=`<div class="sec"><span>NCRs${list.length?` · ${list.filter(x=>isOpenSt(stats(j,x).st)).length} open`:""}</span><button class="btn sm${D_&&D_.has(DK(j.id))&&!(form&&form.jid===j.id)?" primary":""}" type="button" id="ncrAdd">${D_&&D_.has(DK(j.id))&&!(form&&form.jid===j.id)?"⚠ Resume unfinished NCR":"⚠ Add NCR"}</button></div><div class="ncrsec">`;
   if(form&&form.jid===j.id) h+=`<div class="nform">
+    ${form.restored?`<div class="nm" style="color:#ffd28a">Unfinished NCR from ${D_.ago(form.restored)} - carried on where you left off.</div>`:""}
     <label>What went wrong<input id="nfWhat" value="${esc(form.what)}" placeholder="e.g. Door flange hits the Rat Pack" style="width:100%"></label>
     <label>Part number(s) (optional)<input id="nfPart" value="${esc(form.part||"")}" placeholder="e.g. HEADACHE.5" style="width:100%"></label>
     <label>Details - what happened, why, how it was found (optional)<textarea id="nfDet" rows="3" style="width:100%">${esc(form.details||"")}</textarea></label>
+    <label>Photos (optional)</label>${PH?PH.strip(form.photos,"nf"):""}
+    <div class="nrow"><button class="btn sm gph-add" type="button" id="nfPhAdd">📷 Add photo</button><span class="gph-draft" id="nfDraft" aria-live="polite"></span></div>
     <label>Type</label><div class="nrow">${TYPES.map(t=>`<button type="button" class="chip ${form.type===t?"on":""}" data-nft="${t}">${t}</button>`).join("")}</div>
     <label>Fix</label><div class="nrow">${FIXES.map(t=>`<button type="button" class="chip ${form.fix===t?"on":""}" data-nfx="${t}">${t}</button>`).join("")}</div>
     <label>Rework steps - one per line, hours at the end (optional)<textarea id="nfSteps" rows="3" style="width:100%" placeholder="Cut bottom flange off doors 2h&#10;Grind and touch up paint 1h">${esc(form.steps)}</textarea></label>
-    <div class="nrow"><span class="lbl" style="font-size:12px;color:var(--muted)">Extra material $</span><input id="nfMat" type="number" min="0" step="1" value="${esc(form.mat)}" style="width:90px"><span style="flex:1"></span><button class="btn sm" type="button" id="nfCancel">Cancel</button><button class="btn sm primary" type="button" id="nfSave">Save NCR</button></div></div>`;
+    <div class="nrow"><span class="lbl" style="font-size:12px;color:var(--muted)">Extra material $</span><input id="nfMat" type="number" min="0" step="1" value="${esc(form.mat)}" style="width:90px"><span style="flex:1"></span><button class="btn sm" type="button" id="nfCancel">${hasContent(form)?"Discard":"Cancel"}</button><button class="btn sm primary" type="button" id="nfSave">Save NCR</button></div><div class="nm" id="nfMsg" style="color:#ffd28a" aria-live="assertive"></div></div>`;
   // each NCR: the issue, the decision, what's next and who's on it; editing / rework / cost / history fold away (stage 4)
   const card=x=>{ const s=stats(j,x); const rv=s.rv;
     const tk=j.id+":"+x.n, admin=isAdminRole();
@@ -109,6 +133,8 @@ function section(j){
     return `<div class="ncard" style="--c:${stColor[s.st]}">
       <div class="nh"><b>${tag(x.n)}</b><span class="ostat" style="--c:${stColor[s.st]}">${s.st}</span><span style="flex:1"></span><span class="nm" style="margin:0">${esc(x.type)}</span></div>
       <div class="nwhat">${esc(x.what)}${x.part?(x.part.length>90?`<details class="nparts"><summary class="nm">${esc(x.part.slice(0,x.part.lastIndexOf(",",80)>20?x.part.lastIndexOf(",",80):80))}… <u>show all ${x.part.split(",").length} affected parts</u></summary><span class="nm">${esc(x.part)}</span></details>`:`<span class="nm"> · ${esc(x.part)}</span>`):""}</div>
+      ${(x.photos||[]).length?`<div class="gph-strip">${x.photos.map((p,i)=>phUrls[p]?`<a class="t" href="${esc(phUrls[p])}" target="_blank" rel="noopener"><img src="${esc(phUrls[p])}" alt="${tag(x.n)} photo ${i+1}"></a>`:`<div class="t" data-nphp="${esc(p)}" aria-label="${tag(x.n)} photo ${i+1}"></div>`).join("")}</div>`:""}
+      <div class="nrow" style="margin-top:4px"><button class="btn sm ghost" type="button" data-nph="${x.n}">📷 Add photo</button></div>
       <dl class="nkv"><dt>Decision</dt><dd>${x.decision?esc(x.decision):`<span style="color:var(--muted)">${x.fix==="Deciding"?"Not decided yet":esc(x.fix)}</span>`}</dd>
         ${next?`<dt>Next</dt><dd><b>${esc(next)}</b> <span class="nm" style="display:inline">· ${s.st==="In progress"||s.st==="Tracked - not started"?"see below":"Kyle"}</span></dd>`:""}
         ${s.st==="Not tracked"?`<dt>Next</dt><dd><span class="nwarn">Nothing tracks this yet.</span> <span class="nm" style="display:inline">A written decision isn't the fix - add the rework task, replacement order or model change that does it.</span></dd>`:""}
@@ -135,7 +161,7 @@ function section(j){
   if(!list.length&&!form) h+=`<div class="empty" style="text-align:left">No NCRs. If something was designed, ordered or built wrong, log it here so the rework and cost get tracked.</div>`;
   return h+`</div>`;
 }
-const mut=async(label,fn)=>{ const j=structuredClone(job()); j.ncrs=j.ncrs||[]; if(fn(j)===false) return; j.log=[...(j.log||[]),{at:new Date().toISOString(),text:label}]; await put(j,label); const P=window.gvcPlan; if(P&&P.loaded()) await P.save(); };
+const mut=async(label,fn)=>{ const j=structuredClone(job()); j.ncrs=j.ncrs||[]; if(fn(j)===false) return; j.log=[...(j.log||[]),{at:new Date().toISOString(),text:label}]; const ok=await put(j,label); if(ok===false) return false; const P=window.gvcPlan; if(P&&P.loaded()) await P.save(); return true; };
 GVC.on("drawDlg:after",()=>{
   const j=job(); if(!j) return; const D=$("#dlg");
   const wrap=document.createElement("div"); wrap.innerHTML=section(j);
@@ -145,15 +171,37 @@ GVC.on("drawDlg:after",()=>{
   (j.assemblies||[]).forEach((a,k)=>{ const row=D.querySelector(`[data-task-i="${k}"]`); const nm=row&&row.querySelector(".an2"); if(!nm) return;
     if(a.ncr) nm.insertAdjacentHTML("beforeend",`<span class="ntag">${tag(a.ncr)}</span>`);
   });
-  $("#ncrAdd").onclick=()=>{ form={jid:j.id,what:"",type:TYPES[0],fix:"Rework",steps:"",mat:""}; drawDlg(); setTimeout(()=>{ const w=$("#nfWhat"); if(w) w.focus(); },30); };
+  $("#ncrAdd").onclick=async()=>{ if(form&&form.jid===j.id) return; await startForm(j.id); drawDlg(); setTimeout(()=>{ const w=$("#nfWhat"); if(w) w.focus(); },30); };
+  { const need=[]; (j.ncrs||[]).forEach(x=>(x.photos||[]).forEach(p=>need.push(p))); if(need.length) signPhotos(need); }
+  D.querySelectorAll("[data-nph]").forEach(b=>b.onclick=async()=>{ const n=+b.dataset.nph; if(window.ME&&ME.preview){ $("#err").textContent="Preview - nothing is saved."; return; }
+    const got=PH?await PH.pick({title:`Photo for ${tag(n)}`}):[]; if(!got.length) return;
+    b.disabled=true; b.textContent="Uploading…"; const paths=[];
+    try{ for(const g of got) paths.push(await uploadPh(j.id,g)); }catch(e){ $("#err").textContent="Couldn't upload the photo"+(navigator.onLine===false?" - no connection. Try again when you have signal.":": "+(e.message||e)); b.disabled=false; b.textContent="📷 Add photo"; return; }
+    await mut(`${tag(n)}: ${paths.length} photo${paths.length>1?"s":""} added`,jj=>{ const x=jj.ncrs.find(y=>y.n===n); if(!x) return false; x.photos=[...(x.photos||[]),...paths]; }); });
   if(form&&form.jid===j.id){
-    $("#nfWhat").oninput=e=>form.what=e.target.value; $("#nfPart").oninput=e=>form.part=e.target.value; $("#nfDet").oninput=e=>form.details=e.target.value; $("#nfSteps").oninput=e=>form.steps=e.target.value; $("#nfMat").oninput=e=>form.mat=e.target.value;
-    D.querySelectorAll("[data-nft]").forEach(b=>b.onclick=()=>{ form.type=b.dataset.nft; drawDlg(); });
-    D.querySelectorAll("[data-nfx]").forEach(b=>b.onclick=()=>{ form.fix=b.dataset.nfx; drawDlg(); });
-    $("#nfCancel").onclick=()=>{ form=null; drawDlg(); };
-    $("#nfSave").onclick=async()=>{ if(!form.what.trim()){ $("#err").textContent="Say what went wrong first."; return; }
-      const f=form, n=nextN(); form=null;
-      await mut(`${tag(n)} logged: ${f.what.trim()}`,jj=>{ jj.ncrs.push({n,what:f.what.trim(),part:(f.part||"").trim(),details:(f.details||"").trim(),type:f.type,fix:f.fix,mat:Number(f.mat)||0,closed:false,at:new Date().toISOString()}); saveSteps(jj,n,parseSteps(f.steps)); }); };
+    const ch=k=>e=>{ form[k]=e.target.value; saveDraft(); const c=$("#nfCancel"); if(c) c.textContent=hasContent(form)?"Discard":"Cancel"; };
+    $("#nfWhat").oninput=ch("what"); $("#nfPart").oninput=ch("part"); $("#nfDet").oninput=ch("details"); $("#nfSteps").oninput=ch("steps"); $("#nfMat").oninput=ch("mat");
+    D.querySelectorAll("[data-nft]").forEach(b=>b.onclick=()=>{ form.type=b.dataset.nft; saveDraft(); drawDlg(); });
+    D.querySelectorAll("[data-nfx]").forEach(b=>b.onclick=()=>{ form.fix=b.dataset.nfx; saveDraft(); drawDlg(); });
+    const beforeCam=async()=>{ if(D_) await D_.save(DK(form.jid),draftOf(form)); };   // saved right before the camera / picker opens
+    const changed=()=>{ if(D_) D_.save(DK(form.jid),draftOf(form)); drawDlg(); };
+    $("#nfPhAdd").onclick=async()=>{ const f=form; const got=PH?await PH.pick({title:"Add photo to the NCR",before:beforeCam}):[]; if(!got.length||form!==f) return; got.forEach(b=>f.photos.push({blob:b})); changed(); };
+    if(PH) PH.wire(D,"nf",form.photos,changed,beforeCam);
+    if(D_&&D_.has(DK(form.jid))) D_.mark($("#nfDraft"),"saved");
+    $("#nfCancel").onclick=async()=>{ if(hasContent(form)&&!confirm("Discard this NCR? What you've typed and its photos will be deleted.")) return; const jid=form.jid; form=null; if(D_) await D_.clear(DK(jid)); drawDlg(); };
+    $("#nfSave").onclick=async()=>{ const msg=t=>{ const m=$("#nfMsg"); if(m) m.textContent=t; $("#err").textContent=t; };
+      if(!form.what.trim()){ msg("Say what went wrong first."); return; }
+      const f=form, sv=$("#nfSave"); if(sv.disabled) return; sv.disabled=true; sv.textContent="Saving…";
+      if(D_) await D_.save(DK(f.jid),draftOf(f));   // nothing is lost if anything below fails
+      const fail=t=>{ msg(t+" The NCR is kept on this phone as a draft - tap Save NCR again."); sv.disabled=false; sv.textContent="Save NCR"; };
+      if(navigator.onLine===false) return fail("No connection.");
+      try{ for(const p of f.photos) if(!p.path){ p.path=await uploadPh(f.jid,p.blob); if(D_) await D_.save(DK(f.jid),draftOf(f)); } }   // uploaded photos remembered, so a retry doesn't send them twice
+      catch(e){ return fail("Couldn't upload the photos ("+(e.message||e)+")."); }
+      const n=nextN();
+      const ok=await mut(`${tag(n)} logged: ${f.what.trim()}`,jj=>{ jj.ncrs.push({n,what:f.what.trim(),part:(f.part||"").trim(),details:(f.details||"").trim(),type:f.type,fix:f.fix,mat:Number(f.mat)||0,photos:f.photos.map(p=>p.path),closed:false,at:new Date().toISOString()}); saveSteps(jj,n,parseSteps(f.steps)); });
+      if(!ok){ if(form===f) return fail("Couldn't save."); return; }
+      f.photos.forEach(p=>{ if(p.blob&&p.path) phUrls[p.path]=PH.url(p); });   // show them straight away
+      if(D_) await D_.clear(DK(f.jid)); if(form===f) form=null; drawDlg(); };
   }
   D.querySelectorAll("[data-ndetails]").forEach(el=>el.ontoggle=()=>{ const k=j.id+":"+el.dataset.ndetails; if(el.open) openCards.add(k); else openCards.delete(k); });
   const txt=(sel,key,label)=>D.querySelectorAll(`[data-${sel}]`).forEach(el=>el.onchange=()=>{ const n=+el.dataset[sel]; mut(`${tag(n)} ${label} updated`,jj=>{ jj.ncrs.find(x=>x.n===n)[key]=el.value.trim(); }); });
@@ -196,7 +244,7 @@ window.ncrDecide=async(jid,n,{fix,note,steps})=>{
 };
 window.ncrFixes=FIXES;
 /* "Report a problem" from a task (stage 7): the job's NCRs section with a new NCR started, the task named in the details */
-window.ncrNewFor=(jid,pre={})=>{ form={jid,what:"",type:TYPES[2],fix:"Deciding",steps:"",mat:"",details:pre.details||""};
+window.ncrNewFor=async(jid,pre={})=>{ await startForm(jid,{type:TYPES[2],fix:"Deciding",details:pre.details||""});
   if(typeof setJobTab==="function"&&typeof openId!=="undefined"&&openId===jid){ setJobTab("ncr"); drawDlg(); } else openJob(jid,"ncr");
   setTimeout(()=>{ const w=$("#nfWhat"); if(w) w.focus(); },60); };
 window.ncrOpenN=j=>(j.ncrs||[]).filter(x=>isOpenSt(stats(j,x).st)).length;
@@ -210,7 +258,9 @@ function all(){ const out=[]; [...jobs,...archivedJobs].forEach(j=>(j.ncrs||[]).
 function detailHtml(r){
   const {j,x,s}=r, revs=window.revsFor?window.revsFor(j.id,x.n):[];
   const blk=(h,b)=>b?`<div class="dh">${h}</div><div class="dbox">${b}</div>`:"";
-  return blk("Part number(s)",esc(x.part||""))
+  if((x.photos||[]).length) signPhotos(x.photos);
+  return ((x.photos||[]).length?`<div class="dh">Photos</div><div class="gph-strip">${x.photos.map(p=>phUrls[p]?`<a class="t" href="${esc(phUrls[p])}" target="_blank" rel="noopener"><img src="${esc(phUrls[p])}" alt=""></a>`:`<div class="t" data-nphp="${esc(p)}"></div>`).join("")}</div>`:"")
+    +blk("Part number(s)",esc(x.part||""))
     +blk("What happened",esc(x.details||""))+(x.details?"":`<div class="lbl" style="margin-top:6px">No details written yet - open the job to add them.</div>`)
     +blk("Decided",esc(x.decision||""))
     +blk("Rework",s.ts.map(a=>`${a.status==="done"?"✓ ":"• "}${esc(a.name)}${planHours(j.id,a.id)!=null?" - "+planHours(j.id,a.id)+"h":""}`).join("\n"))
@@ -258,5 +308,15 @@ nb.onclick=()=>{ cur="ncr"; try{history.replaceState(null,"","#ncr")}catch(e){} 
 GVC.on("render:after",()=>{ const n=all().filter(r=>isOpenSt(r.s.st)).length; nb.textContent=n?`NCRs (${n} open)`:"NCRs"; nb.classList.toggle("primary",cur==="ncr"); },{core:true});
 GVC.on("autoTodos",out=>{ try{ const hidden=new Set(todos.filter(t=>t.source==="auto").map(t=>t.text));
   all().filter(r=>r.s.st==="Deciding").forEach(r=>{ const text=`Decide the fix for ${tag(r.x.n)} (${r.j.name}): ${r.x.what}`; if(!hidden.has(text)) out.push({text,c:"#e5483b",job:r.j.id,ncr:r.x.n}); }); }catch(e){} return out; });
+/* unfinished NCRs on this phone: a quiet note once the jobs are loaded, with Resume */
+(async()=>{ if(!D_) return; await D_.ready; let tries=0; const t=setInterval(()=>{ tries++; if(typeof jobs==="undefined"||(!jobs.length&&tries<40)) return; clearInterval(t);
+  const ks=D_.keys("ncr:").filter(k=>[...jobs,...archivedJobs].some(j=>"ncr:"+j.id===k)); if(!ks.length) return;
+  const j=[...jobs,...archivedJobs].find(x=>"ncr:"+x.id===ks[0]);
+  const b=document.createElement("div"); b.setAttribute("role","status"); b.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));z-index:9000;background:#1f2328;border:1px solid var(--orange,#ff8a2a);border-radius:12px;padding:8px 8px 8px 14px;display:flex;gap:8px;align-items:center;width:min(94vw,440px);box-sizing:border-box;box-shadow:0 8px 24px rgba(0,0,0,.5);font-size:14px";
+  b.id="ncrDraftNote"; b.innerHTML=`<span style="flex:1;min-width:0">Unfinished NCR${ks.length>1?"s":""} on <b>${esc(j.name)}</b>${ks.length>1?` +${ks.length-1} more`:""}</span><button class="btn sm primary" type="button">Resume</button><button class="btn sm ghost" type="button" aria-label="Dismiss">✕</button>`;
+  document.body.appendChild(b); const [go,x]=b.querySelectorAll("button"); x.onclick=()=>b.remove();
+  go.onclick=async()=>{ b.remove(); await startForm(j.id); if(typeof setJobTab==="function"&&typeof openId!=="undefined"&&openId===j.id){ setJobTab("ncr"); drawDlg(); } else openJob(j.id,"ncr"); };
+  const gone=()=>{ if(!ks.some(k=>D_.has(k))||(form&&ks.includes(DK(form.jid)))){ b.remove(); document.removeEventListener("gvc:draft",gone); } };   // saved, discarded or already being worked on
+  document.addEventListener("gvc:draft",gone); setTimeout(()=>b.remove(),20000); },500); })();
 window.ncrLines=()=>{ try{ return all().filter(r=>r.s.st!=="Closed").map(r=>`[NCR] ${tag(r.x.n)} ${r.j.name}: ${r.x.what}${r.x.part?" ["+r.x.part+"]":""} (${r.x.type}, fix: ${r.x.fix}, ${r.s.st}, ${+r.s.h.toFixed(1)}h rework${r.x.mat?", $"+r.x.mat+" material":""})`); }catch(e){ return []; } };
 })();

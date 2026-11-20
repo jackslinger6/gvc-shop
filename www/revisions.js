@@ -59,6 +59,11 @@ async function shrink(file){
     c.getContext("2d").drawImage(img,0,0,c.width,c.height); return await new Promise(res=>c.toBlob(b=>res(b||file),"image/jpeg",0.82));
   }catch(e){ return file; }
 }
+/* draft of the New revision form on this phone (Nov 19) - same rules as NCRs: saved as you type and before the camera */
+const RDK="rev:new", RD=window.GVCDraft, RP=window.GVCPhotos;
+const rHas=f=>!!(f&&((f.part||"").trim()||(f.what||"").trim()||(f.files||[]).length));
+const rDraft=f=>({job:f.job||"",part:f.part||"",what:f.what||"",kind:f.kind,ncr:f.ncr||null,files:(f.files||[]).map(x=>({blob:x.blob}))});
+const rSave=RD?RD.saver(RDK,()=>form&&rHas(form)?rDraft(form):null,()=>document.getElementById("rfDraft")):()=>{};
 async function uploadPhotos(id,files){
   const paths=[]; for(const f of files){ const b=await shrink(f); const p=`rev/${id}/${Date.now()}-${Math.random().toString(36).slice(2,6)}.jpg`;
     const {error}=await sb.storage.from("gvc-photos").upload(p,b,{contentType:"image/jpeg"}); if(!error) paths.push(p); else say("Photo upload failed: "+error.message); }
@@ -87,9 +92,10 @@ window.renderRevs=function(){
      ${fncrs.length?`<label>Comes from an NCR? (optional)<select id="rfNcr"><option value="">No NCR</option>${fncrs.map(x=>`<option value="${x.n}" ${form.ncr==x.n?"selected":""}>NCR-${String(x.n).padStart(3,"0")} - ${esc(x.what)}</option>`).join("")}</select></label>`:""}
      <label>Part / area<input id="rfPart" value="${esc(form.part)}" placeholder="e.g. Apron - tab and slot at the front corner"></label>
      <label>What needs to change<textarea id="rfWhat" placeholder="e.g. Slot needs more clearance - the tab doesn't fit. Open it up 1/16&quot; each side.">${esc(form.what)}</textarea></label>
-     <label>Photos (take one or pick from the gallery)<input id="rfPh" type="file" accept="image/*" multiple></label>
-     <div class="lbl" id="rfPhN">${form.files.length?form.files.length+" photo"+(form.files.length>1?"s":"")+" ready":""}</div>
-     <div class="row" style="justify-content:flex-end"><button class="btn sm" type="button" id="rfX">Cancel</button><button class="btn sm primary" type="button" id="rfSave">Save revision</button></div></div>`;
+     ${form.restored?`<div class="lbl" style="color:#ffd28a">Unfinished revision from ${RD.ago(form.restored)} - carried on where you left off.</div>`:""}
+     <label>Photos (optional)</label>${RP?RP.strip(form.files,"rf"):""}
+     <div class="row"><button class="btn sm" type="button" id="rfPh">📷 Add photo</button><span class="gph-draft" id="rfDraft" aria-live="polite"></span></div>
+     <div class="row" style="justify-content:flex-end"><button class="btn sm" type="button" id="rfX">${rHas(form)?"Discard":"Cancel"}</button><button class="btn sm primary" type="button" id="rfSave">Save revision</button></div></div>`;
   if(openSel.length&&isAdm()) h+=`<div class="row"><button class="btn sm" type="button" id="rvMail">✉ Email Jessie the ${sel.size?sel.size+" selected":openSel.length+" not sent"}</button><button class="btn sm" type="button" id="rvShow">Show list</button><span class="lbl">Tick revisions to send only some.</span></div>`;
   h+=list.map(r=>{ const s=ST[r.status]||ST.open; const f=r.files||{};
     return `<div class="rc" style="--c:${s[1]}"><div class="rh">${r.status==="open"&&isAdm()?`<input type="checkbox" data-rsel="${r.id}" ${sel.has(r.id)?"checked":""} aria-label="Select ${tagOf(r)}">`:""}<b>${tagOf(r)}</b><span>${esc(jobName(r.job_id))}</span><span class="lbl">${r.kind==="fix"?"Fix":"Improvement"}${r.ncr?` · from NCR-${String(r.ncr).padStart(3,"0")}`:""}</span>${r.part?`<span class="lbl">· ${esc(r.part)}</span>`:""}<span style="flex:1"></span><span class="pill">${s[0]}</span></div>
@@ -108,25 +114,34 @@ window.renderRevs=function(){
         ${r.status==="done"?`<button class="btn sm primary" type="button" data-rst="${r.id}|checked">✓ Checked it</button><button class="btn sm" type="button" data-rst="${r.id}|sent">Not right - back to Jessie</button>`:""}
         ${["checked","dropped"].includes(r.status)?`<button class="btn sm" type="button" data-rst="${r.id}|open">Reopen</button>`:`<button class="btn sm ghost" type="button" data-rst="${r.id}|dropped">Not doing</button>`}`}
         <span style="flex:1"></span>
-        <label class="btn sm ghost" style="cursor:pointer">+ Photo<input type="file" accept="image/*" multiple data-rph="${r.id}" style="display:none"></label>
+        <button class="btn sm ghost" type="button" data-rph="${r.id}">📷 + Photo</button>
         ${isAdm()?`<button class="btn sm ghost" type="button" data-rnote="${r.id}">Note</button>`:""}
         <button class="btn sm ghost" type="button" data-redit="${r.id}">Edit</button>
       </div></div>`; }).join("")||`<div class="empty" style="text-align:left">${loaded?"Nothing here. Tap + Revision when something in the shop needs a model change.":"Loading…"}</div>`;
   B.innerHTML=h;
-  $("#rvAdd").onclick=()=>{ form={job:jf||"",part:"",what:"",files:[],kind:"improvement",ncr:null}; render(); };
+  $("#rvAdd").onclick=async()=>{ if(form) return; const d=RD&&await RD.load(RDK);
+    form=d?{job:d.job||"",part:d.part||"",what:d.what||"",kind:d.kind||"improvement",ncr:d.ncr||null,files:(d.files||[]).filter(x=>x.blob),restored:d._at}:{job:jf||"",part:"",what:"",files:[],kind:"improvement",ncr:null}; render(); };
+  if(!form&&RD&&RD.has(RDK)){ const a=$("#rvAdd"); if(a&&!/Resume/.test(a.textContent)){ a.textContent="Resume unfinished revision"; a.classList.add("primary"); } }
   $("#rvJob").onchange=e=>{ jf=e.target.value; sel.clear(); render(); };
   B.querySelectorAll("[data-rf]").forEach(b=>b.onclick=()=>{ filt=b.dataset.rf; render(); });
   if(form){
-    $("#rfJob").onchange=e=>{ form.job=e.target.value; form.ncr=null; render(); };
-    const rn=$("#rfNcr"); if(rn) rn.onchange=e=>{ form.ncr=e.target.value?+e.target.value:null; if(form.ncr) form.kind="fix"; render(); };
-    B.querySelectorAll("[data-rk]").forEach(x=>x.onclick=()=>{ form.kind=x.dataset.rk; render(); }); $("#rfPart").oninput=e=>form.part=e.target.value; $("#rfWhat").oninput=e=>form.what=e.target.value;
-    $("#rfPh").onchange=e=>{ form.files=[...form.files,...e.target.files]; $("#rfPhN").textContent=form.files.length+" photo"+(form.files.length>1?"s":"")+" ready"; };
-    $("#rfX").onclick=()=>{ form=null; render(); };
-    $("#rfSave").onclick=async()=>{ if(!form.what.trim()){ say("Say what needs to change first."); return; } if(window.ME&&ME.preview){ say("Preview - nothing is saved."); return; } const f=form; $("#rfSave").disabled=true; say("Saving…");
+    $("#rfJob").onchange=e=>{ form.job=e.target.value; form.ncr=null; rSave(); render(); };
+    const rn=$("#rfNcr"); if(rn) rn.onchange=e=>{ form.ncr=e.target.value?+e.target.value:null; if(form.ncr) form.kind="fix"; rSave(); render(); };
+    B.querySelectorAll("[data-rk]").forEach(x=>x.onclick=()=>{ form.kind=x.dataset.rk; rSave(); render(); });
+    const rch=k=>e=>{ form[k]=e.target.value; rSave(); const c=$("#rfX"); if(c) c.textContent=rHas(form)?"Discard":"Cancel"; };
+    $("#rfPart").oninput=rch("part"); $("#rfWhat").oninput=rch("what");
+    const before=async()=>{ if(RD) await RD.save(RDK,rDraft(form)); };
+    const changed=()=>{ if(RD) RD.save(RDK,rDraft(form)); render(); };
+    $("#rfPh").onclick=async()=>{ const f=form; const got=RP?await RP.pick({title:"Add photo to the revision",before}):[]; if(!got.length||form!==f) return; got.forEach(b=>f.files.push({blob:b})); changed(); };
+    if(RP) RP.wire(B,"rf",form.files,changed,before);
+    if(RD&&RD.has(RDK)) RD.mark($("#rfDraft"),"saved");
+    $("#rfX").onclick=async()=>{ if(rHas(form)&&!confirm("Discard this revision? What you've typed and its photos will be deleted.")) return; form=null; if(RD) await RD.clear(RDK); render(); };
+    $("#rfSave").onclick=async()=>{ if(!form.what.trim()){ say("Say what needs to change first."); return; } if(window.ME&&ME.preview){ say("Preview - nothing is saved."); return; } const f=form; if(RD) await RD.save(RDK,rDraft(f));
+      if(navigator.onLine===false){ say("No connection - the revision is kept on this phone as a draft. Tap Save revision again when you have signal."); return; } $("#rfSave").disabled=true; say("Saving…");
       const {data,error}=await sb.from("gvc_revisions").insert({job_id:f.job||null,part:f.part.trim()||null,what:f.what.trim(),kind:f.kind||"improvement",ncr:f.ncr||null}).select().single();
-      if(error){ say("Couldn't save: "+error.message); $("#rfSave").disabled=false; return; }
-      if(f.files.length){ const ps=await uploadPhotos(data.id,f.files); if(ps.length) await sb.from("gvc_revisions").update({photos:ps}).eq("id",data.id); }
-      form=null; if(f.job) jf=f.job; await load(); say(isAdm()?`${tagOf(data)} saved.`:`${tagOf(data)} saved - Kyle will look at it before it goes to Jessie.`); };
+      if(error){ say("Couldn't save: "+error.message+" - it's kept on this phone as a draft."); $("#rfSave").disabled=false; return; }
+      if(f.files.length){ const ps=await uploadPhotos(data.id,f.files.map(x=>x.blob)); if(ps.length) await sb.from("gvc_revisions").update({photos:ps}).eq("id",data.id); if(ps.length<f.files.length) say("Saved, but "+(f.files.length-ps.length)+" photo(s) didn't upload - add them again with + Photo."); }
+      if(RD) await RD.clear(RDK); form=null; if(f.job) jf=f.job; await load(); say(isAdm()?`${tagOf(data)} saved.`:`${tagOf(data)} saved - Kyle will look at it before it goes to Jessie.`); };
   }
   B.querySelectorAll("[data-rsel]").forEach(c=>c.onchange=()=>{ c.checked?sel.add(c.dataset.rsel):sel.delete(c.dataset.rsel); render(); });
   B.querySelectorAll("[data-rst]").forEach(b=>b.onclick=()=>{ const [id,st]=b.dataset.rst.split("|"); const now=new Date().toISOString(); const r=revs.find(x=>x.id===id);
@@ -134,7 +149,7 @@ window.renderRevs=function(){
     const p={status:st}; if(st==="sent") p.sent_at=now; if(st==="checked"){ p.checked_at=now; const f=r.files||{}; if(!FILES.every(([k])=>f[k])) say(`${tagOf(r)} checked. Not every file is ticked as updated yet - tick Model / Drawings / DXFs when they are.`); }
     upd(id,p); });
   B.querySelectorAll("[data-rfile]").forEach(c=>c.onchange=()=>{ const [id,k]=c.dataset.rfile.split("|"); const r=revs.find(x=>x.id===id); upd(id,{files:{...(r.files||{}),[k]:c.checked}}); });
-  B.querySelectorAll("[data-rph]").forEach(i=>i.onchange=async()=>{ const id=i.dataset.rph; const r=revs.find(x=>x.id===id); say("Uploading photo…"); const ps=await uploadPhotos(id,[...i.files]); if(ps.length){ await upd(id,{photos:[...(r.photos||[]),...ps]}); await signPhotos(); render(); say("Photo added."); } });
+  B.querySelectorAll("[data-rph]").forEach(i=>i.onclick=async()=>{ const id=i.dataset.rph; const r=revs.find(x=>x.id===id); const got=RP?await RP.pick({title:"Add photo to "+tagOf(r)}):[]; if(!got.length) return; say("Uploading photo…"); const ps=await uploadPhotos(id,got); if(ps.length){ await upd(id,{photos:[...(r.photos||[]),...ps]}); await signPhotos(); render(); say("Photo added."); } });
   B.querySelectorAll("[data-rnote]").forEach(b=>b.onclick=()=>{ const r=revs.find(x=>x.id===b.dataset.rnote); const t=prompt("Note on this revision (Jessie's answer, what changed...)",r.jesse_note||""); if(t!==null) upd(r.id,{jesse_note:t.trim()||null}); });
   B.querySelectorAll("[data-redit]").forEach(b=>b.onclick=()=>{ edit=edit===b.dataset.redit?null:b.dataset.redit; render(); });
   B.querySelectorAll("[data-rsave]").forEach(b=>b.onclick=()=>{ const id=b.dataset.rsave; edit=null; upd(id,{what:B.querySelector(`[data-rwhat="${id}"]`).value.trim(),part:B.querySelector(`[data-rpart="${id}"]`).value.trim()||null}); });
